@@ -2,18 +2,18 @@
 
 ## API
 
-### Type
+### Any Avro types
 
 ```javascript
-var Type = avsc.parse({type: 'map', values: 'int'});
-var buf = Type.encode({one: 1, two: 2});
-var obj = Type.decode(buf); // == buf
+var intMapType = avsc.parse({type: 'map', values: 'int'});
+var buf = intMapType.encode({one: 1, two: 2});
+var obj = intMapType.decode(buf); // == {one: 1, two: 2}
 ```
 
 ### Records
 
 ```javascript
-var Type = avsc.parse({
+var recordType = avsc.parse({
   type: 'record',
   name: 'Person',
   fields: [
@@ -23,10 +23,12 @@ var Type = avsc.parse({
 });
 
 // Constructors are programmatically generated for each record type!
-var Record = Type.getRecordConstructor();
+var Record = recordType.getRecordConstructor();
 
-// This constructor can be used to instantiate them directly.
+// This constructor can be used to instantiate records directly.
 var record = new Record('Ann', 25);
+
+// Records expose a few useful properties and methods.
 record.$name; // == 'Person'
 record.$fields; // == ['name', 'age']
 record.$toAvro(); // Buffer with bytes representation of record.
