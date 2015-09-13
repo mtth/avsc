@@ -14,7 +14,7 @@ suite('schema', function () {
 
     test('expand', function () {
 
-      assert.equal(sm._value.type, 'int');
+      assert.equal(sm._value.name, 'int');
 
     });
 
@@ -69,7 +69,7 @@ suite('schema', function () {
     test('expand', function () {
 
       assert('world.Person' in sm._types);
-      assert.equal(sm._value.fields[0].type.type, 'string');
+      assert.equal(sm._value._fields[0].type.name, 'string');
 
     });
 
@@ -98,7 +98,7 @@ suite('schema', function () {
         ]
       };
       var sm = new schema.Schema(obj);
-      assert.equal(sm._value, sm._value.fields[2].type.items);
+      assert.equal(sm._value, sm._value._fields[2].type._type);
 
     });
 
