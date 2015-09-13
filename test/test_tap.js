@@ -9,10 +9,26 @@ suite('tap', function () {
 
   suite('long', function () {
 
+    test('write', function () {
+
+      var tap = newTap(20);
+      tap.writeLong(1440756011948);
+      var buf = new Buffer(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+      assert(buf.equals(tap.buf.slice(0, 6)));
+
+    });
+
+    test('read', function () {
+
+      var buf = new Buffer(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+      assert.equal((new tap.Tap(buf)).readLong(), 1440756011948);
+
+    });
+
     test('write read', function () {
 
       var tap = newTap(20);
-      var nums = [0, 3, 1234, -5];
+      var nums = [0, 3, 1234, -5, 1440756011948];
       var i, l, num;
       for (i = 0, l = nums.length; i < l; i++) {
         tap.buf.fill(0);
