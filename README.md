@@ -1,5 +1,10 @@
 # Avsc
 
+A JavaScript Avro API which will make you smile.
+
+*Under active development.*
+
+
 ## API
 
 ### Any Avro types
