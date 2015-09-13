@@ -14,7 +14,7 @@ suite('schema', function () {
 
     test('expand', function () {
 
-      assert.equal(sm.value.type, 'int');
+      assert.equal(sm._value.type, 'int');
 
     });
 
@@ -46,9 +46,9 @@ suite('schema', function () {
       var fl = new tap.Tap(buf);
       var sm = new schema.Schema({type: 'map', values: 'string'});
       var obj = {one: 'un', two: 'deux'};
-      sm.value.writer.call(fl, obj);
+      sm._value._writer.call(fl, obj);
       fl.offset = 0;
-      assert.deepEqual(sm.value.reader.call(fl), obj);
+      assert.deepEqual(sm._value._reader.call(fl), obj);
 
     });
 
@@ -68,8 +68,8 @@ suite('schema', function () {
 
     test('expand', function () {
 
-      assert('world.Person' in sm.types);
-      assert.equal(sm.value.fields[0].type.type, 'string');
+      assert('world.Person' in sm._types);
+      assert.equal(sm._value.fields[0].type.type, 'string');
 
     });
 
@@ -98,7 +98,18 @@ suite('schema', function () {
         ]
       };
       var sm = new schema.Schema(obj);
-      assert.equal(sm.value, sm.value.fields[2].type.items);
+      assert.equal(sm._value, sm._value.fields[2].type.items);
+
+    });
+
+  });
+
+  suite('from file', function () {
+
+    test('weather', function () {
+
+      var sm = schema.Schema.fromFile('dat/weather.avsc');
+      assert.equal(sm._value.name, 'test.Weather');
 
     });
 
