@@ -3,7 +3,7 @@
 'use strict';
 
 var schema = require('../lib/schema'),
-    flow = require('../lib/flow'),
+    tap = require('../lib/tap'),
     assert = require('assert');
 
 suite('schema', function () {
@@ -43,7 +43,7 @@ suite('schema', function () {
 
       var buf = new Buffer(20);
       buf.fill(0);
-      var fl = new flow.Flow(buf);
+      var fl = new tap.Tap(buf);
       var sm = new schema.Schema({type: 'map', values: 'string'});
       var obj = {one: 'un', two: 'deux'};
       sm.value.writer.call(fl, obj);
