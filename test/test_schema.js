@@ -94,7 +94,7 @@ suite('schema', function () {
         fields: [
           {name: 'name', type: 'string'},
           {name: 'age', type: 'int'},
-          {name: 'friends', type: 'array', items: 'Person'}
+          {name: 'friends', type: {type: 'array', items: 'Person'}}
         ]
       };
       var sm = new schema.Schema(obj);
