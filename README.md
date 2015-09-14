@@ -2,22 +2,30 @@
 
 A JavaScript Avro API which will make you smile.
 
-*Under active development.*
+*Under development.*
 
 
 ## API
 
-### Any Avro types
+
+### All Avro types
 
 ```javascript
+var avsc = require('avsc');
+
+// Each Avro type exposes decoding and encoding methods.
 var intMapType = avsc.parse({type: 'map', values: 'int'});
 var buf = intMapType.encode({one: 1, two: 2});
 var obj = intMapType.decode(buf); // == {one: 1, two: 2}
 ```
 
+
 ### Records
 
 ```javascript
+var avsc = require('avsc');
+
+// Avro type corresponding to a record.
 var recordType = avsc.parse({
   type: 'record',
   name: 'Person',
@@ -27,21 +35,43 @@ var recordType = avsc.parse({
   ]
 });
 
-// Constructors are programmatically generated for each record type!
-var Record = recordType.getRecordConstructor();
+// For record types, constructors are programmatically generated!
+var Person = recordType.getRecordConstructor();
 
 // This constructor can be used to instantiate records directly.
-var record = new Record('Ann', 25);
+var person = new Person('Ann', 25);
 
-// Records expose a few useful properties and methods.
-record.$name; // == 'Person'
-record.$fields; // == ['name', 'age']
-record.$toAvro(); // Buffer with bytes representation of record.
+// The record's fields get set appropriately.
+person.name; // == 'Ann'
+person.age; // == 25
 
-// Or via a static method.
-Record.fromAvro(buf); // == record
+// Records also have a few useful properties and methods.
+person.$name; // == 'Person'
+person.$fields; // == ['name', 'age']
+person.$toAvro(); // Buffer with encoded record.
+
+// Finally the record class exposes a static decoding method.
+Person.fromAvro(buf); // == person
 ```
+
 
 ### Object container files
 
-TODO
+```javascript
+var avsc = require('avsc'),
+    fs = require('fs');
+
+// Read.
+var reader = avsc.createReadStream('events.avro')
+reader.on('data', function (record) { console.log(record); });
+
+// Write.
+var writer = type.('events.avro');
+writer.write(record);
+
+// Or.
+var byteStream = fs.createReadStream('events.avro');
+var eventStream = new avsc.ReadStream(bytesStream);
+
+
+```
