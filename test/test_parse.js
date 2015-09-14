@@ -9,9 +9,11 @@ suite('parse', function () {
 
   suite('primitive schemas', function () {
 
+    var intType = parse.parse('int');
+    var stringType = parse.parse({type: 'string'});
+
     test('from string', function () {
 
-      var intType = parse.parse('int');
       assert.equal(intType.decode(new Buffer([0x80, 0x01])), 64);
       assert(new Buffer([0]).equals(intType.encode(0)));
 
@@ -19,7 +21,6 @@ suite('parse', function () {
 
     test('from object', function () {
 
-      var stringType = parse.parse({type: 'string'});
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
       assert.equal(stringType.decode(buf), s);
@@ -27,9 +28,16 @@ suite('parse', function () {
 
     });
 
+    test('validate', function () {
+
+      assert(intType.validate(123));
+      assert(!intType.validate('hi'));
+      assert(stringType.validate('hi'));
+
+    });
+
     test('encode', function () {
 
-      var stringType = parse.parse({type: 'string'});
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       assert(buf.equals(stringType.encode('hi!', 1)));
 
@@ -90,7 +98,9 @@ suite('parse', function () {
       ok: [
         {
           name: 'flat single int field',
-          schema: {type: 'record', name: 'Foo', fields: [{name: 'bar', type: 'int'}]},
+          schema: {
+            type: 'record', name: 'Foo', fields: [{name: 'bar', type: 'int'}]
+          },
           obj: {bar: 3}
         }
       ],
