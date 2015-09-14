@@ -91,7 +91,9 @@ Returns an instance of the corresponding `AvroType`.
 
 #### `type.decode(buf)`
 
-#### `type.encode(obj)`
+#### `type.encode(obj, [opts])`
+
+#### `type.validate(obj)`
 
 #### `type.getRecordConstructor()`
 
@@ -106,4 +108,6 @@ For record types.
 
 #### `record.$fieldNames`
 
-#### `record.$encode()`
+#### `record.$encode([opts])`
+
+#### `record.$validate()`
