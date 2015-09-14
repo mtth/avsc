@@ -27,6 +27,14 @@ suite('parse', function () {
 
     });
 
+    test('encode', function () {
+
+      var stringType = parse.parse({type: 'string'});
+      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
+      assert(buf.equals(stringType.encode('hi!', 1)));
+
+    });
+
   });
 
   suite('built-in complex schemas', function () {

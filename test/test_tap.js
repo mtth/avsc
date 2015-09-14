@@ -57,7 +57,8 @@ suite('tap', function () {
     test('write too long', function () {
 
       var tap = newTap(5);
-      assert.throws(function () { tap.writeString('hello there!'); });
+      tap.writeString('hello there!');
+      assert(!tap.isValid());
 
     });
 
@@ -78,7 +79,8 @@ suite('tap', function () {
     test('write too long', function () {
 
       var tap = newTap(3);
-      assert.throws(function () { tap.writeFixed(new Buffer('abcde')); });
+      tap.writeFixed(new Buffer('abcde'));
+      assert(!tap.isValid());
 
     });
 
