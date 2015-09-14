@@ -2,7 +2,7 @@
 
 'use strict';
 
-var tap = require('../lib/tap'),
+var Tap = require('../lib/tap'),
     assert = require('assert');
 
 suite('tap', function () {
@@ -21,7 +21,7 @@ suite('tap', function () {
     test('read', function () {
 
       var buf = new Buffer(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
-      assert.equal((new tap.Tap(buf)).readLong(), 1440756011948);
+      assert.equal((new Tap(buf)).readLong(), 1440756011948);
 
     });
 
@@ -172,6 +172,6 @@ function newTap(n) {
 
   var buf = new Buffer(n);
   buf.fill(0);
-  return new tap.Tap(buf);
+  return new Tap(buf);
 
 }
