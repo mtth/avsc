@@ -46,8 +46,8 @@ person.name; // == 'Ann'
 person.age; // == 25
 
 // Records also have a few useful properties and methods.
-person.$name; // == 'Person'
-person.$fields; // == ['name', 'age']
+person.$typeName; // == 'Person'
+person.$fieldNames; // == ['name', 'age']
 person.$toAvro(); // Buffer with encoded record.
 
 // Finally the record class exposes a static decoding method.
@@ -56,6 +56,8 @@ Person.fromAvro(buf); // == person
 
 
 ### Object container files
+
+(Soon.)
 
 ```javascript
 var avsc = require('avsc'),
