@@ -13,6 +13,7 @@ new Benchmark()
     return function (cb) {
       var record = schema.decode(buf);
       assert(record.header.memberId);
+      // assert(buf.equals(record.$encode({unsafe: false, size: 1024})));
       cb();
     };
   })())
