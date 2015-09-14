@@ -116,6 +116,14 @@ suite('parse', function () {
         {
           name: 'invalid fields',
           schema: {type: 'record', name: 'Foo', fields: {name: 'bar'}}
+        },
+        {
+          name: 'invalid default',
+          schema: {
+            type: 'record',
+            name: 'Foo',
+            fields: [{name: 'bar', type: 'int', 'default': null}]
+          }
         }
       ]
     });
