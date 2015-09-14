@@ -110,6 +110,23 @@ suite('parse', function () {
       ]
     });
 
+    test('writer default', function () {
+
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'name', type: 'string', 'default': 'unknown'},
+          {name: 'age', type: 'int'}
+        ]
+      });
+
+      var x = {age: 23};
+      var buf = type.encode(x);
+      assert.deepEqual(type.decode(buf), {name: 'unknown', age: 23});
+
+    });
+
   });
 
   function testElems(elems) {

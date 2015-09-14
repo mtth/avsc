@@ -5,27 +5,27 @@ A JavaScript Avro API which will make you smile.
 *Under development.*
 
 
-## API
+## Examples
 
 
-### All Avro types
+### Fragments
 
 ```javascript
 var avsc = require('avsc');
 
-// Each Avro type exposes decoding and encoding methods.
+// Parsing a schema returns a corresponding Avro type.
+var stringType = asvc.parse('string');
+
+// This type exposes decoding and encoding methods.
+var buf1 = stringType.encode('hello, Avro!'); // Bytes  encoding
+stringType.decode(buf); // == 'hello, Avro!'
+
+// Complex types work in the same way.
 var intMapType = avsc.parse({type: 'map', values: 'int'});
-var buf = intMapType.encode({one: 1, two: 2});
-var obj = intMapType.decode(buf); // == {one: 1, two: 2}
-```
+var buf2 = intMapType.encode({one: 1, two: 2});
+intMapType.decode(buf); // == {one: 1, two: 2}
 
-
-### Records
-
-```javascript
-var avsc = require('avsc');
-
-// Avro type corresponding to a record.
+// So do record types.
 var recordType = avsc.parse({
   type: 'record',
   name: 'Person',
@@ -48,10 +48,10 @@ person.age; // == 25
 // Records also have a few useful properties and methods.
 person.$typeName; // == 'Person'
 person.$fieldNames; // == ['name', 'age']
-person.$toAvro(); // Buffer with encoded record.
+person.$encode(); // Buffer with encoded record.
 
 // Finally the record class exposes a static decoding method.
-Person.fromAvro(buf); // == person
+Person.decode(buf); // == person
 ```
 
 
@@ -77,3 +77,33 @@ var eventStream = new avsc.ReadStream(bytesStream);
 
 
 ```
+
+
+## API
+
+
+### `avsc.parse(schema)`
+
+Returns an instance of the corresponding `AvroType`.
+
+
+### `class AvroType`
+
+#### `type.decode(buf)`
+
+#### `type.encode(obj)`
+
+#### `type.getRecordConstructor()`
+
+For record types.
+
+
+### `class Record`
+
+#### `Record.decode(buf)`
+
+#### `record.$typeName`
+
+#### `record.$fieldNames`
+
+#### `record.$encode()`
