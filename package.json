@@ -8,11 +8,13 @@
     "url": "git://github.com/mtth/avsc.git"
   },
   "scripts": {
-    "test": "mocha --ui tdd"
+    "test": "mocha --ui tdd",
+    "cover": "istanbul cover _mocha -- --ui tdd"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
   "devDependencies": {
+    "istanbul": "^0.3.19",
     "mocha": "^2.3.2"
   }
 }
