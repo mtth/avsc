@@ -81,13 +81,14 @@ var eventStream = new avsc.ReadStream(bytesStream);
 
 ## API
 
-### `avsc.parse(schema)`
+### `avsc.parse(schema, [namespace,] [registry])`
 
-Returns an instance of the corresponding `Type`.
+Parse a schema and return an instance of the corresponding `Type`.
 
 ### `class Type`
 
-Base Avro type class.
+"Abstract" base Avro type class. All implementations (see below) have the
+following methods:
 
 ##### `type.decode(buf)`
 ##### `type.encode(obj, [opts])`
@@ -95,29 +96,34 @@ Base Avro type class.
 
 Implementations:
 
-#### `class ArrayType`
+#### `class ArrayType(schema, [namespace,] [registry])`
 ##### `type.itemsType`
 
-#### `class FixedType`
+#### `class EnumType(schema, [namespace,] [registry])`
+##### `type.symbols`
+
+#### `class FixedType(schema, [namespace])`
 ##### `type.name`
 ##### `type.size`
 
-#### `class MapType`
+#### `class MapType(schema, [namespace,] [registry])`
 ##### `type.valuesType`
 
-#### `class PrimitiveType`
+#### `class PrimitiveType(name)`
 ##### `type.name`
 
-#### `class RecordType`
+#### `class RecordType(schema, [namespace,] [registry])`
 ##### `type.name`
 ##### `type.doc`
 ##### `type.fields`
 ##### `Record = type.getRecordConstructor()`
 
-#### `class UnionType`
+#### `class UnionType(schema, [namespace,] [registry])`
 ##### `type.types`
 
-### `class Record`
+### `class Record(...)`
+
+Specific record class, programmatically generated for each record schema.
 
 ##### `Record.decode(buf)`
 ##### `record.$type`
