@@ -97,6 +97,7 @@ following methods:
 ##### `type.decode(buf)`
 ##### `type.encode(obj, [opts])`
 ##### `type.validate(obj)`
+##### `type.getTypeName()`
 
 Implementations:
 
@@ -116,7 +117,6 @@ Implementations:
 ##### `type.valuesType`
 
 #### `class PrimitiveType(name)`
-##### `type.name`
 
 #### `class RecordType(schema, [opts])`
 ##### `type.name`
