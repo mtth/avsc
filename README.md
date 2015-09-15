@@ -85,6 +85,10 @@ var eventStream = new avsc.ReadStream(bytesStream);
 
 Parse a schema and return an instance of the corresponding `Type`.
 
+### `avsc.parseFile(path, [registry])`
+
+Convenience function to parse a schema file.
+
 ### `class Type`
 
 "Abstract" base Avro type class. All implementations (see below) have the
@@ -100,6 +104,8 @@ Implementations:
 ##### `type.itemsType`
 
 #### `class EnumType(schema, [namespace,] [registry])`
+##### `type.name`
+##### `type.doc`
 ##### `type.symbols`
 
 #### `class FixedType(schema, [namespace])`
@@ -116,7 +122,7 @@ Implementations:
 ##### `type.name`
 ##### `type.doc`
 ##### `type.fields`
-##### `Record = type.getRecordConstructor()`
+##### `type.getRecordConstructor()`
 
 #### `class UnionType(schema, [namespace,] [registry])`
 ##### `type.types`
