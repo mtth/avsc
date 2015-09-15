@@ -81,11 +81,11 @@ var eventStream = new avsc.ReadStream(bytesStream);
 
 ## API
 
-### `avsc.parse(schema, [namespace,] [registry])`
+### `avsc.parse(schema, [opts])`
 
 Parse a schema and return an instance of the corresponding `Type`.
 
-### `avsc.parseFile(path, [registry])`
+### `avsc.parseFile(path, [opts])`
 
 Convenience function to parse a schema file.
 
@@ -100,31 +100,31 @@ following methods:
 
 Implementations:
 
-#### `class ArrayType(schema, [namespace,] [registry])`
+#### `class ArrayType(schema, [opts])`
 ##### `type.itemsType`
 
-#### `class EnumType(schema, [namespace,] [registry])`
+#### `class EnumType(schema, [opts])`
 ##### `type.name`
 ##### `type.doc`
 ##### `type.symbols`
 
-#### `class FixedType(schema, [namespace])`
+#### `class FixedType(schema, [opts])`
 ##### `type.name`
 ##### `type.size`
 
-#### `class MapType(schema, [namespace,] [registry])`
+#### `class MapType(schema, [opts])`
 ##### `type.valuesType`
 
 #### `class PrimitiveType(name)`
 ##### `type.name`
 
-#### `class RecordType(schema, [namespace,] [registry])`
+#### `class RecordType(schema, [opts])`
 ##### `type.name`
 ##### `type.doc`
 ##### `type.fields`
 ##### `type.getRecordConstructor()`
 
-#### `class UnionType(schema, [namespace,] [registry])`
+#### `class UnionType(schema, [opts])`
 ##### `type.types`
 
 ### `class Record(...)`
