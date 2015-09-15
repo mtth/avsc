@@ -81,31 +81,45 @@ var eventStream = new avsc.ReadStream(bytesStream);
 
 ## API
 
-
 ### `avsc.parse(schema)`
 
-Returns an instance of the corresponding `AvroType`.
+Returns an instance of the corresponding `Type`.
 
+### `class Type`
 
-### `class AvroType`
+Base Avro type class.
 
-#### `type.decode(buf)`
+##### `type.decode(buf)`
+##### `type.encode(obj, [opts])`
+##### `type.validate(obj)`
 
-#### `type.encode(obj, [opts])`
+Implementations:
 
-#### `type.validate(obj)`
+#### `class ArrayType`
+##### `type.itemsType`
 
-#### `type.getRecordConstructor()`
+#### `class FixedType`
+##### `type.name`
+##### `type.size`
 
-For record types.
+#### `class MapType`
+##### `type.valuesType`
 
+#### `class PrimitiveType`
+##### `type.name`
+
+#### `class RecordType`
+##### `type.name`
+##### `type.doc`
+##### `type.fields`
+##### `Record = type.getRecordConstructor()`
+
+#### `class UnionType`
+##### `type.types`
 
 ### `class Record`
 
-#### `Record.decode(buf)`
-
-#### `record.$type`
-
-#### `record.$encode([opts])`
-
-#### `record.$validate()`
+##### `Record.decode(buf)`
+##### `record.$type`
+##### `record.$encode([opts])`
+##### `record.$validate()`
