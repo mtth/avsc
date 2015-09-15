@@ -8,7 +8,7 @@ var avsc = require('../lib'),
 
 new Benchmark()
   .addFn('decode', (function () {
-    var schema = avsc.parse(JSON.parse(fs.readFileSync('dat/event.avsc')));
+    var schema = avsc.parse(JSON.parse(fs.readFileSync('dat/event.avsc')), {unwrapUnions: true});
     var buf = fs.readFileSync('dat/event.avro');
     return function (cb) {
       var record = schema.decode(buf);

@@ -85,9 +85,21 @@ var eventStream = new avsc.ReadStream(bytesStream);
 
 Parse a schema and return an instance of the corresponding `Type`.
 
++ `schema` {Object|String} Schema (type object or type name string).
++ `opts` {Object} Parsing options. The following keys are currently supported:
+
+  + `namespace` {String} Optional parent namespace.
+  + `registry` {Object} Optional registry of predefined type names.
+  + `unwrapUnions` {Boolean} By default, Avro expects all unions to be wrapped
+    inside an object with a single key. Setting this to `true` will prevent
+    this, speeding up decoding at a minor encoding cost. Defaults to `false`.
+
 ### `avsc.parseFile(path, [opts])`
 
 Convenience function to parse a schema file.
+
++ `path` {String} Path to schema file.
++ `opts` {Object} Parsing options. See `parse` above for details.
 
 ### `class Type`
 
