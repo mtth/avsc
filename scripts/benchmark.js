@@ -6,18 +6,38 @@ var avsc = require('../lib'),
     assert = require('assert'),
     fs = require('fs');
 
+
+var schema = JSON.parse(fs.readFileSync('dat/event.avsc'));
+var buf = fs.readFileSync('dat/event.avro');
+
 new Benchmark()
-  .addFn('decode', (function () {
-    var schema = avsc.parse(JSON.parse(fs.readFileSync('dat/event.avsc')), {unwrapUnions: true});
-    var buf = fs.readFileSync('dat/event.avro');
+  .addFn('wrapped', (function () {
+    var type = avsc.parse(schema);
     return function (cb) {
-      var record = schema.decode(buf);
-      assert(record.header.memberId);
-      // assert(buf.equals(record.$encode({unsafe: false, size: 1024})));
+      var s = 0;
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = type.decode(buf);
+        s += record.header.memberId;
+      }
+      assert(s);
       cb();
     };
   })())
-  .run(100000,  function (stats) { console.dir(stats); });
+  .addFn('unwrapped', (function () {
+    var type = avsc.parse(schema, {unwrapUnions: true});
+    return function (cb) {
+      var s = 0;
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = type.decode(buf);
+        s += record.header.memberId;
+      }
+      assert(s);
+      cb();
+    };
+  })())
+  .run(100,  function (stats) { console.dir(stats); });
 
 /**
   * Benchmark functions serially.

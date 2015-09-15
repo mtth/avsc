@@ -92,7 +92,7 @@ Parse a schema and return an instance of the corresponding `Type`.
   + `registry` {Object} Optional registry of predefined type names.
   + `unwrapUnions` {Boolean} By default, Avro expects all unions to be wrapped
     inside an object with a single key. Setting this to `true` will prevent
-    this, speeding up decoding at a minor encoding cost. Defaults to `false`.
+    this.
 
 ### `avsc.parseFile(path, [opts])`
 
