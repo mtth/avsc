@@ -104,9 +104,7 @@ For record types.
 
 #### `Record.decode(buf)`
 
-#### `record.$typeName`
-
-#### `record.$fieldNames`
+#### `record.$type`
 
 #### `record.$encode([opts])`
 
