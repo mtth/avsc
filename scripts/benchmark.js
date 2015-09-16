@@ -51,6 +51,18 @@ new Benchmark()
       cb();
     };
   })())
+  .addFn('unwrapped checked', (function () {
+    var type = avsc.parse(schema, {unwrapUnions: true});
+    var Record = type.getRecordConstructor();
+    return function (cb) {
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = Record.decode(buf);
+        assert(record.$isValid());
+      }
+      cb();
+    };
+  })())
   .addFn('from json', (function () {
     var type = avsc.parse(schema, {unwrapUnions: true});
     var s = JSON.stringify(type.decode(buf));
