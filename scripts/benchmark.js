@@ -14,26 +14,40 @@ new Benchmark()
   .addFn('wrapped', (function () {
     var type = avsc.parse(schema);
     return function (cb) {
-      var s = 0;
+      var n = 0;
       var i, record;
       for (i = 0; i < 1000; i++) {
         record = type.decode(buf);
-        s += record.header.memberId;
+        n += record.header.memberId;
       }
-      assert(s);
+      assert(n);
       cb();
     };
   })())
   .addFn('unwrapped', (function () {
     var type = avsc.parse(schema, {unwrapUnions: true});
     return function (cb) {
-      var s = 0;
+      var n = 0;
       var i, record;
       for (i = 0; i < 1000; i++) {
         record = type.decode(buf);
-        s += record.header.memberId;
+        n += record.header.memberId;
       }
-      assert(s);
+      assert(n);
+      cb();
+    };
+  })())
+  .addFn('from json', (function () {
+    var type = avsc.parse(schema, {unwrapUnions: true});
+    var s = JSON.stringify(type.decode(buf));
+    return function (cb) {
+      var n = 0;
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = JSON.parse(s);
+        n += record.header.memberId;
+      }
+      assert(n);
       cb();
     };
   })())
