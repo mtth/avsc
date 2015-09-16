@@ -11,199 +11,159 @@ suite('parse', function () {
 
     var data = [
       {
-        name: 'int',
+        schema: 'int',
         valid: [1, -3, 12314, 0, 1e9],
         invalid: [null, 'hi', undefined, 1.5, 1e28, 123124123123213]
       },
       {
-        name: 'long',
+        schema: 'long',
         valid: [1, -3, 12314, 9007199254740991],
         invalid: [null, 'hi', undefined, 9007199254740992, 1.3, 1e67]
       },
       {
-        name: 'string',
+        schema: 'string',
         valid: ['', 'hi'],
         invalid: [null, undefined, 1, 0]
       },
       {
-        name: 'null',
+        schema: 'null',
         valid: [null],
         invalid: [0, 1, 'hi', undefined]
       },
       // { TODO: Uncomment when implemented.
-      //   name: 'float',
+      //   schema: 'float',
       //   valid: [1, -3.4, 12314e31],
       //   invalid: [null, 'hi', undefined, 5e38]
       // },
       // {
-      //   name: 'double',
+      //   schema: 'double',
       //   valid: [1, -3.4, 12314e31, 5e38],
       //   invalid: [null, 'hi', undefined, 5e89]
       // },
       {
-        name: 'bytes',
+        schema: 'bytes',
         valid: [new Buffer(1), new Buffer('abc')],
         invalid: [null, 'hi', undefined, 1, 0, -3.5],
         check: function (a, b) { assert(a.equals(b)); }
       }
     ];
 
-    data.forEach(function (elem) {
-      test(elem.name, function () {
-        var type = new parse.types.PrimitiveType(elem.name);
-        elem.valid.forEach(function (v) {
-          assert(type.isValid(v), '' + v);
-          var fn = elem.check || assert.equal;
-          fn(type.decode(type.encode(v)), v);
-        });
-        elem.invalid.forEach(function (v) {
-          assert(!type.isValid(v), '' + v);
-        });
-        assert(type.isValid(type.random()));
-      });
+    var schemas = ['foo', ''];
+
+    testType(parse.types.PrimitiveType, data, schemas);
+
+    test('encode int', function () {
+
+      var type = new parse.types.PrimitiveType('int');
+      assert.equal(type.decode(new Buffer([0x80, 0x01])), 64);
+      assert(new Buffer([0]).equals(type.encode(0)));
+
     });
 
-    test('invalid', function () {
-      assert.throws(
-        function () { new parse.types.PrimitiveType('foo'); },
-        parse.ParseError
-      );
+    test('decode string', function () {
+
+      var type = new parse.types.PrimitiveType('string');
+      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
+      var s = 'hi!';
+      assert.equal(type.decode(buf), s);
+      assert(buf.equals(type.encode(s)));
+
+    });
+
+    test('encode string', function () {
+
+      var type = new parse.types.PrimitiveType('string');
+      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
+      assert(buf.equals(type.encode('hi!', 1)));
+
     });
 
   });
 
   suite('EnumType', function () {
 
-    test('empty', function () {
-      assert.throws(
-        function () { new parse.types.EnumType({name: 'Foo', symbols: []}); },
-        parse.ParseError
-      );
-    });
+    var data = [
+      {
+        name: 'single symbol',
+        schema: {name: 'Foo', symbols: ['HI']},
+        valid: ['HI'],
+        invalid: ['HEY', null, undefined, 0]
+      },
+      {
+        name: 'number-ish as symbol',
+        schema: {name: 'Foo', symbols: ['HI', '0']},
+        valid: ['HI', '0'],
+        invalid: ['HEY', null, undefined, 0]
+      }
+    ];
 
-    test('no symbols', function () {
-      assert.throws(
-        function () { new parse.types.EnumType({name: 'Foo'}); },
-        parse.ParseError
-      );
-    });
+    var schemas = [
+      {name: 'Foo', symbols: []},
+      {name: 'Foo'},
+      {symbols: ['hi']}
+    ];
 
-    test('no name', function () {
-      assert.throws(
-        function () { new parse.types.EnumType({symbols: ['HI']}); },
-        parse.ParseError
-      );
-    });
-
-    test('single symbol', function () {
-      var symbols = ['HI'];
-      var t = new parse.types.EnumType({name: 'Foo', symbols: symbols});
-      assert.equal(t.getTypeName(), 'enum');
-      assert.equal(t.random(), 'HI');
-      assert.deepEqual(t.symbols, symbols);
-      assert(t.isValid('HI'));
-      assert(!t.isValid('HEY'));
-      assert(!t.isValid(null));
-    });
-
-    test('multiple symbols', function () {
-      var symbols = ['HI', 'HEY'];
-      var t = new parse.types.EnumType({name: 'Foo', symbols: symbols});
-      assert.deepEqual(t.symbols, symbols);
-      assert(t.isValid('HI'));
-      assert(t.isValid('HEY'));
-      assert(!t.isValid('HELLO'));
-    });
+    testType(parse.types.EnumType, data, schemas);
 
   });
 
   suite('FixedType', function () {
 
-    test('empty', function () {
-      assert.throws(
-        function () { new parse.types.FixedType({name: 'Foo', size: 0}); },
-        parse.ParseError
-      );
-    });
+    var data = [
+      {
+        name: 'size 1',
+        schema: {name: 'Foo', size: 1},
+        valid: [new Buffer(1)],
+        invalid: ['HEY', null, undefined, 0, new Buffer(2)],
+        check: function (a, b) { assert(a.equals(b)); }
+      }
+    ];
 
-    test('no size', function () {
-      assert.throws(
-        function () { new parse.types.FixedType({name: 'Foo'}); },
-        parse.ParseError
-      );
-    });
+    var schemas = [
+      {name: 'Foo', size: 0},
+      {name: 'Foo', size: -2},
+      {size: 2},
+      {name: 'Foo'},
+      {}
+    ];
 
-    test('no name', function () {
-      assert.throws(
-        function () { new parse.types.FixedType({symbols: ['HI']}); },
-        parse.ParseError
-      );
-    });
-
-    test('size 1', function () {
-      var t = new parse.types.FixedType({name: 'F', namespace: 'h', size: 1});
-      assert.equal(t.name, 'h.F');
-      assert.equal(t.getTypeName(), 'fixed');
-      var buf = t.random();
-      assert(Buffer.isBuffer(buf) && buf.length === 1);
-      assert(t.isValid(new Buffer(1)));
-      assert(!t.isValid(new Buffer(2)));
-      assert(!t.isValid(null));
-    });
+    testType(parse.types.FixedType, data, schemas);
 
   });
 
   suite('MapType', function () {
 
-    test('no values', function () {
-      assert.throws(
-        function () { new parse.types.MapType({}); },
-        parse.ParseError
-      );
-    });
+    var data = [
+      {
+        name: 'int',
+        schema: {values: 'int'},
+        valid: [{one: 1}, {two: 2, o: 0}],
+        invalid: [1, {o: null}, [], undefined, {o: 'hi'}, {1: '', 2: 3}, ''],
+        check: assert.deepEqual
+      },
+      {
+        name: 'enum',
+        schema: {values: {type: 'enum', name: 'a', symbols: ['A', 'B']}},
+        valid: [{a: 'A'}, {a: 'A', b: 'B'}, {}],
+        invalid: [{o: 'a'}, {1: 'A', 2: 'b'}, {a: 3}],
+        check: assert.deepEqual
+      },
+      {
+        name: 'array of string',
+        schema: {values: {type: 'array', items: 'string'}},
+        valid: [{a: []}, {a: ['A'], b: ['B', '']}, {}],
+        invalid: [{o: 'a', b: []}, {a: [1, 2]}, {a: {b: ''}}],
+        check: assert.deepEqual
+      }
+    ];
 
-    test('int', function () {
-      var t = new parse.types.MapType({values: 'int'});
-      // TODO.
-    });
+    var schemas = [
+      {},
+      {values: ''},
+      {values: {type: 'array'}}
+    ];
 
-  });
-
-  suite('primitive schemas', function () {
-
-    var intType = parse.parse('int');
-    var stringType = parse.parse({type: 'string'});
-
-    test('from string', function () {
-
-      assert.equal(intType.decode(new Buffer([0x80, 0x01])), 64);
-      assert(new Buffer([0]).equals(intType.encode(0)));
-
-    });
-
-    test('from object', function () {
-
-      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
-      var s = 'hi!';
-      assert.equal(stringType.decode(buf), s);
-      assert(buf.equals(stringType.encode(s)));
-
-    });
-
-    test('isValid', function () {
-
-      assert(intType.isValid(123));
-      assert(!intType.isValid('hi'));
-      assert(stringType.isValid('hi'));
-
-    });
-
-    test('encode', function () {
-
-      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
-      assert(buf.equals(stringType.encode('hi!', 1)));
-
-    });
+    testType(parse.types.MapType, data, schemas);
 
   });
 
@@ -332,3 +292,28 @@ suite('parse', function () {
   }
 
 });
+
+function testType(Type, data, invalidSchemas) {
+
+  data.forEach(function (elem) {
+    test(elem.name || elem.schema, function () {
+      var type = new Type(elem.schema);
+      elem.valid.forEach(function (v) {
+        assert(type.isValid(v), '' + v);
+        var fn = elem.check || assert.equal;
+        fn(type.decode(type.encode(v)), v);
+      });
+      elem.invalid.forEach(function (v) {
+        assert(!type.isValid(v), '' + v);
+      });
+      assert(type.isValid(type.random()));
+    });
+  });
+
+  test('invalid', function () {
+    invalidSchemas.forEach(function (schema) {
+      assert.throws(function () { new Type(schema); }, parse.ParseError);
+    });
+  });
+
+}
