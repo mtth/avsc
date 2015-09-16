@@ -7,26 +7,13 @@ A JavaScript Avro API which will make you smile.
 
 ## Examples
 
-
 ### Fragments
 
 ```javascript
 var avsc = require('avsc');
 
 // Parsing a schema returns a corresponding Avro type.
-var stringType = asvc.parse('string');
-
-// This type exposes decoding and encoding methods.
-var buf1 = stringType.encode('hello, Avro!'); // Bytes  encoding
-stringType.decode(buf); // == 'hello, Avro!'
-
-// Complex types work in the same way.
-var intMapType = avsc.parse({type: 'map', values: 'int'});
-var buf2 = intMapType.encode({one: 1, two: 2});
-intMapType.decode(buf); // == {one: 1, two: 2}
-
-// So do record types.
-var recordType = avsc.parse({
+var type = avsc.parse({
   type: 'record',
   name: 'Person',
   fields: [
@@ -40,24 +27,25 @@ var Person = recordType.getRecordConstructor();
 
 // This constructor can be used to instantiate records directly.
 var person = new Person('Ann', 25);
-
-// The record's fields get set appropriately.
-person.name; // == 'Ann'
+person.name; // == 'Ann' (The record's fields get set appropriately.)
 person.age; // == 25
 
-// Records also have a few useful properties and methods.
-person.$typeName; // == 'Person'
-person.$fieldNames; // == ['name', 'age']
-person.$encode(); // Buffer with encoded record.
+// Or to decode them from an existing buffer.
+Person.decode(buf);
 
-// Finally the record class exposes a static decoding method.
-Person.decode(buf); // == person
+// Or even to create random instances.
+var fakePerson = Person.random();
+
+// Records instance also have a few useful properties and methods.
+person.$type; // == type
+person.$encode(); // Returns a buffer with the record's Avro encoding.
+person.$isValid(); // Check that all fields satisfy the schema.
 ```
 
 
 ### Object container files
 
-(Soon.)
+(API still undergoing changes.)
 
 ```javascript
 var avsc = require('avsc'),
@@ -74,78 +62,4 @@ writer.write(record);
 // Or.
 var byteStream = fs.createReadStream('events.avro');
 var eventStream = new avsc.ReadStream(bytesStream);
-
-
 ```
-
-
-## API
-
-### `avsc.parse(schema, [opts])`
-
-Parse a schema and return an instance of the corresponding `Type`.
-
-+ `schema` {Object|String} Schema (type object or type name string).
-+ `opts` {Object} Parsing options. The following keys are currently supported:
-
-  + `namespace` {String} Optional parent namespace.
-  + `registry` {Object} Optional registry of predefined type names.
-  + `unwrapUnions` {Boolean} By default, Avro expects all unions to be wrapped
-    inside an object with a single key. Setting this to `true` will prevent
-    this.
-
-### `avsc.parseFile(path, [opts])`
-
-Convenience function to parse a schema file.
-
-+ `path` {String} Path to schema file.
-+ `opts` {Object} Parsing options. See `parse` above for details.
-
-### `class Type`
-
-"Abstract" base Avro type class. All implementations (see below) have the
-following methods:
-
-##### `type.random()`
-##### `type.decode(buf)`
-##### `type.encode(obj, [opts])`
-##### `type.isValid(obj)`
-##### `type.getTypeName()`
-
-Implementations:
-
-#### `class ArrayType(schema, [opts])`
-##### `type.itemsType`
-
-#### `class EnumType(schema, [opts])`
-##### `type.name`
-##### `type.doc`
-##### `type.symbols`
-
-#### `class FixedType(schema, [opts])`
-##### `type.name`
-##### `type.size`
-
-#### `class MapType(schema, [opts])`
-##### `type.valuesType`
-
-#### `class PrimitiveType(name)`
-
-#### `class RecordType(schema, [opts])`
-##### `type.name`
-##### `type.doc`
-##### `type.fields`
-##### `type.getRecordConstructor()`
-
-#### `class UnionType(schema, [opts])`
-##### `type.types`
-
-### `class Record(...)`
-
-Specific record class, programmatically generated for each record schema.
-
-##### `Record.random()`
-##### `Record.decode(buf)`
-##### `record.$encode([opts])`
-##### `record.$isValid()`
-##### `record.$type`

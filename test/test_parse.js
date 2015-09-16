@@ -7,6 +7,172 @@ var parse = require('../lib/parse'),
 
 suite('parse', function () {
 
+  suite('PriitiveType', function () {
+
+    test('int', function () {
+      var t = new parse.types.PrimitiveType('int');
+      assert(t.isValid(1));
+      assert(!t.isValid('hi'));
+      assert(!t.isValid(null));
+      var n = t.random();
+      assert(n === (n | 0));
+    });
+
+    test('string', function () {
+      var t = new parse.types.PrimitiveType('string');
+      assert(t.isValid('hi'));
+      assert(!t.isValid(1));
+      assert(!t.isValid(null));
+      assert(typeof t.random() == 'string');
+    });
+
+    test('null', function () {
+      var t = new parse.types.PrimitiveType('null');
+      assert(t.isValid(null));
+      assert(!t.isValid(undefined));
+      assert(!t.isValid(0));
+      assert(t.random() === null);
+    });
+
+    test('long', function () {
+      var t = new parse.types.PrimitiveType('long');
+      assert(t.isValid(-123));
+      assert(!t.isValid(123.4));
+      assert(!t.isValid(null));
+      assert(t.isValid(t.random()));
+    });
+
+    test('float', function () {
+      var t = new parse.types.PrimitiveType('float');
+      assert(t.isValid(4.5));
+      assert(!t.isValid(5e38));
+      assert(!t.isValid('abc'));
+      assert(!t.isValid(null));
+      assert(t.isValid(t.random()));
+    });
+
+    test('double', function () {
+      var t = new parse.types.PrimitiveType('double');
+      assert(t.isValid(4.5));
+      assert(t.isValid(5e38));
+      assert(!t.isValid('abc'));
+      assert(t.isValid(t.random()));
+    });
+
+    test('bytes', function () {
+      var t = new parse.types.PrimitiveType('bytes');
+      assert(t.isValid(new Buffer(3)));
+      assert(!t.isValid('abc'));
+      assert(!t.isValid(0));
+      assert(Buffer.isBuffer(t.random()));
+    });
+
+    test('invalid', function () {
+      assert.throws(
+        function () { new parse.types.PrimitiveType('foo'); },
+        parse.ParseError
+      );
+    });
+
+  });
+
+  suite('EnumType', function () {
+
+    test('empty', function () {
+      assert.throws(
+        function () { new parse.types.EnumType({name: 'Foo', symbols: []}); },
+        parse.ParseError
+      );
+    });
+
+    test('no symbols', function () {
+      assert.throws(
+        function () { new parse.types.EnumType({name: 'Foo'}); },
+        parse.ParseError
+      );
+    });
+
+    test('no name', function () {
+      assert.throws(
+        function () { new parse.types.EnumType({symbols: ['HI']}); },
+        parse.ParseError
+      );
+    });
+
+    test('single symbol', function () {
+      var symbols = ['HI'];
+      var t = new parse.types.EnumType({name: 'Foo', symbols: symbols});
+      assert.equal(t.getTypeName(), 'enum');
+      assert.equal(t.random(), 'HI');
+      assert.deepEqual(t.symbols, symbols);
+      assert(t.isValid('HI'));
+      assert(!t.isValid('HEY'));
+      assert(!t.isValid(null));
+    });
+
+    test('multiple symbols', function () {
+      var symbols = ['HI', 'HEY'];
+      var t = new parse.types.EnumType({name: 'Foo', symbols: symbols});
+      assert.deepEqual(t.symbols, symbols);
+      assert(t.isValid('HI'));
+      assert(t.isValid('HEY'));
+      assert(!t.isValid('HELLO'));
+    });
+
+  });
+
+  suite('FixedType', function () {
+
+    test('empty', function () {
+      assert.throws(
+        function () { new parse.types.FixedType({name: 'Foo', size: 0}); },
+        parse.ParseError
+      );
+    });
+
+    test('no size', function () {
+      assert.throws(
+        function () { new parse.types.FixedType({name: 'Foo'}); },
+        parse.ParseError
+      );
+    });
+
+    test('no name', function () {
+      assert.throws(
+        function () { new parse.types.FixedType({symbols: ['HI']}); },
+        parse.ParseError
+      );
+    });
+
+    test('size 1', function () {
+      var t = new parse.types.FixedType({name: 'F', namespace: 'h', size: 1});
+      assert.equal(t.name, 'h.F');
+      assert.equal(t.getTypeName(), 'fixed');
+      var buf = t.random();
+      assert(Buffer.isBuffer(buf) && buf.length === 1);
+      assert(t.isValid(new Buffer(1)));
+      assert(!t.isValid(new Buffer(2)));
+      assert(!t.isValid(null));
+    });
+
+  });
+
+  suite('MapType', function () {
+
+    test('no values', function () {
+      assert.throws(
+        function () { new parse.types.MapType({}); },
+        parse.ParseError
+      );
+    });
+
+    test('int', function () {
+      var t = new parse.types.MapType({values: 'int'});
+      // TODO.
+    });
+
+  });
+
   suite('primitive schemas', function () {
 
     var intType = parse.parse('int');
