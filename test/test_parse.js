@@ -28,11 +28,11 @@ suite('parse', function () {
 
     });
 
-    test('validate', function () {
+    test('isValid', function () {
 
-      assert(intType.validate(123));
-      assert(!intType.validate('hi'));
-      assert(stringType.validate('hi'));
+      assert(intType.isValid(123));
+      assert(!intType.isValid('hi'));
+      assert(stringType.isValid('hi'));
 
     });
 

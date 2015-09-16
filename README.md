@@ -106,10 +106,10 @@ Convenience function to parse a schema file.
 "Abstract" base Avro type class. All implementations (see below) have the
 following methods:
 
+##### `type.random()`
 ##### `type.decode(buf)`
 ##### `type.encode(obj, [opts])`
-##### `type.validate(obj)`
-##### `type.random()`
+##### `type.isValid(obj)`
 ##### `type.getTypeName()`
 
 Implementations:
@@ -144,8 +144,8 @@ Implementations:
 
 Specific record class, programmatically generated for each record schema.
 
-##### `Record.decode(buf)`
 ##### `Record.random()`
-##### `record.$type`
+##### `Record.decode(buf)`
 ##### `record.$encode([opts])`
-##### `record.$validate()`
+##### `record.$isValid()`
+##### `record.$type`
