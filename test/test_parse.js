@@ -7,64 +7,60 @@ var parse = require('../lib/parse'),
 
 suite('parse', function () {
 
-  suite('PriitiveType', function () {
+  suite('PrimitiveType', function () {
 
-    test('int', function () {
-      var t = new parse.types.PrimitiveType('int');
-      assert(t.isValid(1));
-      assert(!t.isValid('hi'));
-      assert(!t.isValid(null));
-      var n = t.random();
-      assert(n === (n | 0));
-    });
+    var data = [
+      {
+        name: 'int',
+        valid: [1, -3, 12314, 0, 1e9],
+        invalid: [null, 'hi', undefined, 1.5, 1e28, 123124123123213]
+      },
+      {
+        name: 'long',
+        valid: [1, -3, 12314, 9007199254740991],
+        invalid: [null, 'hi', undefined, 9007199254740992, 1.3, 1e67]
+      },
+      {
+        name: 'string',
+        valid: ['', 'hi'],
+        invalid: [null, undefined, 1, 0]
+      },
+      {
+        name: 'null',
+        valid: [null],
+        invalid: [0, 1, 'hi', undefined]
+      },
+      // { TODO: Uncomment when implemented.
+      //   name: 'float',
+      //   valid: [1, -3.4, 12314e31],
+      //   invalid: [null, 'hi', undefined, 5e38]
+      // },
+      // {
+      //   name: 'double',
+      //   valid: [1, -3.4, 12314e31, 5e38],
+      //   invalid: [null, 'hi', undefined, 5e89]
+      // },
+      {
+        name: 'bytes',
+        valid: [new Buffer(1), new Buffer('abc')],
+        invalid: [null, 'hi', undefined, 1, 0, -3.5],
+        check: function (a, b) { assert(a.equals(b)); }
+      }
+    ];
 
-    test('string', function () {
-      var t = new parse.types.PrimitiveType('string');
-      assert(t.isValid('hi'));
-      assert(!t.isValid(1));
-      assert(!t.isValid(null));
-      assert(typeof t.random() == 'string');
-    });
-
-    test('null', function () {
-      var t = new parse.types.PrimitiveType('null');
-      assert(t.isValid(null));
-      assert(!t.isValid(undefined));
-      assert(!t.isValid(0));
-      assert(t.random() === null);
-    });
-
-    test('long', function () {
-      var t = new parse.types.PrimitiveType('long');
-      assert(t.isValid(-123));
-      assert(!t.isValid(123.4));
-      assert(!t.isValid(null));
-      assert(t.isValid(t.random()));
-    });
-
-    test('float', function () {
-      var t = new parse.types.PrimitiveType('float');
-      assert(t.isValid(4.5));
-      assert(!t.isValid(5e38));
-      assert(!t.isValid('abc'));
-      assert(!t.isValid(null));
-      assert(t.isValid(t.random()));
-    });
-
-    test('double', function () {
-      var t = new parse.types.PrimitiveType('double');
-      assert(t.isValid(4.5));
-      assert(t.isValid(5e38));
-      assert(!t.isValid('abc'));
-      assert(t.isValid(t.random()));
-    });
-
-    test('bytes', function () {
-      var t = new parse.types.PrimitiveType('bytes');
-      assert(t.isValid(new Buffer(3)));
-      assert(!t.isValid('abc'));
-      assert(!t.isValid(0));
-      assert(Buffer.isBuffer(t.random()));
+    data.forEach(function (elem) {
+      test(elem.name, function () {
+        var type = new parse.types.PrimitiveType(elem.name);
+        elem.valid.forEach(function (v) {
+          assert(type.isValid(v), '' + v);
+          var fn = elem.check || assert.equal;
+          fn(type.decode(type.encode(v)), v);
+        });
+        elem.invalid.forEach(function (v) {
+          assert(!type.isValid(v), '' + v);
+        });
+        assert(type.isValid(type.random()));
+      });
     });
 
     test('invalid', function () {
