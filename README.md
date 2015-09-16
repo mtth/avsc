@@ -109,6 +109,7 @@ following methods:
 ##### `type.decode(buf)`
 ##### `type.encode(obj, [opts])`
 ##### `type.validate(obj)`
+##### `type.random()`
 ##### `type.getTypeName()`
 
 Implementations:
@@ -144,6 +145,7 @@ Implementations:
 Specific record class, programmatically generated for each record schema.
 
 ##### `Record.decode(buf)`
+##### `Record.random()`
 ##### `record.$type`
 ##### `record.$encode([opts])`
 ##### `record.$validate()`
