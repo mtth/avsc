@@ -167,7 +167,7 @@ suite('parse', function () {
 
   });
 
-  suite('UnionType', function () {
+  suite('WrappedUnionType', function () {
 
     var data = [
       {
@@ -186,7 +186,12 @@ suite('parse', function () {
       ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}]
     ];
 
-    testType(parse.types.UnionType, data, schemas);
+    testType(parse.types.WrappedUnionType, data, schemas);
+
+    test('instanceof Union', function () {
+      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      assert(type instanceof parse.types.UnionType);
+    });
 
   });
 
