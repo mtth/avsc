@@ -33,12 +33,14 @@ suite('parse', function () {
       {
         schema: 'float',
         valid: [1, -3.4, 12314e31],
-        invalid: [null, 'hi', undefined, 5e38]
+        invalid: [null, 'hi', undefined, 5e38],
+        check: function (a, b) { assert(floatEquals(a, b)); }
       },
       {
         schema: 'double',
-        valid: [1, -3.4, 12314e31, 5e38],
-        invalid: [null, 'hi', undefined, 5e89]
+        valid: [1, -3.4, 12314e31, 5e37],
+        invalid: [null, 'hi', undefined],
+        check: function (a, b) { assert(floatEquals(a, b), '' + [a, b]); }
       },
       {
         schema: 'bytes',
@@ -396,5 +398,11 @@ function testType(Type, data, invalidSchemas) {
       assert.throws(function () { new Type(schema); }, parse.ParseError);
     });
   });
+
+}
+
+function floatEquals(a, b) {
+
+  return Math.abs((a - b) / Math.min(a, b)) < 1e-3;
 
 }
