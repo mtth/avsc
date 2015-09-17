@@ -30,16 +30,16 @@ suite('parse', function () {
         valid: [null],
         invalid: [0, 1, 'hi', undefined]
       },
-      // { TODO: Uncomment when implemented.
-      //   schema: 'float',
-      //   valid: [1, -3.4, 12314e31],
-      //   invalid: [null, 'hi', undefined, 5e38]
-      // },
-      // {
-      //   schema: 'double',
-      //   valid: [1, -3.4, 12314e31, 5e38],
-      //   invalid: [null, 'hi', undefined, 5e89]
-      // },
+      {
+        schema: 'float',
+        valid: [1, -3.4, 12314e31],
+        invalid: [null, 'hi', undefined, 5e38]
+      },
+      {
+        schema: 'double',
+        valid: [1, -3.4, 12314e31, 5e38],
+        invalid: [null, 'hi', undefined, 5e89]
+      },
       {
         schema: 'bytes',
         valid: [new Buffer(1), new Buffer('abc')],
