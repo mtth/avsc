@@ -43,7 +43,7 @@ person.$isValid(); // Check that all fields satisfy the schema.
 ```
 
 
-### Object container files
+### Container files
 
 (API still undergoing changes.)
 
@@ -51,15 +51,16 @@ person.$isValid(); // Check that all fields satisfy the schema.
 var avsc = require('avsc'),
     fs = require('fs');
 
-// Read.
-var reader = avsc.createReadStream('events.avro')
-reader.on('data', function (record) { console.log(record); });
+// Read an Avro container file.
+fs.createReadStream('input.avro')
+  .pipe(new avsc.Decoder()) // The decoder will infer the type.
+  .on('data', function (record) { console.log(record); });
 
-// Write.
-var writer = type.('events.avro');
-writer.write(record);
-
-// Or.
-var byteStream = fs.createReadStream('events.avro');
-var eventStream = new avsc.ReadStream(bytesStream);
+// Writable record stream.
+var stream = new avsc.Encoder();
+stream.pipe(fs.createWriteStream('output.avro', {defaultEncoding: 'binary'}));
 ```
+
+## Documentation
+
+API: https://github.com/mtth/avsc/wiki/API

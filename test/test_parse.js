@@ -167,6 +167,82 @@ suite('parse', function () {
 
   });
 
+  suite('UnionType', function () {
+
+    var data = [
+      {
+        name: 'null and string',
+        schema: ['null', 'string'],
+        valid: [null, {string: 'hi'}],
+        invalid: ['null', undefined, {string: 1}],
+        check: assert.deepEqual
+      },
+    ];
+
+    var schemas = [
+      {},
+      [],
+      ['null', 'null'],
+      ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}]
+    ];
+
+    testType(parse.types.UnionType, data, schemas);
+
+  });
+
+  suite('UnwrappedUnionType', function () {
+
+    var data = [
+      {
+        name: 'null and string',
+        schema: ['null', 'string'],
+        valid: [null, 'hi'],
+        invalid: [undefined, 2, {string: 1}],
+        check: assert.deepEqual
+      },
+    ];
+
+    var schemas = [];
+
+    testType(parse.types.UnwrappedUnionType, data, schemas);
+
+    test('instanceof Union', function () {
+      var type = new parse.types.UnwrappedUnionType(['null', 'int']);
+      assert(type instanceof parse.types.UnionType);
+    });
+
+  });
+
+  suite('RecordType', function () {
+
+    var data = [
+      {
+        name: 'union field null and string with default',
+        schema: {
+          type: 'record',
+          name: 'a',
+          fields: [{name: 'b', type: ['null', 'string'], 'default': null}]
+        },
+        valid: [],
+        invalid: [],
+        check: assert.deepEqual
+      }
+    ];
+
+    var schemas = [
+      {type: 'record', name: 'a', fields: ['null', 'string']},
+      {type: 'record', name: 'a', fields: [{type: ['null', 'string']}]},
+      {
+        type: 'record',
+        name: 'a',
+        fields: [{name: 'b', type: ['null', 'string'], 'default': 'a'}]
+      },
+    ];
+
+    testType(parse.types.RecordType, data, schemas);
+
+  });
+
   suite('built-in complex schemas', function () {
 
     testElems({
