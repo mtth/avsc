@@ -12,20 +12,20 @@ suite('file', function () {
 
     test('simple', function () {
 
-      fs.createReadStream('dat/users.avro')
-        .pipe(new file.BlockDecoder())
-        .on('metadata', function (codec, sync) {
-          console.log('codec: ' + codec);
-          console.log(sync);
-        })
-        .on('data', function () {
-          console.log('got block');
-        })
-        .on('error', function (err) { console.error(err); })
-        .pipe(new file.RecordDecoder())
-        .on('data', function (record) {
-          console.log(record);
-        });
+      // fs.createReadStream('dat/users.avro')
+      //   .pipe(new file.BlockDecoder())
+      //   .on('metadata', function (codec, sync) {
+      //     console.log('codec: ' + codec);
+      //     console.log(sync);
+      //   })
+      //   .on('data', function () {
+      //     console.log('got block');
+      //   })
+      //   .on('error', function (err) { console.error(err); })
+      //   .pipe(new file.RecordDecoder())
+      //   .on('data', function (record) {
+      //     console.log(record);
+      //   });
 
     });
 
