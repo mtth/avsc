@@ -1,5 +1,5 @@
 {
-  "name": "avsc",
+  "name": "",
   "version": "0.1.1",
   "description": "Avro serialization.",
   "main": "index.js",
@@ -13,8 +13,8 @@
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
-  "devDependencies": {
-    "istanbul": "^0.3.19",
-    "mocha": "^2.3.2"
+  "dependencies": {
+    "avsc": "^0.1.0",
+    "buffer": "^3.5.0"
   }
 }
