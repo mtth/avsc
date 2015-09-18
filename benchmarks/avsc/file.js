@@ -7,5 +7,5 @@ var file = require('../../lib/file'),
 
 // Buffer.prototype.toJSON = function () { return this.toString('binary'); };
 
-var stream = fs.createReadStream('dat/user-100000.avro');
+var stream = fs.createReadStream('dat/users.avro');
 var reader = new file.Decoder(stream);

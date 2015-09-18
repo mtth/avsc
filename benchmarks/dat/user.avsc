@@ -8,8 +8,7 @@
     },
     {
       "name": "age",
-      "type": ["null", "int"],
-      "default": null
+      "type": "float"
     },
     {
       "name": "phone",

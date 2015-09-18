@@ -32,10 +32,10 @@ suite('tap', function () {
       var i, l, num;
       for (i = 0, l = nums.length; i < l; i++) {
         tap.buf.fill(0);
-        tap.offset = 0;
+        tap.pos = 0;
         num = nums[i];
         tap.writeLong(num);
-        tap.offset = 0;
+        tap.pos = 0;
         assert.equal(tap.readLong(), num);
       }
 
@@ -49,7 +49,7 @@ suite('tap', function () {
 
       var tap = newTap(20);
       tap.writeString('hello!');
-      tap.offset = 0;
+      tap.pos = 0;
       assert.equal(tap.readString(), 'hello!');
 
     });
@@ -71,7 +71,7 @@ suite('tap', function () {
       var tap = newTap(20);
       var fixed = new Buffer('abc');
       tap.writeFixed(fixed);
-      tap.offset = 0;
+      tap.pos = 0;
       assert.deepEqual(tap.readFixed(3), fixed);
 
     });
@@ -118,9 +118,9 @@ suite('tap', function () {
 
     tests.forEach(function (obj) {
       test(obj.name, function () {
-        tap.offset = 0;
+        tap.pos = 0;
         tap.writeArray(obj.arr, obj.fns[0]);
-        tap.offset = 0;
+        tap.pos = 0;
         assert.deepEqual(tap.readArray(obj.fns[1]), obj.arr);
       });
     });
@@ -159,9 +159,9 @@ suite('tap', function () {
 
     tests.forEach(function (obj) {
       test(obj.name, function () {
-        tap.offset = 0;
+        tap.pos = 0;
         tap.writeMap(obj.obj, obj.fns[0]);
-        tap.offset = 0;
+        tap.pos = 0;
         assert.deepEqual(tap.readMap(obj.fns[1]), obj.obj);
       });
     });

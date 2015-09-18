@@ -403,6 +403,6 @@ function testType(Type, data, invalidSchemas) {
 
 function floatEquals(a, b) {
 
-  return Math.abs((a - b) / Math.min(a, b)) < 1e-3;
+  return Math.abs((a - b) / Math.min(a, b)) < 1e-7;
 
 }
