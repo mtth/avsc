@@ -5,16 +5,24 @@
 var Tap = require('../lib/tap'),
     assert = require('assert');
 
+
 suite('tap', function () {
 
-  suite('long', function () {
+  suite('int & long', function () {
+
+    testWriterReader({
+      elems: [0, -1, 109213, -1211],
+      writer: function (n) { this.writeLong(n); },
+      reader: function () { return this.readLong(); }
+    });
 
     test('write', function () {
 
-      var tap = newTap(20);
+      var tap = newTap(6);
       tap.writeLong(1440756011948);
       var buf = new Buffer(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
-      assert(buf.equals(tap.buf.slice(0, 6)));
+      assert(tap.isValid());
+      assert(buf.equals(tap.buf));
 
     });
 
@@ -25,145 +33,134 @@ suite('tap', function () {
 
     });
 
+  });
+
+  suite('null', function () {
+
     test('write read', function () {
 
-      var tap = newTap(20);
-      var nums = [0, 3, 1234, -5, 1440756011948];
-      var i, l, num;
-      for (i = 0, l = nums.length; i < l; i++) {
-        tap.buf.fill(0);
-        tap.pos = 0;
-        num = nums[i];
-        tap.writeLong(num);
-        tap.pos = 0;
-        assert.equal(tap.readLong(), num);
-      }
+      var tap = newTap(10);
+      assert.strictEqual(tap.readNull(), null);
 
+    });
+
+  });
+
+  suite('boolean', function () {
+
+    testWriterReader({
+      elems: [true, false],
+      writer: function (b) { this.writeBoolean(b); },
+      reader: function () { return this.readBoolean(); }
+    });
+
+  });
+
+  suite('float', function () {
+
+    testWriterReader({
+      elems: [1, 3,1, -5, 1e9],
+      writer: function (b) { this.writeFloat(b); },
+      reader: function () { return this.readFloat(); }
+    });
+
+  });
+
+  suite('double', function () {
+
+    testWriterReader({
+      elems: [1, 3,1, -5, 1e12],
+      writer: function (b) { this.writeDouble(b); },
+      reader: function () { return this.readDouble(); }
     });
 
   });
 
   suite('string', function () {
 
-    test('write read', function () {
-
-      var tap = newTap(20);
-      tap.writeString('hello!');
-      tap.pos = 0;
-      assert.equal(tap.readString(), 'hello!');
-
+    testWriterReader({
+      elems: ['ahierw', '', 'alh hewlii! rew'],
+      writer: function (s) { this.writeString(s); },
+      reader: function () { return this.readString(); }
     });
 
-    test('write too long', function () {
+  });
 
-      var tap = newTap(5);
-      tap.writeString('hello there!');
-      assert(!tap.isValid());
+  suite('bytes', function () {
 
+    testWriterReader({
+      elems: [new Buffer('abc'), new Buffer(0), new Buffer([1, 5, 255])],
+      writer: function (b) { this.writeBytes(b); },
+      reader: function () { return this.readBytes(); }
     });
 
   });
 
   suite('fixed', function () {
 
-    test('write read', function () {
-
-      var tap = newTap(20);
-      var fixed = new Buffer('abc');
-      tap.writeFixed(fixed);
-      tap.pos = 0;
-      assert.deepEqual(tap.readFixed(3), fixed);
-
-    });
-
-    test('write too long', function () {
-
-      var tap = newTap(3);
-      tap.writeFixed(new Buffer('abcde'));
-      assert(!tap.isValid());
-
+    testWriterReader({
+      elems: [new Buffer([1, 5, 255])],
+      writer: function (b) { this.writeFixed(b, 3); },
+      reader: function () { return this.readFixed(3); }
     });
 
   });
 
   suite('array', function () {
 
-    var tap = newTap(100);
+    testWriterReader({
+      name: 'long',
+      elems: [[1, 49210914, -12391023, 0], [], [3]],
+      writer: function (arr) { this.writeArray(arr, this.writeLong); },
+      reader: function () { return this.readArray(this.readLong); }
+    });
 
-    var tests = [
-      {
-        name: 'long',
-        arr: [1, 3, -4, 7],
-        fns: [tap.writeLong, tap.readLong]
+    testWriterReader({
+      name: 'string',
+      elems: [['hello'], [], ['hi', 'qwe']],
+      writer: function (arr) { this.writeArray(arr, this.writeString); },
+      reader: function () { return this.readArray(this.readString); }
+    });
+
+    testWriterReader({
+      name: 'array long',
+      elems: [[[], [1]], [], [[1,3]]],
+      writer: function (arr) {
+        this.writeArray(arr, function (ns) {
+          this.writeArray(ns, this.writeLong);
+        });
       },
-      {
-        name: 'string',
-        arr: ['hi', 'james', '!'],
-        fns: [tap.writeString, tap.readString]
-      },
-      {
-        name: 'empty',
-        arr: [],
-        fns: [tap.writeLong, tap.readLong],
-      },
-      {
-        name: 'array of long',
-        arr: [[3, 4], [], [1, 2]],
-        fns: [
-          function (arr) { tap.writeArray(arr, tap.writeLong); },
-          function () { return tap.readArray(tap.readLong); }
-        ]
+      reader: function () {
+        return this.readArray(function () {
+          return this.readArray(this.readLong);
+        });
       }
-    ];
-
-    tests.forEach(function (obj) {
-      test(obj.name, function () {
-        tap.pos = 0;
-        tap.writeArray(obj.arr, obj.fns[0]);
-        tap.pos = 0;
-        assert.deepEqual(tap.readArray(obj.fns[1]), obj.arr);
-      });
     });
 
   });
 
   suite('map', function () {
 
-    var tap = newTap(100);
+    testWriterReader({
+      name: 'long',
+      elems: [{one: 1, two: 2}, {}, {a: 4}],
+      writer: function (arr) { this.writeMap(arr, this.writeLong); },
+      reader: function () { return this.readMap(this.readLong); }
+    });
 
-    var tests = [
-      {
-        name: 'long',
-        obj: {one: 1, foo: -1231},
-        fns: [tap.writeLong, tap.readLong]
+    testWriterReader({
+      name: 'array string',
+      elems: [{a: ['a'], b: []}, {a: ['a', 'b']}, {}],
+      writer: function (arr) {
+        this.writeMap(arr, function (ns) {
+          this.writeMap(ns, this.writeString);
+        });
       },
-      {
-        name: 'string',
-        obj: {foo: 'hi', 'foo.bar': 'james', '': '!'},
-        fns: [tap.writeString, tap.readString]
-      },
-      {
-        name: 'empty',
-        obj: {},
-        fns: [tap.writeLong, tap.readLong],
-      },
-      {
-        name: 'array of long',
-        obj: {one: [3, 4], two: [], three: [1, 2]},
-        fns: [
-          function (obj) { tap.writeArray(obj, tap.writeLong); },
-          function () { return tap.readArray(tap.readLong); }
-        ]
+      reader: function () {
+        return this.readMap(function () {
+          return this.readMap(this.readString);
+        });
       }
-    ];
-
-    tests.forEach(function (obj) {
-      test(obj.name, function () {
-        tap.pos = 0;
-        tap.writeMap(obj.obj, obj.fns[0]);
-        tap.pos = 0;
-        assert.deepEqual(tap.readMap(obj.fns[1]), obj.obj);
-      });
     });
 
   });
@@ -175,5 +172,40 @@ function newTap(n) {
   var buf = new Buffer(n);
   buf.fill(0);
   return new Tap(buf);
+
+}
+
+function testWriterReader(opts) {
+
+  var size = opts.size;
+  var elems = opts.elems;
+  var writeFn = opts.writer;
+  var readFn = opts.reader;
+  var name = opts.name || '';
+
+  test('write read ' + name, function () {
+    var tap = newTap(size || 1024);
+    var i, l, elem;
+    for (i = 0, l = elems.length; i < l; i++) {
+      tap.buf.fill(0);
+      tap.pos = 0;
+      elem = elems[i];
+      writeFn.call(tap, elem);
+      tap.pos = 0;
+      assert.deepEqual(readFn.call(tap), elem);
+    }
+  });
+
+  test('read over ' + name, function () {
+    var tap = new Tap(new Buffer(0));
+    readFn.call(tap); // Shouldn't throw.
+    assert(!tap.isValid());
+  });
+
+  test('write over ' + name, function () {
+    var tap = new Tap(new Buffer(0));
+    writeFn.call(tap, elems[0]); // Shouldn't throw.
+    assert(!tap.isValid());
+  });
 
 }
