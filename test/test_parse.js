@@ -45,8 +45,7 @@ suite('parse', function () {
       {
         schema: 'bytes',
         valid: [new Buffer(1), new Buffer('abc')],
-        invalid: [null, 'hi', undefined, 1, 0, -3.5],
-        check: function (a, b) { assert(a.equals(b)); }
+        invalid: [null, 'hi', undefined, 1, 0, -3.5]
       }
     ];
 
@@ -383,7 +382,7 @@ function testType(Type, data, invalidSchemas) {
       var type = new Type(elem.schema);
       elem.valid.forEach(function (v) {
         assert(type.isValid(v), '' + v);
-        var fn = elem.check || assert.equal;
+        var fn = elem.check || assert.deepEqual;
         fn(type.decode(type.encode(v)), v);
       });
       elem.invalid.forEach(function (v) {

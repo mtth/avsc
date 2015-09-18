@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Avro serialization.",
   "main": "index.js",
   "repository": {
