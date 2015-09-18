@@ -366,7 +366,7 @@ suite('parse', function () {
         test(elem.name, function () {
           assert.throws(
             function () { parse.parse(elem.schema); },
-            parse.ParseError
+            parse.AvscError
           );
         });
       });
@@ -395,7 +395,7 @@ function testType(Type, data, invalidSchemas) {
 
   test('invalid', function () {
     invalidSchemas.forEach(function (schema) {
-      assert.throws(function () { new Type(schema); }, parse.ParseError);
+      assert.throws(function () { new Type(schema); }, parse.AvscError);
     });
   });
 
