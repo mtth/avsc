@@ -11,8 +11,10 @@ var file = require('../../lib/file'),
 var n = 0;
 var time;
 fs.createReadStream('benchmarks/dat/user-100000.avro')
-  .pipe(new file.Decoder())
+  .pipe(new file.BlockDecoder())
+  .pipe(new file.RecordDecoder())
   .on('data', function (record) {
+    // console.log(record);
     if (!time) {
       time = process.hrtime();
     }
