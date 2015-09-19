@@ -7,22 +7,18 @@
  *
  * This is probably not something that you would do very often, but it can be
  * convenient to do edits to an already existing schema and output a new
- * correct schema.
+ * correct schema, especially when it contains type references.
  *
  */
 
 var avsc = require('../lib');
 
-// Integer type with custom random generator.
-var ageType = new avsc.types.PrimitiveType('int');
-ageType.random = function () { return 100 * Math.random(); };
-
-// Create a new record type with this age field.
+// Create a record type.
 var personType = new avsc.types.RecordType({
   name: 'Person',
   fields: [
     {name: 'name', type: 'string'},
-    {name: 'age', type: ageType}
+    {name: 'age', type: 'int'}
   ]
 });
 
