@@ -16,10 +16,11 @@
       "default": null
     },
     {
-      "name": "address",
+      "name": "homeAddress",
       "type": {
         "type": "record",
         "name": "Address",
+        "aliases": ["Place"],
         "fields": [
           {
             "name": "street",
@@ -43,6 +44,10 @@
           }
         ]
       }
+    },
+    {
+      "name": "workAddress",
+      "type": ["null", "Address"]
     }
   ]
 }

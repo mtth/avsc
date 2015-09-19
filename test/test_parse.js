@@ -351,29 +351,77 @@ suite('parse', function () {
 
   });
 
-  function testElems(elems) {
+  suite('type references', function () {
 
-    elems.ok.forEach(function (elem) {
-      test(elem.name, function () {
-        var type = parse.parse(elem.schema);
-        assert.deepEqual(type.decode(type.encode(elem.obj)), elem.obj);
+    test('existing', function () {
+
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'so', type: 'Person'}]
       });
+
+      assert.strictEqual(type, type.fields[0].type);
+
     });
 
-    if (elems.err) {
-      elems.err.forEach(function (elem) {
-        test(elem.name, function () {
-          assert.throws(
-            function () { parse.parse(elem.schema); },
-            parse.AvscError
-          );
-        });
-      });
-    }
+    test('redefining', function () {
 
-  }
+      assert.throws(function () {
+        parse.parse({
+          type: 'record',
+          name: 'Person',
+          fields: [
+            {
+              name: 'so',
+              type: {
+                type: 'record',
+                name: 'Person'
+              }
+            }
+          ]
+        });
+      }, parse.AvscError);
+
+    });
+
+    test('missing', function () {
+
+      assert.throws(function () {
+        parse.parse({
+          type: 'record',
+          name: 'Person',
+          fields: [{name: 'so', type: 'Friend'}]
+        });
+      }, parse.AvscError);
+
+    });
+
+  });
 
 });
+
+function testElems(elems) {
+
+  elems.ok.forEach(function (elem) {
+    test(elem.name, function () {
+      var type = parse.parse(elem.schema);
+      assert.deepEqual(type.decode(type.encode(elem.obj)), elem.obj);
+    });
+  });
+
+  if (elems.err) {
+    elems.err.forEach(function (elem) {
+      test(elem.name, function () {
+        assert.throws(
+          function () { parse.parse(elem.schema); },
+          parse.AvscError
+        );
+      });
+    });
+  }
+
+}
 
 function testType(Type, data, invalidSchemas) {
 
