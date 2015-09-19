@@ -4,13 +4,1339 @@
 (function () {
   'use strict';
 
-  var buffer = require('buffer');
+  var avsc = require('avsc'),
+      buffer = require('buffer');
 
-  window.one = 1;
+  window.avsc = avsc;
 
 })();
 
-},{"buffer":2}],2:[function(require,module,exports){
+},{"avsc":2,"buffer":6}],2:[function(require,module,exports){
+/* jshint node: true */
+
+'use strict';
+
+var parse = require('./parse'),
+    fs = require('fs');
+
+/**
+ * Convenience function to parse an Avro schema file (`.avsc` typically).
+ *
+ * @param path {String} Path to file.
+ * @param opts {Object} Parsing options. See `parse` for details.
+ *
+ */
+function parseFile(path, opts) {
+
+  return parse.parse(JSON.parse(fs.readFileSync(path)), opts);
+
+}
+
+module.exports = {
+  parse: parse.parse,
+  parseFile: parseFile,
+  types: parse.types
+};
+
+},{"./parse":3,"fs":5}],3:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+// TODO: Implement `typeHook`. (Called after each type is instantiated.)
+// TODO: Move type subclasses' methods to prototypes.
+// TODO: Add aliases support.
+// TODO: Add `equals` and `compare` method to each type.
+// TODO: Implement `toJSON` method on Avro types, to recover a schema.
+// TODO: Fail when writing or reading fails with an error other than out of
+// bounds. (Maybe use custom decode and encode errors?)
+// TODO: Implement `asReaderOf`.
+
+'use strict';
+
+var Tap = require('./tap'),
+    util = require('util');
+
+
+// Avro primitive types.
+var PRIMITIVES = [
+  'null',
+  'boolean',
+  'int',
+  'long',
+  'float',
+  'double',
+  'bytes',
+  'string'
+];
+
+
+/**
+ * Custom error, thrown when an invalid schema is encountered.
+ *
+ * @param message {String} Something useful. Any further arguments will be used
+ * to format the message.
+ *
+ */
+function AvscError(message) {
+
+  Error.call(this);
+  var l = arguments.length;
+  if (l > 1) {
+    var args = [];
+    var i;
+    for(i = 1; i < l; i++) {
+      args[i] = arguments[i];
+    }
+    this.message = util.format(message, args);
+  } else {
+    this.message = message;
+  }
+
+}
+util.inherits(AvscError, Error);
+
+
+/**
+ * Parse a schema.
+ *
+ * @param schema {Object|String} Schema (type object or type name string).
+ * @param opts {Object} Parsing options. The following keys are currently
+ * supported:
+ *
+ * + `namespace` Optional parent namespace.
+ * + `registry` Optional registry of predefined type names.
+ * + `unwrapUnions` By default, Avro expects all unions to be wrapped inside an
+ *   object with a single key. Setting this to `true` will prevent this.
+ *   (Defaults to `false`.)
+ *
+ */
+function parse(schema, opts) {
+
+  opts = getOpts(schema, opts);
+
+  var Type, type;
+
+  if (typeof schema == 'string') { // Type reference.
+    if (
+      opts.namespace &&
+      !~schema.indexOf('.') &&
+      !~PRIMITIVES.indexOf(schema) // Primitives can't be namespaced.
+    ) {
+      schema = opts.namespace + '.' + schema;
+    }
+    type = opts.registry[schema];
+    if (type) {
+      return type;
+    }
+    throw new Error('missing name: ' + schema);
+  }
+
+  if (schema instanceof Array) { // Union.
+    Type = opts.unwrapUnions ? UnwrappedUnionType : WrappedUnionType;
+    return new Type(schema, opts);
+  }
+
+  type = schema.type;
+  switch (type) { // Non-union complex types.
+    case 'null':
+    case 'boolean':
+    case 'int':
+    case 'long':
+    case 'float':
+    case 'double':
+    case 'bytes':
+    case 'string':
+      return opts.registry[type]; // Reuse primitive instances.
+    case 'array':
+      return new ArrayType(schema, opts);
+    case 'enum':
+      return new EnumType(schema, opts);
+    case 'fixed':
+      return new FixedType(schema, opts);
+    case 'map':
+      return new MapType(schema, opts);
+    case 'record':
+      return new RecordType(schema, opts);
+    default:
+      throw new AvscError('unknown type: %j', type);
+  }
+
+}
+
+
+/**
+ * "Abstract" base Avro type class.
+ *
+ * Not meant to be instantiated directly, but via the `parse` function above.
+ *
+ */
+function Type() {}
+
+/**
+ * Initialize registry, defining all primitives.
+ *
+ */
+Type.createRegistry = function () {
+
+  var registry = {};
+  var i, l, name;
+  for (i = 0, l = PRIMITIVES.length; i < l; i++) {
+    name = PRIMITIVES[i];
+    registry[name] = new PrimitiveType(name);
+  }
+  return registry;
+
+};
+
+/**
+ * Base decoding method.
+ *
+ * This method should always be called with a tap as context. For example:
+ * `type._read.call(tap)`. It is also important to remember to check that the
+ * tap is valid after a read.
+ *
+ */
+Type.prototype._read = function () { throw new Error('abstract'); };
+
+/**
+ * Encode a type instance.
+ *
+ * @param obj {Object} The object to encode.
+ *
+ * Similarly to `_read` above, this method should be called with a tap as
+ * context: `type._write.call(tap, obj)`. The tap should be checked for
+ * validity afterwards as well.
+ *
+ */
+Type.prototype._write = function (obj) {
+
+  throw new Error('abstract'); // jshint unused: false
+
+};
+
+/**
+ * Validity check.
+ *
+ * @param obj {Object} The object to check for validity.
+ *
+ */
+Type.prototype._check = function (obj) {
+
+  throw new Error('abstract'); // jshint unused: false
+
+};
+
+/**
+ * Decode Avro bytes.
+ *
+ * @param buf {Buffer} Avro representation of an object.
+ *
+ */
+Type.prototype.decode = function (buf) {
+
+  var tap = new Tap(buf);
+  var obj = this._read.call(tap);
+  if (!tap.isValid()) {
+    throw new Error('truncated buffer');
+  }
+  return obj;
+
+};
+
+/**
+ * Encode object.
+ *
+ * @param obj {Object} The object to encode. Depending on the type, it can be a
+ * number, a string, an array, or an object.
+ * @param opts {Object} Optional encoding options:
+ *
+ *  + `size`, used to initialize the buffer. Defaults to 1024 bytes.
+ *  + `unsafe`, bypass validity checks.
+ *
+ */
+Type.prototype.encode = function (obj, opts) {
+
+  if ((!opts || !opts.unsafe) && !this.isValid(obj)) {
+    throw new Error('invalid object');
+  }
+
+  var size = (opts ? opts.size : 0) || 1024;
+  var tap = new Tap(new Buffer(size));
+  this._write.call(tap, obj);
+  if (!tap.isValid) {
+    // We overflowed the buffer, need to resize.
+    tap.buf = new Buffer(tap.pos);
+    tap.pos = 0;
+    this._write.call(tap, obj);
+  }
+
+  return tap.buf.slice(0, tap.pos);
+
+};
+
+/**
+ * Check that the object can be encoded by this type.
+ *
+ * @param obj {Object} The object to check.
+ *
+ */
+Type.prototype.isValid = function (obj) { return this._check(obj); };
+
+/**
+ * Generate a random instance of this type.
+ *
+ */
+Type.prototype.random = function () { return new Error('abstract'); };
+
+/**
+ * Get Avro name for this type.
+ *
+ */
+Type.prototype.getTypeName = function () { return new Error('abstract'); };
+
+/**
+ * Adapt a type to read data written by another, compatible, type.
+ *
+ * @param type Writer type.
+ *
+ */
+Type.prototype.asReaderOf = function (type) {
+
+  return new Error('abstract'); // jshint unused: false
+
+};
+
+
+
+// Implementations.
+
+/**
+ * Primitive Avro types.
+ *
+ * These are grouped together and all instances are typically shared across a
+ * single schema (since the default registry defines their name).
+ *
+ */
+function PrimitiveType(name) {
+
+  this.getTypeName = function () { return name; };
+  this._read = Tap.prototype['read' + capitalize(name)];
+  this._write = Tap.prototype['write' + capitalize(name)];
+
+  switch (name) {
+    case 'null':
+      this._check = function (o) { return o === null; };
+      this.random = function () { return null; };
+      break;
+    case 'boolean': // jshint -W018
+      this._check = function (o) { return o !== !o; };
+      this.random = function () { return !!(Math.random() < 0.5); };
+      break; // jshint +W018
+    case 'int':
+      this._check = function (o) { return o === (o | 0); };
+      this.random = function () { return randomDouble(-1e3, 1e3) | 0; };
+      break;
+    case 'long':
+      this._check = function (o) {
+        return typeof o == 'number' &&
+          o % 1 === 0 &&
+          o <= Number.MAX_SAFE_INTEGER &&
+          o >= Number.MIN_SAFE_INTEGER; // Can't capture full range sadly.
+      };
+      this.random = function () {
+        return Math.floor(randomDouble(-1e6, 1e6));
+      };
+      break;
+    case 'float':
+      this._check = function (o) {
+        return typeof o == 'number' && Math.abs(o) < 3.4028234e38;
+      };
+      this.random = function () { return randomDouble(-1e3, 1e3); };
+      break;
+    case 'double':
+      this._check = function (o) { return typeof o == 'number'; };
+      this.random = function () { return randomDouble(-1e6, 1e6); };
+      break;
+    case 'string':
+      this._check = function (o) { return typeof o == 'string'; };
+      this.random = function () {
+        return randomString(randomDouble(1, 16));
+      };
+      break;
+    case 'bytes':
+      this._check = Buffer.isBuffer;
+      this.random = function () {
+        return new Buffer(randomString(randomDouble(1, 32)));
+      };
+      break;
+    default:
+      throw new AvscError('invalid primitive type: %j', name);
+  }
+
+}
+util.inherits(PrimitiveType, Type);
+
+
+/**
+ * Abstract base Avro union type.
+ *
+ */
+function UnionType(schema, opts) {
+
+  if (!(schema instanceof Array)) {
+    throw new AvscError('non-array union schema: %j', schema);
+  }
+  if (!schema.length) {
+    throw new AvscError('empty union');
+  }
+
+  opts = getOpts(schema, opts);
+
+  this.types = schema.map(function (o) { return parse(o, opts); });
+
+}
+util.inherits(UnionType, Type);
+
+
+/**
+ * Wrapped Avro union type.
+ *
+ * This is the type required by the spec.
+ *
+ */
+function WrappedUnionType(schema, opts) {
+
+  UnionType.call(this, schema, opts);
+
+  var self = this;
+  var longReader = Tap.prototype.readLong;
+  var longWriter = Tap.prototype.writeLong;
+  var indices = {};
+  var i, l, type, name;
+  for (i = 0, l = this.types.length; i < l; i++) {
+    type = this.types[i];
+    name = type.name || type.getTypeName();
+    if (indices[name] !== undefined) {
+      throw new AvscError('duplicate union name: %j', name);
+    }
+    indices[name] = i;
+  }
+
+  var constructors = this.types.map(function (type) {
+
+    // jshint -W054
+
+    var name = type.name || type.getTypeName();
+    if (name === 'null') {
+      return null;
+    }
+    var body;
+    if (~name.indexOf('.')) { // Qualified name.
+      body = 'this[\'' + name + '\'] = obj;';
+    } else {
+      body = 'this.' + name + ' = obj;';
+    }
+    return new Function('obj', body);
+
+  });
+
+  this._read = function () {
+    var index = longReader.call(this);
+    var Class = constructors[index];
+    if (Class) {
+      return new Class(self.types[index]._read.call(this));
+    } else {
+      return null;
+    }
+  };
+
+  this._write = function (obj) {
+    if (typeof obj != 'object') {
+      throw new Error('invalid union: ' + obj);
+    }
+    var name = obj === null ? 'null' : Object.keys(obj)[0];
+    var index = indices[name];
+    if (index === undefined) {
+      throw new Error('no such name in union: ' + name);
+    }
+    longWriter.call(this, index);
+    self.types[index]._write.call(this, obj === null ? null : obj[name]);
+  };
+
+  this._check = function (obj) {
+    if (typeof obj != 'object') {
+      return false;
+    }
+    if (obj === null) {
+      return indices['null'] !== undefined;
+    }
+    var name = Object.keys(obj)[0];
+    var index = indices[name];
+    if (index === undefined) {
+      return false;
+    }
+    return self.types[index]._check.call(this, obj[name]);
+  };
+
+  this.random = function () {
+    var index = Math.floor(randomDouble(0, self.types.length));
+    var Class = constructors[index];
+    if (!Class) {
+      return null;
+    }
+    return new Class(self.types[index].random());
+  };
+
+}
+util.inherits(WrappedUnionType, UnionType);
+
+
+/**
+ * Unwrapped Avro union type.
+ *
+ * This version is slightly more performant and sometimes more convenient (not
+ * the default since it doesn't actually adhere to the Avro spec). See
+ * `unwrapUnions` option for more information.
+ *
+ */
+function UnwrappedUnionType(schema, opts) {
+
+  UnionType.call(this, schema, opts);
+
+  var self = this;
+  var longReader = Tap.prototype.readLong;
+  var longWriter = Tap.prototype.writeLong;
+  var indices = {};
+  var i, l, type, name;
+  for (i = 0, l = this.types.length; i < l; i++) {
+    type = this.types[i];
+    name = type.name || type.getTypeName();
+    if (indices[name] !== undefined) {
+      throw new AvscError('duplicate union name: %j', name);
+    }
+    indices[name] = i;
+  }
+
+  this._read = function () {
+    return self.types[longReader.call(this)]._read.call(this);
+  };
+
+  this._write = function (obj) {
+    var i, l, type;
+    for (i = 0, l = self.types.length; i < l; i++) {
+      type = self.types[i];
+      if (type._check(obj)) {
+        longWriter.call(this, i);
+        type._write.call(this, obj);
+        return;
+      }
+    }
+    throw new Error('invalid union value: ' + obj);
+  };
+
+  this._check = function (obj) {
+    return self.types.some(function (type) { return type._check(obj); });
+  };
+
+  this.random = function () {
+    return self.types[Math.floor(randomDouble(0, self.types.length))].random();
+  };
+
+}
+util.inherits(UnwrappedUnionType, UnionType);
+
+
+/**
+ * Avro enum type.
+ *
+ */
+function EnumType(schema, opts) {
+
+  if (!schema.name) {
+    throw new AvscError('missing enum name in schema: %j', schema);
+  }
+  if (!(schema.symbols instanceof Array) || !schema.symbols.length) {
+    throw new AvscError('invalid %j enum symbols: %j', schema.name, schema);
+  }
+
+  opts = getOpts(schema, opts);
+
+  var self = this;
+  var reader = Tap.prototype.readLong;
+  var writer = Tap.prototype.writeLong;
+  var indices = {};
+  var i, l;
+  for (i = 0, l = schema.symbols.length; i < l; i++) {
+    indices[schema.symbols[i]] = i;
+  }
+
+  this.name = getQualifiedName(schema, opts.namespace);
+  opts.registry[this.name] = this;
+  this.doc = schema.doc;
+  this.symbols = schema.symbols;
+
+  this._read = function () { return self.symbols[reader.call(this)]; };
+
+  this._write = function (s) {
+    var index = indices[s];
+    if (index === undefined) {
+      throw new Error('invalid ' + self.name + ' enum value: ' + s);
+    }
+    writer.call(this, index);
+  };
+
+  this._check = function (s) {
+    return typeof s == 'string' && indices[s] !== undefined;
+  };
+
+}
+util.inherits(EnumType, Type);
+
+EnumType.prototype.getTypeName = function () { return 'enum'; };
+
+EnumType.prototype.random = function () {
+
+  return this.symbols[Math.floor(randomDouble(0, this.symbols.length))];
+
+};
+
+
+/**
+ * Avro fixed type.
+ *
+ */
+function FixedType(schema, opts) {
+
+  if (!schema.name) {
+    throw new AvscError('missing fixed name: %j', schema);
+  }
+  if (schema.size !== (schema.size | 0) || schema.size < 1) {
+    throw new AvscError('invalid %j fixed size: %j', schema.name, schema.size);
+  }
+
+  opts = getOpts(schema, opts);
+
+  var self = this;
+  var reader = Tap.prototype.readFixed;
+  var writer = Tap.prototype.writeFixed;
+
+  this.name = getQualifiedName(schema, opts.namespace);
+  opts.registry[this.name] = this;
+  this.size = schema.size;
+
+  this._read = function () { return reader.call(this, self.size); };
+
+  this._write = function (buf) { writer.call(this, buf, self.size); };
+
+  this._check = function (buf) {
+    return Buffer.isBuffer(buf) && buf.length == self.size;
+  };
+
+}
+util.inherits(FixedType, Type);
+
+FixedType.prototype.getTypeName = function () { return 'fixed'; };
+
+FixedType.prototype.random = function () {
+
+  return new Buffer(randomString(this.size, 'aA#!'));
+
+};
+
+
+/**
+ * Avro map.
+ *
+ */
+function MapType(schema, opts) {
+
+  if (!schema.values) {
+    throw new AvscError('missing map values: %j', schema);
+  }
+
+  opts = getOpts(schema, opts);
+
+  var self = this;
+  var reader = Tap.prototype.readMap;
+  var writer = Tap.prototype.writeMap;
+
+  this.valuesType = parse(schema.values, opts);
+
+  this._read = function () {
+    return reader.call(this, self.valuesType._read);
+  };
+
+  this._write = function (obj) {
+    writer.call(this, obj, self.valuesType._write);
+  };
+
+  this._check = function (obj) {
+    if (typeof obj != 'object' || obj instanceof Array) {
+      return false;
+    }
+    var keys = Object.keys(obj);
+    var i, l;
+    for (i = 0, l = keys.length; i < l; i++) {
+      if (!self.valuesType._check(obj[keys[i]])) {
+        return false;
+      }
+    }
+    return true;
+  };
+
+}
+util.inherits(MapType, Type);
+
+MapType.prototype.getTypeName = function () { return 'map'; };
+
+MapType.prototype.random = function () {
+
+  var obj = {};
+  var i, l;
+  for (i = 0, l = Math.floor(randomDouble(0, 5)); i < l; i++) {
+    obj[randomString(8)] = this.valuesType.random();
+  }
+  return obj;
+
+};
+
+
+/**
+ * Avro array.
+ *
+ */
+function ArrayType(schema, opts) {
+
+  if (!schema.items) {
+    throw new AvscError('missing array items: %j', schema);
+  }
+
+  opts = getOpts(schema, opts);
+
+  var self = this;
+  var reader = Tap.prototype.readArray;
+  var writer = Tap.prototype.writeArray;
+
+  this.itemsType = parse(schema.items, opts);
+
+  this._read = function () {
+    return reader.call(this, self.itemsType._read);
+  };
+
+  this._write = function (arr) {
+    writer.call(this, arr, self.itemsType._write);
+  };
+
+  this._check = function (obj) {
+    if (!(obj instanceof Array)) {
+      return false;
+    }
+    return obj.every(function (elem) { return self.itemsType._check(elem); });
+  };
+
+}
+util.inherits(ArrayType, Type);
+
+ArrayType.prototype.getTypeName = function () { return 'array'; };
+
+ArrayType.prototype.random = function () {
+
+  var arr = [];
+  var i, l;
+  for (i = 0, l = Math.floor(randomDouble(0, 10)); i < l; i++) {
+    arr.push(this.itemsType.random());
+  }
+  return arr;
+
+};
+
+
+/**
+ * Avro record.
+ *
+ * A "specific record class" gets programmatically generated for each record.
+ * This gives significant speedups over using generics objects (~3 times
+ * faster) and provides a custom constructor.
+ *
+ */
+function RecordType(schema, opts) {
+
+  // jshint -W054
+
+  if (!schema.name) {
+    throw new AvscError('missing record name: %j', schema);
+  }
+
+  opts = getOpts(schema, opts);
+
+  var self = this;
+  this.name = getQualifiedName(schema, opts.namespace);
+  this.doc = schema.doc;
+  opts.registry[this.name] = this;
+  var parts = this.name.split('.');
+  var unqualifiedName = parts[parts.length - 1];
+
+  if (!(schema.fields instanceof Array)) {
+    throw new AvscError('invalid %j record fields: %j', this.name, schema);
+  }
+
+  this.fields = schema.fields.map(function (field) {
+    if (typeof field != 'object' || typeof field.name != 'string') {
+      throw new AvscError('invalid field in %j: %j', self.name, field);
+    }
+    var type = parse(field.type, opts);
+    var value = field['default'];
+    if (value !== undefined) {
+      if (type instanceof FixedType || type.getTypeName() === 'bytes') {
+        value = new Buffer(value, 'binary');
+      }
+      // Avro forces the default value to be of the first type in the
+      // enum, so we must do a bit of extra logic here.
+      if (
+        type instanceof UnionType ?
+          !type.types[0].isValid(value) :
+          !type.isValid(value)
+      ) {
+        throw new AvscError(
+          'invalid default for field %j in %j: %j',
+          field.name, self.name, value
+        );
+      }
+    }
+    return {
+      name: field.name,
+      doc: field.doc,
+      type: type,
+      'default': value
+    };
+  });
+
+  this._create = generateConstructor();
+  this._create.decode = function (obj) { return self.decode(obj); };
+  this._create.random = function () { return self.random(); };
+  this._create.prototype = {
+    $type: this,
+    $encode: function (opts) { return self.encode(this, opts); },
+    $isValid: function () { return self.isValid(this); }
+  };
+  // The names of these properties added to the prototype are prefixed with `$`
+  // because it is an invalid property name in Avro but not in JavaScript.
+  // (This way we are guaranteed not to be stepped over!)
+
+  this._read = generateReader();
+
+  this._write = generateWriter();
+
+  this._check = generateChecker();
+
+  function generateConstructor() {
+
+    var args = [];
+    var statements = [];
+    var i, l, name;
+    for (i = 0, l = self.fields.length; i < l; i++) {
+      name = self.fields[i].name;
+      args.push(name);
+      statements.push('this.' + name + ' = ' + name + ';');
+    }
+    var body = 'return function ' + unqualifiedName + '(';
+    body += args.join(',');
+    body += ') {\n';
+    body += statements.join('\n');
+    body += '\n};';
+    return new Function(body).call();
+
+  }
+
+  function generateReader() {
+
+    var names = [];
+    var values = [self._create];
+    var i, l;
+    for (i = 0, l = self.fields.length; i < l; i++) {
+      names.push('r' + i);
+      values.push(self.fields[i].type._read);
+    }
+    var body = 'return function read' + unqualifiedName + '() {\n';
+    body += 'return new Class(';
+    body += names.map(function (r) { return r + '.call(this)'; }).join(',');
+    body += ');\n};';
+    names.unshift('Class');
+    return new Function(names.join(','), body).apply(undefined, values);
+
+  }
+
+  function generateWriter() {
+
+    var names = [];
+    var values = [];
+    var body = 'return function write' + unqualifiedName + '(obj) {\n';
+    var i, l, field;
+    for (i = 0, l = self.fields.length; i < l; i++) {
+      field = self.fields[i];
+      names.push('w' + i);
+      values.push(field.type._write);
+      if (field['default'] !== undefined) {
+        if (
+          field.type.getTypeName() === 'bytes' ||
+          field.type.getTypeName() === 'fixed'
+        ) { // TODO
+          throw new Error('bytes and fixed defaults are not supported yet');
+        }
+        body += 'var v' + i + ' = obj.' + field.name + '; ';
+        body += 'if (v' + i + ' === undefined) { ';
+        body += 'v' + i + ' = ' + JSON.stringify(field['default']) + ';';
+        body += ' } w' + i + '.call(this, v' + i + ');\n';
+      } else {
+        body += 'w' + i + '.call(this, obj.' + field.name + ');\n';
+      }
+    }
+    body += '}';
+    return new Function(names.join(','), body).apply(undefined, values);
+
+  }
+
+  function generateChecker() {
+
+    var names = [];
+    var values = [];
+    var body = 'return function check' + unqualifiedName + '(obj) {\n';
+    body += 'if (typeof obj != \'object\') { return false; }\n';
+    var i, l, field;
+    for (i = 0, l = self.fields.length; i < l; i++) {
+      field = self.fields[i];
+      names.push('f' + i);
+      values.push(field.type);
+      if (field['default'] === undefined) {
+        body += 'if (!f' + i + '._check(obj.' + field.name + ')) { ';
+        body += 'return false; }\n';
+      } else {
+        body += 'var v' + i + ' = obj.' + field.name + '; ';
+        body += 'if (v' + i + ' !== undefined && ';
+        body += '!f' + i + '._check(v' + i + ')) { ';
+        body += 'return false; }\n';
+      }
+    }
+    body += 'return true;\n};';
+    return new Function(names.join(','), body).apply(undefined, values);
+
+  }
+
+}
+util.inherits(RecordType, Type);
+
+RecordType.prototype.getTypeName = function () { return 'record'; };
+
+RecordType.prototype.random = function () {
+
+  // jshint -W058
+
+  var fields = [undefined];
+  var i, l;
+  for (i = 0, l = this.fields.length; i < l; i++) {
+    fields.push(this.fields[i].type.random());
+  }
+  return new (this._create.bind.apply(this._create, fields));
+
+};
+
+/**
+ * Get class record instances are made of.
+ *
+ * It can be instantiated and used directly!
+ *
+ */
+RecordType.prototype.getRecordConstructor = function () {
+
+  return this._create;
+
+};
+
+// Helpers.
+
+/**
+ * Return a schema's qualified name.
+ *
+ * @param schema {Object} True schema (can't be a string).
+ * @param namespace {String} Optional namespace.
+ *
+ */
+function getQualifiedName(schema, namespace) {
+
+  var name = schema.name;
+  namespace = schema.namespace || namespace;
+  if (name && !~name.indexOf('.') && namespace) {
+    name = namespace + '.' + name;
+  }
+  return name;
+
+}
+
+/**
+ * Create default parsing options.
+ *
+ * @param opts {Object} Base options.
+ *
+ */
+function getOpts(schema, opts) {
+
+  opts = opts || {};
+  opts.registry = opts.registry || Type.createRegistry();
+  opts.namespace = schema.namespace || opts.namespace;
+  return opts;
+
+}
+
+/**
+ * Uppercase the first letter of a string.
+ *
+ * @param s {String} The string.
+ *
+ */
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/**
+ * Generate a random number.
+ *
+ * @param min {Number} Lower bound.
+ * @param max {Number} Upper bound.
+ *
+ * The bounds must be small enough to not overflow.
+ *
+ */
+function randomDouble(min, max) { return (max - min) * Math.random() + min; }
+
+/**
+ * Generate a random string.
+ *
+ * @param len {Number} String length.
+ * @param flags {String} Type of characters to use.
+ *
+ */
+function randomString(len, flags) {
+
+  len |= 0;
+  flags = flags || 'aA';
+
+  var mask = '';
+  if (flags.indexOf('a') > -1) {
+    mask += 'abcdefghijklmnopqrstuvwxyz';
+  }
+  if (flags.indexOf('A') > -1) {
+    mask += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  }
+  if (flags.indexOf('#') > -1) {
+    mask += '0123456789';
+  }
+  if (flags.indexOf('!') > -1) {
+    mask += '~`!@#$%^&*()_+-={}[]:";\'<>?,./|\\';
+  }
+
+  var result = '';
+  for (var i = 0; i < len; i++) {
+    result += mask[Math.round(Math.random() * (mask.length - 1))];
+  }
+  return result;
+
+}
+
+module.exports = {
+  AvscError: AvscError,
+  parse: parse,
+  types : {
+    ArrayType: ArrayType,
+    EnumType: EnumType,
+    FixedType: FixedType,
+    MapType: MapType,
+    PrimitiveType: PrimitiveType,
+    RecordType: RecordType,
+    Type: Type,
+    UnionType: UnionType,
+    UnwrappedUnionType: UnwrappedUnionType,
+    WrappedUnionType: WrappedUnionType
+  }
+};
+
+}).call(this,require("buffer").Buffer)
+},{"./tap":4,"buffer":6,"util":13}],4:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+// TODO: Implement skip methods.
+// TODO: Allow customizing block size when writing arrays and maps.
+// TODO: Allow configuring when to write the size when writing arrays and maps.
+
+'use strict';
+
+/**
+ * A tap is simply a buffer which remembers what has been already read.
+ *
+ * It is optimized for performance, at the cost of failing silently when
+ * overflowing the buffer. This is a purposeful trade-off given the expected
+ * rarity of this case and the large performance hit necessary to enforce
+ * validity. See `isValid` below for more information.
+ *
+ */
+function Tap(buf, pos) {
+
+  this.buf = buf;
+  this.pos = pos | 0;
+
+}
+
+/**
+ * Check that the tap is in a valid state.
+ *
+ * For efficiency reasons, none of the methods below will fail if an overflow
+ * occurs (either read or write). For this reason, it is up to the caller to
+ * always check that the read or write was valid by using this method.
+ *
+ */
+Tap.prototype.isValid = function () { return this.pos <= this.buf.length; };
+
+Tap.prototype.readNull = function () { return null; };
+
+Tap.prototype.writeNull = function () {};
+
+Tap.prototype.readBoolean = function () { return !!this.buf[this.pos++]; };
+
+Tap.prototype.writeBoolean = function (b) { this.buf[this.pos++] = !!b; };
+
+Tap.prototype.readInt = Tap.prototype.readLong = function () {
+
+  var b = 0;
+  var n = 0;
+  var k = 0;
+  var buf = this.buf;
+  var fk = 268435456; // 2 ** 28.
+  var f;
+
+  do {
+    b = buf[this.pos++];
+    n |= (b & 0x7f) << k;
+    k += 7;
+  } while (b & 0x80 && k < 28);
+
+  if (b & 0x80) {
+    // Switch to float arithmetic, otherwise we might overflow.
+    f = n;
+    do {
+      b = buf[this.pos++];
+      f += (b & 0x7f) * fk;
+      fk *= 128;
+    } while (b & 0x80);
+    return (f % 2 ? -(f + 1) : f) / 2;
+  } else {
+    return (n >> 1) ^ -(n & 1);
+  }
+
+};
+
+Tap.prototype.writeInt = Tap.prototype.writeLong = function (n) {
+
+  var m = n >= 0 ? n << 1 : (~n << 1) | 1;
+  var buf = this.buf;
+  var f;
+
+  if (m > 0) {
+    // No overflow, we can use integer arithmetic.
+    do {
+      buf[this.pos] = m & 0x7f;
+      m >>= 7;
+    } while (m && (buf[this.pos++] |= 0x80));
+  } else {
+    // We have to use slower floating arithmetic.
+    f = n >= 0 ? n * 2 : (-n * 2) - 1;
+    do {
+      buf[this.pos] = f & 0x7f;
+      f /= 128;
+    } while (f >= 1 && (buf[this.pos++] |= 0x80));
+  }
+  this.pos++;
+
+};
+
+Tap.prototype.readFloat = function () {
+
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 4;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.readFloatLE(pos);
+
+};
+
+Tap.prototype.writeFloat = function (f) {
+
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 4;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.writeFloatLE(f, pos);
+
+};
+
+Tap.prototype.readDouble = function () {
+
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 8;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.readDoubleLE(pos);
+
+};
+
+Tap.prototype.writeDouble = function (d) {
+
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 8;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.writeDoubleLE(d, pos);
+
+};
+
+Tap.prototype.readString = function () {
+
+  var len = this.readLong();
+  var s = this.buf.toString(undefined, this.pos, this.pos + len);
+  this.pos += len;
+  return s;
+
+};
+
+Tap.prototype.writeString = function (s) {
+
+  var len = Buffer.byteLength(s);
+  this.writeLong(len);
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  this.buf.write(s, pos);
+
+};
+
+Tap.prototype.readFixed = function (len) {
+
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  var fixed = new Buffer(len);
+  this.buf.copy(fixed, 0, pos, pos + len);
+  return fixed;
+
+};
+
+Tap.prototype.writeFixed = function (buf, len) {
+
+  len = len || buf.length;
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  buf.copy(this.buf, pos, 0, len);
+
+};
+
+Tap.prototype.readBytes = function () {
+
+  return this.readFixed(this.readLong());
+
+};
+
+Tap.prototype.writeBytes = function (buf) {
+
+  var len = buf.length;
+  this.writeLong(len);
+  this.writeFixed(buf, len);
+
+};
+
+Tap.prototype.readArray = function (fn) {
+
+  var arr = [];
+  var i, len;
+  while ((len = this.readLong())) {
+    if (len < 0) {
+      len = -len;
+      this.readLong(); // Skip size.
+    }
+    for (i = 0; i < len; i++) {
+      arr.push(fn.call(this));
+    }
+  }
+  return arr;
+
+};
+
+Tap.prototype.writeArray = function (arr, fn) {
+
+  var len = arr.length;
+  var i;
+  if (len) {
+    this.writeLong(len);
+    for (i = 0; i < len; i++) {
+      fn.call(this, arr[i]);
+    }
+  }
+  this.writeLong(0);
+
+};
+
+Tap.prototype.readMap = function (fn) {
+
+  var obj = {};
+  var i, len;
+  while ((len = this.readLong())) {
+    if (len < 0) {
+      len = -len;
+      this.readLong(); // Skip size.
+    }
+    for (i = 0; i < len; i++) {
+      var key = this.readString();
+      obj[key] = fn.call(this);
+    }
+  }
+  return obj;
+
+};
+
+Tap.prototype.writeMap = function (obj, fn) {
+
+  var keys = Object.keys(obj);
+  var len = keys.length;
+  var i, key;
+  if (len) {
+    this.writeLong(len);
+    for (i = 0; i < len; i++) {
+      key = keys[i];
+      this.writeString(key);
+      fn.call(this, obj[key]);
+    }
+  }
+  this.writeLong(0);
+
+};
+
+module.exports = Tap;
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":6}],5:[function(require,module,exports){
+
+},{}],6:[function(require,module,exports){
 (function (global){
 /*!
  * The buffer module from node.js, for the browser.
@@ -1556,7 +2882,7 @@ function blitBuffer (src, dst, offset, length) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"base64-js":3,"ieee754":4,"is-array":5}],3:[function(require,module,exports){
+},{"base64-js":7,"ieee754":8,"is-array":9}],7:[function(require,module,exports){
 var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 
 ;(function (exports) {
@@ -1682,7 +3008,7 @@ var lookup = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
 	exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],4:[function(require,module,exports){
+},{}],8:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -1768,7 +3094,7 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],5:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 
 /**
  * isArray
@@ -1803,4 +3129,719 @@ module.exports = isArray || function (val) {
   return !! val && '[object Array]' == str.call(val);
 };
 
-},{}]},{},[1]);
+},{}],10:[function(require,module,exports){
+if (typeof Object.create === 'function') {
+  // implementation from standard node.js 'util' module
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    ctor.prototype = Object.create(superCtor.prototype, {
+      constructor: {
+        value: ctor,
+        enumerable: false,
+        writable: true,
+        configurable: true
+      }
+    });
+  };
+} else {
+  // old school shim for old browsers
+  module.exports = function inherits(ctor, superCtor) {
+    ctor.super_ = superCtor
+    var TempCtor = function () {}
+    TempCtor.prototype = superCtor.prototype
+    ctor.prototype = new TempCtor()
+    ctor.prototype.constructor = ctor
+  }
+}
+
+},{}],11:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = setTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    clearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        setTimeout(drainQueue, 0);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],12:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],13:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":12,"_process":11,"inherits":10}]},{},[1]);
