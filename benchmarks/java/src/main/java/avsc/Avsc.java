@@ -19,7 +19,7 @@ public class Avsc {
   public static void main(String[] args) throws IOException {
     Schema schema = new Parser().parse(new File("../dat/user.avsc"));
 
-    File file = new File("../dat/user-100000.avro");
+    File file = new File("../dat/user-5000000.avro");
     DatumReader<GenericRecord> datumReader = new GenericDatumReader<GenericRecord>(schema);
     DataFileReader<GenericRecord> dataFileReader = new DataFileReader<GenericRecord>(file, datumReader);
 

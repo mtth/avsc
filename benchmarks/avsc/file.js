@@ -10,10 +10,10 @@ var file = require('../../lib/file'),
 
 var n = 0;
 var time;
-fs.createReadStream('benchmarks/dat/user-100000.avro')
-  .pipe(file.getDecoder())
+fs.createReadStream('dat/user-5000000.avro')
+  .pipe(new file.streams.ContainerDecoder())
+  .pipe(new file.streams.BlockDecoder())
   .on('data', function (record) {
-    // console.log(record);
     if (!time) {
       time = process.hrtime();
     }
