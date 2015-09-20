@@ -3,34 +3,16 @@
 'use strict';
 
 /**
- * Fast way to count records contained in an Avro container file.
+ * Example of decoding an Avro file.
+ *
+ * When the file is an object container file, this is suboptimal since we could
+ * just use the count from each block without decoding its contents.
  *
  */
-
 
 var avsc = require('../lib'),
-    fs = require('fs');
+    util = require('util');
 
-
-/**
- * Count records from an block input stream, without deserializing them.
- *
- * @param input {Stream} Input stream from an Avro container file.
- * @param cb(err, nRecords) {Function} Callback.
- *
- */
-function countRecords(input, cb) {
-
-  var n = 0;
-  input
-    .pipe(new avsc.streams.ContainerDecoder())
-    .on('data', function (block) { n += block.count; })
-    .on('end', function () { cb(null, n); })
-    .on('error', cb);
-
-}
-
-// Driver.
 
 var path = process.argv[2];
 if (!path) {
@@ -38,10 +20,15 @@ if (!path) {
   process.exit(1);
 }
 
-countRecords(fs.createReadStream(path), function (err, nRecords) {
-  if (err) {
-    console.error(err);
-    process.exit(1);
-  }
-  console.log(nRecords);
-});
+var n = 0;
+var time;
+avsc.decodeFile(path)
+  .on('metadata', function () { time = process.hrtime(); })
+  .on('data', function () { n++; })
+  .once('end', function () {
+    time = process.hrtime(time);
+    console.log(util.format(
+      'counted %s records in %s seconds',
+      n,  time[0] + time[1] * 1e-9
+    ));
+  });

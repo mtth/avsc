@@ -95,9 +95,23 @@ suite('parse', function () {
     assert.equal(b1[0], 10);
   });
 
+  test('wrap & unwrap unions', function () {
+    // Default is to wrap.
+    var type;
+    type = parse.parse(['null', 'int']);
+    assert(type instanceof parse.types.WrappedUnionType);
+    type = parse.parse(['null', 'int'], {unwrapUnions: true});
+    assert(type instanceof parse.types.UnwrappedUnionType);
+  });
+
   suite('PrimitiveType', function () {
 
     var data = [
+      {
+        schema: 'boolean',
+        valid: [true, false],
+        invalid: [null, 'hi', undefined, 1.5, 1e28, 123124123123213]
+      },
       {
         schema: 'int',
         valid: [1, -3, 12314, 0, 1e9],
@@ -194,6 +208,13 @@ suite('parse', function () {
 
     testType(parse.types.EnumType, data, schemas);
 
+    test('write invalid', function () {
+      var type = parse.parse({type: 'enum', symbols: ['A'], name: 'a'});
+      assert.throws(function () {
+        type.encode('B', {unsafe: true});
+      }, parse.AvscError);
+    });
+
   });
 
   suite('FixedType', function () {
@@ -256,16 +277,51 @@ suite('parse', function () {
 
   });
 
+  suite('ArrayType', function () {
+
+    var data = [
+      {
+        name: 'int',
+        schema: {items: 'int'},
+        valid: [[1,3,4], []],
+        invalid: [1, {o: null}, undefined, ['a'], [true]],
+        check: assert.deepEqual
+      }
+    ];
+
+    var schemas = [
+      {},
+      {items: ''},
+    ];
+
+    testType(parse.types.ArrayType, data, schemas);
+
+  });
+
   suite('WrappedUnionType', function () {
 
     var data = [
       {
-        name: 'null and string',
+        name: 'null & string',
         schema: ['null', 'string'],
         valid: [null, {string: 'hi'}],
         invalid: ['null', undefined, {string: 1}],
         check: assert.deepEqual
       },
+      {
+        name: 'qualified name',
+        schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
+        valid: [null, {'a.B': new Buffer(2)}],
+        invalid: [new Buffer(2)],
+        check: assert.deepEqual
+      },
+      {
+        name: 'array int',
+        schema: ['null', {type: 'array', items: 'int'}],
+        valid: [null, {array: [1,3]}],
+        invalid: [{array: ['a']}, [4]],
+        check: assert.deepEqual
+      }
     ];
 
     var schemas = [
@@ -282,6 +338,25 @@ suite('parse', function () {
       assert(type instanceof parse.types.UnionType);
     });
 
+    test('missing name write', function () {
+      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      assert.throws(function () {
+        type.encode({b: 'a'}, {unsafe: true});
+      }, parse.AvscError);
+    });
+
+    test('non wrapped write', function () {
+      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      assert.throws(function () {
+        type.encode(1, {unsafe: true});
+      }, parse.AvscError);
+    });
+
+    test('to JSON', function () {
+      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      assert.equal(JSON.stringify(type), '["null","int"]');
+    });
+
   });
 
   suite('UnwrappedUnionType', function () {
@@ -296,13 +371,27 @@ suite('parse', function () {
       },
     ];
 
-    var schemas = [];
+    var schemas = [
+      [{type: 'array', items: 'int'}, {type: 'array', items: 'string'}]
+    ];
 
     testType(parse.types.UnwrappedUnionType, data, schemas);
+
+    test('invalid write', function () {
+      var type = new parse.types.UnwrappedUnionType(['null', 'int']);
+      assert.throws(function () {
+        type.encode('a', {unsafe: true});
+      }, parse.AvscError);
+    });
 
     test('instanceof Union', function () {
       var type = new parse.types.UnwrappedUnionType(['null', 'int']);
       assert(type instanceof parse.types.UnionType);
+    });
+
+    test('to JSON', function () {
+      var type = new parse.types.UnwrappedUnionType(['null', 'int']);
+      assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
   });

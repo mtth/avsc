@@ -2,8 +2,7 @@
 
 'use strict';
 
-var streams = require('../../lib/streams'),
-    fs = require('fs'),
+var avsc = require('../../lib'),
     util = require('util');
 
 // Buffer.prototype.toJSON = function () { return this.toString('binary'); };
@@ -11,13 +10,9 @@ var streams = require('../../lib/streams'),
 var n1 = 0;
 var n2 = 0;
 var time;
-fs.createReadStream('dat/user-5000000.avro')
-  .pipe(new streams.Decoder())
+avsc.decodeFile('dat/user-5000000.avro')
   .on('metadata', function (schema, codec, sync) {
-    // console.log(schema);
-    // console.log(codec);
-    // console.log(sync);
-    time = process.hrtime();
+    console.log(util.format('%s\t%j', codec, sync));
   })
   // .on('data', function () {})
   .on('data', function (record) {
