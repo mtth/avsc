@@ -420,6 +420,7 @@ suite('parse', function () {
         name: 'a',
         fields: [{name: 'b', type: ['null', 'string'], 'default': 'a'}]
       },
+      {type: 'record', name: 'a', fields: {type: 'int', name: 'age'}}
     ];
 
     testType(parse.types.RecordType, data, schemas);
@@ -509,106 +510,50 @@ suite('parse', function () {
       }, parse.AvscError);
     });
 
-  });
-
-  suite('built-in complex schemas', function () {
-
-    testElems({
-      ok: [
-        {
-          name: 'map of ints',
-          schema: {type: 'map', values: 'int'},
-          obj: {one: 1, two: 2}
-        },
-        {
-          name: 'map of arrays of strings',
-          schema: {type: 'map', values: {type: 'array', items: 'string'}},
-          obj: {foo: [], bar: ['hello', 'world!', '']}
-        },
-        {
-          name: 'array of longs',
-          schema: {type: 'array', items: 'long'},
-          obj: [0, -123123, 958723, 123]
-        },
-        {
-          name: 'array of maps of int',
-          schema: {type: 'array', items: {type: 'map', values: 'int'}},
-          obj: [{one: 1, two: 2}]
-        }
-      ],
-      err: [
-        {
-          name: 'missing map values',
-          schema: {type: 'map'}
-        },
-        {
-          name: 'missing array items',
-          schema: {type: 'array', values: 'int'}
-        },
-        {
-          name: 'missing fixed size',
-          schema: {type: 'fixed', name: 'foo'}
-        },
-        {
-          name: 'missing fixed name',
-          schema: {type: 'fixed', size: 5}
-        }
-      ]
-    });
-
-  });
-
-  suite('record schemas', function () {
-
-    testElems({
-      ok: [
-        {
-          name: 'flat single int field',
-          schema: {
-            type: 'record', name: 'Foo', fields: [{name: 'bar', type: 'int'}]
-          },
-          obj: {bar: 3}
-        }
-      ],
-      err: [
-        {
-          name: 'missing fields',
-          schema: {type: 'record', name: 'Foo'},
-        },
-        {
-          name: 'missing name',
-          schema: {type: 'record', fields: [{name: 'bar', type: 'int'}]}
-        },
-        {
-          name: 'invalid fields',
-          schema: {type: 'record', name: 'Foo', fields: {name: 'bar'}}
-        },
-        {
-          name: 'invalid default',
-          schema: {
-            type: 'record',
-            name: 'Foo',
-            fields: [{name: 'bar', type: 'int', 'default': null}]
-          }
-        }
-      ]
-    });
-
-    test('writer default', function () {
-
+    test('record isValid', function () {
       var type = parse.parse({
         type: 'record',
         name: 'Person',
-        fields: [
-          {name: 'name', type: 'string', 'default': 'unknown'},
-          {name: 'age', type: 'int'}
-        ]
+        fields: [{name: 'age', type: 'int'}]
       });
+      var Person = type.getRecordConstructor();
+      assert((new Person(20)).$isValid());
+      assert(!(new Person()).$isValid());
+      assert(!(new Person('a')).$isValid());
+    });
 
-      var x = {age: 23};
-      var buf = type.encode(x);
-      assert.deepEqual(type.decode(buf), {name: 'unknown', age: 23});
+    test('record encode', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      });
+      var Person = type.getRecordConstructor();
+      assert.deepEqual((new Person(48)).$encode(), new Buffer([96]));
+      assert.throws(function () { (new Person()).$encode(); });
+      assert.doesNotThrow(function () {
+        (new Person()).$encode({unsafe: true});
+      });
+    });
 
+    test('Record decode', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      });
+      var Person = type.getRecordConstructor();
+      assert.deepEqual(Person.decode(new Buffer([40])), {age: 20});
+    });
+
+    test('Record random', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      });
+      var Person = type.getRecordConstructor();
+      assert(type.isValid(Person.random()));
     });
 
   });
@@ -621,7 +566,6 @@ suite('parse', function () {
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
       });
-
       assert.strictEqual(type, type.fields[0].type);
     });
 
@@ -641,7 +585,6 @@ suite('parse', function () {
           }
         ]
       });
-
       assert.equal(type.name, 'Person');
       assert.equal(type.fields[0].type.name, 'a.Person');
     });
@@ -688,31 +631,20 @@ suite('parse', function () {
       );
     });
 
+    test('aliases', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        namespace: 'a',
+        aliases: ['Human', 'b.Being'],
+        fields: [{name: 'age', type: 'int'}]
+      });
+      assert.deepEqual(type.aliases, ['a.Human', 'b.Being']);
+    });
+
   });
 
 });
-
-function testElems(elems) {
-
-  elems.ok.forEach(function (elem) {
-    test(elem.name, function () {
-      var type = parse.parse(elem.schema);
-      assert.deepEqual(type.decode(type.encode(elem.obj)), elem.obj);
-    });
-  });
-
-  if (elems.err) {
-    elems.err.forEach(function (elem) {
-      test(elem.name, function () {
-        assert.throws(
-          function () { parse.parse(elem.schema); },
-          parse.AvscError
-        );
-      });
-    });
-  }
-
-}
 
 function testType(Type, data, invalidSchemas) {
 
