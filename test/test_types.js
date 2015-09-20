@@ -2,106 +2,106 @@
 
 'use strict';
 
-var parse = require('../lib/parse'),
+var types = require('../lib/types'),
+    utils = require('../lib/utils'),
     assert = require('assert');
 
-suite('parse', function () {
 
-  test('unknown types', function () {
-    assert.throws(function () { parse.parse('a'); }, parse.AvscError);
-    assert.throws(function () { parse.parse({type: 'b'}); }, parse.AvscError);
-  });
+var AvscError = utils.AvscError;
+var fromSchema = types.Type.fromSchema;
 
-  test('schema instance', function () {
-    var type = parse.parse({
-      type: 'record',
-      name: 'Person',
-      fields: [{name: 'so', type: 'Person'}]
+suite('types', function () {
+
+  suite('from schema', function  () {
+
+    test('unknown types', function () {
+      assert.throws(function () { fromSchema('a'); }, AvscError);
+      assert.throws(function () { fromSchema({type: 'b'}); }, AvscError);
     });
-    assert.strictEqual(parse.parse(type), type);
-  });
 
-  test('namespaced type', function () {
-    var type = parse.parse({
-      type: 'record',
-      name: 'Human',
-      namespace: 'earth',
-      fields: [
-        {
-          name: 'id',
-          type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
-        },
-        {
-          name: 'alien',
-          type: {
-            type: 'record',
-            name: 'Alien',
-            namespace: 'all',
-            fields: [
-              {name: 'friend', type: 'earth.Human'},
-              {name: 'id', type: 'Id'},
-            ]
+    test('namespaced type', function () {
+      var type = fromSchema({
+        type: 'record',
+        name: 'Human',
+        namespace: 'earth',
+        fields: [
+          {
+            name: 'id',
+            type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
+          },
+          {
+            name: 'alien',
+            type: {
+              type: 'record',
+              name: 'Alien',
+              namespace: 'all',
+              fields: [
+                {name: 'friend', type: 'earth.Human'},
+                {name: 'id', type: 'Id'},
+              ]
+            }
           }
-        }
-      ]
+        ]
+      });
+      assert.equal(type.name, 'earth.Human');
+      assert.equal(type.fields[0].type.name, 'all.Id');
+      assert.equal(type.fields[1].type.name, 'all.Alien');
     });
-    assert.equal(type.name, 'earth.Human');
-    assert.equal(type.fields[0].type.name, 'all.Id');
-    assert.equal(type.fields[1].type.name, 'all.Alien');
-  });
 
-  test('wrapped primitive', function () {
-    var type = parse.parse({
-      type: 'record',
-      name: 'Person',
-      fields: [
-        {name: 'firstName', type: 'string'},
-        {name: 'lastName', type: {type: 'string'}},
-        {name: 'nothing', type: {type: 'null'}}
-      ]
+    test('wrapped primitive', function () {
+      var type = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'firstName', type: 'string'},
+          {name: 'lastName', type: {type: 'string'}},
+          {name: 'nothing', type: {type: 'null'}}
+        ]
+      });
+      assert.strictEqual(type.fields[0].type, type.fields[1].type);
+      assert.equal(type.fields[2].type.type, 'null');
     });
-    assert.strictEqual(type.fields[0].type, type.fields[1].type);
-    assert.equal(type.fields[2].type.type, 'null');
-  });
 
-  test('decode truncated', function () {
-    var type = parse.parse('int');
-    assert.throws(function () {
-      type.decode(new Buffer([128]));
-    }, parse.AvscError);
-  });
+    test('decode truncated', function () {
+      var type = fromSchema('int');
+      assert.throws(function () {
+        type.decode(new Buffer([128]));
+      }, AvscError);
+    });
 
-  test('encode safe & unsafe', function () {
-    var type = parse.parse('int');
-    assert.throws(function () { type.encode('abc'); }, parse.AvscError);
-    type.encode('abc', {unsafe: true});
-  });
+    test('encode safe & unsafe', function () {
+      var type = fromSchema('int');
+      assert.throws(function () { type.encode('abc'); }, AvscError);
+      type.encode('abc', {unsafe: true});
+    });
 
-  test('encode into buffer', function () {
-    var type = parse.parse('string');
-    var b1 = new Buffer(4);
-    var b2;
-    // Fits.
-    b1.fill(0);
-    b2 = type.encode('hi', {buffer: b1});
-    assert.deepEqual(b1, new Buffer('\x04hi\x00'));
-    assert.deepEqual(b2, new Buffer('\x04hi'));
-    b2[0] = 0;
-    assert.equal(b1[0], 0);
-    // Doesn't fit.
-    b1.fill(0);
-    b2 = type.encode('hello', {buffer: b1});
-    b2[0] = 0;
-    assert.equal(b1[0], 10);
-  });
+    test('encode into buffer', function () {
+      var type = fromSchema('string');
+      var b1 = new Buffer(4);
+      var b2;
+      // Fits.
+      b1.fill(0);
+      b2 = type.encode('hi', {buffer: b1});
+      assert.deepEqual(b1, new Buffer('\x04hi\x00'));
+      assert.deepEqual(b2, new Buffer('\x04hi'));
+      b2[0] = 0;
+      assert.equal(b1[0], 0);
+      // Doesn't fit.
+      b1.fill(0);
+      b2 = type.encode('hello', {buffer: b1});
+      b2[0] = 0;
+      assert.equal(b1[0], 10);
+    });
 
-  test('wrap & unwrap unions', function () {
-    // Default is to wrap.
-    var type;
-    type = parse.parse(['null', 'int']);
-    assert(type instanceof parse.types.WrappedUnionType);
-    type = parse.parse(['null', 'int'], {unwrapUnions: true});
-    assert(type instanceof parse.types.UnwrappedUnionType);
+    test('wrap & unwrap unions', function () {
+      // Default is to wrap.
+      var type;
+      type = fromSchema(['null', 'int']);
+      assert(type instanceof types.WrappedUnionType);
+      type = fromSchema(['null', 'int'], {unwrapUnions: true});
+      assert(type instanceof types.UnwrappedUnionType);
+    });
+
   });
 
   suite('PrimitiveType', function () {
@@ -153,11 +153,11 @@ suite('parse', function () {
 
     var schemas = ['foo', ''];
 
-    testType(parse.types.PrimitiveType, data, schemas);
+    testType(types.PrimitiveType, data, schemas);
 
     test('encode int', function () {
 
-      var type = new parse.types.PrimitiveType('int');
+      var type = new types.PrimitiveType('int');
       assert.equal(type.decode(new Buffer([0x80, 0x01])), 64);
       assert(new Buffer([0]).equals(type.encode(0)));
 
@@ -165,7 +165,7 @@ suite('parse', function () {
 
     test('decode string', function () {
 
-      var type = new parse.types.PrimitiveType('string');
+      var type = new types.PrimitiveType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
       assert.equal(type.decode(buf), s);
@@ -175,7 +175,7 @@ suite('parse', function () {
 
     test('encode string', function () {
 
-      var type = new parse.types.PrimitiveType('string');
+      var type = new types.PrimitiveType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       assert(buf.equals(type.encode('hi!', 1)));
 
@@ -206,13 +206,13 @@ suite('parse', function () {
       {symbols: ['hi']}
     ];
 
-    testType(parse.types.EnumType, data, schemas);
+    testType(types.EnumType, data, schemas);
 
     test('write invalid', function () {
-      var type = parse.parse({type: 'enum', symbols: ['A'], name: 'a'});
+      var type = fromSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
         type.encode('B', {unsafe: true});
-      }, parse.AvscError);
+      }, AvscError);
     });
 
   });
@@ -237,7 +237,7 @@ suite('parse', function () {
       {}
     ];
 
-    testType(parse.types.FixedType, data, schemas);
+    testType(types.FixedType, data, schemas);
 
   });
 
@@ -273,7 +273,7 @@ suite('parse', function () {
       {values: {type: 'array'}}
     ];
 
-    testType(parse.types.MapType, data, schemas);
+    testType(types.MapType, data, schemas);
 
   });
 
@@ -294,7 +294,7 @@ suite('parse', function () {
       {items: ''},
     ];
 
-    testType(parse.types.ArrayType, data, schemas);
+    testType(types.ArrayType, data, schemas);
 
   });
 
@@ -331,29 +331,29 @@ suite('parse', function () {
       ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}]
     ];
 
-    testType(parse.types.WrappedUnionType, data, schemas);
+    testType(types.WrappedUnionType, data, schemas);
 
     test('instanceof Union', function () {
-      var type = new parse.types.WrappedUnionType(['null', 'int']);
-      assert(type instanceof parse.types.UnionType);
+      var type = new types.WrappedUnionType(['null', 'int']);
+      assert(type instanceof types.UnionType);
     });
 
     test('missing name write', function () {
-      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
         type.encode({b: 'a'}, {unsafe: true});
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('non wrapped write', function () {
-      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
         type.encode(1, {unsafe: true});
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('to JSON', function () {
-      var type = new parse.types.WrappedUnionType(['null', 'int']);
+      var type = new types.WrappedUnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
@@ -375,22 +375,22 @@ suite('parse', function () {
       [{type: 'array', items: 'int'}, {type: 'array', items: 'string'}]
     ];
 
-    testType(parse.types.UnwrappedUnionType, data, schemas);
+    testType(types.UnwrappedUnionType, data, schemas);
 
     test('invalid write', function () {
-      var type = new parse.types.UnwrappedUnionType(['null', 'int']);
+      var type = new types.UnwrappedUnionType(['null', 'int']);
       assert.throws(function () {
         type.encode('a', {unsafe: true});
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('instanceof Union', function () {
-      var type = new parse.types.UnwrappedUnionType(['null', 'int']);
-      assert(type instanceof parse.types.UnionType);
+      var type = new types.UnwrappedUnionType(['null', 'int']);
+      assert(type instanceof types.UnionType);
     });
 
     test('to JSON', function () {
-      var type = new parse.types.UnwrappedUnionType(['null', 'int']);
+      var type = new types.UnwrappedUnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
@@ -423,20 +423,20 @@ suite('parse', function () {
       {type: 'record', name: 'a', fields: {type: 'int', name: 'age'}}
     ];
 
-    testType(parse.types.RecordType, data, schemas);
+    testType(types.RecordType, data, schemas);
 
     test('duplicate field names', function () {
       assert.throws(function () {
-        parse.parse({
+        fromSchema({
           type: 'record',
           name: 'Person',
           fields: [{name: 'age', type: 'int'}, {name: 'age', type: 'float'}]
         });
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('default constructor', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': 25}]
@@ -447,7 +447,7 @@ suite('parse', function () {
     });
 
     test('default check & write', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': 25}]
@@ -458,7 +458,7 @@ suite('parse', function () {
     test('fixed string default', function () {
       var s = '\x01\x04';
       var b = new Buffer(s);
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Object',
         fields: [
@@ -480,7 +480,7 @@ suite('parse', function () {
     test('fixed buffer default', function () {
       var s = '\x01\x04';
       var b = new Buffer(s);
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Object',
         fields: [
@@ -496,7 +496,7 @@ suite('parse', function () {
 
     test('fixed buffer invalid default', function () {
       assert.throws(function () {
-        parse.parse({
+        fromSchema({
           type: 'record',
           name: 'Object',
           fields: [
@@ -507,11 +507,11 @@ suite('parse', function () {
             }
           ]
         });
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('record isValid', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -523,7 +523,7 @@ suite('parse', function () {
     });
 
     test('record encode', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -537,7 +537,7 @@ suite('parse', function () {
     });
 
     test('Record decode', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -547,7 +547,7 @@ suite('parse', function () {
     });
 
     test('Record random', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -561,7 +561,7 @@ suite('parse', function () {
   suite('type names', function () {
 
     test('existing', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
@@ -570,7 +570,7 @@ suite('parse', function () {
     });
 
     test('namespaced', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [
@@ -591,7 +591,7 @@ suite('parse', function () {
 
     test('redefining', function () {
       assert.throws(function () {
-        parse.parse({
+        fromSchema({
           type: 'record',
           name: 'Person',
           fields: [
@@ -605,34 +605,34 @@ suite('parse', function () {
             }
           ]
         });
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('missing', function () {
       assert.throws(function () {
-        parse.parse({
+        fromSchema({
           type: 'record',
           name: 'Person',
           fields: [{name: 'so', type: 'Friend'}]
         });
-      }, parse.AvscError);
+      }, AvscError);
     });
 
     test('redefining primitive', function () {
       assert.throws( // Unqualified.
-        function () { parse.parse({type: 'fixed', name: 'int', size: 2}); },
-        parse.AvscError
+        function () { fromSchema({type: 'fixed', name: 'int', size: 2}); },
+        AvscError
       );
       assert.throws( // Qualified.
         function () {
-          parse.parse({type: 'fixed', name: 'int', size: 2, namespace: 'a'});
+          fromSchema({type: 'fixed', name: 'int', size: 2, namespace: 'a'});
         },
-        parse.AvscError
+        AvscError
       );
     });
 
     test('aliases', function () {
-      var type = parse.parse({
+      var type = fromSchema({
         type: 'record',
         name: 'Person',
         namespace: 'a',
@@ -665,7 +665,7 @@ function testType(Type, data, invalidSchemas) {
 
   test('invalid', function () {
     invalidSchemas.forEach(function (schema) {
-      assert.throws(function () { new Type(schema); }, parse.AvscError);
+      assert.throws(function () { new Type(schema); }, AvscError);
     });
   });
 
