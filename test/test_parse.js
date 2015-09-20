@@ -7,6 +7,11 @@ var parse = require('../lib/parse'),
 
 suite('parse', function () {
 
+  test('unknown types', function () {
+    assert.throws(function () { parse.parse('a'); }, parse.AvscError);
+    assert.throws(function () { parse.parse({type: 'b'}); }, parse.AvscError);
+  });
+
   test('schema instance', function () {
     var type = parse.parse({
       type: 'record',
@@ -16,16 +21,76 @@ suite('parse', function () {
     assert.strictEqual(parse.parse(type), type);
   });
 
+  test('namespaced type', function () {
+    var type = parse.parse({
+      type: 'record',
+      name: 'Human',
+      namespace: 'earth',
+      fields: [
+        {
+          name: 'id',
+          type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
+        },
+        {
+          name: 'alien',
+          type: {
+            type: 'record',
+            name: 'Alien',
+            namespace: 'all',
+            fields: [
+              {name: 'friend', type: 'earth.Human'},
+              {name: 'id', type: 'Id'},
+            ]
+          }
+        }
+      ]
+    });
+    assert.equal(type.name, 'earth.Human');
+    assert.equal(type.fields[0].type.name, 'all.Id');
+    assert.equal(type.fields[1].type.name, 'all.Alien');
+  });
+
   test('wrapped primitive', function () {
     var type = parse.parse({
       type: 'record',
       name: 'Person',
       fields: [
-        {name: 'firstName', type: 'int'},
-        {name: 'lastName', type: {type: 'int'}}
+        {name: 'firstName', type: 'string'},
+        {name: 'lastName', type: {type: 'string'}}
       ]
     });
     assert.strictEqual(type.fields[0].type, type.fields[1].type);
+  });
+
+  test('decode truncated', function () {
+    var type = parse.parse('int');
+    assert.throws(function () {
+      type.decode(new Buffer([128]));
+    }, parse.AvscError);
+  });
+
+  test('encode safe & unsafe', function () {
+    var type = parse.parse('int');
+    assert.throws(function () { type.encode('abc'); }, parse.AvscError);
+    type.encode('abc', {unsafe: true});
+  });
+
+  test('encode into buffer', function () {
+    var type = parse.parse('string');
+    var b1 = new Buffer(4);
+    var b2;
+    // Fits.
+    b1.fill(0);
+    b2 = type.encode('hi', {buffer: b1});
+    assert.deepEqual(b1, new Buffer('\x04hi\x00'));
+    assert.deepEqual(b2, new Buffer('\x04hi'));
+    b2[0] = 0;
+    assert.equal(b1[0], 0);
+    // Doesn't fit.
+    b1.fill(0);
+    b2 = type.encode('hello', {buffer: b1});
+    b2[0] = 0;
+    assert.equal(b1[0], 10);
   });
 
   suite('PrimitiveType', function () {
