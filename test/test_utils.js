@@ -7,6 +7,19 @@ var utils = require('../lib/utils'),
 
 suite('utils', function () {
 
+  test('capitalize', function () {
+    assert.equal(utils.capitalize('abc'), 'Abc');
+    assert.equal(utils.capitalize(''), '');
+    assert.equal(utils.capitalize('aBc'), 'ABc');
+  });
+
+  test('hasDuplicates', function () {
+    assert(utils.hasDuplicates([1, 3, 1]));
+    assert(!utils.hasDuplicates([]));
+    assert(!utils.hasDuplicates(['ab', 'cb']));
+    assert(utils.hasDuplicates(['ab', 'cb'], function (s) { return s[1]; }));
+  });
+
   suite('ConsecutiveQueue', function () {
 
     test('in order', function () {
