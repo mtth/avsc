@@ -7,6 +7,27 @@ var parse = require('../lib/parse'),
 
 suite('parse', function () {
 
+  test('schema instance', function () {
+    var type = parse.parse({
+      type: 'record',
+      name: 'Person',
+      fields: [{name: 'so', type: 'Person'}]
+    });
+    assert.strictEqual(parse.parse(type), type);
+  });
+
+  test('wrapped primitive', function () {
+    var type = parse.parse({
+      type: 'record',
+      name: 'Person',
+      fields: [
+        {name: 'firstName', type: 'int'},
+        {name: 'lastName', type: {type: 'int'}}
+      ]
+    });
+    assert.strictEqual(type.fields[0].type, type.fields[1].type);
+  });
+
   suite('PrimitiveType', function () {
 
     var data = [
@@ -247,6 +268,91 @@ suite('parse', function () {
 
     testType(parse.types.RecordType, data, schemas);
 
+    test('duplicate field names', function () {
+      assert.throws(function () {
+        parse.parse({
+          type: 'record',
+          name: 'Person',
+          fields: [{name: 'age', type: 'int'}, {name: 'age', type: 'float'}]
+        });
+      }, parse.AvscError);
+    });
+
+    test('default constructor', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int', 'default': 25}]
+      });
+      var Person = type.getRecordConstructor();
+      var p = new Person();
+      assert.equal(p.age, 25);
+    });
+
+    test('default check & write', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int', 'default': 25}]
+      });
+      assert.deepEqual(type.encode({}), new Buffer([50]));
+    });
+
+    test('fixed string default', function () {
+      var s = '\x01\x04';
+      var b = new Buffer(s);
+      var type = parse.parse({
+        type: 'record',
+        name: 'Object',
+        fields: [
+          {
+            name: 'id',
+            type: {type: 'fixed', size: 2, name: 'Id'},
+            'default': s
+          }
+        ]
+      });
+
+      assert.deepEqual(type.fields[0]['default'], s);
+
+      var obj = new (type.getRecordConstructor())();
+      assert.deepEqual(obj.id, new Buffer([1, 4]));
+      assert.deepEqual(type.encode({}), b);
+    });
+
+    test('fixed buffer default', function () {
+      var s = '\x01\x04';
+      var b = new Buffer(s);
+      var type = parse.parse({
+        type: 'record',
+        name: 'Object',
+        fields: [
+          {
+            name: 'id',
+            type: {type: 'fixed', size: 2, name: 'Id'},
+            'default': b
+          }
+        ]
+      });
+      assert.deepEqual(type.fields[0]['default'], s);
+    });
+
+    test('fixed buffer invalid default', function () {
+      assert.throws(function () {
+        parse.parse({
+          type: 'record',
+          name: 'Object',
+          fields: [
+            {
+              name: 'id',
+              type: {type: 'fixed', size: 2, name: 'Id'},
+              'default': new Buffer([0])
+            }
+          ]
+        });
+      }, parse.AvscError);
+    });
+
   });
 
   suite('built-in complex schemas', function () {
@@ -351,10 +457,9 @@ suite('parse', function () {
 
   });
 
-  suite('type references', function () {
+  suite('type names', function () {
 
     test('existing', function () {
-
       var type = parse.parse({
         type: 'record',
         name: 'Person',
@@ -362,11 +467,30 @@ suite('parse', function () {
       });
 
       assert.strictEqual(type, type.fields[0].type);
+    });
 
+    test('namespaced', function () {
+      var type = parse.parse({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {
+            name: 'so',
+            type: {
+              type: 'record',
+              name: 'Person',
+              fields: [{name: 'age', type: 'int'}],
+              namespace: 'a'
+            }
+          }
+        ]
+      });
+
+      assert.equal(type.name, 'Person');
+      assert.equal(type.fields[0].type.name, 'a.Person');
     });
 
     test('redefining', function () {
-
       assert.throws(function () {
         parse.parse({
           type: 'record',
@@ -376,17 +500,16 @@ suite('parse', function () {
               name: 'so',
               type: {
                 type: 'record',
-                name: 'Person'
+                name: 'Person',
+                fields: [{name: 'age', type: 'int'}]
               }
             }
           ]
         });
       }, parse.AvscError);
-
     });
 
     test('missing', function () {
-
       assert.throws(function () {
         parse.parse({
           type: 'record',
@@ -394,7 +517,19 @@ suite('parse', function () {
           fields: [{name: 'so', type: 'Friend'}]
         });
       }, parse.AvscError);
+    });
 
+    test('redefining primitive', function () {
+      assert.throws( // Unqualified.
+        function () { parse.parse({type: 'fixed', name: 'int', size: 2}); },
+        parse.AvscError
+      );
+      assert.throws( // Qualified.
+        function () {
+          parse.parse({type: 'fixed', name: 'int', size: 2, namespace: 'a'});
+        },
+        parse.AvscError
+      );
     });
 
   });
