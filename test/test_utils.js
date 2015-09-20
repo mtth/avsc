@@ -44,4 +44,32 @@ suite('utils', function () {
 
   });
 
+  suite('Lcg', function () {
+
+    test('seed', function () {
+      var r1 = new utils.Lcg(48);
+      var r2 = new utils.Lcg(48);
+      assert.equal(r1.nextInt(), r2.nextInt());
+    });
+
+    test('integer', function () {
+      var r = new utils.Lcg(48);
+      var i = r.nextInt();
+      assert(i >= 0 && i === (i | 0));
+    });
+
+    test('choice', function () {
+      var r = new utils.Lcg(48);
+      var arr = ['a'];
+      assert(r.choice(arr), 'a');
+    });
+
+    test('string', function () {
+      var r = new utils.Lcg(48);
+      var s = r.nextString(10);
+      assert.equal(s.length, 10);
+    });
+
+  });
+
 });
