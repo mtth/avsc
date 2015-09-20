@@ -8,23 +8,10 @@ var avsc = require('../../lib'),
     fs = require('fs');
 
 
-var schema = JSON.parse(fs.readFileSync('dat/user.avsc'));
-var buf = fs.readFileSync('dat/event.avro'); // FIXME
+var schema = JSON.parse(fs.readFileSync('dat/event.avsc'));
+var buf = fs.readFileSync('dat/event.avro');
 
 new Benchmark()
-  .addFn('wrapped', (function () {
-    var type = avsc.parse(schema);
-    return function (cb) {
-      var n = 0;
-      var i, record;
-      for (i = 0; i < 1000; i++) {
-        record = type.decode(buf);
-        n += record.header.memberId;
-      }
-      assert(n);
-      cb();
-    };
-  })())
   .addFn('unwrapped', (function () {
     var type = avsc.parse(schema, {unwrapUnions: true});
     return function (cb) {
@@ -61,6 +48,19 @@ new Benchmark()
         record = Record.decode(buf);
         assert(record.$isValid());
       }
+      cb();
+    };
+  })())
+  .addFn('wrapped', (function () {
+    var type = avsc.parse(schema);
+    return function (cb) {
+      var n = 0;
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = type.decode(buf);
+        n += record.header.memberId;
+      }
+      assert(n);
       cb();
     };
   })())

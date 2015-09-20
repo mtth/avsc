@@ -13,6 +13,7 @@
 
 var avsc = require('../lib');
 
+
 // Create a record type.
 var personType = new avsc.types.RecordType({
   name: 'Person',

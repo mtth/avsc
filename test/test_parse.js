@@ -56,10 +56,12 @@ suite('parse', function () {
       name: 'Person',
       fields: [
         {name: 'firstName', type: 'string'},
-        {name: 'lastName', type: {type: 'string'}}
+        {name: 'lastName', type: {type: 'string'}},
+        {name: 'nothing', type: {type: 'null'}}
       ]
     });
     assert.strictEqual(type.fields[0].type, type.fields[1].type);
+    assert.equal(type.fields[2].type.type, 'null');
   });
 
   test('decode truncated', function () {
