@@ -181,6 +181,14 @@ suite('types', function () {
 
     });
 
+    test('as reader of', function () {
+      assert.equal(getReader('long', 'int').type, 'long');
+      assert.equal(getReader('double', 'long').type, 'double');
+      assert.equal(getReader('bytes', 'string').type, 'bytes');
+      assert.throws(function () { getReader('int', 'long'); }, AvscError);
+      assert.throws(function () { getReader('long', 'double'); }, AvscError);
+    });
+
   });
 
   suite('EnumType', function () {
@@ -215,6 +223,30 @@ suite('types', function () {
       }, AvscError);
     });
 
+    test('as reader of', function () {
+      var t1, t2;
+      t1 = t('Foo', ['bar', 'baz']);
+      t2 = t('Foo', ['bar', 'baz']);
+      assertTypeEquals(getReader(t1, t2), t1);
+      t1 = t('Foo2', ['bar', 'baz'], ['Foo']);
+      assertTypeEquals(getReader(t1, t2), t1);
+      t2 = t('Foo', ['bar']);
+      assertTypeEquals(getReader(t1, t2), t1);
+      t2 = t('Foo', ['bar', 'bax']);
+      assert.throws(function () { getReader(t1, t2); }, AvscError);
+      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
+      function t(name, symbols, aliases, namespace) {
+        var obj = {type: 'enum', name: name, symbols: symbols};
+        if (aliases !== undefined) {
+          obj.aliases = aliases;
+        }
+        if (namespace !== undefined) {
+          obj.namespace = namespace;
+        }
+        return obj;
+      }
+    });
+
   });
 
   suite('FixedType', function () {
@@ -238,6 +270,24 @@ suite('types', function () {
     ];
 
     testType(types.FixedType, data, schemas);
+
+    test('as reader of', function () {
+      var t1, t2;
+      t1 = fromSchema({type: 'fixed', size: 2, name: 'Id'});
+      t2 = fromSchema({type: 'fixed', size: 2, name: 'Id'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t1 = fromSchema({type: 'fixed', size: 2, name: 'ID', aliases: ['Id']});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t1 = fromSchema({type: 'fixed', size: 2, name: 'ID', aliases: ['Id'], namespace: 'a'});
+      assert.throws(function () { getReader(t1, t2); }, AvscError);
+      t2 = fromSchema({type: 'fixed', size: 2, name: 'Id', namespace: 'a'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t2 = fromSchema({type: 'fixed', size: 2, name: 'ID', namespace: 'a'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t2 = fromSchema({type: 'fixed', size: 3, name: 'ID', namespace: 'a'});
+      assert.throws(function () { getReader(t1, t2); }, AvscError);
+      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
+    });
 
   });
 
@@ -275,6 +325,18 @@ suite('types', function () {
 
     testType(types.MapType, data, schemas);
 
+    test('as reader of', function () {
+      var t1, t2;
+      t1 = fromSchema({type: 'map', values: 'int'});
+      t2 = fromSchema({type: 'map', values: 'int'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t1 = fromSchema({type: 'map', values: 'long'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t2 = fromSchema({type: 'map', values: 'string'});
+      assert.throws(function () { getReader(t1, t2); }, AvscError);
+      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
+    });
+
   });
 
   suite('ArrayType', function () {
@@ -295,6 +357,18 @@ suite('types', function () {
     ];
 
     testType(types.ArrayType, data, schemas);
+
+    test('as reader of', function () {
+      var t1, t2;
+      t1 = fromSchema({type: 'array', items: 'int'});
+      t2 = fromSchema({type: 'array', items: 'int'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t1 = fromSchema({type: 'array', items: 'long'});
+      assertTypeEquals(getReader(t1, t2), t1);
+      t2 = fromSchema({type: 'array', items: 'string'});
+      assert.throws(function () { getReader(t1, t2); }, AvscError);
+      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
+    });
 
   });
 
@@ -320,6 +394,13 @@ suite('types', function () {
         schema: ['null', {type: 'array', items: 'int'}],
         valid: [null, {array: [1,3]}],
         invalid: [{array: ['a']}, [4]],
+        check: assert.deepEqual
+      },
+      {
+        name: 'null',
+        schema: ['null'],
+        valid: [null],
+        invalid: [{array: ['a']}, [4], 'null'],
         check: assert.deepEqual
       }
     ];
@@ -668,6 +749,22 @@ function testType(Type, data, invalidSchemas) {
       assert.throws(function () { new Type(schema); }, AvscError);
     });
   });
+
+}
+
+function getReader(reader, writer) {
+
+  return fromSchema(reader).asReaderOf(fromSchema(writer));
+
+}
+
+function assertTypeEquals(a, b) {
+
+  // Really inefficient...
+  assert.deepEqual(
+    JSON.parse(JSON.stringify(a)),
+    JSON.parse(JSON.stringify(b))
+  );
 
 }
 
