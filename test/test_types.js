@@ -53,14 +53,9 @@ suite('types', function () {
       var type = fromSchema({
         type: 'record',
         name: 'Person',
-        fields: [
-          {name: 'firstName', type: 'string'},
-          {name: 'lastName', type: {type: 'string'}},
-          {name: 'nothing', type: {type: 'null'}}
-        ]
+        fields: [{name: 'nothing', type: {type: 'null'}}]
       });
-      assert.strictEqual(type.fields[0].type, type.fields[1].type);
-      assert.equal(type.fields[2].type.type, 'null');
+      assert.equal(type.fields[0].type.type, 'null');
     });
 
     test('decode truncated', function () {
@@ -108,6 +103,21 @@ suite('types', function () {
       assert(type instanceof types.WrappedUnionType);
       type = fromSchema(['null', 'int'], {unwrapUnions: true});
       assert(type instanceof types.UnwrappedUnionType);
+    });
+
+    test('type hook', function () {
+      var c = {};
+      var o = {
+        type: 'record',
+        name: 'Human',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: {type: 'string'}}
+        ]
+      };
+      fromSchema(o, {typeHook: function (s) { c[this.type] = s; }});
+      assert.strictEqual(c.record, o);
+      assert.strictEqual(c.string, o.fields[1].type);
     });
 
   });
