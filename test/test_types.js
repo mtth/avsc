@@ -243,14 +243,20 @@ suite('types', function () {
     });
 
     test('adapt', function () {
-      var t1, t2;
+      var t1, t2, buf, adapter;
       t1 = newEnum('Foo', ['bar', 'baz']);
       t2 = newEnum('Foo', ['bar', 'baz']);
-      assert(t1.createAdapter(t2)._read === t1._read);
-      t1 = newEnum('Foo2', ['bar', 'baz'], ['Foo']);
-      assert(t1.createAdapter(t2)._read === t1._read);
-      t2 = newEnum('Foo', ['bar']);
-      assert(t1.createAdapter(t2)._read === t1._read);
+      adapter = t1.createAdapter(t2);
+      buf = t2.encode('bar');
+      assert.equal(t1.decode(buf, adapter), 'bar');
+      t2 = newEnum('Foo', ['baz', 'bar']);
+      buf = t2.encode('bar');
+      adapter = t1.createAdapter(t2);
+      assert.notEqual(t1.decode(buf), 'bar');
+      assert.equal(t1.decode(buf, adapter), 'bar');
+      t1 = newEnum('Foo2', ['foo', 'baz', 'bar'], ['Foo']);
+      adapter = t1.createAdapter(t2);
+      assert.equal(t1.decode(buf, adapter), 'bar');
       t2 = newEnum('Foo', ['bar', 'bax']);
       assert.throws(function () { t1.createAdapter(t2); }, AvscError);
       assert.throws(function () {
@@ -633,6 +639,87 @@ suite('types', function () {
       p1.friends.push('ann');
       var p2 = new Person(undefined);
       assert.deepEqual(p2.friends, []);
+    });
+
+    test('adapt alias', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var p = v1.random();
+      var buf = v1.encode(p);
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Human',
+        aliases: ['Person'],
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var adapter = v2.createAdapter(v1);
+      assert.deepEqual(v2.decode(buf, adapter), p);
+      var v3 = fromSchema({
+        type: 'record',
+        name: 'Human',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      assert.throws(function () { v3.createAdapter(v1); }, AvscError);
+    });
+
+    test('adapt skip field', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: 'string'}
+        ]
+      });
+      var p = {age: 25, name: 'Ann'};
+      var buf = v1.encode(p);
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var adapter = v2.createAdapter(v1);
+      assert.deepEqual(v2.decode(buf, adapter), {name: 'Ann'});
+    });
+
+    test('adapt new field', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var p = {name: 'Ann'};
+      var buf = v1.encode(p);
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int', 'default': 25},
+          {name: 'name', type: 'string'}
+        ]
+      });
+      var adapter = v2.createAdapter(v1);
+      assert.deepEqual(v2.decode(buf, adapter), {name: 'Ann', age: 25});
+    });
+
+    test('adapt new field no default', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: 'string'}
+        ]
+      });
+      assert.throws(function () { v2.createAdapter(v1); }, AvscError);
     });
 
   });
