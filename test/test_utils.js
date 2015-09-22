@@ -20,6 +20,17 @@ suite('utils', function () {
     assert(utils.hasDuplicates(['ab', 'cb'], function (s) { return s[1]; }));
   });
 
+  test('single index of', function () {
+    assert.equal(utils.singleIndexOf(null, 1), -1);
+    assert.equal(utils.singleIndexOf([2], 2), 0);
+    assert.equal(utils.singleIndexOf([3, 3], 3), -2);
+    assert.equal(utils.singleIndexOf([2, 4], 4), 1);
+  });
+
+  test('abstract function', function () {
+    assert.throws(utils.abstractFunction, utils.AvscError);
+  });
+
   suite('ConsecutiveQueue', function () {
 
     test('in order', function () {
