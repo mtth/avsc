@@ -157,7 +157,7 @@ suite('types', function () {
 
     test('encode int', function () {
 
-      var type = new types.PrimitiveType('int');
+      var type = pType('int');
       assert.equal(type.decode(new Buffer([0x80, 0x01])), 64);
       assert(new Buffer([0]).equals(type.encode(0)));
 
@@ -165,7 +165,7 @@ suite('types', function () {
 
     test('decode string', function () {
 
-      var type = new types.PrimitiveType('string');
+      var type = pType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
       assert.equal(type.decode(buf), s);
@@ -175,19 +175,38 @@ suite('types', function () {
 
     test('encode string', function () {
 
-      var type = new types.PrimitiveType('string');
+      var type = pType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       assert(buf.equals(type.encode('hi!', 1)));
 
     });
 
-    test('as reader of', function () {
-      assert.equal(getReader('long', 'int').type, 'long');
-      assert.equal(getReader('double', 'long').type, 'double');
-      assert.equal(getReader('bytes', 'string').type, 'bytes');
-      assert.throws(function () { getReader('int', 'long'); }, AvscError);
-      assert.throws(function () { getReader('long', 'double'); }, AvscError);
+    test('adapt int', function () {
+      var intType = pType('int');
+      var longType = pType('long');
+      var buf = intType.encode(123);
+      assert.equal(
+        longType.decode(buf, longType.createAdapter(intType)),
+        123
+      );
     });
+
+    test('adapt string > bytes', function () {
+      var stringT = pType('string');
+      var bytesT = pType('bytes');
+      var buf = stringT.encode('\x00\x01');
+      assert.deepEqual(
+        bytesT.decode(buf, bytesT.createAdapter(stringT)),
+        new Buffer([0, 1])
+      );
+    });
+
+    test('adapt invalid', function () {
+      assert.throws(function () { getAdapter('int', 'long'); }, AvscError);
+      assert.throws(function () { getAdapter('long', 'double'); }, AvscError);
+    });
+
+    function pType(name) { return new types.PrimitiveType(name); }
 
   });
 
@@ -223,19 +242,21 @@ suite('types', function () {
       }, AvscError);
     });
 
-    test('as reader of', function () {
+    test('adapt', function () {
       var t1, t2;
-      t1 = t('Foo', ['bar', 'baz']);
-      t2 = t('Foo', ['bar', 'baz']);
-      assertTypeEquals(getReader(t1, t2), t1);
-      t1 = t('Foo2', ['bar', 'baz'], ['Foo']);
-      assertTypeEquals(getReader(t1, t2), t1);
-      t2 = t('Foo', ['bar']);
-      assertTypeEquals(getReader(t1, t2), t1);
-      t2 = t('Foo', ['bar', 'bax']);
-      assert.throws(function () { getReader(t1, t2); }, AvscError);
-      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
-      function t(name, symbols, aliases, namespace) {
+      t1 = newEnum('Foo', ['bar', 'baz']);
+      t2 = newEnum('Foo', ['bar', 'baz']);
+      assert(t1.createAdapter(t2)._read === t1._read);
+      t1 = newEnum('Foo2', ['bar', 'baz'], ['Foo']);
+      assert(t1.createAdapter(t2)._read === t1._read);
+      t2 = newEnum('Foo', ['bar']);
+      assert(t1.createAdapter(t2)._read === t1._read);
+      t2 = newEnum('Foo', ['bar', 'bax']);
+      assert.throws(function () { t1.createAdapter(t2); }, AvscError);
+      assert.throws(function () {
+        t1.createAdapter(fromSchema('int'));
+      }, AvscError);
+      function newEnum(name, symbols, aliases, namespace) {
         var obj = {type: 'enum', name: name, symbols: symbols};
         if (aliases !== undefined) {
           obj.aliases = aliases;
@@ -243,7 +264,7 @@ suite('types', function () {
         if (namespace !== undefined) {
           obj.namespace = namespace;
         }
-        return obj;
+        return new types.EnumType(obj);
       }
     });
 
@@ -270,24 +291,6 @@ suite('types', function () {
     ];
 
     testType(types.FixedType, data, schemas);
-
-    test('as reader of', function () {
-      var t1, t2;
-      t1 = fromSchema({type: 'fixed', size: 2, name: 'Id'});
-      t2 = fromSchema({type: 'fixed', size: 2, name: 'Id'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t1 = fromSchema({type: 'fixed', size: 2, name: 'ID', aliases: ['Id']});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t1 = fromSchema({type: 'fixed', size: 2, name: 'ID', aliases: ['Id'], namespace: 'a'});
-      assert.throws(function () { getReader(t1, t2); }, AvscError);
-      t2 = fromSchema({type: 'fixed', size: 2, name: 'Id', namespace: 'a'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t2 = fromSchema({type: 'fixed', size: 2, name: 'ID', namespace: 'a'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t2 = fromSchema({type: 'fixed', size: 3, name: 'ID', namespace: 'a'});
-      assert.throws(function () { getReader(t1, t2); }, AvscError);
-      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
-    });
 
   });
 
@@ -325,18 +328,6 @@ suite('types', function () {
 
     testType(types.MapType, data, schemas);
 
-    test('as reader of', function () {
-      var t1, t2;
-      t1 = fromSchema({type: 'map', values: 'int'});
-      t2 = fromSchema({type: 'map', values: 'int'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t1 = fromSchema({type: 'map', values: 'long'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t2 = fromSchema({type: 'map', values: 'string'});
-      assert.throws(function () { getReader(t1, t2); }, AvscError);
-      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
-    });
-
   });
 
   suite('ArrayType', function () {
@@ -357,18 +348,6 @@ suite('types', function () {
     ];
 
     testType(types.ArrayType, data, schemas);
-
-    test('as reader of', function () {
-      var t1, t2;
-      t1 = fromSchema({type: 'array', items: 'int'});
-      t2 = fromSchema({type: 'array', items: 'int'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t1 = fromSchema({type: 'array', items: 'long'});
-      assertTypeEquals(getReader(t1, t2), t1);
-      t2 = fromSchema({type: 'array', items: 'string'});
-      assert.throws(function () { getReader(t1, t2); }, AvscError);
-      assert.throws(function () { getReader(t1, 'int'); }, AvscError);
-    });
 
   });
 
@@ -637,6 +616,25 @@ suite('types', function () {
       assert(type.isValid(Person.random()));
     });
 
+    test('mutable defaults', function () {
+      var Person = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {
+            name: 'friends',
+            type: {type: 'array', items: 'string'},
+            'default': []
+          }
+        ]
+      }).getRecordConstructor();
+      var p1 = new Person(undefined);
+      assert.deepEqual(p1.friends, []);
+      p1.friends.push('ann');
+      var p2 = new Person(undefined);
+      assert.deepEqual(p2.friends, []);
+    });
+
   });
 
   suite('type names', function () {
@@ -752,19 +750,9 @@ function testType(Type, data, invalidSchemas) {
 
 }
 
-function getReader(reader, writer) {
+function getAdapter(reader, writer) {
 
-  return fromSchema(reader).asReaderOf(fromSchema(writer));
-
-}
-
-function assertTypeEquals(a, b) {
-
-  // Really inefficient...
-  assert.deepEqual(
-    JSON.parse(JSON.stringify(a)),
-    JSON.parse(JSON.stringify(b))
-  );
+  return fromSchema(reader).createAdapter(fromSchema(writer));
 
 }
 
