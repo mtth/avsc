@@ -3,6 +3,7 @@
 'use strict';
 
 var types = require('../lib/types'),
+    Tap = require('../lib/tap'),
     utils = require('../lib/utils'),
     assert = require('assert');
 
@@ -66,6 +67,13 @@ suite('types', function () {
       var type = fromSchema('int');
       assert.throws(function () {
         type.decode(new Buffer([128]));
+      }, AvscError);
+    });
+
+    test('decode bad adaptor', function () {
+      var type = fromSchema('int');
+      assert.throws(function () {
+        type.decode(new Buffer([0]), 123);
       }, AvscError);
     });
 
@@ -665,6 +673,29 @@ suite('types', function () {
       assert.throws(function () { v3.createAdapter(v1); }, AvscError);
     });
 
+    test('adapt alias with namespace', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        namespace: 'earth',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Human',
+        aliases: ['Person'],
+        fields: [{name: 'name', type: 'string'}]
+      });
+      assert.throws(function () { v2.createAdapter(v1); }, AvscError);
+      var v3 = fromSchema({
+        type: 'record',
+        name: 'Human',
+        aliases: ['earth.Person'],
+        fields: [{name: 'name', type: 'string'}]
+      });
+      assert.doesNotThrow(function () { v3.createAdapter(v1); });
+    });
+
     test('adapt skip field', function () {
       var v1 = fromSchema({
         type: 'record',
@@ -718,6 +749,83 @@ suite('types', function () {
           {name: 'age', type: 'int'},
           {name: 'name', type: 'string'}
         ]
+      });
+      assert.throws(function () { v2.createAdapter(v1); }, AvscError);
+    });
+
+    test('adapt from recursive schema', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'friends', type: {type: 'array', items: 'Person'}}]
+      });
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int', 'default': -1}]
+      });
+      var adapter = v2.createAdapter(v1);
+      var p1 = {friends: [{friends: []}]};
+      var p2 = v2.decode(v1.encode(p1), adapter);
+      assert.deepEqual(p2, {age: -1});
+    });
+
+    test('adapt to recursive schema', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int', 'default': -1}]
+      });
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {
+            name: 'friends',
+            type: {type: 'array', items: 'Person'},
+            'default': []
+          }
+        ]
+      });
+      var adapter = v2.createAdapter(v1);
+      var p1 = {age: 25};
+      var p2 = v2.decode(v1.encode(p1), adapter);
+      assert.deepEqual(p2, {friends: []});
+    });
+
+    test('adapt from both recursive schema', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'Person'}},
+          {name: 'age', type: 'int'}
+        ]
+      });
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'friends', type: {type: 'array', items: 'Person'}}]
+      });
+      var adapter = v2.createAdapter(v1);
+      var p1 = {friends: [{age: 1, friends: []}], age: 10};
+      var p2 = v2.decode(v1.encode(p1), adapter);
+      assert.deepEqual(p2, {friends: [{friends: []}]});
+    });
+
+    test('adapt multiple matching aliases', function () {
+      var v1 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'phone', type: 'string'},
+          {name: 'number', type: 'string'}
+        ]
+      });
+      var v2 = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'number', type: 'string', aliases: ['phone']}]
       });
       assert.throws(function () { v2.createAdapter(v1); }, AvscError);
     });
@@ -826,6 +934,22 @@ function testType(Type, data, invalidSchemas) {
         assert(!type.isValid(v), '' + v);
       });
       assert(type.isValid(type.random()));
+    });
+  });
+
+  test('skip', function () {
+    data.forEach(function (elem) {
+      var items = elem.valid;
+      if (items > 1) {
+        var type = new Type(elem.schema);
+        var buf = new Buffer(1024);
+        var tap = new Tap(buf);
+        type._write.call(tap, items[0]);
+        type._write.call(tap, items[1]);
+        tap.pos = 0;
+        type._skip.call(tap);
+        assert.deepEqual(type._read.call(tap), items[1]);
+      }
     });
   });
 
