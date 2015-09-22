@@ -431,6 +431,32 @@ suite('types', function () {
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
+    test('adapt int to [long, int]', function () {
+      var t1 = fromSchema('int');
+      var t2 = fromSchema(['long', 'int']);
+      var a = t2.createAdapter(t1);
+      var buf = t1.encode(23);
+      assert.deepEqual(t2.decode(buf, a), {'long': 23});
+    });
+
+    test('adapt null to [null, int]', function () {
+      var t1 = fromSchema('null');
+      var t2 = fromSchema(['null', 'int']);
+      var a = t2.createAdapter(t1);
+      assert.deepEqual(t2.decode(new Buffer(0), a), null);
+    });
+
+    test('adapt [string, int] to [long, string]', function () {
+      var t1 = fromSchema(['string', 'int']);
+      var t2 = fromSchema(['int', 'bytes']);
+      var a = t2.createAdapter(t1);
+      var buf;
+      buf = t1.encode({string: 'hi'});
+      assert.deepEqual(t2.decode(buf, a), {'bytes': new Buffer('hi')});
+      buf = t1.encode({'int': 1});
+      assert.deepEqual(t2.decode(buf, a), {'int': 1});
+    });
+
   });
 
   suite('UnwrappedUnionType', function () {
@@ -466,6 +492,50 @@ suite('types', function () {
     test('to JSON', function () {
       var type = new types.UnwrappedUnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
+    });
+
+    test('adapt bytes to [bytes, string]', function () {
+      var t1 = fromSchema('bytes', {unwrapUnions: true});
+      var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
+      var a = t2.createAdapter(t1);
+      var buf = new Buffer('abc');
+      assert.deepEqual(t2.decode(t1.encode(buf), a), buf);
+    });
+
+    test('adapt null to [string, null]', function () {
+      var t1 = fromSchema('null');
+      var t2 = fromSchema(['string', 'null']);
+      var a = t2.createAdapter(t1);
+      assert.deepEqual(t2.decode(new Buffer(0), a), null);
+    });
+
+    test('adapt [record, record] to record', function () {
+      var t1 = fromSchema([
+        {
+          type: 'record',
+          name: 'A',
+          fields: [{name: 'a', type: 'int'}]
+        },
+        {
+          type: 'record',
+          name: 'B',
+          fields: [{name: 'b', type: 'string'}]
+        }
+      ], {unwrapUnions: true});
+      var t2 = fromSchema({
+        type: 'record',
+        name: 'AB',
+        aliases: ['A', 'B'],
+        fields: [
+          {name: 'a', type: ['null', 'int'], 'default': null},
+          {name: 'b', type: ['null', 'string'], 'default': null}
+        ]
+      }, {unwrapUnions: true});
+      var a = t2.createAdapter(t1);
+      var buf = t1.encode({a: 1});
+      assert.deepEqual(t2.decode(buf, a), {a: 1, b: null});
+      buf = t1.encode({b: 'hi'});
+      assert.deepEqual(t2.decode(buf, a), {a: null, b: 'hi'});
     });
 
   });

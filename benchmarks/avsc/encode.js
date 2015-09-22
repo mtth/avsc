@@ -3,6 +3,7 @@
 'use strict';
 
 var avsc = require('../../lib'),
+    Tap = require('../../lib/tap'),
     Benchmark = require('./benchmark'),
     assert = require('assert'),
     fs = require('fs');
@@ -72,6 +73,64 @@ new Benchmark()
       var i, record;
       for (i = 0; i < 1000; i++) {
         record = JSON.parse(s);
+        n += record.header.memberId;
+      }
+      assert(n);
+      cb();
+    };
+  })())
+  .addFn('reader schema lazy', (function () {
+    var type = avsc.parse({
+      type: 'record',
+      name: 'PymkImpressionEvent',
+      namespace: 'com.linkedin.events',
+      fields: [
+        {
+          name: 'header',
+          type: {
+            type: 'record',
+            name: 'EventHeader',
+            fields: [{name: 'memberId', type: 'int'}]
+          }
+        }
+      ]
+    }, {unwrapUnions: true});
+    var adapter = type.createAdapter(avsc.parse(schema));
+    return function (cb) {
+      var n = 0;
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = type.decode(buf, adapter);
+        n += record.header.memberId;
+      }
+      assert(n);
+      cb();
+    };
+  })())
+  .addFn('reader schema eager', (function () {
+    var type = avsc.parse({
+      type: 'record',
+      name: 'PymkImpressionEvent',
+      namespace: 'com.linkedin.events',
+      fields: [
+        {
+          name: 'header',
+          type: {
+            type: 'record',
+            name: 'EventHeader',
+            fields: [{name: 'memberId', type: 'int'}]
+          }
+        }
+      ]
+    }, {unwrapUnions: true});
+    var adapter = type.createAdapter(avsc.parse(schema));
+    var tap = new Tap(buf);
+    return function (cb) {
+      var n = 0;
+      var i, record;
+      for (i = 0; i < 1000; i++) {
+        record = adapter._read.call(tap);
+        tap.pos = 0;
         n += record.header.memberId;
       }
       assert(n);
