@@ -261,6 +261,12 @@ suite('types', function () {
       }, AvscError);
     });
 
+    test('read invalid index', function () {
+      var type = new types.EnumType({type: 'enum', symbols: ['A'], name: 'a'});
+      var buf = new Buffer([2]);
+      assert.throws(function () { type.decode(buf); }, AvscError);
+    });
+
     test('adapt', function () {
       var t1, t2, buf, adapter;
       t1 = newEnum('Foo', ['bar', 'baz']);
@@ -300,9 +306,9 @@ suite('types', function () {
     var data = [
       {
         name: 'size 1',
-        schema: {name: 'Foo', size: 1},
-        valid: [new Buffer(1)],
-        invalid: ['HEY', null, undefined, 0, new Buffer(2)],
+        schema: {name: 'Foo', size: 2},
+        valid: [new Buffer([1, 2]), new Buffer([2, 3])],
+        invalid: ['HEY', null, undefined, 0, new Buffer(1), new Buffer(3)],
         check: function (a, b) { assert(a.equals(b)); }
       }
     ];
@@ -316,6 +322,18 @@ suite('types', function () {
     ];
 
     testType(types.FixedType, data, schemas);
+
+    test('adapt', function () {
+      var t1 = new types.FixedType({name: 'Id', size: 4});
+      var t2 = new types.FixedType({name: 'Id', size: 4});
+      assert.doesNotThrow(function () { t2.createAdapter(t1); });
+      t2 = new types.FixedType({name: 'Id2', size: 4});
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      t2 = new types.FixedType({name: 'Id2', size: 4, aliases: ['Id']});
+      assert.doesNotThrow(function () { t2.createAdapter(t1); });
+      t2 = new types.FixedType({name: 'Id2', size: 5, aliases: ['Id']});
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+    });
 
   });
 
@@ -353,6 +371,23 @@ suite('types', function () {
 
     testType(types.MapType, data, schemas);
 
+    test('adapt int values to long values', function () {
+      var t1 = new types.MapType({type: 'map', values: 'int'});
+      var t2 = new types.MapType({type: 'map', values: 'long'});
+      var adapter = t2.createAdapter(t1);
+      var obj = {one: 1, two: 2};
+      var buf = t1.encode(obj);
+      assert.deepEqual(t2.decode(buf, adapter), obj);
+    });
+
+    test('adapt invalid', function () {
+      var t1 = new types.MapType({type: 'map', values: 'int'});
+      var t2 = new types.MapType({type: 'map', values: 'string'});
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      t2 = new types.ArrayType({type: 'array', items: 'string'});
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+    });
+
   });
 
   suite('ArrayType', function () {
@@ -373,6 +408,23 @@ suite('types', function () {
     ];
 
     testType(types.ArrayType, data, schemas);
+
+    test('adapt string items to bytes items', function () {
+      var t1 = new types.ArrayType({type: 'array', items: 'string'});
+      var t2 = new types.ArrayType({type: 'array', items: 'bytes'});
+      var adapter = t2.createAdapter(t1);
+      var obj = ['\x01\x02'];
+      var buf = t1.encode(obj);
+      assert.deepEqual(t2.decode(buf, adapter), [new Buffer([1, 2])]);
+    });
+
+    test('adapt invalid', function () {
+      var t1 = new types.ArrayType({type: 'array', items: 'string'});
+      var t2 = new types.ArrayType({type: 'array', items: 'long'});
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      t2 = new types.MapType({type: 'map', values: 'string'});
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+    });
 
   });
 
@@ -428,6 +480,12 @@ suite('types', function () {
       assert.throws(function () {
         type.encode({b: 'a'}, {unsafe: true});
       }, AvscError);
+    });
+
+    test('read invalid index', function () {
+      var type = new types.WrappedUnionType(['null', 'int']);
+      var buf = new Buffer([1, 0]);
+      assert.throws(function () { type.decode(buf); }, AvscError);
     });
 
     test('non wrapped write', function () {
@@ -498,6 +556,12 @@ suite('types', function () {
     test('instanceof Union', function () {
       var type = new types.UnwrappedUnionType(['null', 'int']);
       assert(type instanceof types.UnionType);
+    });
+
+    test('read invalid index', function () {
+      var type = new types.UnwrappedUnionType(['null', 'int']);
+      var buf = new Buffer([1, 0]);
+      assert.throws(function () { type.decode(buf); }, AvscError);
     });
 
     test('to JSON', function () {
@@ -913,6 +977,32 @@ suite('types', function () {
 
   });
 
+  suite('adapt unions', function () {
+
+    test('to valid union', function () {
+    });
+
+    test('to invalid union', function () {
+    });
+
+    test('to non union', function () {
+      var t1 = fromSchema(['int', 'long']);
+      var t2 = fromSchema('long');
+      var adapter = t2.createAdapter(t1);
+      var buf = t1.encode({'int': 12});
+      assert.equal(t2.decode(buf, adapter), 12);
+      buf = new Buffer([4, 0]);
+      assert.throws(function () { t2.decode(buf, adapter); }, AvscError);
+    });
+
+    test('to invalid non union', function () {
+      var t1 = fromSchema(['int', 'long']);
+      var t2 = fromSchema('int');
+      assert.throws(function() { t2.createAdapter(t1); }, AvscError);
+    });
+
+  });
+
   suite('type names', function () {
 
     test('existing', function () {
@@ -1020,8 +1110,9 @@ function testType(Type, data, invalidSchemas) {
 
   test('skip', function () {
     data.forEach(function (elem) {
+      var fn = elem.check || assert.deepEqual;
       var items = elem.valid;
-      if (items > 1) {
+      if (items.length > 1) {
         var type = new Type(elem.schema);
         var buf = new Buffer(1024);
         var tap = new Tap(buf);
@@ -1029,7 +1120,7 @@ function testType(Type, data, invalidSchemas) {
         type._write.call(tap, items[1]);
         tap.pos = 0;
         type._skip.call(tap);
-        assert.deepEqual(type._read.call(tap), items[1]);
+        fn(type._read.call(tap), items[1]);
       }
     });
   });
