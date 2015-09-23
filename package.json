@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "A JavaScript Avro API to make you smile.",
   "keywords": ["avro", "avsc", "schema", "encoding", "decoding"],
   "main": "avsc",
