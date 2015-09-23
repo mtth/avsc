@@ -2,6 +2,20 @@
 
 Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/1.7.7/spec.html).
 
+What's already there:
+
++ Parsing schemas.
++ Encoding, decoding, validating, and generating data.
++ Resolving schemas (a.k.a. "reader's schemas").
++ Reading container files.
+
+Coming up:
+
++ Writing container files.
++ Sort order.
++ Canonical schemas and fingerprints.
++ Protocols.
+
 
 ## Example
 
@@ -34,20 +48,3 @@ $ npm install avsc
 ## Documentation
 
 + [API](https://github.com/mtth/avsc/wiki/API)
-
-
-## Status
-
-What's already there:
-
-+ Parsing schemas.
-+ Encoding, decoding, validating, and generating data.
-+ Resolving schemas (a.k.a. "reader's schemas").
-+ Reading container files.
-
-Coming up:
-
-+ Writing container files.
-+ Sort order.
-+ Canonical schemas and fingerprints.
-+ Protocols.
