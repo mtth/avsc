@@ -1,12 +1,14 @@
 {
   "name": "avsc",
-  "version": "0.1.2",
-  "description": "Avro serialization.",
-  "main": "index.js",
+  "version": "0.1.3",
+  "description": "A JavaScript Avro API to make you smile.",
+  "keywords": ["avro", "avsc", "schema", "encoding", "decoding"],
+  "main": "avsc",
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
   },
+  "files": ["lib"],
   "scripts": {
     "test": "mocha --no-colors --ui tdd",
     "cover": "istanbul cover _mocha -- --no-colors --ui tdd"

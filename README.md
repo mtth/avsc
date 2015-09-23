@@ -1,13 +1,6 @@
 # Avsc
 
-A JavaScript Avro API which will make you smile.
-
-
-## Features
-
-+ Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/1.7.7/spec.html) (nearly complete, see below).
-+ Fast.
-+ No dependencies.
+Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/1.7.7/spec.html).
 
 
 ## Example
@@ -27,7 +20,6 @@ var Person = avsc.parse({
 var person = new Person('Ann', 25);
 person.name; // == 'Ann'
 person.age; // == 25
-
 person.$encode(); // Buffer containing this record's Avro encoding.
 ```
 
@@ -41,14 +33,14 @@ $ npm install avsc
 
 ## Documentation
 
-https://github.com/mtth/avsc/wiki/API
++ [API](https://github.com/mtth/avsc/wiki/API)
 
 
 ## Status
 
 What's already there:
 
-+ Parsing schemas, including recursive ones.
++ Parsing schemas.
 + Encoding, decoding, validating, and generating data.
 + Resolving schemas (a.k.a. "reader's schemas").
 + Reading container files.
