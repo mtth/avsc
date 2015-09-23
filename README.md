@@ -48,4 +48,6 @@ What's already there:
 Coming up:
 
 + Writing container files.
-+ Comparing data.
++ Sort order.
++ Canonical schemas and fingerprints.
++ Protocols.

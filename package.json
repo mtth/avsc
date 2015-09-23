@@ -1,9 +1,9 @@
 {
   "name": "avsc",
-  "version": "0.1.4",
-  "description": "A JavaScript Avro API to make you smile.",
+  "version": "0.1.6",
+  "description": "A JavaScript Avro API to make you smile",
   "keywords": ["avro", "avsc", "schema", "encoding", "decoding"],
-  "main": "avsc",
+  "main": "./lib",
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
