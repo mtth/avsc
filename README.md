@@ -1,6 +1,6 @@
 # Avsc
 
-Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/1.7.7/spec.html).
+Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/current/spec.html).
 
 What's already there:
 

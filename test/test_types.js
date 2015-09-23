@@ -239,16 +239,17 @@ suite('types', function () {
       },
       {
         name: 'number-ish as symbol',
-        schema: {name: 'Foo', symbols: ['HI', '0']},
-        valid: ['HI', '0'],
-        invalid: ['HEY', null, undefined, 0]
+        schema: {name: 'Foo', symbols: ['HI', 'A0']},
+        valid: ['HI', 'A0'],
+        invalid: ['HEY', null, undefined, 0, 'a0']
       }
     ];
 
     var schemas = [
       {name: 'Foo', symbols: []},
       {name: 'Foo'},
-      {symbols: ['hi']}
+      {symbols: ['hi']},
+      {name: 'G', symbols: ['0']}
     ];
 
     testType(types.EnumType, data, schemas);
