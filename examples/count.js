@@ -6,7 +6,8 @@
  * Example of decoding an Avro file.
  *
  * When the file is an object container file, this is suboptimal since we could
- * just use the count from each block without decoding its contents.
+ * just use the count from each block without decoding its contents. Using a
+ * reader schema would also help here.
  *
  */
 
@@ -22,8 +23,10 @@ if (!path) {
 
 var n = 0;
 var time;
-avsc.decodeFile(path)
-  .on('metadata', function () { time = process.hrtime(); })
+avsc.createReadStream(path)
+  .on('metadata', function () {
+    time = process.hrtime();
+  })
   .on('data', function () { n++; })
   .once('end', function () {
     time = process.hrtime(time);

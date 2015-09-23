@@ -31,52 +31,35 @@ suite('utils', function () {
     assert.throws(utils.abstractFunction, utils.AvscError);
   });
 
-  suite('ConsecutiveQueue', function () {
+  suite('OrderedQueue', function () {
 
-    test('in order', function () {
-      var q = new utils.ConsecutiveQueue();
-      assert.equal(q.next(), null);
-      q.add(0, 'hello');
-      assert.equal(q.size(), 1);
-      assert.equal(q.next(), 'hello');
-      q.add(1, 'hi');
-      assert.equal(q.next(), 'hi');
-      assert.equal(q.next(), null);
-      assert.equal(q.size(), 0);
-    });
+    var seqs = [
+      [0],
+      [0,1],
+      [0,1,2],
+      [2,1,0],
+      [0,2,1,3],
+      [1,3,2,4,0],
+      [0,1,2,3]
+    ];
 
-    test('single out of order', function () {
-      var q = new utils.ConsecutiveQueue();
-      q.add(1, 'hi');
-      assert.equal(q.next(), null);
-      q.add(0, 'hello');
-      assert.equal(q.next(), 'hello');
-      assert.equal(q.next(), 'hi');
-      assert.equal(q.next(), null);
-    });
+    var i;
+    for (i = 0; i < seqs.length; i++) {
+      check(seqs[i]);
+    }
 
-    test('multiple out of order', function () {
-      var q = new utils.ConsecutiveQueue();
-      assert.equal(q.next(), null);
-      q.add(2, 'hello');
-      q.add(1, 'hi');
-      assert.equal(q.next(), null);
-      assert.equal(q.size(), 2);
-      q.add(0, 'hey');
-      assert.equal(q.size(), 3);
-      assert.equal(q.next(), 'hey');
-      assert.equal(q.next(), 'hi');
-      assert.equal(q.next(), 'hello');
-      assert.equal(q.next(), null);
-    });
-
-    test('decreasing index', function () {
-      var q = new utils.ConsecutiveQueue();
-      q.add(0, 'hey');
-      q.add(1, 'hi');
-      q.next();
-      assert.throws(function () { q.add(0, 'hey'); });
-    });
+    function check(seq) {
+      var q = new utils.OrderedQueue();
+      var i;
+      assert.strictEqual(q.pop(), null);
+      for (i = 0; i < seq.length; i++) {
+        q.push({index: seq[i]});
+      }
+      for (i = 0; i < seq.length; i++) {
+        var j = q.pop();
+        assert.equal(j !== null && j.index, i, seq.join());
+      }
+    }
 
   });
 

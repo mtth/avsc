@@ -29,7 +29,7 @@ var type = avsc.parse({
   name: 'Recommendation',
   fields: [
     {name: 'id', type: 'long'},
-    {name: 'score', type: {type: 'float', range: [-1, 1]}}
+    {name: 'score', type: {type: 'float', range: [-1, 1]}} // Note the range.
   ]
 }, {typeHook: typeHook});
 
