@@ -181,13 +181,23 @@ suite('types', function () {
 
     });
 
-    test('adapt int', function () {
+    test('adapt int > long', function () {
       var intType = pType('int');
       var longType = pType('long');
       var buf = intType.encode(123);
       assert.equal(
         longType.decode(buf, longType.createAdapter(intType)),
         123
+      );
+    });
+
+    test('adapt int > [null, int]', function () {
+      var wt = fromSchema('int');
+      var rt = fromSchema(['null', 'int']);
+      var buf = wt.encode(123);
+      assert.deepEqual(
+        rt.decode(buf, rt.createAdapter(wt)),
+        {'int': 123}
       );
     });
 
