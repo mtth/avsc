@@ -78,24 +78,6 @@ suite('types', function () {
       type.encode('abc', {unsafe: true});
     });
 
-    test('encode into buffer', function () {
-      var type = fromSchema('string');
-      var b1 = new Buffer(4);
-      var b2;
-      // Fits.
-      b1.fill(0);
-      b2 = type.encode('hi', {buffer: b1});
-      assert.deepEqual(b1, new Buffer('\x04hi\x00'));
-      assert.deepEqual(b2, new Buffer('\x04hi'));
-      b2[0] = 0;
-      assert.equal(b1[0], 0);
-      // Doesn't fit.
-      b1.fill(0);
-      b2 = type.encode('hello', {buffer: b1});
-      b2[0] = 0;
-      assert.equal(b1[0], 10);
-    });
-
     test('wrap & unwrap unions', function () {
       // Default is to wrap.
       var type;
@@ -980,9 +962,17 @@ suite('types', function () {
   suite('adapt unions', function () {
 
     test('to valid union', function () {
+      var t1 = fromSchema(['int', 'string']);
+      var t2 = fromSchema(['null', 'string', 'long']);
+      var adapter = t2.createAdapter(t1);
+      var buf = t1.encode({'int': 12});
+      assert.deepEqual(t2.decode(buf, adapter), {'long': 12});
     });
 
     test('to invalid union', function () {
+      var t1 = fromSchema(['int', 'string']);
+      var t2 = fromSchema(['null', 'long']);
+      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
     });
 
     test('to non union', function () {

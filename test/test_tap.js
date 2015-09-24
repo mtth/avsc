@@ -11,7 +11,7 @@ suite('tap', function () {
   suite('int & long', function () {
 
     testWriterReader({
-      elems: [0, -1, 109213, -1211],
+      elems: [0, -1, 109213, -1211, -1312411211],
       reader: function () { return this.readLong(); },
       skipper: function () { this.skipLong(); },
       writer: function (n) { this.writeLong(n); }
@@ -147,6 +147,19 @@ suite('tap', function () {
           this.writeArray(ns, this.writeLong);
         });
       }
+    });
+
+    test('read with sizes', function () {
+      var tap = new Tap(new Buffer([1,2,0,0]));
+      assert.deepEqual(
+        tap.readArray(function () { return tap.readLong(); }), [0]
+      );
+    });
+
+    test('skip with sizes', function () {
+      var tap = new Tap(new Buffer([1,2,0,0]));
+      tap.skipArray(function () { tap.skipLong(); });
+      assert.equal(tap.pos, 4);
     });
 
   });
