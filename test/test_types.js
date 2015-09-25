@@ -13,7 +13,7 @@ var fromSchema = types.Type.fromSchema;
 
 suite('types', function () {
 
-  suite('from schema', function  () {
+  suite('fromSchema', function  () {
 
     test('unknown types', function () {
       assert.throws(function () { fromSchema('a'); }, AvscError);
@@ -214,6 +214,10 @@ suite('types', function () {
     test('adapt invalid', function () {
       assert.throws(function () { getAdapter('int', 'long'); }, AvscError);
       assert.throws(function () { getAdapter('long', 'double'); }, AvscError);
+    });
+
+    test('toString', function () {
+      assert.equal(pType('int').toString(), '"int"');
     });
 
     function pType(name) { return new types.PrimitiveType(name); }
@@ -965,6 +969,39 @@ suite('types', function () {
         fields: [{name: 'number', type: 'string', aliases: ['phone']}]
       });
       assert.throws(function () { v2.createAdapter(v1); }, AvscError);
+    });
+
+    test('toString', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        doc: 'Hi!',
+        namespace: 'earth',
+        aliases: ['Human'],
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'string'}},
+          {name: 'age', aliases: ['years'], type: {type: 'int'}}
+        ]
+      });
+      assert.equal(
+        t.toString(),
+        '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}'
+      );
+    });
+
+    test('toString recursive', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        namespace: 'earth',
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'Person'}},
+        ]
+      });
+      assert.equal(
+        t.toString(),
+        '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"earth.Person"}}]}'
+      );
     });
 
   });
