@@ -192,6 +192,19 @@ suite('tap', function () {
       }
     });
 
+    test('read with sizes', function () {
+      var tap = new Tap(new Buffer([1,6,2,97,2,0]));
+      assert.deepEqual(
+        tap.readMap(function () { return tap.readInt(); }), {a: 1}
+      );
+    });
+
+    test('skip with sizes', function () {
+      var tap = new Tap(new Buffer([1,6,2,97,2,0]));
+      tap.skipMap(function () { tap.skipInt(); });
+      assert.equal(tap.pos, 6);
+    });
+
   });
 
 });

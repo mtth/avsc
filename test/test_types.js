@@ -463,7 +463,7 @@ suite('types', function () {
         name: 'array int',
         schema: ['null', {type: 'array', items: 'int'}],
         valid: [null, {array: [1,3]}],
-        invalid: [{array: ['a']}, [4]],
+        invalid: [{array: ['a']}, [4], 2],
         check: assert.deepEqual
       },
       {
