@@ -120,6 +120,13 @@ suite('types', function () {
       assert.strictEqual(c.string, o.fields[1].type);
     });
 
+    test('fingerprint', function () {
+      var t = fromSchema('int');
+      var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
+      assert.deepEqual(t.createFingerprint('md5'), buf);
+      assert.deepEqual(t.createFingerprint(), buf);
+    });
+
   });
 
   suite('PrimitiveType', function () {

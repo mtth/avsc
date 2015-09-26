@@ -3,6 +3,13 @@
 Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/current/spec.html).
 
 
+## Installation
+
+```bash
+$ npm install avsc
+```
+
+
 ## Example
 
 ```javascript
@@ -21,13 +28,6 @@ var buf = type.encode({name: 'Ann', age: 25});
 ```
 
 
-## Installation
-
-```bash
-$ npm install avsc
-```
-
-
 ## Documentation
 
 + [API](https://github.com/mtth/avsc/wiki/API)
@@ -37,14 +37,12 @@ $ npm install avsc
 
 What's already there:
 
-+ Parsing schemas.
++ Parsing and resolving schemas (including schema evolution).
 + Encoding, decoding, validating, and generating data.
-+ Resolving schemas (a.k.a. "reader's schemas").
-+ Reading container files.
++ Reading and writing container files.
 
 Coming up:
 
-+ Writing container files.
-+ Sort order.
-+ Canonical schemas and fingerprints.
 + Protocols.
++ Sort order.
++ Logical types.
