@@ -10,8 +10,8 @@
   },
   "files": ["lib"],
   "scripts": {
-    "test": "mocha --no-colors --ui tdd",
-    "cover": "istanbul cover _mocha -- --no-colors --ui tdd"
+    "test": "mocha --ui tdd",
+    "cover": "istanbul cover _mocha -- --ui tdd"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
