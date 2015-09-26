@@ -1,7 +1,7 @@
 {
   "name": "avsc",
   "version": "0.1.6",
-  "description": "A JavaScript Avro API to make you smile",
+  "description": "A serialization API to make you smile",
   "keywords": ["avro", "avsc", "schema", "encoding", "decoding"],
   "main": "./lib",
   "repository": {
