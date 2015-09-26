@@ -1,6 +1,39 @@
-# Avsc
+# Avsc [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc)
 
 Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/current/spec.html).
+
+
+## Example
+
+```javascript
+var avsc = require('avsc');
+
+var type = avsc.parse({
+  type: 'record',
+  name: 'Person',
+  fields: [
+    {name: 'name', type: 'string'},
+    {name: 'age', type: 'int'}
+  ]
+});
+
+var buf = type.encode({name: 'Ann', age: 25});
+```
+
+
+## Installation
+
+```bash
+$ npm install avsc
+```
+
+
+## Documentation
+
++ [API](https://github.com/mtth/avsc/wiki/API)
+
+
+## Status
 
 What's already there:
 
@@ -15,36 +48,3 @@ Coming up:
 + Sort order.
 + Canonical schemas and fingerprints.
 + Protocols.
-
-
-## Example
-
-```javascript
-var avsc = require('avsc');
-
-var Person = avsc.parse({
-  type: 'record',
-  name: 'Person',
-  fields: [
-    {name: 'name', type: 'string'},
-    {name: 'age', type: 'int'}
-  ]
-}).getRecordConstructor();
-
-var person = new Person('Ann', 25);
-person.name; // == 'Ann'
-person.age; // == 25
-person.$encode(); // Buffer containing this record's Avro encoding.
-```
-
-
-## Installation
-
-```bash
-$ npm install avsc
-```
-
-
-## Documentation
-
-+ [API](https://github.com/mtth/avsc/wiki/API)
