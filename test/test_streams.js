@@ -149,14 +149,14 @@ suite('streams', function () {
 
   });
 
-  suite('Encoder', function () {
+  suite('BlockEncoder', function () {
 
-    var Encoder = streams.Encoder;
+    var BlockEncoder = streams.BlockEncoder;
 
     test('empty', function (cb) {
       var t = fromSchema('int');
       var chunks = [];
-      var encoder = new Encoder({writerType: t})
+      var encoder = new BlockEncoder({writerType: t})
         .on('data', function (chunk) { chunks.push(chunk); })
         .on('end', function () {
           assert.equal(chunks.length, 0);
@@ -168,7 +168,7 @@ suite('streams', function () {
     test('flush', function (cb) {
       var t = fromSchema('int');
       var chunks = [];
-      var encoder = new Encoder({
+      var encoder = new BlockEncoder({
         writerType: t,
         omitHeader: true,
         syncMarker: SYNC
@@ -191,7 +191,7 @@ suite('streams', function () {
       var t = fromSchema({type: 'fixed', size: 8, name: 'Eight'});
       var buf = new Buffer('abcdefgh');
       var chunks = [];
-      var encoder = new Encoder({
+      var encoder = new BlockEncoder({
         writerType: t,
         omitHeader: true,
         syncMarker: SYNC,
@@ -214,8 +214,8 @@ suite('streams', function () {
     test('uncompressed int', function (cb) {
       var t = fromSchema('int');
       var objs = [];
-      var encoder = new streams.Encoder({writerType: t});
-      var decoder = new streams.Decoder()
+      var encoder = new streams.BlockEncoder({writerType: t});
+      var decoder = new streams.BlockDecoder()
         .on('data', function (obj) { objs.push(obj); })
         .on('end', function () {
           assert.deepEqual(objs, [12, 23, 48]);
@@ -241,8 +241,8 @@ suite('streams', function () {
         new Person('Bob', 25)
       ];
       var p2 = [];
-      var encoder = new streams.Encoder({codec: 'deflate'});
-      var decoder = new streams.Decoder()
+      var encoder = new streams.BlockEncoder({codec: 'deflate'});
+      var decoder = new streams.BlockDecoder()
         .on('data', function (obj) { p2.push(obj); })
         .on('end', function () {
           assert.deepEqual(p2, p1);
