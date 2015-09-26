@@ -2,13 +2,6 @@
 
 ## Avro types
 
-Serializing a `type` back to JSON (e.g. using `JSON.stringify`) will return a
-valid equivalent Avro schema!
-
-It is also possible to generate types programmatically, using the classes
-below. They are all available in the `avsc.types` namespace.
-
-
 ### Class `Type`
 
 "Abstract" base Avro type class. All implementations inherit from this type.
@@ -55,53 +48,80 @@ Returns a `Buffer` containing the Avro serialization of `obj`.
 
 ##### `type.toString()`
 
-Return the canonical version of the schema.
+Return the canonical version of the schema. This can be used to compare schemas
+for equality.
 
 
 #### Class `PrimitiveType(name)`
 
 The common type used for `null`, `boolean`, `int`, `long`, `float`, `double`,
-`bytes`, and `string`.
+`bytes`, and `string`. It has no other properties than the base `Type`'s.
 
 
 #### Class `ArrayType(schema, [opts])`
 
 ##### `type.items`
 
-The `type` of the array's items.
+The type of the array's items.
 
 
 #### Class `EnumType(schema, [opts])`
 
 ##### `type.name`
-##### `type.doc`
+
+The type's name.
+
 ##### `type.symbols`
 
-The enum's name, documentation, and symbols list.
+Array of strings, representing the enum's valid values.
 
-Instances of this type will either be represented as wrapped objects (according
-to the Avro spec), or as their value directly (if `unwrapUnions` was set when
-parsing the schema).
+##### `type.aliases`
+
+Optional type aliases. These are used when adapting a schema from another type.
+
+##### `type.doc`
+
+Optional documentation.
 
 
 #### Class `FixedType(schema, [opts])`
 
 ##### `type.name`
+
+The type's name.
+
 ##### `type.size`
 
-Instances of this type will be `Buffer`s.
+The size in bytes of instances of this type.
+
+##### `type.aliases`
+
+Optional type aliases. These are used when adapting a schema from another type.
 
 
 #### Class `MapType(schema, [opts])`
 
 ##### `type.values`
 
+The type of the map's values (keys are always strings).
+
 
 #### Class `RecordType(schema, [opts])`
 
 ##### `type.name`
-##### `type.doc`
+
+The type's name.
+
 ##### `type.fields`
+
+The array of fields contained in this record. Each field is an object with the
+following keys:
+
++ `name`
++ `type`
++ `default` (can be undefined).
++ `aliases` (can be undefined).
++ `doc` (can be undefined).
 
 ##### `type.getRecordConstructor()`
 
@@ -109,14 +129,28 @@ The `Record` constructor for instances of this type.
 
 ##### `type.asReaderOf(writerType)`
 
++ `writerType` {Type} A compatible `type`.
+
 Returns a type suitable for reading a file written using a different schema.
 
-+ `writerType` {Type} A compatible `type`.
+##### `type.aliases`
+
+Optional type aliases. These are used when adapting a schema from another type.
+
+##### `type.doc`
+
+Optional documentation.
 
 
 #### Class `UnionType(schema, [opts])`
 
+Instances of this type will either be represented as wrapped objects (according
+to the Avro spec), or as their value directly (if `unwrapUnions` was set when
+parsing the schema).
+
 ##### `type.types`
+
+The possible types that this union can take.
 
 
 # Records
@@ -126,14 +160,17 @@ Returns a type suitable for reading a file written using a different schema.
 Specific record class, programmatically generated for each record schema.
 
 #### `Record.random()`
+
 #### `Record.decode(buf, [adapter])`
+
 #### `record.$encode([opts])`
+
 #### `record.$isValid()`
+
 #### `record.$type`
 
 
 ## Streams
-
 
 ### Class `BlockDecoder([opts])`
 
