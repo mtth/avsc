@@ -68,14 +68,32 @@ suite('types', function () {
     test('decode bad adaptor', function () {
       var type = fromSchema('int');
       assert.throws(function () {
-        type.decode(new Buffer([0]), 123);
+        type.decode(new Buffer([0]), 123, {});
       }, AvscError);
     });
 
-    test('encode safe & unsafe', function () {
+    test('decode trailing', function () {
+      var type = fromSchema('int');
+      assert.throws(function () {
+        type.decode(new Buffer([0, 2]));
+      }, AvscError);
+    });
+
+    test('decode trailing with adapter', function () {
+      var type = fromSchema('int');
+      var adapter = type.createAdapter(fromSchema(['int']));
+      assert.equal(type.decode(new Buffer([0, 2]), adapter), 1);
+    });
+
+    test('encode strict & not', function () {
       var type = fromSchema('int');
       assert.throws(function () { type.encode('abc'); }, AvscError);
-      type.encode('abc', {unsafe: true});
+      type.encode('abc', undefined, true);
+    });
+
+    test('encode and resize', function () {
+      var type = fromSchema('string');
+      assert.deepEqual(type.encode('\x01', 1), new Buffer([2, 1]));
     });
 
     test('wrap & unwrap unions', function () {
@@ -253,7 +271,7 @@ suite('types', function () {
     test('write invalid', function () {
       var type = fromSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
-        type.encode('B', {unsafe: true});
+        type.encode('B');
       }, AvscError);
     });
 
@@ -474,7 +492,7 @@ suite('types', function () {
     test('missing name write', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode({b: 'a'}, {unsafe: true});
+        type.encode({b: 'a'}, {strict: false});
       }, AvscError);
     });
 
@@ -487,7 +505,7 @@ suite('types', function () {
     test('non wrapped write', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode(1, {unsafe: true});
+        type.encode(1, {strict: false});
       }, AvscError);
     });
 
@@ -545,7 +563,7 @@ suite('types', function () {
     test('invalid write', function () {
       var type = new types.UnwrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode('a', {unsafe: true});
+        type.encode('a', {strict: false});
       }, AvscError);
     });
 
@@ -747,7 +765,7 @@ suite('types', function () {
       assert.deepEqual((new Person(48)).$encode(), new Buffer([96]));
       assert.throws(function () { (new Person()).$encode(); });
       assert.doesNotThrow(function () {
-        (new Person()).$encode({unsafe: true});
+        (new Person()).$encode(null, true);
       });
     });
 

@@ -32,4 +32,44 @@ suite('index', function () {
 
   });
 
+  suite('decode', function () {
+
+    var type = avsc.parseFile(path.join(DPATH, 'Person.avsc'));
+
+    test('block file', function (cb) {
+      var n = 0;
+      var metadata = false;
+      avsc.decodeFile(path.join(DPATH, 'person-10.avro'))
+        .on('metadata', function (writerType) {
+          assert.equal(type.toString(), writerType.toString());
+          metadata = true;
+        })
+        .on('data', function (obj) {
+          n++;
+          assert(type.isValid(obj));
+        })
+        .on('end', function () {
+          assert(metadata);
+          assert.equal(n, 10);
+          cb();
+        });
+
+    });
+
+    test('raw file', function (cb) {
+      var n = 0;
+      var fpath = path.join(DPATH, 'person-10.avro.raw');
+      avsc.decodeFile(fpath, {writerType: type})
+        .on('data', function (obj) {
+          n++;
+          assert(type.isValid(obj));
+        })
+        .on('end', function () {
+          assert.equal(n, 10);
+          cb();
+        });
+    });
+
+  });
+
 });
