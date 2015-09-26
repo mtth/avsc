@@ -30,7 +30,8 @@ var buf = type.encode({name: 'Ann', age: 25});
 
 ## Documentation
 
-+ [API](https://github.com/mtth/avsc/wiki/API)
++ [Quickstart](https://github.com/mtth/avsc/blob/master/doc/quickstart.md)
++ [API](https://github.com/mtth/avsc/blob/master/doc/api.md)
 
 
 ## Status

@@ -2,6 +2,7 @@
 
 ## Avro types
 
+
 ### Class `Type`
 
 "Abstract" base Avro type class. All implementations inherit from this type.
@@ -20,7 +21,6 @@ Generate a random instance of this type.
 
 Check whether `obj` is a valid representation of `type`.
 
-
 ##### `type.encode(obj, [size,] [unsafe])`
 
 + `obj` {Object} The instance to encode. It must be of type `type`.
@@ -28,8 +28,8 @@ Check whether `obj` is a valid representation of `type`.
   object will be serialized. If the serialized object doesn't fit, a resize
   will be necessary. Defaults to 1024 bytes.
 + `unsafe` {Boolean} Do not check that the instance is valid before encoding
-  it. Serializing invalid objects is undefined behavior, so use this if you are
-  sure the object satisfies the schema.
+  it. Serializing invalid objects is undefined behavior, so use this only if
+  you are sure the object satisfies the schema.
 
 Returns a `Buffer` containing the Avro serialization of `obj`.
 
@@ -50,6 +50,11 @@ Returns a `Buffer` containing the Avro serialization of `obj`.
 
 Return the canonical version of the schema. This can be used to compare schemas
 for equality.
+
+##### `type.createFingerprint(algorithm)`
+
++ `algorithm` {String} Algorithm to use to generate the fingerprint. Defaults
+  to `md5`.
 
 
 #### Class `PrimitiveType(name)`
@@ -172,6 +177,7 @@ Specific record class, programmatically generated for each record schema.
 
 ## Streams
 
+
 ### Class `BlockDecoder([opts])`
 
 + `opts` {Object} Decoding options. Available keys:
@@ -204,7 +210,7 @@ Specific record class, programmatically generated for each record schema.
   object `{object, buffer}`.
 
 
-### Class `avsc.BlockEncoder([opts])`
+### Class `BlockEncoder([opts])`
 
 + `opts` {Object} Encoding options. Available keys:
   + `writerType` {AvroType} Writer type. As a convenience, this will be
@@ -214,7 +220,6 @@ Specific record class, programmatically generated for each record schema.
   + `omitHeader` {Boolean}
   + `unordered` {Boolean}
   + `unsafe` {Boolean}
-
 
 #### Event `'data'`
 
@@ -227,3 +232,7 @@ Specific record class, programmatically generated for each record schema.
   + `writerType` {AvroType} Writer type. As a convenience, this will be
     inferred if writing `Record` instances (from the first one passed).
   + `unsafe` {Boolean}
+
+#### Event `'data'`
+
++ `data` {Buffer} Serialized bytes.

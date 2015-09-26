@@ -1,14 +1,24 @@
 {
   "name": "avsc",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "A serialization API to make you smile",
-  "keywords": ["avro", "avsc", "schema", "encoding", "decoding"],
+  "keywords": [
+    "avro",
+    "avsc",
+    "schema",
+    "json",
+    "encoding",
+    "decoding"
+  ],
   "main": "./lib",
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
   },
-  "files": ["lib"],
+  "files": [
+    "doc",
+    "lib"
+  ],
   "scripts": {
     "test": "mocha --ui tdd",
     "cover": "istanbul cover _mocha -- --ui tdd"
