@@ -9,8 +9,9 @@ from time import time
 from fastavro import dump, load, acquaint_schema, reader as avro_reader
 import sys
 
+LOOPS = 2
 
-with open(sys.argv[2]) as reader:
+with open(sys.argv[1]) as reader:
   records = avro_reader(reader)
   SCHEMA = records.schema
   RECORDS = list(records)
@@ -18,7 +19,7 @@ with open(sys.argv[2]) as reader:
 start = time()
 n = 0
 buf = BytesIO()
-for _ in repeat(None, 1):
+for _ in repeat(None, LOOPS):
   for record in RECORDS:
     n += 1
     dump(buf, record, SCHEMA)

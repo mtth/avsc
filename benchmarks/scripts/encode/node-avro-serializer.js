@@ -8,6 +8,7 @@ var Serializer = require('avro-serializer'),
     avsc = require('avsc');
 
 
+var loops = 5;
 var records = [];
 var serializer;
 
@@ -17,7 +18,6 @@ avsc.decodeFile(process.argv[3])
   .on('end', function () {
     var i = 0;
     var n = 0;
-    var loops = 50;
     var time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();

@@ -5,4 +5,4 @@ set -o errexit
 set -o pipefail
 shopt -s nullglob
 
-java -jar $AVSC_JAVA_SCRIPTS decode $1 $2
+java -jar $AVSC_JAR decode $1 10

@@ -4,11 +4,12 @@
 
 var avsc = require('../../../lib');
 
-var dataPath = process.argv[3];
+var dataPath = process.argv[2];
 if (!dataPath) {
   process.exit(1);
 }
 
+var loops = 5;
 var strs = [];
 var type = null;
 
@@ -18,7 +19,6 @@ avsc.decodeFile(dataPath)
   .on('end', function () {
     var i = 0;
     var n = 0;
-    var loops = 1;
     var time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Fastavro."""
+"""Fastavro decoding benchmark."""
 
 from io import BytesIO
 from itertools import repeat
@@ -10,7 +10,9 @@ from fastavro import dump, load, acquaint_schema, reader as avro_reader
 import sys
 
 
-with open(sys.argv[2]) as reader:
+LOOPS = 2
+
+with open(sys.argv[1]) as reader:
   records = avro_reader(reader)
   SCHEMA = records.schema
   BUFS = []
@@ -21,7 +23,7 @@ with open(sys.argv[2]) as reader:
 
 start = time()
 n = 0
-for _ in repeat(None, 1):
+for _ in repeat(None, LOOPS):
   for buf in BUFS:
     n += 1
     buf.seek(0)

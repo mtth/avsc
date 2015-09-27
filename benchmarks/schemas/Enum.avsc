@@ -1,0 +1,14 @@
+{
+  "name": "Enum",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": {
+        "name": "Gender",
+        "type": "enum",
+        "symbols": ["FEMALE", "MALE"]
+      }
+    }
+  ]
+}
