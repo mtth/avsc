@@ -27,6 +27,7 @@
   "author": "Matthieu Monsch",
   "license": "MIT",
   "devDependencies": {
+    "coveralls": "^2.11.4",
     "istanbul": "^0.3.19",
     "mocha": "^2.3.2"
   }

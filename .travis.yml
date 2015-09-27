@@ -4,4 +4,7 @@ node_js:
   - iojs
   - "0.12"
   - "0.11"
-script: npm run cover
+script:
+  - npm run cover
+after_script:
+  - cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js
