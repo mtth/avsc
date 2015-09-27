@@ -21,7 +21,8 @@
   ],
   "scripts": {
     "test": "mocha --ui tdd",
-    "cover": "istanbul cover _mocha -- --ui tdd"
+    "cover": "istanbul cover _mocha -- --ui tdd",
+    "bench": "python benchmarks"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",

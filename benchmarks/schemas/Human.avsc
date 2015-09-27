@@ -1,0 +1,56 @@
+{
+  "name": "Human",
+  "type": "record",
+  "fields": [
+    {
+      "name": "age",
+      "type": "int"
+    },
+    {
+      "name": "pwd",
+      "type": "bytes",
+      "default": "\u0003\u0004"
+    },
+    {
+      "name": "gender",
+      "type": {
+        "name": "gender",
+        "type": "enum",
+        "symbols": [
+          "FEMALE",
+          "MALE"
+        ]
+      }
+    },
+    {
+      "name": "name",
+      "type": "string",
+      "default": "unknown"
+    },
+    {
+      "name": "number",
+      "type": "int"
+    },
+    {
+      "name": "address",
+      "type": {
+        "name": "Address",
+        "type": "record",
+        "fields": [
+          {
+            "name": "city",
+            "type": "string"
+          },
+          {
+            "name": "street",
+            "type": "string"
+          },
+          {
+            "name": "number",
+            "type": "int"
+          }
+        ]
+      }
+    }
+  ]
+}
