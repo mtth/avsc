@@ -36,7 +36,7 @@ function loop() {
   var i, l, record;
   for (i = 0, l = bufs.length; i < l; i++) {
     record = type.decode(bufs[i]);
-    if (record.$ === null) {
+    if (record.$ !== null) {
       n++;
     }
   }

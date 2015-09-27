@@ -9,6 +9,7 @@ effective time spent processing or return a non-zero status code on error.
 """
 
 from contextlib import contextmanager
+from json import dumps
 from subprocess import PIPE, Popen, call
 from tempfile import mkstemp
 import logging as lg
@@ -99,4 +100,5 @@ class Benchmark(object):
       times.extend(bench.run())
     return times
 
-TIMES = Benchmark.run_all(50000, 2)
+TIMES = Benchmark.run_all(1000, 5)
+print dumps(TIMES)

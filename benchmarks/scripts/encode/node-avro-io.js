@@ -4,16 +4,19 @@
 
 'use strict';
 
-var Serializer = require('avro-serializer'),
-    avsc = require('avsc');
+var io = require('node-avro-io'),
+    avsc = require('../../../lib');
 
 
 var loops = 5;
 var records = [];
-var serializer;
+var writer;
 
-avsc.decodeFile(process.argv[3])
-  .on('metadata', function (type) { serializer = new Serializer(type); })
+avsc.decodeFile(process.argv[2])
+  .on('metadata', function (type) {
+    var schema = new io.Schema.Schema(type);
+    writer = new io.IO.DatumWriter(schema);
+  })
   .on('data', function (record) { records.push(record); })
   .on('end', function () {
     var i = 0;
@@ -29,12 +32,25 @@ avsc.decodeFile(process.argv[3])
     console.log(1000 * (time[0] + time[1] * 1e-9) / (records.length * loops));
   });
 
+function serialize(datum) {
+  var buffer = new Buffer([]);
+  var encoder = new io.IO.BinaryEncoder({
+    write: function(data) {
+      if (!Buffer.isBuffer(data)) {
+        data = new Buffer([data]);
+      }
+      buffer = Buffer.concat([buffer, data]);
+    }
+  });
+  writer.write(datum, encoder);
+  return buffer;
+};
 
 function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = serializer.serialize(records[i]);
+    buf = serialize(records[i]);
     n += buf[0];
   }
   return n;

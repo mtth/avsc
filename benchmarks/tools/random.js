@@ -2,6 +2,13 @@
 
 'use strict';
 
+/**
+ * Generate fake data from a schema, suitable to run benchmarks.
+ *
+ * This is very similar to the `random` command of Avro tools.
+ *
+ */
+
 var avsc = require('../../lib'),
     fs = require('fs');
 
