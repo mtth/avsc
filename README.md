@@ -1,4 +1,4 @@
-# Avsc [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc)
+# Avsc [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc) [![Coverage Status](https://coveralls.io/repos/mtth/avsc/badge.svg?branch=master&service=github)](https://coveralls.io/github/mtth/avsc?branch=master)
 
 Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/current/spec.html).
 
