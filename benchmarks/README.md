@@ -10,20 +10,28 @@ $ python __main__.py >timings.json
 
 Logging messages will be printed to standard error. Any benchmarks with missing
 requirements will be skipped. The data is returned in a format suitable for
-analysis (e.g. using `pandas`).
+analysis (e.g. using `pandas`, see below).
 
 
 ## Requirements
 
-+ Java, Maven
++ Java, Maven; to build and run the Java benchmarks.
 
-  To build and run the Java benchmarks.
-
-+ `node-avro-io`
-
-  Somewhat tricky to install on newer versions of Node. This branch seems to do
-  the job:
++ `node-avro-io`; somewhat tricky to install on newer versions of Node. This
+  branch seems to do the job:
 
   ```bash
   $ npm install git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption
   ```
+
++ `pandas`; to analyze the data.
+
+
+## Analysis
+
+```bash
+$ python tools/analyze.py timings.json
+```
+
+The above command will print out the throughput rates (operations per second)
+as well as the percentage compared to the max rate for each schema and library.

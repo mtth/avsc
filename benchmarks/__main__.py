@@ -100,5 +100,5 @@ class Benchmark(object):
       times.extend(bench.run())
     return times
 
-TIMES = Benchmark.run_all(1000, 5)
+TIMES = Benchmark.run_all(50000, 10)
 print dumps(TIMES)

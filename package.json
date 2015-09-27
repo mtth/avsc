@@ -22,7 +22,7 @@
   "scripts": {
     "test": "mocha --ui tdd",
     "cover": "istanbul cover _mocha -- --ui tdd",
-    "bench": "python benchmarks"
+    "bench": "python benchmarks >timings.json"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
