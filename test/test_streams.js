@@ -6,7 +6,6 @@ var streams = require('../lib/streams'),
     types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
-    fs = require('fs'),
     path = require('path');
 
 
@@ -15,7 +14,6 @@ var DPATH = path.join(__dirname, 'dat');
 var SYNC = new Buffer('atokensyncheader');
 var AvscError = utils.AvscError;
 var Header = streams.BlockEncoder.HEADER_TYPE.getRecordConstructor();
-var Block = streams.BlockEncoder.BLOCK_TYPE.getRecordConstructor();
 var MAGIC_BYTES = streams.BlockEncoder.MAGIC_BYTES;
 
 

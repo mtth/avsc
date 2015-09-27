@@ -1,14 +1,17 @@
-/* jshint node: true */
+Advanced usage
+==============
 
-'use strict';
 
-/**
- * Script showing how to use the type hooks to generate useful random data.
- *
- */
+Reader schema
+-------------
 
-var avsc = require('../lib');
+TOOD
 
+
+Type hooks
+----------
+
+```javascript
 /**
  * Hook which allows setting a range for float types.
  *
@@ -32,9 +35,4 @@ var type = avsc.parse({
     {name: 'score', type: {type: 'float', range: [-1, 1]}} // Note the range.
   ]
 }, {typeHook: typeHook});
-
-// Randomly generated recommendations will now have a score between 0 and 1!
-var i = 5;
-while (i--) {
-  console.log(type.random());
-}
+```

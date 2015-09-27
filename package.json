@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "0.1.7",
+  "version": "0.2.0",
   "description": "A serialization API to make you smile",
   "keywords": [
     "avro",

@@ -15,6 +15,7 @@ $ npm install avsc
 ```javascript
 var avsc = require('avsc');
 
+// Generate an Avro type.
 var type = avsc.parse({
   type: 'record',
   name: 'Person',
@@ -24,7 +25,11 @@ var type = avsc.parse({
   ]
 });
 
+// Use it to serialize a JavaScript object.
 var buf = type.encode({name: 'Ann', age: 25});
+
+// And deserialize it back.
+var obj = type.decode(buf);
 ```
 
 
