@@ -1,0 +1,61 @@
+doctype html
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    meta(name='description', content='meta desc')
+    meta(name='viewport', content='width=device-width')
+    title Avsc
+    link(rel='stylesheet', href='../stylesheets/main.css', type='text/css')
+  
+  body
+    script(src='../js/bundle.js')
+    div.container
+      table
+        col.wide
+        col.narrow
+        col.wide
+        tr.input-row
+          td
+            div.outer
+              div
+                textarea#schema.textbox.verifiable
+              div.label
+                |Schema
+              div#schema-error.message.hidden
+          td
+            table
+              tr
+                td 
+                  button#random.button-label
+                    |Generate Random Input!
+          td
+            div.outer
+              div
+                textarea#randomInput.textbox.disabled
+              div.label
+                |Random input
+        tr.input-row 
+          td 
+            div.outer
+              div
+                textarea#input.textbox.verifiable
+              div.label
+                |Decoded String
+              div#decoded-error.message.hidden
+          td
+            table#buttons
+              tr
+                td
+                  button#encode.button-label
+                    |Encode->
+              tr
+                td
+                  button#decode.button-label
+                    |<-Decode
+          td
+            div.outer
+              div 
+                textarea#output.textbox.verifiable  
+              div.label
+                |Encoded String
+              div#encoded-error.message.hidden
