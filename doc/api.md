@@ -33,16 +33,16 @@ Check whether `obj` is a valid representation of `type`.
 
 Returns a `Buffer` containing the Avro serialization of `obj`.
 
-##### `type.decode(buf, [adapter,] [unsafe])`
+##### `type.decode(buf, [resolver,] [unsafe])`
 
 + `buf` {Buffer} Bytes containing a serialized object of the correct type.
-+ `adapter` {Adapter} To decode records serialized from another schema. See
-  `createAdapter` for how to create an adapter.
++ `resolver` {Resolver} To decode records serialized from another schema. See
+  `createResolver` for how to create an resolver.
 + `unsafe` {Boolean} Do not check that the entire buffer has been read. This
-  can be useful when using an adapter which only decodes fields at the start of
+  can be useful when using an resolver which only decodes fields at the start of
   the buffer, allowing decoding to bail early.
 
-##### `type.createAdapter(writerType)`
+##### `type.createResolver(writerType)`
 
 + `writerType` {Type} Writer type.
 
@@ -166,7 +166,7 @@ Specific record class, programmatically generated for each record schema.
 
 #### `Record.random()`
 
-#### `Record.decode(buf, [adapter])`
+#### `Record.decode(buf, [resolver])`
 
 #### `record.$encode([opts])`
 

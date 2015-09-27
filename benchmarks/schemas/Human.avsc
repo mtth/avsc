@@ -8,8 +8,7 @@
     },
     {
       "name": "pwd",
-      "type": "bytes",
-      "default": "\u0003\u0004"
+      "type": "bytes"
     },
     {
       "name": "gender",
@@ -21,11 +20,6 @@
           "MALE"
         ]
       }
-    },
-    {
-      "name": "name",
-      "type": "string",
-      "default": "unknown"
     },
     {
       "name": "number",

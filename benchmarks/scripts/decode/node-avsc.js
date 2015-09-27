@@ -18,7 +18,7 @@ avsc.decodeFile(dataPath)
   .on('end', function () {
     var i = 0;
     var n = 0;
-    var loops = 1;
+    var loops = 5;
     var time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();

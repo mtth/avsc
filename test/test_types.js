@@ -79,10 +79,10 @@ suite('types', function () {
       }, AvscError);
     });
 
-    test('decode trailing with adapter', function () {
+    test('decode trailing with resolver', function () {
       var type = fromSchema('int');
-      var adapter = type.createAdapter(fromSchema(['int']));
-      assert.equal(type.decode(new Buffer([0, 2]), adapter), 1);
+      var resolver = type.createResolver(fromSchema(['int']));
+      assert.equal(type.decode(new Buffer([0, 2]), resolver), 1);
     });
 
     test('encode strict & not', function () {
@@ -211,7 +211,7 @@ suite('types', function () {
       var longType = pType('long');
       var buf = intType.encode(123);
       assert.equal(
-        longType.decode(buf, longType.createAdapter(intType)),
+        longType.decode(buf, longType.createResolver(intType)),
         123
       );
     });
@@ -221,7 +221,7 @@ suite('types', function () {
       var rt = fromSchema(['null', 'int']);
       var buf = wt.encode(123);
       assert.deepEqual(
-        rt.decode(buf, rt.createAdapter(wt)),
+        rt.decode(buf, rt.createResolver(wt)),
         {'int': 123}
       );
     });
@@ -231,14 +231,14 @@ suite('types', function () {
       var bytesT = pType('bytes');
       var buf = stringT.encode('\x00\x01');
       assert.deepEqual(
-        bytesT.decode(buf, bytesT.createAdapter(stringT)),
+        bytesT.decode(buf, bytesT.createResolver(stringT)),
         new Buffer([0, 1])
       );
     });
 
     test('adapt invalid', function () {
-      assert.throws(function () { getAdapter('int', 'long'); }, AvscError);
-      assert.throws(function () { getAdapter('long', 'double'); }, AvscError);
+      assert.throws(function () { getResolver('int', 'long'); }, AvscError);
+      assert.throws(function () { getResolver('long', 'double'); }, AvscError);
     });
 
     test('toString', function () {
@@ -289,24 +289,24 @@ suite('types', function () {
     });
 
     test('adapt', function () {
-      var t1, t2, buf, adapter;
+      var t1, t2, buf, resolver;
       t1 = newEnum('Foo', ['bar', 'baz']);
       t2 = newEnum('Foo', ['bar', 'baz']);
-      adapter = t1.createAdapter(t2);
+      resolver = t1.createResolver(t2);
       buf = t2.encode('bar');
-      assert.equal(t1.decode(buf, adapter), 'bar');
+      assert.equal(t1.decode(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['baz', 'bar']);
       buf = t2.encode('bar');
-      adapter = t1.createAdapter(t2);
+      resolver = t1.createResolver(t2);
       assert.notEqual(t1.decode(buf), 'bar');
-      assert.equal(t1.decode(buf, adapter), 'bar');
+      assert.equal(t1.decode(buf, resolver), 'bar');
       t1 = newEnum('Foo2', ['foo', 'baz', 'bar'], ['Foo']);
-      adapter = t1.createAdapter(t2);
-      assert.equal(t1.decode(buf, adapter), 'bar');
+      resolver = t1.createResolver(t2);
+      assert.equal(t1.decode(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['bar', 'bax']);
-      assert.throws(function () { t1.createAdapter(t2); }, AvscError);
+      assert.throws(function () { t1.createResolver(t2); }, AvscError);
       assert.throws(function () {
-        t1.createAdapter(fromSchema('int'));
+        t1.createResolver(fromSchema('int'));
       }, AvscError);
       function newEnum(name, symbols, aliases, namespace) {
         var obj = {type: 'enum', name: name, symbols: symbols};
@@ -347,13 +347,13 @@ suite('types', function () {
     test('adapt', function () {
       var t1 = new types.FixedType({name: 'Id', size: 4});
       var t2 = new types.FixedType({name: 'Id', size: 4});
-      assert.doesNotThrow(function () { t2.createAdapter(t1); });
+      assert.doesNotThrow(function () { t2.createResolver(t1); });
       t2 = new types.FixedType({name: 'Id2', size: 4});
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
       t2 = new types.FixedType({name: 'Id2', size: 4, aliases: ['Id']});
-      assert.doesNotThrow(function () { t2.createAdapter(t1); });
+      assert.doesNotThrow(function () { t2.createResolver(t1); });
       t2 = new types.FixedType({name: 'Id2', size: 5, aliases: ['Id']});
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
     });
 
   });
@@ -395,18 +395,18 @@ suite('types', function () {
     test('adapt int values to long values', function () {
       var t1 = new types.MapType({type: 'map', values: 'int'});
       var t2 = new types.MapType({type: 'map', values: 'long'});
-      var adapter = t2.createAdapter(t1);
+      var resolver = t2.createResolver(t1);
       var obj = {one: 1, two: 2};
       var buf = t1.encode(obj);
-      assert.deepEqual(t2.decode(buf, adapter), obj);
+      assert.deepEqual(t2.decode(buf, resolver), obj);
     });
 
     test('adapt invalid', function () {
       var t1 = new types.MapType({type: 'map', values: 'int'});
       var t2 = new types.MapType({type: 'map', values: 'string'});
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
       t2 = new types.ArrayType({type: 'array', items: 'string'});
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
     });
 
   });
@@ -433,18 +433,18 @@ suite('types', function () {
     test('adapt string items to bytes items', function () {
       var t1 = new types.ArrayType({type: 'array', items: 'string'});
       var t2 = new types.ArrayType({type: 'array', items: 'bytes'});
-      var adapter = t2.createAdapter(t1);
+      var resolver = t2.createResolver(t1);
       var obj = ['\x01\x02'];
       var buf = t1.encode(obj);
-      assert.deepEqual(t2.decode(buf, adapter), [new Buffer([1, 2])]);
+      assert.deepEqual(t2.decode(buf, resolver), [new Buffer([1, 2])]);
     });
 
     test('adapt invalid', function () {
       var t1 = new types.ArrayType({type: 'array', items: 'string'});
       var t2 = new types.ArrayType({type: 'array', items: 'long'});
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
       t2 = new types.MapType({type: 'map', values: 'string'});
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
     });
 
   });
@@ -524,7 +524,7 @@ suite('types', function () {
     test('adapt int to [long, int]', function () {
       var t1 = fromSchema('int');
       var t2 = fromSchema(['long', 'int']);
-      var a = t2.createAdapter(t1);
+      var a = t2.createResolver(t1);
       var buf = t1.encode(23);
       assert.deepEqual(t2.decode(buf, a), {'long': 23});
     });
@@ -532,14 +532,14 @@ suite('types', function () {
     test('adapt null to [null, int]', function () {
       var t1 = fromSchema('null');
       var t2 = fromSchema(['null', 'int']);
-      var a = t2.createAdapter(t1);
+      var a = t2.createResolver(t1);
       assert.deepEqual(t2.decode(new Buffer(0), a), null);
     });
 
     test('adapt [string, int] to [long, string]', function () {
       var t1 = fromSchema(['string', 'int']);
       var t2 = fromSchema(['int', 'bytes']);
-      var a = t2.createAdapter(t1);
+      var a = t2.createResolver(t1);
       var buf;
       buf = t1.encode({string: 'hi'});
       assert.deepEqual(t2.decode(buf, a), {'bytes': new Buffer('hi')});
@@ -593,7 +593,7 @@ suite('types', function () {
     test('adapt bytes to [bytes, string]', function () {
       var t1 = fromSchema('bytes', {unwrapUnions: true});
       var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
-      var a = t2.createAdapter(t1);
+      var a = t2.createResolver(t1);
       var buf = new Buffer('abc');
       assert.deepEqual(t2.decode(t1.encode(buf), a), buf);
     });
@@ -601,7 +601,7 @@ suite('types', function () {
     test('adapt null to [string, null]', function () {
       var t1 = fromSchema('null');
       var t2 = fromSchema(['string', 'null']);
-      var a = t2.createAdapter(t1);
+      var a = t2.createResolver(t1);
       assert.deepEqual(t2.decode(new Buffer(0), a), null);
     });
 
@@ -627,7 +627,7 @@ suite('types', function () {
           {name: 'b', type: ['null', 'string'], 'default': null}
         ]
       }, {unwrapUnions: true});
-      var a = t2.createAdapter(t1);
+      var a = t2.createResolver(t1);
       var buf = t1.encode({a: 1});
       assert.deepEqual(t2.decode(buf, a), {a: 1, b: null});
       buf = t1.encode({b: 'hi'});
@@ -829,14 +829,14 @@ suite('types', function () {
         aliases: ['Person'],
         fields: [{name: 'name', type: 'string'}]
       });
-      var adapter = v2.createAdapter(v1);
-      assert.deepEqual(v2.decode(buf, adapter), p);
+      var resolver = v2.createResolver(v1);
+      assert.deepEqual(v2.decode(buf, resolver), p);
       var v3 = fromSchema({
         type: 'record',
         name: 'Human',
         fields: [{name: 'name', type: 'string'}]
       });
-      assert.throws(function () { v3.createAdapter(v1); }, AvscError);
+      assert.throws(function () { v3.createResolver(v1); }, AvscError);
     });
 
     test('adapt alias with namespace', function () {
@@ -852,14 +852,14 @@ suite('types', function () {
         aliases: ['Person'],
         fields: [{name: 'name', type: 'string'}]
       });
-      assert.throws(function () { v2.createAdapter(v1); }, AvscError);
+      assert.throws(function () { v2.createResolver(v1); }, AvscError);
       var v3 = fromSchema({
         type: 'record',
         name: 'Human',
         aliases: ['earth.Person'],
         fields: [{name: 'name', type: 'string'}]
       });
-      assert.doesNotThrow(function () { v3.createAdapter(v1); });
+      assert.doesNotThrow(function () { v3.createResolver(v1); });
     });
 
     test('adapt skip field', function () {
@@ -878,8 +878,8 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
-      var adapter = v2.createAdapter(v1);
-      assert.deepEqual(v2.decode(buf, adapter), {name: 'Ann'});
+      var resolver = v2.createResolver(v1);
+      assert.deepEqual(v2.decode(buf, resolver), {name: 'Ann'});
     });
 
     test('adapt new field', function () {
@@ -898,8 +898,8 @@ suite('types', function () {
           {name: 'name', type: 'string'}
         ]
       });
-      var adapter = v2.createAdapter(v1);
-      assert.deepEqual(v2.decode(buf, adapter), {name: 'Ann', age: 25});
+      var resolver = v2.createResolver(v1);
+      assert.deepEqual(v2.decode(buf, resolver), {name: 'Ann', age: 25});
     });
 
     test('adapt new field no default', function () {
@@ -916,7 +916,7 @@ suite('types', function () {
           {name: 'name', type: 'string'}
         ]
       });
-      assert.throws(function () { v2.createAdapter(v1); }, AvscError);
+      assert.throws(function () { v2.createResolver(v1); }, AvscError);
     });
 
     test('adapt from recursive schema', function () {
@@ -930,9 +930,9 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': -1}]
       });
-      var adapter = v2.createAdapter(v1);
+      var resolver = v2.createResolver(v1);
       var p1 = {friends: [{friends: []}]};
-      var p2 = v2.decode(v1.encode(p1), adapter);
+      var p2 = v2.decode(v1.encode(p1), resolver);
       assert.deepEqual(p2, {age: -1});
     });
 
@@ -953,9 +953,9 @@ suite('types', function () {
           }
         ]
       });
-      var adapter = v2.createAdapter(v1);
+      var resolver = v2.createResolver(v1);
       var p1 = {age: 25};
-      var p2 = v2.decode(v1.encode(p1), adapter);
+      var p2 = v2.decode(v1.encode(p1), resolver);
       assert.deepEqual(p2, {friends: []});
     });
 
@@ -973,9 +973,9 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'friends', type: {type: 'array', items: 'Person'}}]
       });
-      var adapter = v2.createAdapter(v1);
+      var resolver = v2.createResolver(v1);
       var p1 = {friends: [{age: 1, friends: []}], age: 10};
-      var p2 = v2.decode(v1.encode(p1), adapter);
+      var p2 = v2.decode(v1.encode(p1), resolver);
       assert.deepEqual(p2, {friends: [{friends: []}]});
     });
 
@@ -993,7 +993,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'number', type: 'string', aliases: ['phone']}]
       });
-      assert.throws(function () { v2.createAdapter(v1); }, AvscError);
+      assert.throws(function () { v2.createResolver(v1); }, AvscError);
     });
 
     test('toString', function () {
@@ -1036,31 +1036,31 @@ suite('types', function () {
     test('to valid union', function () {
       var t1 = fromSchema(['int', 'string']);
       var t2 = fromSchema(['null', 'string', 'long']);
-      var adapter = t2.createAdapter(t1);
+      var resolver = t2.createResolver(t1);
       var buf = t1.encode({'int': 12});
-      assert.deepEqual(t2.decode(buf, adapter), {'long': 12});
+      assert.deepEqual(t2.decode(buf, resolver), {'long': 12});
     });
 
     test('to invalid union', function () {
       var t1 = fromSchema(['int', 'string']);
       var t2 = fromSchema(['null', 'long']);
-      assert.throws(function () { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); }, AvscError);
     });
 
     test('to non union', function () {
       var t1 = fromSchema(['int', 'long']);
       var t2 = fromSchema('long');
-      var adapter = t2.createAdapter(t1);
+      var resolver = t2.createResolver(t1);
       var buf = t1.encode({'int': 12});
-      assert.equal(t2.decode(buf, adapter), 12);
+      assert.equal(t2.decode(buf, resolver), 12);
       buf = new Buffer([4, 0]);
-      assert.throws(function () { t2.decode(buf, adapter); }, AvscError);
+      assert.throws(function () { t2.decode(buf, resolver); }, AvscError);
     });
 
     test('to invalid non union', function () {
       var t1 = fromSchema(['int', 'long']);
       var t2 = fromSchema('int');
-      assert.throws(function() { t2.createAdapter(t1); }, AvscError);
+      assert.throws(function() { t2.createResolver(t1); }, AvscError);
     });
 
   });
@@ -1195,9 +1195,9 @@ function testType(Type, data, invalidSchemas) {
 
 }
 
-function getAdapter(reader, writer) {
+function getResolver(reader, writer) {
 
-  return fromSchema(reader).createAdapter(fromSchema(writer));
+  return fromSchema(reader).createResolver(fromSchema(writer));
 
 }
 
