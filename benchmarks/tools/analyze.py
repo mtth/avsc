@@ -1,22 +1,32 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Analyze timings data using pandas."""
+"""Analyze timings data using pandas.
+
+Usage:
+
+  $ python analyze.py timings.json
+
+  command:
+
+            lib1          lib2
+  schema    abs     rel   abs     rel
+  schema1   123     1.0   100     0.72
+  schema2   89      0.3   300     1.0
+
+"""
 
 from json import load
 import pandas as pd
 import sys
 
-def get_rate_df(df, command):
-  """Output:
 
-            lib1          lib2
-            abs     rel   abs     rel
-  schema1   123     1.0   100     0.72
-  schema2   89      0.3   300     1.0
+pd.set_option('display.max_columns', 20)
+pd.set_option('expand_frame_repr', False)
 
-  """
-  df = df[df['command'] == command]
+
+def get_ops_df(df, command):
+  """Get dataframe of operations per second."""
   df = df.groupby(['schema', 'library'])['rate'].median()
   udf = df.unstack()
   stacked = {}
@@ -27,15 +37,17 @@ def get_rate_df(df, command):
     schema_df = schema_df.fillna(-1)
     schema_df = schema_df.astype(int)
     stacked[name] = schema_df.stack()
-  return pd.DataFrame(stacked).transpose()
+  fdf = pd.DataFrame(stacked).transpose()
+  fdf.index.name = 'schema'
+  return fdf
 
 def main(path):
+  """Load timings and pretty print rates."""
   with open(path) as reader:
     df = pd.DataFrame(load(reader))
   df['rate'] = 1e3 / df['ms_per_record']
-  # Encoding
-  return get_rate_df(df, 'decode')
-  # Decoding
+  for name, df in df.groupby('command'):
+    print '%s\n\n%s\n' % (name, get_ops_df(df, name))
 
 if __name__ == '__main__':
-  DF = main(sys.argv[1])
+  main(sys.argv[1])

@@ -8,7 +8,7 @@ var io = require('node-avro-io'),
     avsc = require('../../../lib');
 
 
-var loops = 5;
+var loops = 2;
 var records = [];
 var writer;
 

@@ -14,7 +14,6 @@ var records = [];
 var type = null;
 
 avsc.decodeFile(dataPath)
-  .on('metadata', function (writerType) { type = writerType; })
   .on('data', function (record) { records.push(record); })
   .on('end', function () {
     var i = 0;
@@ -33,10 +32,10 @@ avsc.decodeFile(dataPath)
 
 function loop() {
   var n = 0;
-  var i, l, buf;
+  var i, l, s;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = JSON.stringify(records[i]);
-    n += buf[0];
+    s = JSON.stringify(records[i]);
+    n += s.length;
   }
   return n;
 }

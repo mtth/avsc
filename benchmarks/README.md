@@ -24,10 +24,10 @@ analysis (e.g. using `pandas`, see below).
   $ npm install git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption
   ```
 
-+ `pandas`; to analyze the data.
-
 
 ## Analysis
+
+Assuming you have `pandas` installed:
 
 ```bash
 $ python tools/analyze.py timings.json

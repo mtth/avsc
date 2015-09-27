@@ -24,8 +24,8 @@ avsc.decodeFile(dataPath)
       n += loop();
     }
     time = process.hrtime(time);
-    if (n <= 0) {
-      throw new Error('no');
+    if (n < 0) {
+      console.error('no');
     }
     console.log(1000 * (time[0] + time[1] * 1e-9) / (records.length * loops));
   });
@@ -35,7 +35,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = type.encode(records[i], 3072, true);
+    buf = type.encode(records[i], undefined, true);
     n += buf[0];
   }
   return n;
