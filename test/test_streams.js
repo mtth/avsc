@@ -121,7 +121,8 @@ suite('streams', function () {
 
     test('no writer type', function (cb) {
       var decoder = new RawDecoder()
-        .on('error', function () { cb(); });
+        .on('error', function () { cb(); })
+        .on('data', function () {});
       decoder.write(new Buffer(1));
     });
 
@@ -142,7 +143,8 @@ suite('streams', function () {
       var wt = fromSchema('int');
       var rt = fromSchema('string');
       var decoder = new RawDecoder({readerType: rt, writerType: wt})
-        .on('error', function () { cb(); });
+        .on('error', function () { cb(); })
+        .on('data', function () {});
       decoder.end(new Buffer([4]));
     });
 

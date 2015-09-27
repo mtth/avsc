@@ -32,7 +32,7 @@ if (!path) {
 
 var n = 0;
 var time;
-avsc.decodeFile(path, {writerType: type})
+avsc.decodeFile(path, {type: type, decode: false})
   .on('data', function () {
     if (!time) {
       // In the case of Avro container files, we could use the 'metadata' event
