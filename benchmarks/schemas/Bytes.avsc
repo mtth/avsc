@@ -1,0 +1,10 @@
+{
+  "name": "Bytes",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": "bytes"
+    }
+  ]
+}

@@ -13,14 +13,17 @@ import sys
 with open(sys.argv[2]) as reader:
   records = avro_reader(reader)
   SCHEMA = records.schema
-  RECORDS = list(records)
+  BUFS = []
+  for record in records:
+    buf = BytesIO()
+    dump(buf, record, SCHEMA)
+    BUFS.append(buf)
 
 start = time()
 n = 0
-buf = BytesIO()
 for _ in repeat(None, 1):
-  for record in RECORDS:
+  for buf in BUFS:
     n += 1
-    dump(buf, record, SCHEMA)
     buf.seek(0)
+    record = load(buf, SCHEMA)
 print 1000. * (time() - start) / n

@@ -1,0 +1,10 @@
+{
+  "name": "ArrayString",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": {"type": "array", "items": "string"}
+    }
+  ]
+}

@@ -1,19 +1,18 @@
 #!/usr/bin/env node
 
+/* jshint node: true */
+
 'use strict';
 
-var avsc = require('../../../lib');
+var Serializer = require('avro-serializer'),
+    avsc = require('avsc');
 
-var dataPath = process.argv[3];
-if (!dataPath) {
-  process.exit(1);
-}
 
 var records = [];
-var type = null;
+var serializer;
 
-avsc.decodeFile(dataPath)
-  .on('metadata', function (writerType) { type = writerType; })
+avsc.decodeFile(process.argv[3])
+  .on('metadata', function (type) { serializer = new Serializer(type); })
   .on('data', function (record) { records.push(record); })
   .on('end', function () {
     var i = 0;
@@ -35,7 +34,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = type.encode(records[i], 3072, true);
+    buf = serializer.serialize(records[i]);
     n += buf[0];
   }
   return n;

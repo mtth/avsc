@@ -1,0 +1,10 @@
+{
+  "name": "MapInt",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": {"type": "map", "values": "int"}
+    }
+  ]
+}

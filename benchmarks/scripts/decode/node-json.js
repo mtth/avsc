@@ -9,34 +9,36 @@ if (!dataPath) {
   process.exit(1);
 }
 
-var records = [];
+var strs = [];
 var type = null;
 
 avsc.decodeFile(dataPath)
   .on('metadata', function (writerType) { type = writerType; })
-  .on('data', function (record) { records.push(record); })
+  .on('data', function (record) { strs.push(JSON.stringify(record)); })
   .on('end', function () {
     var i = 0;
     var n = 0;
-    var loops = 50;
+    var loops = 1;
     var time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
-    if (n <= 0) {
+    if (n < 0) {
       throw new Error('no');
     }
-    console.log(1000 * (time[0] + time[1] * 1e-9) / (records.length * loops));
+    console.log(1000 * (time[0] + time[1] * 1e-9) / (strs.length * loops));
   });
 
 
 function loop() {
   var n = 0;
-  var i, l, buf;
-  for (i = 0, l = records.length; i < l; i++) {
-    buf = type.encode(records[i], 3072, true);
-    n += buf[0];
+  var i, l, record;
+  for (i = 0, l = strs.length; i < l; i++) {
+    record = JSON.parse(strs[i]);
+    if (record.$ === null) {
+      n++;
+    }
   }
   return n;
 }

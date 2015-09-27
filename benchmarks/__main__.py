@@ -67,18 +67,19 @@ def generate_data(schema_path, n_records, output_path, codec='deflate'):
 
 def run_benchmark(dname, count=100000):
   """Run all scripts inside a given benchmark folder."""
-  print dname
   dpath = osp.join(DPATH, 'scripts', dname)
   scripts = [(fname, osp.join(dpath, fname)) for fname in os.listdir(dpath)]
   for schema_name, schema_path in SCHEMAS:
-    print schema_name
+    sname = osp.splitext(schema_name)[0]
     with temppath() as tpath:
       generate_data(schema_path, count, tpath)
       for name, path in scripts:
+        lib = osp.splitext(name)[0]
         out = run([path, schema_path, tpath])
         if out:
           ms = float(out) # Ms per record.
           throughput = int(1e3 / ms)
-          print '%i\t%f\t%s' % (throughput, ms, name)
+          print '%s\t%s\t%i\t%f\t%s' % (dname, sname, throughput, ms, lib)
 
-run_benchmark('encode', 10000)
+run_benchmark('decode', 100000)
+run_benchmark('encode', 100000)

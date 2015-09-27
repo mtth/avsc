@@ -35,7 +35,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = type.encode(records[i], 3072, true);
+    buf = JSON.stringify(records[i]);
     n += buf[0];
   }
   return n;
