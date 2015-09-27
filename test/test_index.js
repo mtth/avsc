@@ -7,7 +7,6 @@ var avsc = require('../lib'),
     path = require('path');
 
 
-// Path to data directory.
 var DPATH = path.join(__dirname, 'dat');
 
 
@@ -54,20 +53,6 @@ suite('index', function () {
           cb();
         });
 
-    });
-
-    test('raw file', function (cb) {
-      var n = 0;
-      var fpath = path.join(DPATH, 'person-10.avro.raw');
-      avsc.decodeFile(fpath, {writerType: type})
-        .on('data', function (obj) {
-          n++;
-          assert(type.isValid(obj));
-        })
-        .on('end', function () {
-          assert.equal(n, 10);
-          cb();
-        });
     });
 
   });

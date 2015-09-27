@@ -1166,7 +1166,11 @@ function testType(Type, data, invalidSchemas) {
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);
       });
-      assert(type.isValid(type.random()));
+      var n = 50;
+      while (n--) {
+        // Run a few times to make sure we cover any branches.
+        assert(type.isValid(type.random()));
+      }
     });
   });
 
