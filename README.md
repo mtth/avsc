@@ -9,7 +9,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 $ npm install avsc
 ```
 
-`avsc` is compatible with `iojs` and versions of `node` from and including `0.11`.
+`avsc` is compatible with [io.js][] and versions of [node.js][] from and
+including `0.11`.
 
 
 ## Examples
@@ -82,3 +83,7 @@ Known limitations:
 + JavaScript doesn't natively support the `long` type, so numbers larger than
   `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
   will suffer a loss of precision.
+
+
+[io.js]: https://iojs.org/en/
+[node.js]: https://nodejs.org/en/
