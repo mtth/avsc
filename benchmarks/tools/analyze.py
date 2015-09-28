@@ -24,8 +24,14 @@ import sys
 pd.set_option('display.max_columns', 20)
 pd.set_option('expand_frame_repr', False)
 
+def get_df(path):
+  """Load raw dataframe."""
+  with open(path) as reader:
+    df = pd.DataFrame(load(reader))
+  df['rate'] = 1e3 / df['ms_per_record']
+  return df
 
-def get_ops_df(df, command):
+def get_ops_df(df):
   """Get dataframe of operations per second."""
   df = df.groupby(['schema', 'library'])['rate'].median()
   udf = df.unstack()
@@ -41,13 +47,7 @@ def get_ops_df(df, command):
   fdf.index.name = 'schema'
   return fdf
 
-def main(path):
-  """Load timings and pretty print rates."""
-  with open(path) as reader:
-    df = pd.DataFrame(load(reader))
-  df['rate'] = 1e3 / df['ms_per_record']
-  for name, df in df.groupby('command'):
-    print '%s\n\n%s\n' % (name, get_ops_df(df, name))
-
 if __name__ == '__main__':
-  main(sys.argv[1])
+  DF = get_df(sys.argv[1])
+  for name, df in DF.groupby('command'):
+    print '%s\n\n%s\n' % (name, get_ops_df(df, name))

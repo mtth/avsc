@@ -3,6 +3,13 @@
 Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/current/spec.html).
 
 
+## Features
+
++ Arbitrary Avro schema support.
++ [Fast](#performance).
++ No dependencies.
+
+
 ## Installation
 
 ```bash
@@ -64,9 +71,27 @@ including `0.11`.
 + [Advanced usage](https://github.com/mtth/avsc/blob/master/doc/advanced.md)
 
 
+## Performance
+
+Despite being written in pure JavaScript, `avsc` is still fast: supporting
+encoding and decoding throughput rates in the 100,000s per second for complex
+schemas.
+
+Schema | Decode (ops/sec) | Encode (ops/sec)
+---|:-:|:-:
+[`ArrayString.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
+[`Coupon.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/Coupon.avsc) | 290k | 302k
+[`Person.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/Person.avsc) | 1586k | 620k
+[`User.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/User.avsc) | 116k | 284k
+
+In fact, it is generally faster than the built-in JSON parser (also producing
+encodings orders of magnitude smaller before compression). See the
+[benchmarks][] page for the raw numbers.
+
+
 ## Status
 
-What's already there:
+What's there:
 
 + Parsing and resolving schemas (including schema evolution).
 + Encoding, decoding, validating, and generating data.
@@ -87,3 +112,4 @@ Known limitations:
 
 [io.js]: https://iojs.org/en/
 [node.js]: https://nodejs.org/en/
+[benchmarks]: https://github.com/mtth/avsc/blob/master/doc/benchmarks.md
