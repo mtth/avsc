@@ -9,13 +9,10 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 $ npm install avsc
 ```
 
-`avsc` is compatible with versions of `node` starting from `0.11` (including
-`4.*`), and all versions of `iojs`.
+`avsc` is compatible with `iojs` and versions of `node` from and including `0.11`.
 
 
-## Documentation
-
-A few sample snippets first!
+## Examples
 
 + Encode, validate, and decode JavaScript objects using an existing Avro
   schema:
@@ -35,7 +32,7 @@ A few sample snippets first!
     .on('data', function (record) { /* Do something with the record. */ });
   ```
 
-+ Generate an Avro type from a JS schema and generate a random instance:
++ Generate an Avro type from a schema object and generate a random instance:
 
   ```javascript
   var type = require('avsc').parse({
@@ -43,10 +40,11 @@ A few sample snippets first!
     type: 'record',
     fields: [
       {name: 'kind', type: {name: 'Kind', type: 'enum', symbols: ['CAT', 'DOG']}},
-      {name: 'name', type: 'string'}
+      {name: 'name', type: 'string'},
+      {name: 'isFurry', type: 'boolean'}
     ]
   });
-  var pet = type.random(); // E.g. {kind: 'CAT', name: 'qwXlrew'}
+  var pet = type.random(); // E.g. {kind: 'CAT', name: 'qwXlrew', isFurry: true}
   ```
 
 + Create a writable stream to serialize objects on the fly:
@@ -58,7 +56,7 @@ A few sample snippets first!
     .on('data', function (chunk) { /* Use the encoded chunk somehow. */ });
   ```
 
-Documentation links:
+## Documentation
 
 + [Quickstart](https://github.com/mtth/avsc/blob/master/doc/quickstart.md)
 + [API](https://github.com/mtth/avsc/blob/master/doc/api.md)

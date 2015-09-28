@@ -10,7 +10,8 @@
 
 ### `avsc.parse(schema, [opts])`
 
-Parse a schema and return an instance of the corresponding `Type`.
+Parse a schema and return an instance of the corresponding
+[`Type`](#class-type).
 
 + `schema` {Object|String} Schema (type object or type name string).
 + `opts` {Object} Parsing options. The following keys are currently supported:
@@ -38,12 +39,13 @@ All the classes below are available in the `avsc.types` namespace:
 
 + [`Type`](#class-type)
 + [`PrimitiveType`](#class-primitivetypename)
-+ [`ArrayType`](#class-arraytype-opts)
-+ [`EnumType`](#class-enumtype-opts)
-+ [`FixedType`](#class-fixedtype-opts)
-+ [`MapType`](#class-maptype-opts)
-+ [`RecordType`](#class-recordtype-opts)
-+ [`UnionType`](#class-uniontype-opts)
++ [`ArrayType`](#class-arraytypeschema-opts)
++ [`EnumType`](#class-enumtypeschema-opts)
++ [`FixedType`](#class-fixedtypeschema-opts)
++ [`MapType`](#class-maptypeschema-opts)
++ [`RecordType`](#class-recordtypeschema-opts)
++ [`UnionType`](#class-uniontypeschema-opts)
+
 
 ### Class `Type`
 
@@ -243,10 +245,13 @@ instantiate new records of a given type.
 
 ## Streams
 
+As a convenience, the following function is available to read an Avro object
+container file stored locally:
+
 ### `avsc.decodeFile(path, [opts])`
 
 + `path` {String} Path to Avro file.
-+ `opts` {Object} Decoding options, passed either to the `BlockDecoder`.
++ `opts` {Object} Decoding options, passed to `BlockDecoder`.
 
 Returns a readable stream of decoded objects from an Avro container file.
 
@@ -266,6 +271,8 @@ For other use-cases, the following stream classes are available in the
     Defaults to `true`.
   + `parseOpts` {Object} Options passed to instantiate the writer's `Type`.
 
+A duplex stream which decodes bytes coming from on Avro object container file.
+
 #### Event `'metadata'`
 
 + `type` {Type} The type used to write the file.
@@ -280,9 +287,13 @@ For other use-cases, the following stream classes are available in the
 
 ### Class `RawDecoder(type, [opts])`
 
-+ `type` {Type} Writer type.
++ `type` {Type} Writer type. Required since the input doesn't contain a header.
 + `opts` {Object} Decoding options. Available keys:
-  + `decode` {Boolean}
+  + `decode` {Boolean} Whether to decode records before returning them.
+    Defaults to `true`.
+
+A duplex stream which can be used to decode a stream of serialized Avro objects
+with no headers or blocks.
 
 #### Event `'data'`
 
@@ -302,6 +313,8 @@ For other use-cases, the following stream classes are available in the
   + `unsafe` {Boolean} Whether to check each record before encoding it.
     Defaults to `true`.
 
+A duplex stream to create Avro container object files.
+
 #### Event `'data'`
 
 + `data` {Buffer} Serialized bytes.
@@ -317,6 +330,8 @@ For other use-cases, the following stream classes are available in the
     Defaults to 64kB.
   + `unsafe` {Boolean} Whether to check each record before encoding it.
     Defaults to `true`.
+
+The encoding equivalent of `RawDecoder`.
 
 #### Event `'data'`
 

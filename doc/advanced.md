@@ -5,7 +5,7 @@ Advanced usage
 Reader schema
 -------------
 
-Avro supports reading data written by another schema (as long as the reader'
+Avro supports reading data written by another schema (as long as the reader's
 and writer's schemas are compatible). We can do this by creating an appropriate
 `Resolver`:
 
