@@ -9,8 +9,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 $ npm install avsc
 ```
 
-`avsc` has no dependencies and is compatible with versions of `node` starting
-from `0.11` (including `4.*`), and all versions of `iojs`.
+`avsc` is compatible with versions of `node` starting from `0.11` (including
+`4.*`), and all versions of `iojs`.
 
 
 ## Documentation

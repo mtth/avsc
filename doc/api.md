@@ -1,5 +1,10 @@
 # API
 
++ [Parsing schemas](#parsing-schemas)
++ [Avro types](#avro-types)
++ [Records](#records)
++ [Streams](#streams)
+
 
 ## Parsing schemas
 
@@ -29,7 +34,16 @@ Convenience function to parse a schema file directly.
 
 ## Avro types
 
-All the classes below are available in the `avsc.types` namespace.
+All the classes below are available in the `avsc.types` namespace:
+
++ [`Type`](#class-type)
++ [`PrimitiveType`](#class-primitivetypename)
++ [`ArrayType`](#class-arraytype-opts)
++ [`EnumType`](#class-enumtype-opts)
++ [`FixedType`](#class-fixedtype-opts)
++ [`MapType`](#class-maptype-opts)
++ [`RecordType`](#class-recordtype-opts)
++ [`UnionType`](#class-uniontype-opts)
 
 ### Class `Type`
 
@@ -204,10 +218,10 @@ parsing the schema).
 The possible types that this union can take.
 
 
-# Records
+## Records
 
-Each `RecordType` generates a corresponding `Record` constructor when its
-schema is parsed. It is available using the `RecordType`'s
+Each [`RecordType`](#class-recordtype-opts) generates a corresponding `Record`
+constructor when its schema is parsed. It is available using the `RecordType`'s
 `getRecordConstructor` methods. This makes decoding records more efficient and
 lets us provide the following convenience methods:
 
@@ -236,9 +250,14 @@ instantiate new records of a given type.
 
 Returns a readable stream of decoded objects from an Avro container file.
 
-
-For othre use-cases, the following stream classes are available in the
+For other use-cases, the following stream classes are available in the
 `avsc.streams` namespace:
+
++ [`BlockDecoder`](#blockdecoderopts)
++ [`RawDecoder`](#rawdecoderopts)
++ [`BlockEncoder`](#blockencoderopts)
++ [`RawEncoder`](#rawencoderopts)
+
 
 ### Class `BlockDecoder([opts])`
 
