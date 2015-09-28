@@ -23,7 +23,6 @@ var v1 = avsc.parse({
 });
 
 // The updated version.
-has been added:
 var v2 = avsc.parse({
   type: 'record',
   name: 'Person',
@@ -46,7 +45,12 @@ var v2 = avsc.parse({
 });
 
 var resolver = v2.createResolver(v1);
-var buf = v1.encode({name: 'Ann', age: 25});
+```
+
+We can then see it in action!
+
+```javascript
+var buf = v1.encode({name: 'Ann', age: 25}); // Encode using old schema.
 var obj = v2.decode(buf, resolver); // === {name: {string: 'Ann'}, phone: null}
 ```
 

@@ -5,9 +5,9 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 ## Features
 
-+ Arbitrary Avro schema support.
-+ [Fast](#performance).
++ Arbitrary Avro schema support, and [schema evolution][schema-evolution].
 + No dependencies.
++ [Fast!](#performance) Did you know that Avro could be faster than JSON?
 
 
 ## Installation
@@ -20,30 +20,35 @@ $ npm install avsc
 including `0.11`.
 
 
-## Examples
+## Documentation
 
-+ Encode, validate, and decode JavaScript objects using an existing Avro
-  schema:
++ [Quickstart](https://github.com/mtth/avsc/blob/master/doc/quickstart.md)
++ [API](https://github.com/mtth/avsc/blob/master/doc/api.md)
++ [Advanced usage](https://github.com/mtth/avsc/blob/master/doc/advanced.md)
+
+A few examples to boot:
+
++ Encode and decode JavaScript objects using an Avro schema file:
 
   ```javascript
-  var type = require('avsc').parseFile('Person.avsc');
+  var avsc = require('avsc'); // Implied in all other examples below.
+
+  var type = avsc.parseFile('Person.avsc');
   var buf = type.encode({name: 'Ann', age: 25}); // Serialize a JS object.
-  var isValid = type.isValid({name: 'Bob', age: -1}) // Validate another.
-  var obj = type.decode(buf); // And deserialize the first back.
+  var obj = type.decode(buf); // And deserialize it back.
   ```
 
 + Get a readable record stream from an Avro container file:
 
   ```javascript
-  require('avsc')
-    .decodeFile('records.avro')
+  avsc.decodeFile('records.avro')
     .on('data', function (record) { /* Do something with the record. */ });
   ```
 
-+ Generate an Avro type from a schema object and generate a random instance:
++ Generate a random instance from a schema object:
 
   ```javascript
-  var type = require('avsc').parse({
+  var type = avsc.parse({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -58,17 +63,10 @@ including `0.11`.
 + Create a writable stream to serialize objects on the fly:
 
   ```javascript
-  var avsc = require('avsc');
-  var type = avsc.parse('int');
+  var type = avsc.parse({type: 'array', items: 'int'});
   var encoder = new avsc.streams.RawEncoder(type)
     .on('data', function (chunk) { /* Use the encoded chunk somehow. */ });
   ```
-
-## Documentation
-
-+ [Quickstart](https://github.com/mtth/avsc/blob/master/doc/quickstart.md)
-+ [API](https://github.com/mtth/avsc/blob/master/doc/api.md)
-+ [Advanced usage](https://github.com/mtth/avsc/blob/master/doc/advanced.md)
 
 
 ## Performance
@@ -77,7 +75,7 @@ Despite being written in pure JavaScript, `avsc` is still fast: supporting
 encoding and decoding throughput rates in the 100,000s per second for complex
 schemas.
 
-Schema | Decode (ops/sec) | Encode (ops/sec)
+Schema | Decode (operations/sec) | Encode (operations/sec)
 ---|:-:|:-:
 [`ArrayString.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
 [`Coupon.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/Coupon.avsc) | 290k | 302k
@@ -89,22 +87,9 @@ encodings orders of magnitude smaller before compression). See the
 [benchmarks][] page for the raw numbers.
 
 
-## Status
+## Limitations
 
-What's there:
-
-+ Parsing and resolving schemas (including schema evolution).
-+ Encoding, decoding, validating, and generating data.
-+ Reading and writing container files.
-
-Coming up:
-
-+ Protocols.
-+ Sort order.
-+ Logical types.
-
-Known limitations:
-
++ Protocols aren't yet implemented.
 + JavaScript doesn't natively support the `long` type, so numbers larger than
   `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
   will suffer a loss of precision.
@@ -113,3 +98,4 @@ Known limitations:
 [io.js]: https://iojs.org/en/
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/blob/master/doc/benchmarks.md
+[schema-evolution]: https://github.com/mtth/avsc/blob/master/doc/advanced.md#reader-schema
