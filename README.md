@@ -9,6 +9,9 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 $ npm install avsc
 ```
 
+`avsc` has no dependencies and is compatible with versions of `node` starting
+from `0.11` (including `4.*`), and all versions of `iojs`.
+
 
 ## Documentation
 
@@ -43,7 +46,7 @@ A few sample snippets first!
       {name: 'name', type: 'string'}
     ]
   });
-  var pet = type.random(); // e.g. {kind: 'CAT', name: 'qwXlrew'}
+  var pet = type.random(); // E.g. {kind: 'CAT', name: 'qwXlrew'}
   ```
 
 + Create a writable stream to serialize objects on the fly:
