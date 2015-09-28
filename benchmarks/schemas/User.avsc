@@ -34,7 +34,10 @@
             },
             {
               "name": "dateBounced",
-              "type": ["null", "long"]
+              "type": [
+                "null",
+                "long"
+              ]
             }
           ]
         }
@@ -53,7 +56,13 @@
               "type": {
                 "type": "enum",
                 "name": "OAuthStatus",
-                "symbols": ["PENDING", "ACTIVE", "DENIED", "EXPIRED", "REVOKED"]
+                "symbols": [
+                  "PENDING",
+                  "ACTIVE",
+                  "DENIED",
+                  "EXPIRED",
+                  "REVOKED"
+                ]
               }
             },
             {

@@ -32,8 +32,6 @@ Convenience function to parse a schema file directly.
 ### `avsc.decodeFile(path, [opts])`
 
 + `path` {String} Path to Avro file.
-+ `opts` {Object} Decoding options, passed either to `BlockDecoder` or
-  `RawDecoder`, as appropriate.
++ `opts` {Object} Decoding options, passed either to the `BlockDecoder`.
 
-Returns a readable stream of an Avro file's (either container object file or
-fragments) contents.
+Returns a readable stream of decoded objects from an Avro container file.

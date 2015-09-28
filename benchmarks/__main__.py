@@ -46,6 +46,8 @@ class Benchmark(object):
     _logger.info('starting benchmark for %s [%s records]', name, n_records)
     self.name = name
     self.path = osp.join(self._schemas_dpath, name)
+    if not osp.exists(self.path):
+      raise ValueError('no schema named %s' % (name, ))
     self.n_records = n_records
     self.attempts = attempts
 
@@ -91,14 +93,19 @@ class Benchmark(object):
         os.remove(path)
 
   @classmethod
-  def run_all(cls, n_records=10000, attempts=5):
+  def run_all(cls, names=None, n_records=10000, attempts=5):
     """Run all benchmarks."""
     times = []
-    build_avsc_jar()
-    for fname in os.listdir(cls._schemas_dpath):
+    try:
+      build_avsc_jar()
+    except Exception:
+      pass # Missing dependency, skip.
+    for fname in names or os.listdir(cls._schemas_dpath):
       bench = Benchmark(fname, n_records, attempts)
       times.extend(bench.run())
     return times
 
-TIMES = Benchmark.run_all(50000, 10)
-print dumps(TIMES)
+if __name__ == '__main__':
+  names = ['%s.avsc' % (elem, ) for elem in sys.argv[1:]]
+  TIMES = Benchmark.run_all(names=names, n_records=100000, attempts=10)
+  print dumps(TIMES)

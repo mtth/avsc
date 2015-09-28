@@ -14,19 +14,14 @@ $ npm install avsc
 
 A few sample snippets first!
 
-+ Encode and decode JavaScript objects:
++ Encode, validate, and decode JavaScript objects using an existing Avro
+  schema:
 
   ```javascript
-  var type = require('avsc').parse({
-    type: 'record',
-    name: 'Person',
-    fields: [
-      {name: 'name', type: 'string'},
-      {name: 'age', type: 'int'}
-    ]
-  });
+  var type = require('avsc').parseFile('Person.avsc');
   var buf = type.encode({name: 'Ann', age: 25}); // Serialize a JS object.
-  var obj = type.decode(buf); // And deserialize it back.
+  var isValid = type.isValid({name: 'Bob', age: -1}) // Validate another.
+  var obj = type.decode(buf); // And deserialize the first back.
   ```
 
 + Get a readable record stream from an Avro container file:
@@ -34,16 +29,30 @@ A few sample snippets first!
   ```javascript
   require('avsc')
     .decodeFile('records.avro')
-    .on('data', function (record) { console.log(record); });
+    .on('data', function (record) { /* Do something with the record. */ });
   ```
 
-+ Create a writable stream to serialize Avro records on the fly:
++ Generate an Avro type from a JS schema and generate a random instance:
+
+  ```javascript
+  var type = require('avsc').parse({
+    name: 'Pet',
+    type: 'record',
+    fields: [
+      {name: 'kind', type: {name: 'Kind', type: 'enum', symbols: ['CAT', 'DOG']}},
+      {name: 'name', type: 'string'}
+    ]
+  });
+  var pet = type.random(); // e.g. {kind: 'CAT', name: 'qwXlrew'}
+  ```
+
++ Create a writable stream to serialize objects on the fly:
 
   ```javascript
   var avsc = require('avsc');
   var type = avsc.parse('int');
   var encoder = new avsc.streams.RawEncoder(type)
-    .on('data', function (chunk) { /* Use the encoded chunk somehow */ });
+    .on('data', function (chunk) { /* Use the encoded chunk somehow. */ });
   ```
 
 Documentation links:
