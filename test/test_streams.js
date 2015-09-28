@@ -257,6 +257,10 @@ suite('streams', function () {
       assert.equal(typeof header.meta['avro.schema'], 'object');
       header = BlockDecoder.getHeader(path.join(DPATH, 'person-10.avro.raw'));
       assert(header === null);
+      header = BlockDecoder.getHeader(
+        path.join(DPATH, 'person-10.no-codec.avro')
+      );
+      assert(header !== null);
     });
 
     test('invalid magic bytes', function (cb) {
@@ -283,6 +287,18 @@ suite('streams', function () {
       decoder.write(header.$encode());
       decoder.write(new Buffer([0, 0])); // Empty block.
       decoder.end(new Buffer('alongerstringthansixteenbytes'));
+    });
+
+    test('missing codec', function (cb) {
+      var decoder = new BlockDecoder()
+        .on('data', function () {})
+        .on('end', function () { cb(); });
+      var header = new Header(
+        MAGIC_BYTES,
+        {'avro.schema': new Buffer('"int"')},
+        SYNC
+      );
+      decoder.end(header.$encode());
     });
 
     test('unknown codec', function (cb) {

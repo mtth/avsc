@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A serialization API to make you smile",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -17,7 +17,6 @@
     "url": "git://github.com/mtth/avsc.git"
   },
   "files": [
-    "doc",
     "lib"
   ],
   "engines": {

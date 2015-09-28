@@ -22,9 +22,9 @@ including `0.11`.
 
 ## Documentation
 
-+ [Quickstart](../../wiki/Quickstart)
-+ [API](../../wiki/API)
-+ [Advanced usage](../../wiki/Advanced-usage)
++ [Quickstart](https://github.com/mtth/avsc/wiki/Quickstart)
++ [API](https://github.com/mtth/avsc/wiki/API)
++ [Advanced usage](https://github.com/mtth/avsc/wiki/Advanced-usage)
 
 A few examples to boot:
 
@@ -97,5 +97,5 @@ encodings orders of magnitude smaller before compression). See the
 
 [io.js]: https://iojs.org/en/
 [node.js]: https://nodejs.org/en/
-[benchmarks]: ../../wiki/Benchmarks
-[schema-evolution]: ../../wiki/Advanced-usage#schema-evolution
+[benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
+[schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
