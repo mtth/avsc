@@ -3,24 +3,30 @@
 
 ## Avro types
 
+Parsing a schema will return an instance of the corresponding Avro type.
+
 
 ### Class `Type`
 
-"Abstract" base Avro type class. All implementations inherit from this type.
+"Abstract" base Avro type class. All implementations inherit from it.
+
 
 ##### `type.type`
 
 The type's name (e.g. `'int'`, `'record'`, ...).
 
+
 ##### `type.random()`
 
 Generate a random instance of this type.
+
 
 ##### `type.isValid(obj)`
 
 + `obj` {Object} The object to validate.
 
 Check whether `obj` is a valid representation of `type`.
+
 
 ##### `type.encode(obj, [size,] [unsafe])`
 
@@ -34,6 +40,7 @@ Check whether `obj` is a valid representation of `type`.
 
 Returns a `Buffer` containing the Avro serialization of `obj`.
 
+
 ##### `type.decode(buf, [resolver,] [unsafe])`
 
 + `buf` {Buffer} Bytes containing a serialized object of the correct type.
@@ -43,19 +50,32 @@ Returns a `Buffer` containing the Avro serialization of `obj`.
   can be useful when using an resolver which only decodes fields at the start of
   the buffer, allowing decoding to bail early.
 
+
 ##### `type.createResolver(writerType)`
 
 + `writerType` {Type} Writer type.
 
+Create a resolver that can be be passed to the `type`'s `decode` method. This
+will enable decoding objects which had been serialized using `writerType`,
+according to the Avro [resolution rules][schema-resolution]. If the schemas are
+incompatible, this method will throw an error.
+
+
 ##### `type.toString()`
 
-Return the canonical version of the schema. This can be used to compare schemas
-for equality.
+Returns the [canonical version of the schema][canonical-schema]. This can be
+used to compare schemas for equality.
+
 
 ##### `type.createFingerprint(algorithm)`
 
-+ `algorithm` {String} Algorithm to use to generate the fingerprint. Defaults
-  to `md5`.
++ `algorithm` {String} Algorithm to use to generate the schema's
+  [fingerprint][]. Defaults to `md5`.
+
+
+#### `Type.fromSchema(obj, [opts])`
+
+Alias for `avsc.parse`.
 
 
 #### Class `PrimitiveType(name)`
@@ -161,15 +181,21 @@ The possible types that this union can take.
 
 # Records
 
+Each `RecordType` generates a corresponding `Record` constructor when its
+schema is parsed. It is available using the `RecordType`'s
+`getRecordConstructor` methods. This makes decoding records more efficient and
+lets us provide the following convenience methods:
+
 ### Class `Record(...)`
 
-Specific record class, programmatically generated for each record schema.
+Calling the constructor directly can sometimes be a convenient shortcut to
+instantiate new records of a given type.
 
 #### `Record.random()`
 
-#### `Record.decode(buf, [resolver])`
+#### `Record.decode(buf, [resolver,] [unsafe])`
 
-#### `record.$encode([opts])`
+#### `record.$encode([size,] [unsafe])`
 
 #### `record.$isValid()`
 
@@ -178,62 +204,73 @@ Specific record class, programmatically generated for each record schema.
 
 ## Streams
 
+Sometimes
+
 
 ### Class `BlockDecoder([opts])`
 
 + `opts` {Object} Decoding options. Available keys:
-  + `readerType` {AvroType} Reader type.
-  + `includeBuffer` {Boolean}
-  + `unordered` {Boolean}
+  + `decode` {Boolean} Whether to decode records before returning them.
+    Defaults to `true`.
+  + `parseOpts` {Object} Options passed to instantiate the writer's `Type`.
 
 #### Event `'metadata'`
 
-+ `writerType` {Type} The type used to write the file.
++ `type` {Type} The type used to write the file.
++ `codec` {String} The codec's name.
 + `header` {Object} The file's header, containing in particular the raw schema
   and codec.
 
 #### Event `'data'`
 
-+ `data` {...} Decoded element. If `includeBuffer` was set, `data` will be an
-  object `{object, buffer}`.
++ `data` {Object|Buffer} Decoded element or raw bytes.
 
 
-### Class `RawDecoder([opts])`
+### Class `RawDecoder(type, [opts])`
 
++ `type` {Type} Writer type.
 + `opts` {Object} Decoding options. Available keys:
-  + `writerType` {Type}
-  + `readerType` {Type}
-  + `includeBuffer` {Boolean}
+  + `decode` {Boolean}
 
 #### Event `'data'`
 
-+ `data` {...} Decoded element. If `includeBuffer` was set, `data` will be an
-  object `{object, buffer}`.
++ `data` {Object|Buffer} Decoded element or raw bytes.
 
 
-### Class `BlockEncoder([opts])`
+### Class `BlockEncoder(type, [opts])`
 
++ `type` {Type} The type to use for encoding.
 + `opts` {Object} Encoding options. Available keys:
-  + `writerType` {AvroType} Writer type. As a convenience, this will be
-    inferred if writing `Record` instances (from the first one passed).
-  + `codec` {String}
-  + `blockSize` {Number}
-  + `omitHeader` {Boolean}
-  + `unordered` {Boolean}
-  + `unsafe` {Boolean}
+  + `codec` {String} Name of codec to use for encoding.
+  + `blockSize` {Number} Maximum uncompressed size of each block data. A new
+    block will be started when this number is exceeded. If it is too small to
+    fit a single element, it will be increased appropriately. Defaults to 64kB.
+  + `omitHeader` {Boolean} Don't emit the header. This can be useful when
+    appending to an existing container file. Defaults to `false`.
+  + `unsafe` {Boolean} Whether to check each record before encoding it.
+    Defaults to `true`.
 
 #### Event `'data'`
 
 + `data` {Buffer} Serialized bytes.
 
 
-### Class `RawEncoder([opts])`
+### Class `RawEncoder(type, [opts])`
 
++ `type` {Type} The type to use for encoding.
 + `opts` {Object} Encoding options. Available keys:
-  + `writerType` {AvroType} Writer type. As a convenience, this will be
-    inferred if writing `Record` instances (from the first one passed).
-  + `unsafe` {Boolean}
+  + `batchSize` {Number} To increase performance, records are serialized in
+    batches. Use this option to control how often batches are emitted. If it is
+    too small to fit a single record, it will be increased automatically.
+    Defaults to 64kB.
+  + `unsafe` {Boolean} Whether to check each record before encoding it.
+    Defaults to `true`.
 
 #### Event `'data'`
 
 + `data` {Buffer} Serialized bytes.
+
+
+[canonical-schema](https://avro.apache.org/docs/current/spec.html#Parsing+Canonical+Form+for+Schemas)
+[schema-resolution](https://avro.apache.org/docs/current/spec.html#Schema+Resolution)
+[fingerprint](https://avro.apache.org/docs/current/spec.html#Schema+Fingerprints)

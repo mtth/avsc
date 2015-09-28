@@ -88,6 +88,17 @@ suite('streams', function () {
       assert.throws(function () { new RawEncoder(); }, AvscError);
     });
 
+    test('missing writer type', function () {
+      assert.throws(function () { new RawEncoder(); }, AvscError);
+    });
+
+    test('invalid object', function (cb) {
+      var t = fromSchema('int');
+      var encoder = new RawEncoder(t)
+        .on('error', function () { cb(); });
+      encoder.write('hi');
+    });
+
   });
 
   suite('RawDecoder', function () {

@@ -55,7 +55,10 @@ Type hooks
 ----------
 
 Using the `typeHook` option, it is possible to introduce custom behavior on any
-type. This can for example be used to override a type's `random` method:
+type. This can for example be used to override a type's `isValid` or `random`
+method.
+
+Below we show an example implementing a custom random float generator.
 
 ```javascript
 var avsc = require('avsc');
