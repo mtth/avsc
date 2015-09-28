@@ -83,7 +83,7 @@ Schema | Decode (operations/sec) | Encode (operations/sec)
 [`User.avsc`](benchmarks/schemas/User.avsc) | 116k | 284k
 
 In fact, it is generally faster than the built-in JSON parser (also producing
-encodings orders of magnitude smaller before compression). See the
+encodings orders of magnitude smaller without compression). See the
 [benchmarks][] page for the raw numbers.
 
 
