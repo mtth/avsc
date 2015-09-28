@@ -22,9 +22,9 @@ including `0.11`.
 
 ## Documentation
 
-+ [Quickstart](https://github.com/mtth/avsc/blob/master/doc/quickstart.md)
-+ [API](https://github.com/mtth/avsc/blob/master/doc/api.md)
-+ [Advanced usage](https://github.com/mtth/avsc/blob/master/doc/advanced.md)
++ [Quickstart](wiki/Quickstart)
++ [API](wiki/API)
++ [Advanced usage](wiki/Advanced-usage)
 
 A few examples to boot:
 
@@ -77,10 +77,10 @@ schemas.
 
 Schema | Decode (operations/sec) | Encode (operations/sec)
 ---|:-:|:-:
-[`ArrayString.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
-[`Coupon.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/Coupon.avsc) | 290k | 302k
-[`Person.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/Person.avsc) | 1586k | 620k
-[`User.avsc`](https://github.com/mtth/avsc/blob/master/benchmarks/schemas/User.avsc) | 116k | 284k
+[`ArrayString.avsc`](blob/master/benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
+[`Coupon.avsc`](blob/master/benchmarks/schemas/Coupon.avsc) | 290k | 302k
+[`Person.avsc`](blob/master/benchmarks/schemas/Person.avsc) | 1586k | 620k
+[`User.avsc`](blob/master/benchmarks/schemas/User.avsc) | 116k | 284k
 
 In fact, it is generally faster than the built-in JSON parser (also producing
 encodings orders of magnitude smaller before compression). See the
@@ -97,5 +97,5 @@ encodings orders of magnitude smaller before compression). See the
 
 [io.js]: https://iojs.org/en/
 [node.js]: https://nodejs.org/en/
-[benchmarks]: https://github.com/mtth/avsc/blob/master/doc/benchmarks.md
-[schema-evolution]: https://github.com/mtth/avsc/blob/master/doc/advanced.md#reader-schema
+[benchmarks]: wiki/Benchmarks
+[schema-evolution]: wiki/Advanced-usage#schema-evolution
