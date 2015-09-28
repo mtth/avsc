@@ -22,9 +22,9 @@ including `0.11`.
 
 ## Documentation
 
-+ [Quickstart](wiki/Quickstart)
-+ [API](wiki/API)
-+ [Advanced usage](wiki/Advanced-usage)
++ [Quickstart](../../wiki/Quickstart)
++ [API](../../wiki/API)
++ [Advanced usage](../../wiki/Advanced-usage)
 
 A few examples to boot:
 
@@ -77,10 +77,10 @@ schemas.
 
 Schema | Decode (operations/sec) | Encode (operations/sec)
 ---|:-:|:-:
-[`ArrayString.avsc`](blob/master/benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
-[`Coupon.avsc`](blob/master/benchmarks/schemas/Coupon.avsc) | 290k | 302k
-[`Person.avsc`](blob/master/benchmarks/schemas/Person.avsc) | 1586k | 620k
-[`User.avsc`](blob/master/benchmarks/schemas/User.avsc) | 116k | 284k
+[`ArrayString.avsc`](benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
+[`Coupon.avsc`](benchmarks/schemas/Coupon.avsc) | 290k | 302k
+[`Person.avsc`](benchmarks/schemas/Person.avsc) | 1586k | 620k
+[`User.avsc`](benchmarks/schemas/User.avsc) | 116k | 284k
 
 In fact, it is generally faster than the built-in JSON parser (also producing
 encodings orders of magnitude smaller before compression). See the
@@ -97,5 +97,5 @@ encodings orders of magnitude smaller before compression). See the
 
 [io.js]: https://iojs.org/en/
 [node.js]: https://nodejs.org/en/
-[benchmarks]: wiki/Benchmarks
-[schema-evolution]: wiki/Advanced-usage#schema-evolution
+[benchmarks]: ../../wiki/Benchmarks
+[schema-evolution]: ../../wiki/Advanced-usage#schema-evolution
