@@ -50,4 +50,4 @@ def get_ops_df(df):
 if __name__ == '__main__':
   DF = get_df(sys.argv[1])
   for name, df in DF.groupby('command'):
-    print '%s\n\n%s\n' % (name, get_ops_df(df, name))
+    print '%s\n\n%s\n' % (name, get_ops_df(df))

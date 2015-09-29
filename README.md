@@ -33,7 +33,7 @@ A few examples to boot:
   ```javascript
   var avsc = require('avsc'); // Implied in all other examples below.
 
-  var type = avsc.parseFile('Person.avsc');
+  var type = avsc.parse('Person.avsc');
   var buf = type.encode({name: 'Ann', age: 25}); // Serialize a JS object.
   var obj = type.decode(buf); // And deserialize it back.
   ```
@@ -67,7 +67,7 @@ A few examples to boot:
   var type = avsc.parse({type: 'array', items: 'int'});
 
   var encoder = new avsc.streams.RawEncoder(type)
-    .on('data', function (chunk) { console.log(chunk); });
+    .on('data', function (chunk) { /* Do something with the chunk. */ });
 
   encoder.write([123, 5]);
   encoder.end([10]);

@@ -25,7 +25,7 @@ suite('index', function () {
 
     test('file', function () {
       var t1 = avsc.parse({type: 'fixed', name: 'id.Id', size: 64});
-      var t2 = avsc.parseFile(path.join(DPATH, 'Id.avsc'));
+      var t2 = avsc.parse(path.join(DPATH, 'Id.avsc'));
       assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
     });
 
@@ -33,7 +33,7 @@ suite('index', function () {
 
   suite('decode', function () {
 
-    var type = avsc.parseFile(path.join(DPATH, 'Person.avsc'));
+    var type = avsc.parse(path.join(DPATH, 'Person.avsc'));
 
     test('block file', function (cb) {
       var n = 0;
