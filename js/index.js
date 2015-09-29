@@ -7,29 +7,26 @@
       buffer = require('buffer'),
       $ = require('jquery');
 
+
   require('jquery-ui');
   window.avsc = avsc;
 
   $( function() {
-    
-    resize();
-    /* Change the color if this is the active textarea*/
-    $('.textbox').click( function() { 
-      $(this).addClass('editing');
-    }).blur(function() {
-      $(this).removeClass('editing');
-     });
-
+    var parsedSchema;
+    var encodedErrorElement = $('#encoded-error');
+    var decodedErrorElement = $('#decoded-error');
     /* Validate schema after each new character. */
     $('#schema').keyup(function(event) {
         validateSchema();
     });
+
     function validateSchema() {
+      parsedSchema = null;
       var elem = $('#schema');
       var error_elem = $('#schema-error');
       try {
         var schema = readInput('#schema');
-        var p = avsc.parse(schema);
+        parsedSchema = avsc.parse(schema);
         error_elem.removeClass('error');
         error_elem.addClass('valid');
         error_elem.text('Valid Schema!');
@@ -39,44 +36,57 @@
     }
  
     $('#encode').click(function() {
-      var schema = readInput('#schema');
-      var input = readInput('#input');
-      var p = avsc.parse(schema);
-      try {
-        var output = p.encode(input);
-        $('#output').val(bufferToStr(output));
-      }catch(err) {
-        showError($('#decoded-error'),err);
-      } 
+      if (parsedSchema) {
+        try {
+          var input = readInput('#input');
+          var output = parsedSchema.encode(input);
+          $('#output').val(bufferToStr(output));
+          clearErrors();
+        }catch(err) {
+          showError(decodedErrorElement, err);
+        }
+      } else {
+        showError(decodedErrorElement, 'No valid schema found!');
+      }
+     
     });
 
      $('#decode').click(function() {
-      var schema = readInput('#schema');
-      var input = readBuffer('#output');
-      try {
-        var p = avsc.parse(schema);
-        var decoded = p.decode(input);
-        
-        decoded = JSON.stringify(decoded, null, 2);
-        $('#input').val(decoded);
-      }catch(err) {
-        showError($('#encoded-error'),err);
-      } 
-    });
-
-    $('#random').click(function() {
-      try{
-        var schema = readInput('#schema');
-        var p = avsc.parse(schema);
-        var random = p.random();
-        var randomStr = JSON.stringify(random, null, 2);
-        $('#randomInput').val(randomStr);
-      } catch(err) {
-        showError($('#schema-error'),err);
+      if (parsedSchema) {
+        var input = readBuffer('#output');
+        try {
+          var decoded = parsedSchema.decode(input);
+          decoded = JSON.stringify(decoded, null, 2);
+          $('#input').val(decoded);
+          clearErrors();
+        }catch(err) {
+          showError(encodedErrorElement,err);
+        }
+      } else {
+        showError(encodedErrorElement, 'No valid schema found!');
       }
     });
 
+    $('#random').click(function() {
+      if (parsedSchema) {
+        try{
+          var random = parsedSchema.random();
+          var randomStr = JSON.stringify(random, null, 2);
+          $('#randomInput').val(randomStr);
+        } catch(err) {
+          showError($('#schema-error'),err);
+        }
+      }
+    });
 
+    /* Clear any error messages shown in input/output boxes. */
+    function clearErrors() {
+      
+      decodedErrorElement.text('');
+      decodedErrorElement.addClass('hidden');
+      encodedErrorElement.text('');
+      encodedErrorElement.addClass('hidden');
+    }
     /* Show `err` in the `element`. */
     function showError(element, err) {
       if (err != null) {
@@ -116,13 +126,4 @@
     }
     return str + ']'
   }
-
-  function resize() {
-    var vph = $(window).height();
-    $('.container').css({'height': vph + 'px'});
-  }
-  window.onresize = function(event) {
-    resize();
-  }
- 
 })();
