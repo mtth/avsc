@@ -1,20 +1,17 @@
 {
   "name": "",
-  "version": "0.1.1",
-  "description": "Avro serialization.",
-  "main": "index.js",
+  "version": "0.0.1",
+  "description": "Avro serialization UI.",
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
-  },
-  "scripts": {
-    "test": "mocha --no-colors --ui tdd",
-    "cover": "istanbul cover _mocha -- --no-colors --ui tdd"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
   "dependencies": {
     "avsc": "^0.1.1",
-    "buffer": "^3.5.0"
+    "buffer": "^3.5.0",
+    "jquery": "^2.1.4",
+    "jquery-ui": "^1.10.5"
   }
 }
