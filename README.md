@@ -57,15 +57,20 @@ A few examples to boot:
       {name: 'isFurry', type: 'boolean'}
     ]
   });
+
   var pet = type.random(); // E.g. {kind: 'CAT', name: 'qwXlrew', isFurry: true}
   ```
 
-+ Create a writable stream to serialize objects on the fly:
++ Create a duplex stream to serialize objects on the fly:
 
   ```javascript
   var type = avsc.parse({type: 'array', items: 'int'});
+
   var encoder = new avsc.streams.RawEncoder(type)
-    .on('data', function (chunk) { /* Use the encoded chunk somehow. */ });
+    .on('data', function (chunk) { console.log(chunk); });
+
+  encoder.write([123, 5]);
+  encoder.end([10]);
   ```
 
 
@@ -92,7 +97,7 @@ encodings orders of magnitude smaller without compression). See the
 + Protocols aren't yet implemented.
 + JavaScript doesn't natively support the `long` type, so numbers larger than
   `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
-  will suffer a loss of precision.
+  might suffer a loss of precision.
 
 
 [io.js]: https://iojs.org/en/
