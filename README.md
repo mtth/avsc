@@ -38,7 +38,8 @@ A few examples to boot:
   var obj = type.decode(buf); // And deserialize it back.
   ```
 
-+ Get a readable record stream from an Avro container file:
++ Get a [readable stream][readable-stream] of decoded records from an Avro
+  container file:
 
   ```javascript
   avsc.decodeFile('records.avro')
@@ -95,6 +96,7 @@ encodings orders of magnitude smaller without compression). See the
 ## Limitations
 
 + Protocols aren't yet implemented.
++ No snappy codec support currently.
 + JavaScript doesn't natively support the `long` type, so numbers larger than
   `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
   might suffer a loss of precision.
@@ -104,3 +106,4 @@ encodings orders of magnitude smaller without compression). See the
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
+[readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
