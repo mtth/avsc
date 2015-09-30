@@ -15,7 +15,7 @@ var type = null;
 
 avsc.decodeFile(dataPath)
   .on('metadata', function (writerType) { type = writerType; })
-  .on('data', function (record) { bufs.push(record.$encode(undefined, true)); })
+  .on('data', function (record) { bufs.push(record.$encode(true)); })
   .on('end', function () {
     var i = 0;
     var n = 0;

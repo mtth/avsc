@@ -88,7 +88,7 @@ suite('types', function () {
     test('encode strict & not', function () {
       var type = fromSchema('int');
       assert.throws(function () { type.encode('abc'); }, AvscError);
-      type.encode('abc', undefined, true);
+      type.encode('abc', true);
     });
 
     test('encode and resize', function () {
@@ -499,7 +499,7 @@ suite('types', function () {
     test('missing name write', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode({b: 'a'}, {strict: false});
+        type.encode({b: 'a'});
       }, AvscError);
     });
 
@@ -512,8 +512,8 @@ suite('types', function () {
     test('non wrapped write', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode(1, {strict: false});
-      }, AvscError);
+        type.encode(1, true);
+      }, Error);
     });
 
     test('to JSON', function () {
@@ -566,13 +566,6 @@ suite('types', function () {
     ];
 
     testType(types.UnwrappedUnionType, data, schemas);
-
-    test('invalid write', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      assert.throws(function () {
-        type.encode('a', {strict: false});
-      }, AvscError);
-    });
 
     test('instanceof Union', function () {
       var type = new types.UnwrappedUnionType(['null', 'int']);
@@ -772,7 +765,7 @@ suite('types', function () {
       assert.deepEqual((new Person(48)).$encode(), new Buffer([96]));
       assert.throws(function () { (new Person()).$encode(); });
       assert.doesNotThrow(function () {
-        (new Person()).$encode(null, true);
+        (new Person()).$encode(true);
       });
     });
 
@@ -1149,6 +1142,13 @@ suite('types', function () {
       assert.deepEqual(type.aliases, ['a.Human', 'b.Being']);
     });
 
+  });
+
+  test('reset', function () {
+    types.Type.__reset(0);
+    var t = fromSchema('string');
+    var buf = t.encode('\x01');
+    assert.deepEqual(buf, new Buffer([2, 1]));
   });
 
 });

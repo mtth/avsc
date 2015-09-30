@@ -17,7 +17,7 @@ avsc.decodeFile(process.argv[2])
     var schema = new io.Schema.Schema(type);
     reader = new io.IO.DatumReader(schema, schema);
   })
-  .on('data', function (record) { bufs.push(record.$encode(undefined, true)); })
+  .on('data', function (record) { bufs.push(record.$encode()); })
   .on('end', function () {
     var i = 0;
     var n = 0;
