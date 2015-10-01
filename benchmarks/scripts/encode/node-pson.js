@@ -2,7 +2,8 @@
 
 'use strict';
 
-var avsc = require('../../../lib');
+var avsc = require('../../../lib'),
+    pson = require('pson');
 
 var dataPath = process.argv[2];
 if (!dataPath) {
@@ -11,11 +12,14 @@ if (!dataPath) {
 
 var loops = 5;
 var records = [];
-var type = null;
+var pair = new pson.ProgressivePair([]);
 
 avsc.decodeFile(dataPath)
-  .on('metadata', function (writerType) { type = writerType; })
-  .on('data', function (record) { records.push(record); })
+  .on('data', function (record) {
+    // Learn data upfront.
+    pair.include(record);
+    records.push(record);
+  })
   .on('end', function () {
     var i = 0;
     var n = 0;
@@ -25,7 +29,7 @@ avsc.decodeFile(dataPath)
     }
     time = process.hrtime(time);
     if (n < 0) {
-      console.error('no');
+      throw new Error('no');
     }
     console.log(1000 * (time[0] + time[1] * 1e-9) / (records.length * loops));
   });
@@ -34,9 +38,8 @@ avsc.decodeFile(dataPath)
 function loop() {
   var n = 0;
   var i, l, buf;
-  var opts = {unsafe: true};
   for (i = 0, l = records.length; i < l; i++) {
-    buf = type.encode(records[i], opts);
+    buf = pair.encode(records[i]);
     n += buf[0];
   }
   return n;

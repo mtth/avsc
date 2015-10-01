@@ -10,7 +10,7 @@ Usage:
   command:
 
             lib1          lib2
-  schema    abs     rel   abs     rel
+  schema    ops     %     ops     %
   schema1   123     1.0   100     0.72
   schema2   89      0.3   300     1.0
 
@@ -25,7 +25,7 @@ pd.set_option('display.max_columns', 20)
 pd.set_option('expand_frame_repr', False)
 
 def get_df(path):
-  """Load raw dataframe."""
+  """Load raw dataframe from JSON data."""
   with open(path) as reader:
     df = pd.DataFrame(load(reader))
   df['rate'] = 1e3 / df['ms_per_record']
@@ -41,7 +41,7 @@ def get_ops_df(df):
     max_rate = schema_df['ops'].max()
     schema_df['%'] = 100 * schema_df['ops'] / max_rate
     schema_df = schema_df.fillna(-1)
-    schema_df = schema_df.astype(int)
+    schema_df['%'] = schema_df['%'].map(round)
     stacked[name] = schema_df.stack()
   fdf = pd.DataFrame(stacked).transpose()
   fdf.index.name = 'schema'

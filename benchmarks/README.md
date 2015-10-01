@@ -14,23 +14,26 @@ analysis (e.g. using `pandas`, see below).
 
 For more options (e.g. choosing which schemas or libraries to benchmark):
 
-```
+```bash
 $ python run.py -h
 ```
 
 
 ## Requirements
 
-+ `docopt`; to run the benchmarks.
++ Python packages to run the benchmarks driver:
+  + `docopt`
 
-+ Java, Maven; to build and run the Java benchmarks.
++ Java, Maven to build and run the Java benchmarks.
 
-+ `node-avro-io`; somewhat tricky to install on newer versions of Node. This
-  branch seems to do the job:
++ NPM packages:
+  + `pson`
+  + `node-avro-io`; somewhat tricky to install on newer versions of Node. This
+    branch seems to do the job:
 
-  ```bash
-  $ npm install git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption
-  ```
+    ```bash
+    $ npm install git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption
+    ```
 
 
 ## Analysis
