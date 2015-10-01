@@ -694,17 +694,13 @@ suite('types', function () {
           }
         ]
       });
-
-      assert.deepEqual(type.fields[0]['default'], s);
-
       var obj = new (type.getRecordConstructor())();
       assert.deepEqual(obj.id, new Buffer([1, 4]));
       assert.deepEqual(type.toBuffer({}), b);
     });
 
     test('fixed buffer default', function () {
-      var s = '\x01\x04';
-      var b = new Buffer(s);
+      var b = new Buffer([1, 4]);
       var type = fromSchema({
         type: 'record',
         name: 'Object',
@@ -716,7 +712,7 @@ suite('types', function () {
           }
         ]
       });
-      assert.deepEqual(type.fields[0]['default'], s);
+      assert.deepEqual(type.fields[0].getDefault(), b);
     });
 
     test('fixed buffer invalid default', function () {
