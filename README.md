@@ -34,8 +34,8 @@ A few examples to boot:
   var avsc = require('avsc'); // Implied in all other examples below.
 
   var type = avsc.parse('Person.avsc');
-  var buf = type.encode({name: 'Ann', age: 25}); // Serialize a JS object.
-  var obj = type.decode(buf); // And deserialize it back.
+  var buf = type.toBuffer({name: 'Ann', age: 25}); // Serialize a JS object.
+  var obj = type.fromBuffer(buf); // And deserialize it back.
   ```
 
 + Get a [readable stream][readable-stream] of decoded records from an Avro

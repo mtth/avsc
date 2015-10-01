@@ -147,11 +147,11 @@ suite('types', function () {
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); }, AvscError);
-      clone = t.clone(s, {coerce: true});
+      clone = t.clone(s, {coerceBuffers: true});
       assert.deepEqual(clone, buf);
-      clone = t.clone(buf.toJSON(), {coerce: true});
+      clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
-      assert.throws(function () { t.clone(1, {coerce: true}); }, AvscError);
+      assert.throws(function () { t.clone(1, {coerceBuffers: true}); }, AvscError);
     });
 
     function pType(name) { return new types.PrimitiveType(name); }
@@ -268,6 +268,17 @@ suite('types', function () {
       assert.throws(function () { t.clone(undefined); }, AvscError);
     });
 
+    test('clone and coerce', function () {
+      var t = fromSchema(['string', 'int']);
+      var s = 'hi!';
+      var o = t.clone(s, {coerceUnions: true});
+      assert.deepEqual(o, {'string': s});
+      assert.throws(function () { t.clone(s); }, AvscError);
+      assert.throws(function () {
+        t.clone(1, {coerceUnions: true});
+      }, AvscError);
+    });
+
   });
 
   suite('UnwrappedUnionType', function () {
@@ -355,6 +366,16 @@ suite('types', function () {
       assert.equal(c, 1);
       assert.throws(function () { t.clone([]); }, AvscError);
       assert.throws(function () { t.clone(undefined); }, AvscError);
+    });
+
+    test('clone and coerce', function () {
+      var t = fromSchema(['string', 'int'], {unwrapUnions: true});
+      var s = 'hi!';
+      var o = t.clone(s, {coerceUnions: true});
+      assert.deepEqual(o, s);
+      assert.throws(function () {
+        t.clone(1, {coerceUnions: true});
+      }, AvscError);
     });
 
   });
@@ -483,11 +504,11 @@ suite('types', function () {
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); }, AvscError);
-      clone = t.clone(s, {coerce: true});
+      clone = t.clone(s, {coerceBuffers: true});
       assert.deepEqual(clone, buf);
-      clone = t.clone(buf.toJSON(), {coerce: true});
+      clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
-      assert.throws(function () { t.clone(1, {coerce: true}); }, AvscError);
+      assert.throws(function () { t.clone(1, {coerceBuffers: true}); }, AvscError);
       assert.throws(function () { t.clone(new Buffer([2])); }, AvscError);
     });
 
@@ -560,11 +581,11 @@ suite('types', function () {
       assert.throws(function () { t.clone(undefined); }, AvscError);
     });
 
-    test('clone coerce', function () {
+    test('clone coerce buffers', function () {
       var t = new types.MapType({type: 'map', values: 'bytes'});
       var o = {one: '\x01'};
       assert.throws(function () { t.clone(o); });
-      var c = t.clone(o, {coerce: true});
+      var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, {one: new Buffer([1])});
     });
 
@@ -616,12 +637,12 @@ suite('types', function () {
       assert.throws(function () { t.clone({}); }, AvscError);
     });
 
-    test('clone coerce', function () {
+    test('clone coerce buffers', function () {
       var ft = new types.FixedType({type: 'fixed', name: 'Id', size: 2});
       var t = new types.ArrayType({type: 'array', items: ft});
       var o = ['\x01\x02'];
       assert.throws(function () { t.clone(o); });
-      var c = t.clone(o, {coerce: true});
+      var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, [new Buffer([1, 2])]);
     });
 
@@ -735,6 +756,40 @@ suite('types', function () {
           ]
         });
       }, AvscError);
+    });
+
+    test('union invalid default', function () {
+      assert.throws(function () {
+        fromSchema({
+          type: 'record',
+          name: 'Person',
+          fields: [{name: 'name', type: ['null', 'string'], 'default': ''}]
+        });
+      }, AvscError);
+    });
+
+    test('record default', function () {
+      var d = {street: null, zip: 123};
+      var Person = fromSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {
+            name: 'address',
+            type: {
+              name: 'Address',
+              type: 'record',
+              fields: [
+                {name: 'street', type: ['null', 'string']},
+                {name: 'zip', type: ['int', 'string']}
+              ]
+            },
+            'default': d
+          }
+        ]
+      }).getRecordConstructor();
+      var p = new Person();
+      assert.deepEqual(p.address, {street: null, zip: {'int': 123}});
     });
 
     test('record isValid', function () {
@@ -1176,7 +1231,7 @@ suite('types', function () {
       assert.throws(function () { t.fromString('a'); });
     });
 
-    test('coerce', function () {
+    test('coerce buffers', function () {
       var t = fromSchema({
         name: 'Ids',
         type: 'record',
@@ -1329,7 +1384,7 @@ function testType(Type, data, invalidSchemas) {
         assert(type.isValid(v), '' + v);
         var fn = elem.check || assert.deepEqual;
         fn(type.fromBuffer(type.toBuffer(v)), v);
-        fn(type.fromString(type.toString(v), {coerce: true}), v);
+        fn(type.fromString(type.toString(v), {coerceBuffers: true}), v);
       });
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);
