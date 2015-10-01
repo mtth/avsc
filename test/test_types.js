@@ -491,6 +491,12 @@ suite('types', function () {
       assert.throws(function () { t.clone(new Buffer([2])); }, AvscError);
     });
 
+    test('toString schema with extra fields', function () {
+      var t = fromSchema({type: 'fixed', name: 'Id', size: 2});
+      t.one = 1;
+      assert.equal(t.toString(), '{"name":"Id","type":"fixed","size":2}');
+    });
+
   });
 
   suite('MapType', function () {
