@@ -10,19 +10,21 @@ if (!dataPath) {
   process.exit(1);
 }
 
-var loops = 5;
+var loops = 3;
 var records = [];
-var pair = new pson.ProgressivePair([]);
+var pPair = new pson.ProgressivePair([]);
+var sPair;
 
 avsc.decodeFile(dataPath)
   .on('data', function (record) {
     // Learn data upfront.
-    pair.include(record);
+    pPair.include(record);
     records.push(record);
   })
   .on('end', function () {
     var i = 0;
     var n = 0;
+    sPair = new pson.StaticPair(pPair.decoder.dict);
     var time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();
@@ -39,7 +41,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = pair.encode(records[i]);
+    buf = sPair.encode(records[i]);
     n += buf[0];
   }
   return n;

@@ -10,15 +10,17 @@ if (!dataPath) {
   process.exit(1);
 }
 
-var loops = 5;
+var loops = 3;
 var bufs = [];
-var pair = new pson.ProgressivePair([]);
+var pPair = new pson.ProgressivePair([]);
+var sPair;
 
 avsc.decodeFile(dataPath)
-  .on('data', function (record) { bufs.push(pair.toBuffer(record)); })
+  .on('data', function (record) { bufs.push(pPair.toBuffer(record)); })
   .on('end', function () {
     var i = 0;
     var n = 0;
+    sPair = new pson.StaticPair(pPair.decoder.dict);
     var time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();
@@ -35,7 +37,7 @@ function loop() {
   var n = 0;
   var i, l, record;
   for (i = 0, l = bufs.length; i < l; i++) {
-    record = pair.decode(bufs[i]);
+    record = sPair.decode(bufs[i]);
     if (record.$ !== null) {
       n++;
     }

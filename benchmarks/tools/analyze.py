@@ -40,8 +40,7 @@ def get_ops_df(df):
     schema_df = row.to_frame('ops')
     max_rate = schema_df['ops'].max()
     schema_df['%'] = 100 * schema_df['ops'] / max_rate
-    schema_df = schema_df.fillna(-1)
-    schema_df['%'] = schema_df['%'].map(round)
+    schema_df = schema_df.fillna(-1).applymap(round)
     stacked[name] = schema_df.stack()
   fdf = pd.DataFrame(stacked).transpose()
   fdf.index.name = 'schema'
