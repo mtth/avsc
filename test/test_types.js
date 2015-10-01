@@ -1,5 +1,7 @@
 /* jshint node: true, mocha: true */
 
+// TODO: Rename adapt to resolve.
+
 'use strict';
 
 var types = require('../lib/types'),
@@ -58,42 +60,42 @@ suite('types', function () {
       assert.equal(type.fields[0].type.type, 'null');
     });
 
-    test('decode truncated', function () {
+    test('fromBuffer truncated', function () {
       var type = fromSchema('int');
       assert.throws(function () {
-        type.decode(new Buffer([128]));
+        type.fromBuffer(new Buffer([128]));
       }, AvscError);
     });
 
-    test('decode bad adaptor', function () {
+    test('fromBuffer bad adaptor', function () {
       var type = fromSchema('int');
       assert.throws(function () {
-        type.decode(new Buffer([0]), 123, {});
+        type.fromBuffer(new Buffer([0]), 123, {});
       }, AvscError);
     });
 
-    test('decode trailing', function () {
+    test('fromBuffer trailing', function () {
       var type = fromSchema('int');
       assert.throws(function () {
-        type.decode(new Buffer([0, 2]));
+        type.fromBuffer(new Buffer([0, 2]));
       }, AvscError);
     });
 
-    test('decode trailing with resolver', function () {
+    test('fromBuffer trailing with resolver', function () {
       var type = fromSchema('int');
       var resolver = type.createResolver(fromSchema(['int']));
-      assert.equal(type.decode(new Buffer([0, 2]), resolver), 1);
+      assert.equal(type.fromBuffer(new Buffer([0, 2]), resolver), 1);
     });
 
-    test('encode strict & not', function () {
+    test('toBuffer strict & not', function () {
       var type = fromSchema('int');
-      assert.throws(function () { type.encode('abc'); }, AvscError);
-      type.encode('abc', true);
+      assert.throws(function () { type.toBuffer('abc'); }, AvscError);
+      type.toBuffer('abc', true);
     });
 
-    test('encode and resize', function () {
+    test('toBuffer and resize', function () {
       var type = fromSchema('string');
-      assert.deepEqual(type.encode('\x01', 1), new Buffer([2, 1]));
+      assert.deepEqual(type.toBuffer('\x01', 1), new Buffer([2, 1]));
     });
 
     test('wrap & unwrap unions', function () {
@@ -180,38 +182,38 @@ suite('types', function () {
 
     testType(types.PrimitiveType, data, schemas);
 
-    test('encode int', function () {
+    test('toBuffer int', function () {
 
       var type = pType('int');
-      assert.equal(type.decode(new Buffer([0x80, 0x01])), 64);
-      assert(new Buffer([0]).equals(type.encode(0)));
+      assert.equal(type.fromBuffer(new Buffer([0x80, 0x01])), 64);
+      assert(new Buffer([0]).equals(type.toBuffer(0)));
 
     });
 
-    test('decode string', function () {
+    test('fromBuffer string', function () {
 
       var type = pType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
-      assert.equal(type.decode(buf), s);
-      assert(buf.equals(type.encode(s)));
+      assert.equal(type.fromBuffer(buf), s);
+      assert(buf.equals(type.toBuffer(s)));
 
     });
 
-    test('encode string', function () {
+    test('toBuffer string', function () {
 
       var type = pType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
-      assert(buf.equals(type.encode('hi!', 1)));
+      assert(buf.equals(type.toBuffer('hi!', 1)));
 
     });
 
     test('adapt int > long', function () {
       var intType = pType('int');
       var longType = pType('long');
-      var buf = intType.encode(123);
+      var buf = intType.toBuffer(123);
       assert.equal(
-        longType.decode(buf, longType.createResolver(intType)),
+        longType.fromBuffer(buf, longType.createResolver(intType)),
         123
       );
     });
@@ -219,9 +221,9 @@ suite('types', function () {
     test('adapt int > [null, int]', function () {
       var wt = fromSchema('int');
       var rt = fromSchema(['null', 'int']);
-      var buf = wt.encode(123);
+      var buf = wt.toBuffer(123);
       assert.deepEqual(
-        rt.decode(buf, rt.createResolver(wt)),
+        rt.fromBuffer(buf, rt.createResolver(wt)),
         {'int': 123}
       );
     });
@@ -229,9 +231,9 @@ suite('types', function () {
     test('adapt string > bytes', function () {
       var stringT = pType('string');
       var bytesT = pType('bytes');
-      var buf = stringT.encode('\x00\x01');
+      var buf = stringT.toBuffer('\x00\x01');
       assert.deepEqual(
-        bytesT.decode(buf, bytesT.createResolver(stringT)),
+        bytesT.fromBuffer(buf, bytesT.createResolver(stringT)),
         new Buffer([0, 1])
       );
     });
@@ -243,6 +245,29 @@ suite('types', function () {
 
     test('toString', function () {
       assert.equal(pType('int').toString(), '"int"');
+    });
+
+    test('clone immutable', function () {
+      var t = pType('int');
+      assert.equal(t.clone(123), 123);
+      assert.throws(function () { t.clone(''); }, AvscError);
+    });
+
+    test('clone bytes', function () {
+      var t = pType('bytes');
+      var s = '\x01\x02';
+      var buf = new Buffer(s);
+      var clone;
+      clone = t.clone(buf);
+      assert.deepEqual(clone, buf);
+      clone[0] = 0;
+      assert.equal(buf[0], 1);
+      assert.throws(function () { t.clone(s); }, AvscError);
+      clone = t.clone(s, {coerce: true});
+      assert.deepEqual(clone, buf);
+      clone = t.clone(buf.toJSON(), {coerce: true});
+      assert.deepEqual(clone, buf);
+      assert.throws(function () { t.clone(1, {coerce: true}); }, AvscError);
     });
 
     function pType(name) { return new types.PrimitiveType(name); }
@@ -278,14 +303,14 @@ suite('types', function () {
     test('write invalid', function () {
       var type = fromSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
-        type.encode('B');
+        type.toBuffer('B');
       }, AvscError);
     });
 
     test('read invalid index', function () {
       var type = new types.EnumType({type: 'enum', symbols: ['A'], name: 'a'});
       var buf = new Buffer([2]);
-      assert.throws(function () { type.decode(buf); }, AvscError);
+      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
     });
 
     test('adapt', function () {
@@ -293,16 +318,16 @@ suite('types', function () {
       t1 = newEnum('Foo', ['bar', 'baz']);
       t2 = newEnum('Foo', ['bar', 'baz']);
       resolver = t1.createResolver(t2);
-      buf = t2.encode('bar');
-      assert.equal(t1.decode(buf, resolver), 'bar');
+      buf = t2.toBuffer('bar');
+      assert.equal(t1.fromBuffer(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['baz', 'bar']);
-      buf = t2.encode('bar');
+      buf = t2.toBuffer('bar');
       resolver = t1.createResolver(t2);
-      assert.notEqual(t1.decode(buf), 'bar');
-      assert.equal(t1.decode(buf, resolver), 'bar');
+      assert.notEqual(t1.fromBuffer(buf), 'bar');
+      assert.equal(t1.fromBuffer(buf, resolver), 'bar');
       t1 = newEnum('Foo2', ['foo', 'baz', 'bar'], ['Foo']);
       resolver = t1.createResolver(t2);
-      assert.equal(t1.decode(buf, resolver), 'bar');
+      assert.equal(t1.fromBuffer(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['bar', 'bax']);
       assert.throws(function () { t1.createResolver(t2); }, AvscError);
       assert.throws(function () {
@@ -318,6 +343,13 @@ suite('types', function () {
         }
         return new types.EnumType(obj);
       }
+    });
+
+    test('clone', function () {
+      var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
+      assert.equal(t.clone('bar'), 'bar');
+      assert.throws(function () { t.clone('BAR'); }, AvscError);
+      assert.throws(function () { t.clone(null); }, AvscError);
     });
 
   });
@@ -354,6 +386,24 @@ suite('types', function () {
       assert.doesNotThrow(function () { t2.createResolver(t1); });
       t2 = new types.FixedType({name: 'Id2', size: 5, aliases: ['Id']});
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
+    });
+
+    test('clone', function () {
+      var t = new types.FixedType({name: 'Id', size: 2});
+      var s = '\x01\x02';
+      var buf = new Buffer(s);
+      var clone;
+      clone = t.clone(buf);
+      assert.deepEqual(clone, buf);
+      clone[0] = 0;
+      assert.equal(buf[0], 1);
+      assert.throws(function () { t.clone(s); }, AvscError);
+      clone = t.clone(s, {coerce: true});
+      assert.deepEqual(clone, buf);
+      clone = t.clone(buf.toJSON(), {coerce: true});
+      assert.deepEqual(clone, buf);
+      assert.throws(function () { t.clone(1, {coerce: true}); }, AvscError);
+      assert.throws(function () { t.clone(new Buffer([2])); }, AvscError);
     });
 
   });
@@ -397,8 +447,8 @@ suite('types', function () {
       var t2 = new types.MapType({type: 'map', values: 'long'});
       var resolver = t2.createResolver(t1);
       var obj = {one: 1, two: 2};
-      var buf = t1.encode(obj);
-      assert.deepEqual(t2.decode(buf, resolver), obj);
+      var buf = t1.toBuffer(obj);
+      assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
     });
 
     test('adapt invalid', function () {
@@ -407,6 +457,24 @@ suite('types', function () {
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
       t2 = new types.ArrayType({type: 'array', items: 'string'});
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
+    });
+
+    test('clone', function () {
+      var t = new types.MapType({type: 'map', values: 'int'});
+      var o = {one: 1, two: 2};
+      var c = t.clone(o);
+      assert.deepEqual(c, o);
+      c.one = 3;
+      assert.equal(o.one, 1);
+      assert.throws(function () { t.clone(undefined); }, AvscError);
+    });
+
+    test('clone coerce', function () {
+      var t = new types.MapType({type: 'map', values: 'bytes'});
+      var o = {one: '\x01'};
+      assert.throws(function () { t.clone(o); });
+      var c = t.clone(o, {coerce: true});
+      assert.deepEqual(c, {one: new Buffer([1])});
     });
 
   });
@@ -435,8 +503,8 @@ suite('types', function () {
       var t2 = new types.ArrayType({type: 'array', items: 'bytes'});
       var resolver = t2.createResolver(t1);
       var obj = ['\x01\x02'];
-      var buf = t1.encode(obj);
-      assert.deepEqual(t2.decode(buf, resolver), [new Buffer([1, 2])]);
+      var buf = t1.toBuffer(obj);
+      assert.deepEqual(t2.fromBuffer(buf, resolver), [new Buffer([1, 2])]);
     });
 
     test('adapt invalid', function () {
@@ -445,6 +513,25 @@ suite('types', function () {
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
       t2 = new types.MapType({type: 'map', values: 'string'});
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
+    });
+
+    test('clone', function () {
+      var t = new types.ArrayType({type: 'array', items: 'int'});
+      var o = [1, 2];
+      var c = t.clone(o);
+      assert.deepEqual(c, o);
+      c.one = 3;
+      assert.equal(o[0], 1);
+      assert.throws(function () { t.clone({}); }, AvscError);
+    });
+
+    test('clone coerce', function () {
+      var ft = new types.FixedType({type: 'fixed', name: 'Id', size: 2});
+      var t = new types.ArrayType({type: 'array', items: ft});
+      var o = ['\x01\x02'];
+      assert.throws(function () { t.clone(o); });
+      var c = t.clone(o, {coerce: true});
+      assert.deepEqual(c, [new Buffer([1, 2])]);
     });
 
   });
@@ -499,20 +586,20 @@ suite('types', function () {
     test('missing name write', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode({b: 'a'});
+        type.toBuffer({b: 'a'});
       }, AvscError);
     });
 
     test('read invalid index', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       var buf = new Buffer([1, 0]);
-      assert.throws(function () { type.decode(buf); }, AvscError);
+      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
     });
 
     test('non wrapped write', function () {
       var type = new types.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.encode(1, true);
+        type.toBuffer(1, true);
       }, Error);
     });
 
@@ -525,15 +612,15 @@ suite('types', function () {
       var t1 = fromSchema('int');
       var t2 = fromSchema(['long', 'int']);
       var a = t2.createResolver(t1);
-      var buf = t1.encode(23);
-      assert.deepEqual(t2.decode(buf, a), {'long': 23});
+      var buf = t1.toBuffer(23);
+      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
     });
 
     test('adapt null to [null, int]', function () {
       var t1 = fromSchema('null');
       var t2 = fromSchema(['null', 'int']);
       var a = t2.createResolver(t1);
-      assert.deepEqual(t2.decode(new Buffer(0), a), null);
+      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
     test('adapt [string, int] to [long, string]', function () {
@@ -541,10 +628,22 @@ suite('types', function () {
       var t2 = fromSchema(['int', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
-      buf = t1.encode({string: 'hi'});
-      assert.deepEqual(t2.decode(buf, a), {'bytes': new Buffer('hi')});
-      buf = t1.encode({'int': 1});
-      assert.deepEqual(t2.decode(buf, a), {'int': 1});
+      buf = t1.toBuffer({string: 'hi'});
+      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': new Buffer('hi')});
+      buf = t1.toBuffer({'int': 1});
+      assert.deepEqual(t2.fromBuffer(buf, a), {'int': 1});
+    });
+
+    test('clone', function () {
+      var t = new types.WrappedUnionType(['null', 'int']);
+      var o = {'int': 1};
+      assert.strictEqual(t.clone(null), null);
+      var c = t.clone(o);
+      assert.deepEqual(c, o);
+      c.int = 2;
+      assert.equal(o.int, 1);
+      assert.throws(function () { t.clone([]); }, AvscError);
+      assert.throws(function () { t.clone(undefined); }, AvscError);
     });
 
   });
@@ -575,7 +674,7 @@ suite('types', function () {
     test('read invalid index', function () {
       var type = new types.UnwrappedUnionType(['null', 'int']);
       var buf = new Buffer([1, 0]);
-      assert.throws(function () { type.decode(buf); }, AvscError);
+      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
     });
 
     test('to JSON', function () {
@@ -588,14 +687,14 @@ suite('types', function () {
       var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
       var a = t2.createResolver(t1);
       var buf = new Buffer('abc');
-      assert.deepEqual(t2.decode(t1.encode(buf), a), buf);
+      assert.deepEqual(t2.fromBuffer(t1.toBuffer(buf), a), buf);
     });
 
     test('adapt null to [string, null]', function () {
       var t1 = fromSchema('null');
       var t2 = fromSchema(['string', 'null']);
       var a = t2.createResolver(t1);
-      assert.deepEqual(t2.decode(new Buffer(0), a), null);
+      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
     test('adapt [record, record] to record', function () {
@@ -621,10 +720,19 @@ suite('types', function () {
         ]
       }, {unwrapUnions: true});
       var a = t2.createResolver(t1);
-      var buf = t1.encode({a: 1});
-      assert.deepEqual(t2.decode(buf, a), {a: 1, b: null});
-      buf = t1.encode({b: 'hi'});
-      assert.deepEqual(t2.decode(buf, a), {a: null, b: 'hi'});
+      var buf = t1.toBuffer({a: 1});
+      assert.deepEqual(t2.fromBuffer(buf, a), {a: 1, b: null});
+      buf = t1.toBuffer({b: 'hi'});
+      assert.deepEqual(t2.fromBuffer(buf, a), {a: null, b: 'hi'});
+    });
+
+    test('clone', function () {
+      var t = new types.UnwrappedUnionType(['null', 'int']);
+      assert.strictEqual(t.clone(null), null);
+      var c = t.clone(1);
+      assert.equal(c, 1);
+      assert.throws(function () { t.clone([]); }, AvscError);
+      assert.throws(function () { t.clone(undefined); }, AvscError);
     });
 
   });
@@ -685,7 +793,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': 25}]
       });
-      assert.deepEqual(type.encode({}), new Buffer([50]));
+      assert.deepEqual(type.toBuffer({}), new Buffer([50]));
     });
 
     test('fixed string default', function () {
@@ -707,7 +815,7 @@ suite('types', function () {
 
       var obj = new (type.getRecordConstructor())();
       assert.deepEqual(obj.id, new Buffer([1, 4]));
-      assert.deepEqual(type.encode({}), b);
+      assert.deepEqual(type.toBuffer({}), b);
     });
 
     test('fixed buffer default', function () {
@@ -755,38 +863,28 @@ suite('types', function () {
       assert(!(new Person('a')).$isValid());
     });
 
-    test('record encode', function () {
+    test('record toBuffer', function () {
       var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
       });
       var Person = type.getRecordConstructor();
-      assert.deepEqual((new Person(48)).$encode(), new Buffer([96]));
-      assert.throws(function () { (new Person()).$encode(); });
+      assert.deepEqual((new Person(48)).$toBuffer(), new Buffer([96]));
+      assert.throws(function () { (new Person()).$toBuffer(); });
       assert.doesNotThrow(function () {
-        (new Person()).$encode(true);
+        (new Person()).$toBuffer(true);
       });
     });
 
-    test('Record decode', function () {
+    test('Record type', function () {
       var type = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
       });
       var Person = type.getRecordConstructor();
-      assert.deepEqual(Person.decode(new Buffer([40])), {age: 20});
-    });
-
-    test('Record random', function () {
-      var type = fromSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'age', type: 'int'}]
-      });
-      var Person = type.getRecordConstructor();
-      assert(type.isValid(Person.random()));
+      assert.strictEqual(Person.type, type);
     });
 
     test('mutable defaults', function () {
@@ -815,7 +913,7 @@ suite('types', function () {
         fields: [{name: 'name', type: 'string'}]
       });
       var p = v1.random();
-      var buf = v1.encode(p);
+      var buf = v1.toBuffer(p);
       var v2 = fromSchema({
         type: 'record',
         name: 'Human',
@@ -823,7 +921,7 @@ suite('types', function () {
         fields: [{name: 'name', type: 'string'}]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.decode(buf, resolver), p);
+      assert.deepEqual(v2.fromBuffer(buf, resolver), p);
       var v3 = fromSchema({
         type: 'record',
         name: 'Human',
@@ -865,14 +963,14 @@ suite('types', function () {
         ]
       });
       var p = {age: 25, name: 'Ann'};
-      var buf = v1.encode(p);
+      var buf = v1.toBuffer(p);
       var v2 = fromSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.decode(buf, resolver), {name: 'Ann'});
+      assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann'});
     });
 
     test('adapt new field', function () {
@@ -882,7 +980,7 @@ suite('types', function () {
         fields: [{name: 'name', type: 'string'}]
       });
       var p = {name: 'Ann'};
-      var buf = v1.encode(p);
+      var buf = v1.toBuffer(p);
       var v2 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -892,7 +990,7 @@ suite('types', function () {
         ]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.decode(buf, resolver), {name: 'Ann', age: 25});
+      assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann', age: 25});
     });
 
     test('adapt new field no default', function () {
@@ -925,7 +1023,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       var p1 = {friends: [{friends: []}]};
-      var p2 = v2.decode(v1.encode(p1), resolver);
+      var p2 = v2.fromBuffer(v1.toBuffer(p1), resolver);
       assert.deepEqual(p2, {age: -1});
     });
 
@@ -948,7 +1046,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       var p1 = {age: 25};
-      var p2 = v2.decode(v1.encode(p1), resolver);
+      var p2 = v2.fromBuffer(v1.toBuffer(p1), resolver);
       assert.deepEqual(p2, {friends: []});
     });
 
@@ -968,7 +1066,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       var p1 = {friends: [{age: 1, friends: []}], age: 10};
-      var p2 = v2.decode(v1.encode(p1), resolver);
+      var p2 = v2.fromBuffer(v1.toBuffer(p1), resolver);
       assert.deepEqual(p2, {friends: [{friends: []}]});
     });
 
@@ -1022,6 +1120,34 @@ suite('types', function () {
       );
     });
 
+    test('clone', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
+      });
+      var Person = t.getRecordConstructor();
+      var o = {age: 25, name: 'Ann'};
+      var c = t.clone(o);
+      assert.deepEqual(c, o);
+      assert(c instanceof Person);
+      c.age = 26;
+      assert.equal(o.age, 25);
+    });
+
+    test('clone field hook', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
+      });
+      var o = {name: 'Ann', age: 25};
+      var c = t.clone(o, {fieldHook: function (o) {
+        return this.type.type === 'string' ? o.toUpperCase() : o;
+      }});
+      assert.deepEqual(c, {name: 'ANN', age: 25});
+    });
+
   });
 
   suite('adapt unions', function () {
@@ -1030,8 +1156,8 @@ suite('types', function () {
       var t1 = fromSchema(['int', 'string']);
       var t2 = fromSchema(['null', 'string', 'long']);
       var resolver = t2.createResolver(t1);
-      var buf = t1.encode({'int': 12});
-      assert.deepEqual(t2.decode(buf, resolver), {'long': 12});
+      var buf = t1.toBuffer({'int': 12});
+      assert.deepEqual(t2.fromBuffer(buf, resolver), {'long': 12});
     });
 
     test('to invalid union', function () {
@@ -1044,10 +1170,10 @@ suite('types', function () {
       var t1 = fromSchema(['int', 'long']);
       var t2 = fromSchema('long');
       var resolver = t2.createResolver(t1);
-      var buf = t1.encode({'int': 12});
-      assert.equal(t2.decode(buf, resolver), 12);
+      var buf = t1.toBuffer({'int': 12});
+      assert.equal(t2.fromBuffer(buf, resolver), 12);
       buf = new Buffer([4, 0]);
-      assert.throws(function () { t2.decode(buf, resolver); }, AvscError);
+      assert.throws(function () { t2.fromBuffer(buf, resolver); }, AvscError);
     });
 
     test('to invalid non union', function () {
@@ -1147,7 +1273,7 @@ suite('types', function () {
   test('reset', function () {
     types.Type.__reset(0);
     var t = fromSchema('string');
-    var buf = t.encode('\x01');
+    var buf = t.toBuffer('\x01');
     assert.deepEqual(buf, new Buffer([2, 1]));
   });
 
@@ -1161,7 +1287,7 @@ function testType(Type, data, invalidSchemas) {
       elem.valid.forEach(function (v) {
         assert(type.isValid(v), '' + v);
         var fn = elem.check || assert.deepEqual;
-        fn(type.decode(type.encode(v)), v);
+        fn(type.fromBuffer(type.toBuffer(v)), v);
       });
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);

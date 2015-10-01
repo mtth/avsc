@@ -284,7 +284,7 @@ suite('streams', function () {
         },
         SYNC
       );
-      decoder.write(header.$encode());
+      decoder.write(header.$toBuffer());
       decoder.write(new Buffer([0, 0])); // Empty block.
       decoder.end(new Buffer('alongerstringthansixteenbytes'));
     });
@@ -298,7 +298,7 @@ suite('streams', function () {
         {'avro.schema': new Buffer('"int"')},
         SYNC
       );
-      decoder.end(header.$encode());
+      decoder.end(header.$toBuffer());
     });
 
     test('unknown codec', function (cb) {
@@ -313,7 +313,7 @@ suite('streams', function () {
         },
         SYNC
       );
-      decoder.end(header.$encode());
+      decoder.end(header.$toBuffer());
     });
 
     test('invalid schema', function (cb) {
@@ -328,7 +328,7 @@ suite('streams', function () {
         },
         SYNC
       );
-      decoder.end(header.$encode());
+      decoder.end(header.$toBuffer());
     });
 
   });
