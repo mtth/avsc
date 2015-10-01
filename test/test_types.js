@@ -15,122 +15,6 @@ var fromSchema = types.Type.fromSchema;
 
 suite('types', function () {
 
-  suite('fromSchema', function  () {
-
-    test('unknown types', function () {
-      assert.throws(function () { fromSchema('a'); }, AvscError);
-      assert.throws(function () { fromSchema({type: 'b'}); }, AvscError);
-    });
-
-    test('namespaced type', function () {
-      var type = fromSchema({
-        type: 'record',
-        name: 'Human',
-        namespace: 'earth',
-        fields: [
-          {
-            name: 'id',
-            type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
-          },
-          {
-            name: 'alien',
-            type: {
-              type: 'record',
-              name: 'Alien',
-              namespace: 'all',
-              fields: [
-                {name: 'friend', type: 'earth.Human'},
-                {name: 'id', type: 'Id'},
-              ]
-            }
-          }
-        ]
-      });
-      assert.equal(type.name, 'earth.Human');
-      assert.equal(type.fields[0].type.name, 'all.Id');
-      assert.equal(type.fields[1].type.name, 'all.Alien');
-    });
-
-    test('wrapped primitive', function () {
-      var type = fromSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'nothing', type: {type: 'null'}}]
-      });
-      assert.equal(type.fields[0].type.type, 'null');
-    });
-
-    test('fromBuffer truncated', function () {
-      var type = fromSchema('int');
-      assert.throws(function () {
-        type.fromBuffer(new Buffer([128]));
-      }, AvscError);
-    });
-
-    test('fromBuffer bad adaptor', function () {
-      var type = fromSchema('int');
-      assert.throws(function () {
-        type.fromBuffer(new Buffer([0]), 123, {});
-      }, AvscError);
-    });
-
-    test('fromBuffer trailing', function () {
-      var type = fromSchema('int');
-      assert.throws(function () {
-        type.fromBuffer(new Buffer([0, 2]));
-      }, AvscError);
-    });
-
-    test('fromBuffer trailing with resolver', function () {
-      var type = fromSchema('int');
-      var resolver = type.createResolver(fromSchema(['int']));
-      assert.equal(type.fromBuffer(new Buffer([0, 2]), resolver), 1);
-    });
-
-    test('toBuffer strict & not', function () {
-      var type = fromSchema('int');
-      assert.throws(function () { type.toBuffer('abc'); }, AvscError);
-      type.toBuffer('abc', true);
-    });
-
-    test('toBuffer and resize', function () {
-      var type = fromSchema('string');
-      assert.deepEqual(type.toBuffer('\x01', 1), new Buffer([2, 1]));
-    });
-
-    test('wrap & unwrap unions', function () {
-      // Default is to wrap.
-      var type;
-      type = fromSchema(['null', 'int']);
-      assert(type instanceof types.WrappedUnionType);
-      type = fromSchema(['null', 'int'], {unwrapUnions: true});
-      assert(type instanceof types.UnwrappedUnionType);
-    });
-
-    test('type hook', function () {
-      var c = {};
-      var o = {
-        type: 'record',
-        name: 'Human',
-        fields: [
-          {name: 'age', type: 'int'},
-          {name: 'name', type: {type: 'string'}}
-        ]
-      };
-      fromSchema(o, {typeHook: function (s) { c[this.type] = s; }});
-      assert.strictEqual(c.record, o);
-      assert.strictEqual(c.string, o.fields[1].type);
-    });
-
-    test('fingerprint', function () {
-      var t = fromSchema('int');
-      var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
-      assert.deepEqual(t.createFingerprint('md5'), buf);
-      assert.deepEqual(t.createFingerprint(), buf);
-    });
-
-  });
-
   suite('PrimitiveType', function () {
 
     var data = [
@@ -271,6 +155,207 @@ suite('types', function () {
     });
 
     function pType(name) { return new types.PrimitiveType(name); }
+
+  });
+
+  suite('WrappedUnionType', function () {
+
+    var data = [
+      {
+        name: 'null & string',
+        schema: ['null', 'string'],
+        valid: [null, {string: 'hi'}],
+        invalid: ['null', undefined, {string: 1}],
+        check: assert.deepEqual
+      },
+      {
+        name: 'qualified name',
+        schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
+        valid: [null, {'a.B': new Buffer(2)}],
+        invalid: [new Buffer(2)],
+        check: assert.deepEqual
+      },
+      {
+        name: 'array int',
+        schema: ['null', {type: 'array', items: 'int'}],
+        valid: [null, {array: [1,3]}],
+        invalid: [{array: ['a']}, [4], 2],
+        check: assert.deepEqual
+      },
+      {
+        name: 'null',
+        schema: ['null'],
+        valid: [null],
+        invalid: [{array: ['a']}, [4], 'null'],
+        check: assert.deepEqual
+      }
+    ];
+
+    var schemas = [
+      {},
+      [],
+      ['null', 'null'],
+      ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}]
+    ];
+
+    testType(types.WrappedUnionType, data, schemas);
+
+    test('instanceof Union', function () {
+      var type = new types.WrappedUnionType(['null', 'int']);
+      assert(type instanceof types.UnionType);
+    });
+
+    test('missing name write', function () {
+      var type = new types.WrappedUnionType(['null', 'int']);
+      assert.throws(function () {
+        type.toBuffer({b: 'a'});
+      }, AvscError);
+    });
+
+    test('read invalid index', function () {
+      var type = new types.WrappedUnionType(['null', 'int']);
+      var buf = new Buffer([1, 0]);
+      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
+    });
+
+    test('non wrapped write', function () {
+      var type = new types.WrappedUnionType(['null', 'int']);
+      assert.throws(function () {
+        type.toBuffer(1, true);
+      }, Error);
+    });
+
+    test('to JSON', function () {
+      var type = new types.WrappedUnionType(['null', 'int']);
+      assert.equal(JSON.stringify(type), '["null","int"]');
+    });
+
+    test('adapt int to [long, int]', function () {
+      var t1 = fromSchema('int');
+      var t2 = fromSchema(['long', 'int']);
+      var a = t2.createResolver(t1);
+      var buf = t1.toBuffer(23);
+      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
+    });
+
+    test('adapt null to [null, int]', function () {
+      var t1 = fromSchema('null');
+      var t2 = fromSchema(['null', 'int']);
+      var a = t2.createResolver(t1);
+      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
+    });
+
+    test('adapt [string, int] to [long, string]', function () {
+      var t1 = fromSchema(['string', 'int']);
+      var t2 = fromSchema(['int', 'bytes']);
+      var a = t2.createResolver(t1);
+      var buf;
+      buf = t1.toBuffer({string: 'hi'});
+      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': new Buffer('hi')});
+      buf = t1.toBuffer({'int': 1});
+      assert.deepEqual(t2.fromBuffer(buf, a), {'int': 1});
+    });
+
+    test('clone', function () {
+      var t = new types.WrappedUnionType(['null', 'int']);
+      var o = {'int': 1};
+      assert.strictEqual(t.clone(null), null);
+      var c = t.clone(o);
+      assert.deepEqual(c, o);
+      c.int = 2;
+      assert.equal(o.int, 1);
+      assert.throws(function () { t.clone([]); }, AvscError);
+      assert.throws(function () { t.clone(undefined); }, AvscError);
+    });
+
+  });
+
+  suite('UnwrappedUnionType', function () {
+
+    var data = [
+      {
+        name: 'null and string',
+        schema: ['null', 'string'],
+        valid: [null, 'hi'],
+        invalid: [undefined, 2, {string: 1}],
+        check: assert.deepEqual
+      },
+    ];
+
+    var schemas = [
+      [{type: 'array', items: 'int'}, {type: 'array', items: 'string'}]
+    ];
+
+    testType(types.UnwrappedUnionType, data, schemas);
+
+    test('instanceof Union', function () {
+      var type = new types.UnwrappedUnionType(['null', 'int']);
+      assert(type instanceof types.UnionType);
+    });
+
+    test('read invalid index', function () {
+      var type = new types.UnwrappedUnionType(['null', 'int']);
+      var buf = new Buffer([1, 0]);
+      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
+    });
+
+    test('to JSON', function () {
+      var type = new types.UnwrappedUnionType(['null', 'int']);
+      assert.equal(JSON.stringify(type), '["null","int"]');
+    });
+
+    test('adapt bytes to [bytes, string]', function () {
+      var t1 = fromSchema('bytes', {unwrapUnions: true});
+      var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
+      var a = t2.createResolver(t1);
+      var buf = new Buffer('abc');
+      assert.deepEqual(t2.fromBuffer(t1.toBuffer(buf), a), buf);
+    });
+
+    test('adapt null to [string, null]', function () {
+      var t1 = fromSchema('null');
+      var t2 = fromSchema(['string', 'null']);
+      var a = t2.createResolver(t1);
+      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
+    });
+
+    test('adapt [record, record] to record', function () {
+      var t1 = fromSchema([
+        {
+          type: 'record',
+          name: 'A',
+          fields: [{name: 'a', type: 'int'}]
+        },
+        {
+          type: 'record',
+          name: 'B',
+          fields: [{name: 'b', type: 'string'}]
+        }
+      ], {unwrapUnions: true});
+      var t2 = fromSchema({
+        type: 'record',
+        name: 'AB',
+        aliases: ['A', 'B'],
+        fields: [
+          {name: 'a', type: ['null', 'int'], 'default': null},
+          {name: 'b', type: ['null', 'string'], 'default': null}
+        ]
+      }, {unwrapUnions: true});
+      var a = t2.createResolver(t1);
+      var buf = t1.toBuffer({a: 1});
+      assert.deepEqual(t2.fromBuffer(buf, a), {a: 1, b: null});
+      buf = t1.toBuffer({b: 'hi'});
+      assert.deepEqual(t2.fromBuffer(buf, a), {a: null, b: 'hi'});
+    });
+
+    test('clone', function () {
+      var t = new types.UnwrappedUnionType(['null', 'int']);
+      assert.strictEqual(t.clone(null), null);
+      var c = t.clone(1);
+      assert.equal(c, 1);
+      assert.throws(function () { t.clone([]); }, AvscError);
+      assert.throws(function () { t.clone(undefined); }, AvscError);
+    });
 
   });
 
@@ -532,207 +617,6 @@ suite('types', function () {
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerce: true});
       assert.deepEqual(c, [new Buffer([1, 2])]);
-    });
-
-  });
-
-  suite('WrappedUnionType', function () {
-
-    var data = [
-      {
-        name: 'null & string',
-        schema: ['null', 'string'],
-        valid: [null, {string: 'hi'}],
-        invalid: ['null', undefined, {string: 1}],
-        check: assert.deepEqual
-      },
-      {
-        name: 'qualified name',
-        schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
-        valid: [null, {'a.B': new Buffer(2)}],
-        invalid: [new Buffer(2)],
-        check: assert.deepEqual
-      },
-      {
-        name: 'array int',
-        schema: ['null', {type: 'array', items: 'int'}],
-        valid: [null, {array: [1,3]}],
-        invalid: [{array: ['a']}, [4], 2],
-        check: assert.deepEqual
-      },
-      {
-        name: 'null',
-        schema: ['null'],
-        valid: [null],
-        invalid: [{array: ['a']}, [4], 'null'],
-        check: assert.deepEqual
-      }
-    ];
-
-    var schemas = [
-      {},
-      [],
-      ['null', 'null'],
-      ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}]
-    ];
-
-    testType(types.WrappedUnionType, data, schemas);
-
-    test('instanceof Union', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
-      assert(type instanceof types.UnionType);
-    });
-
-    test('missing name write', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
-      assert.throws(function () {
-        type.toBuffer({b: 'a'});
-      }, AvscError);
-    });
-
-    test('read invalid index', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
-      var buf = new Buffer([1, 0]);
-      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
-    });
-
-    test('non wrapped write', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
-      assert.throws(function () {
-        type.toBuffer(1, true);
-      }, Error);
-    });
-
-    test('to JSON', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
-      assert.equal(JSON.stringify(type), '["null","int"]');
-    });
-
-    test('adapt int to [long, int]', function () {
-      var t1 = fromSchema('int');
-      var t2 = fromSchema(['long', 'int']);
-      var a = t2.createResolver(t1);
-      var buf = t1.toBuffer(23);
-      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
-    });
-
-    test('adapt null to [null, int]', function () {
-      var t1 = fromSchema('null');
-      var t2 = fromSchema(['null', 'int']);
-      var a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
-    });
-
-    test('adapt [string, int] to [long, string]', function () {
-      var t1 = fromSchema(['string', 'int']);
-      var t2 = fromSchema(['int', 'bytes']);
-      var a = t2.createResolver(t1);
-      var buf;
-      buf = t1.toBuffer({string: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': new Buffer('hi')});
-      buf = t1.toBuffer({'int': 1});
-      assert.deepEqual(t2.fromBuffer(buf, a), {'int': 1});
-    });
-
-    test('clone', function () {
-      var t = new types.WrappedUnionType(['null', 'int']);
-      var o = {'int': 1};
-      assert.strictEqual(t.clone(null), null);
-      var c = t.clone(o);
-      assert.deepEqual(c, o);
-      c.int = 2;
-      assert.equal(o.int, 1);
-      assert.throws(function () { t.clone([]); }, AvscError);
-      assert.throws(function () { t.clone(undefined); }, AvscError);
-    });
-
-  });
-
-  suite('UnwrappedUnionType', function () {
-
-    var data = [
-      {
-        name: 'null and string',
-        schema: ['null', 'string'],
-        valid: [null, 'hi'],
-        invalid: [undefined, 2, {string: 1}],
-        check: assert.deepEqual
-      },
-    ];
-
-    var schemas = [
-      [{type: 'array', items: 'int'}, {type: 'array', items: 'string'}]
-    ];
-
-    testType(types.UnwrappedUnionType, data, schemas);
-
-    test('instanceof Union', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      assert(type instanceof types.UnionType);
-    });
-
-    test('read invalid index', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      var buf = new Buffer([1, 0]);
-      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
-    });
-
-    test('to JSON', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      assert.equal(JSON.stringify(type), '["null","int"]');
-    });
-
-    test('adapt bytes to [bytes, string]', function () {
-      var t1 = fromSchema('bytes', {unwrapUnions: true});
-      var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
-      var a = t2.createResolver(t1);
-      var buf = new Buffer('abc');
-      assert.deepEqual(t2.fromBuffer(t1.toBuffer(buf), a), buf);
-    });
-
-    test('adapt null to [string, null]', function () {
-      var t1 = fromSchema('null');
-      var t2 = fromSchema(['string', 'null']);
-      var a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
-    });
-
-    test('adapt [record, record] to record', function () {
-      var t1 = fromSchema([
-        {
-          type: 'record',
-          name: 'A',
-          fields: [{name: 'a', type: 'int'}]
-        },
-        {
-          type: 'record',
-          name: 'B',
-          fields: [{name: 'b', type: 'string'}]
-        }
-      ], {unwrapUnions: true});
-      var t2 = fromSchema({
-        type: 'record',
-        name: 'AB',
-        aliases: ['A', 'B'],
-        fields: [
-          {name: 'a', type: ['null', 'int'], 'default': null},
-          {name: 'b', type: ['null', 'string'], 'default': null}
-        ]
-      }, {unwrapUnions: true});
-      var a = t2.createResolver(t1);
-      var buf = t1.toBuffer({a: 1});
-      assert.deepEqual(t2.fromBuffer(buf, a), {a: 1, b: null});
-      buf = t1.toBuffer({b: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), {a: null, b: 'hi'});
-    });
-
-    test('clone', function () {
-      var t = new types.UnwrappedUnionType(['null', 'int']);
-      assert.strictEqual(t.clone(null), null);
-      var c = t.clone(1);
-      assert.equal(c, 1);
-      assert.throws(function () { t.clone([]); }, AvscError);
-      assert.throws(function () { t.clone(undefined); }, AvscError);
     });
 
   });
@@ -1087,7 +971,7 @@ suite('types', function () {
       assert.throws(function () { v2.createResolver(v1); }, AvscError);
     });
 
-    test('toString', function () {
+    test('toString schema', function () {
       var t = fromSchema({
         type: 'record',
         name: 'Person',
@@ -1105,7 +989,7 @@ suite('types', function () {
       );
     });
 
-    test('toString recursive', function () {
+    test('toString recursive schema', function () {
       var t = fromSchema({
         type: 'record',
         name: 'Person',
@@ -1118,6 +1002,16 @@ suite('types', function () {
         t.toString(),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"earth.Person"}}]}'
       );
+    });
+
+    test('toString record', function () {
+      var T = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'pwd', type: 'bytes'}]
+      }).getRecordConstructor();
+      var r = new T(new Buffer([1, 2]));
+      assert.equal(r.$toString(), T.type.toString(r));
     });
 
     test('clone', function () {
@@ -1146,6 +1040,151 @@ suite('types', function () {
         return this.type.type === 'string' ? o.toUpperCase() : o;
       }});
       assert.deepEqual(c, {name: 'ANN', age: 25});
+    });
+
+  });
+
+  suite('fromSchema', function  () {
+
+    test('unknown types', function () {
+      assert.throws(function () { fromSchema('a'); }, AvscError);
+      assert.throws(function () { fromSchema({type: 'b'}); }, AvscError);
+    });
+
+    test('namespaced type', function () {
+      var type = fromSchema({
+        type: 'record',
+        name: 'Human',
+        namespace: 'earth',
+        fields: [
+          {
+            name: 'id',
+            type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
+          },
+          {
+            name: 'alien',
+            type: {
+              type: 'record',
+              name: 'Alien',
+              namespace: 'all',
+              fields: [
+                {name: 'friend', type: 'earth.Human'},
+                {name: 'id', type: 'Id'},
+              ]
+            }
+          }
+        ]
+      });
+      assert.equal(type.name, 'earth.Human');
+      assert.equal(type.fields[0].type.name, 'all.Id');
+      assert.equal(type.fields[1].type.name, 'all.Alien');
+    });
+
+    test('wrapped primitive', function () {
+      var type = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'nothing', type: {type: 'null'}}]
+      });
+      assert.equal(type.fields[0].type.type, 'null');
+    });
+
+    test('fromBuffer truncated', function () {
+      var type = fromSchema('int');
+      assert.throws(function () {
+        type.fromBuffer(new Buffer([128]));
+      }, AvscError);
+    });
+
+    test('fromBuffer bad adaptor', function () {
+      var type = fromSchema('int');
+      assert.throws(function () {
+        type.fromBuffer(new Buffer([0]), 123, {});
+      }, AvscError);
+    });
+
+    test('fromBuffer trailing', function () {
+      var type = fromSchema('int');
+      assert.throws(function () {
+        type.fromBuffer(new Buffer([0, 2]));
+      }, AvscError);
+    });
+
+    test('fromBuffer trailing with resolver', function () {
+      var type = fromSchema('int');
+      var resolver = type.createResolver(fromSchema(['int']));
+      assert.equal(type.fromBuffer(new Buffer([0, 2]), resolver), 1);
+    });
+
+    test('toBuffer strict & not', function () {
+      var type = fromSchema('int');
+      assert.throws(function () { type.toBuffer('abc'); }, AvscError);
+      type.toBuffer('abc', true);
+    });
+
+    test('toBuffer and resize', function () {
+      var type = fromSchema('string');
+      assert.deepEqual(type.toBuffer('\x01', 1), new Buffer([2, 1]));
+    });
+
+    test('wrap & unwrap unions', function () {
+      // Default is to wrap.
+      var type;
+      type = fromSchema(['null', 'int']);
+      assert(type instanceof types.WrappedUnionType);
+      type = fromSchema(['null', 'int'], {unwrapUnions: true});
+      assert(type instanceof types.UnwrappedUnionType);
+    });
+
+    test('type hook', function () {
+      var c = {};
+      var o = {
+        type: 'record',
+        name: 'Human',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: {type: 'string'}}
+        ]
+      };
+      fromSchema(o, {typeHook: function (s) { c[this.type] = s; }});
+      assert.strictEqual(c.record, o);
+      assert.strictEqual(c.string, o.fields[1].type);
+    });
+
+    test('fingerprint', function () {
+      var t = fromSchema('int');
+      var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
+      assert.deepEqual(t.createFingerprint('md5'), buf);
+      assert.deepEqual(t.createFingerprint(), buf);
+    });
+
+  });
+
+  suite('fromString', function () {
+
+    test('int', function () {
+      var t = fromSchema('int');
+      assert.equal(t.fromString('2'), 2);
+      assert.throws(function () { t.fromString('"a"'); });
+    });
+
+    test('string', function () {
+      var t = fromSchema('string');
+      assert.equal(t.fromString('"2"'), '2');
+      assert.throws(function () { t.fromString('a'); });
+    });
+
+    test('coerce', function () {
+      var t = fromSchema({
+        name: 'Ids',
+        type: 'record',
+        fields: [{name: 'id1', type: {name: 'Id1', type: 'fixed', size: 2}}]
+      });
+      var o = {id1: new Buffer([0, 1])};
+      var s = '{"id1": "\\u0000\\u0001"}';
+      var c = t.fromString(s);
+      assert.deepEqual(c, o);
+      assert(c instanceof t.getRecordConstructor());
     });
 
   });
@@ -1288,6 +1327,7 @@ function testType(Type, data, invalidSchemas) {
         assert(type.isValid(v), '' + v);
         var fn = elem.check || assert.deepEqual;
         fn(type.fromBuffer(type.toBuffer(v)), v);
+        fn(type.fromString(type.toString(v), {coerce: true}), v);
       });
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);
