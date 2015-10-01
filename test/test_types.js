@@ -1,6 +1,6 @@
 /* jshint node: true, mocha: true */
 
-// TODO: Rename adapt to resolve.
+// TODO: Rename resolve to resolve.
 
 'use strict';
 
@@ -92,7 +92,7 @@ suite('types', function () {
 
     });
 
-    test('adapt int > long', function () {
+    test('resolve int > long', function () {
       var intType = pType('int');
       var longType = pType('long');
       var buf = intType.toBuffer(123);
@@ -102,7 +102,7 @@ suite('types', function () {
       );
     });
 
-    test('adapt int > [null, int]', function () {
+    test('resolve int > [null, int]', function () {
       var wt = fromSchema('int');
       var rt = fromSchema(['null', 'int']);
       var buf = wt.toBuffer(123);
@@ -112,7 +112,7 @@ suite('types', function () {
       );
     });
 
-    test('adapt string > bytes', function () {
+    test('resolve string > bytes', function () {
       var stringT = pType('string');
       var bytesT = pType('bytes');
       var buf = stringT.toBuffer('\x00\x01');
@@ -122,7 +122,7 @@ suite('types', function () {
       );
     });
 
-    test('adapt invalid', function () {
+    test('resolve invalid', function () {
       assert.throws(function () { getResolver('int', 'long'); }, AvscError);
       assert.throws(function () { getResolver('long', 'double'); }, AvscError);
     });
@@ -230,7 +230,7 @@ suite('types', function () {
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
-    test('adapt int to [long, int]', function () {
+    test('resolve int to [long, int]', function () {
       var t1 = fromSchema('int');
       var t2 = fromSchema(['long', 'int']);
       var a = t2.createResolver(t1);
@@ -238,14 +238,14 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
     });
 
-    test('adapt null to [null, int]', function () {
+    test('resolve null to [null, int]', function () {
       var t1 = fromSchema('null');
       var t2 = fromSchema(['null', 'int']);
       var a = t2.createResolver(t1);
       assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
-    test('adapt [string, int] to [long, string]', function () {
+    test('resolve [string, int] to [long, string]', function () {
       var t1 = fromSchema(['string', 'int']);
       var t2 = fromSchema(['int', 'bytes']);
       var a = t2.createResolver(t1);
@@ -304,7 +304,7 @@ suite('types', function () {
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
-    test('adapt bytes to [bytes, string]', function () {
+    test('resolve bytes to [bytes, string]', function () {
       var t1 = fromSchema('bytes', {unwrapUnions: true});
       var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
       var a = t2.createResolver(t1);
@@ -312,14 +312,14 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(t1.toBuffer(buf), a), buf);
     });
 
-    test('adapt null to [string, null]', function () {
+    test('resolve null to [string, null]', function () {
       var t1 = fromSchema('null');
       var t2 = fromSchema(['string', 'null']);
       var a = t2.createResolver(t1);
       assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
-    test('adapt [record, record] to record', function () {
+    test('resolve [record, record] to record', function () {
       var t1 = fromSchema([
         {
           type: 'record',
@@ -398,7 +398,7 @@ suite('types', function () {
       assert.throws(function () { type.fromBuffer(buf); }, AvscError);
     });
 
-    test('adapt', function () {
+    test('resolve', function () {
       var t1, t2, buf, resolver;
       t1 = newEnum('Foo', ['bar', 'baz']);
       t2 = newEnum('Foo', ['bar', 'baz']);
@@ -461,7 +461,7 @@ suite('types', function () {
 
     testType(types.FixedType, data, schemas);
 
-    test('adapt', function () {
+    test('resolve', function () {
       var t1 = new types.FixedType({name: 'Id', size: 4});
       var t2 = new types.FixedType({name: 'Id', size: 4});
       assert.doesNotThrow(function () { t2.createResolver(t1); });
@@ -533,7 +533,7 @@ suite('types', function () {
 
     testType(types.MapType, data, schemas);
 
-    test('adapt int values to long values', function () {
+    test('resolve int values to long values', function () {
       var t1 = new types.MapType({type: 'map', values: 'int'});
       var t2 = new types.MapType({type: 'map', values: 'long'});
       var resolver = t2.createResolver(t1);
@@ -542,7 +542,7 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
     });
 
-    test('adapt invalid', function () {
+    test('resolve invalid', function () {
       var t1 = new types.MapType({type: 'map', values: 'int'});
       var t2 = new types.MapType({type: 'map', values: 'string'});
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
@@ -589,7 +589,7 @@ suite('types', function () {
 
     testType(types.ArrayType, data, schemas);
 
-    test('adapt string items to bytes items', function () {
+    test('resolve string items to bytes items', function () {
       var t1 = new types.ArrayType({type: 'array', items: 'string'});
       var t2 = new types.ArrayType({type: 'array', items: 'bytes'});
       var resolver = t2.createResolver(t1);
@@ -598,7 +598,7 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(buf, resolver), [new Buffer([1, 2])]);
     });
 
-    test('adapt invalid', function () {
+    test('resolve invalid', function () {
       var t1 = new types.ArrayType({type: 'array', items: 'string'});
       var t2 = new types.ArrayType({type: 'array', items: 'long'});
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
@@ -792,7 +792,7 @@ suite('types', function () {
       assert.deepEqual(p2.friends, []);
     });
 
-    test('adapt alias', function () {
+    test('resolve alias', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -816,7 +816,7 @@ suite('types', function () {
       assert.throws(function () { v3.createResolver(v1); }, AvscError);
     });
 
-    test('adapt alias with namespace', function () {
+    test('resolve alias with namespace', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -839,7 +839,7 @@ suite('types', function () {
       assert.doesNotThrow(function () { v3.createResolver(v1); });
     });
 
-    test('adapt skip field', function () {
+    test('resolve skip field', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -859,7 +859,7 @@ suite('types', function () {
       assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann'});
     });
 
-    test('adapt new field', function () {
+    test('resolve new field', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -879,7 +879,7 @@ suite('types', function () {
       assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann', age: 25});
     });
 
-    test('adapt new field no default', function () {
+    test('resolve new field no default', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -896,7 +896,7 @@ suite('types', function () {
       assert.throws(function () { v2.createResolver(v1); }, AvscError);
     });
 
-    test('adapt from recursive schema', function () {
+    test('resolve from recursive schema', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -913,7 +913,7 @@ suite('types', function () {
       assert.deepEqual(p2, {age: -1});
     });
 
-    test('adapt to recursive schema', function () {
+    test('resolve to recursive schema', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -936,7 +936,7 @@ suite('types', function () {
       assert.deepEqual(p2, {friends: []});
     });
 
-    test('adapt from both recursive schema', function () {
+    test('resolve from both recursive schema', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -956,7 +956,7 @@ suite('types', function () {
       assert.deepEqual(p2, {friends: [{friends: []}]});
     });
 
-    test('adapt multiple matching aliases', function () {
+    test('resolve multiple matching aliases', function () {
       var v1 = fromSchema({
         type: 'record',
         name: 'Person',
@@ -1098,7 +1098,7 @@ suite('types', function () {
       }, AvscError);
     });
 
-    test('fromBuffer bad adaptor', function () {
+    test('fromBuffer bad resolver', function () {
       var type = fromSchema('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([0]), 123, {});
@@ -1191,7 +1191,7 @@ suite('types', function () {
 
   });
 
-  suite('adapt unions', function () {
+  suite('resolve unions', function () {
 
     test('to valid union', function () {
       var t1 = fromSchema(['int', 'string']);
