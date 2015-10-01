@@ -83,10 +83,10 @@ schemas.
 
 Schema | Decode (operations/sec) | Encode (operations/sec)
 ---|:-:|:-:
-[`ArrayString.avsc`](benchmarks/schemas/ArrayString.avsc)  | 905k | 280k
-[`Coupon.avsc`](benchmarks/schemas/Coupon.avsc) | 290k | 302k
-[`Person.avsc`](benchmarks/schemas/Person.avsc) | 1586k | 620k
-[`User.avsc`](benchmarks/schemas/User.avsc) | 116k | 284k
+[`ArrayString.avsc`](benchmarks/schemas/ArrayString.avsc)  | 1200k | 400k
+[`Coupon.avsc`](benchmarks/schemas/Coupon.avsc) | 350k | 450k
+[`Person.avsc`](benchmarks/schemas/Person.avsc) | 1900k | 1100k
+[`User.avsc`](benchmarks/schemas/User.avsc) | 150k | 350k
 
 In fact, it is generally faster than the built-in JSON parser (also producing
 encodings orders of magnitude smaller without compression). See the

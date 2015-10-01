@@ -5,15 +5,23 @@
 To run all available benchmarks:
 
 ```bash
-$ python __main__.py >timings.json
+$ python run.py >timings.json
 ```
 
 Logging messages will be printed to standard error. Any benchmarks with missing
 requirements will be skipped. The data is returned in a format suitable for
 analysis (e.g. using `pandas`, see below).
 
+For more options (e.g. choosing which schemas or libraries to benchmark):
+
+```
+$ python run.py -h
+```
+
 
 ## Requirements
+
++ `docopt`; to run the benchmarks.
 
 + Java, Maven; to build and run the Java benchmarks.
 

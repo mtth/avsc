@@ -1,14 +1,31 @@
 #!/usr/bin/env python
 # encoding: utf-8
 
-"""Benchmark driver.
+"""Avsc benchmark runner.
 
-All benchmarks are run sequentially as separate processes. They must output the
-effective time spent processing or return a non-zero status code on error.
+Usage:
+  run.py [-n ITERATIONS] [-r RECORDS] [-s SCHEMAS] [LIB ...]
+  run.py -h
+
+Arguments:
+  LIB             Library to run. E.g. `java-avro`, `node-avsc`.
+
+Options:
+  -n ITERATIONS   Number of iterations. [default: 10]
+  -r RECORDS      Number of random records generated. [default: 100000]
+  -s SCHEMAS      Comma-separated list of schemas to test. All if unspecified.
+  -h              Show this message and exit.
+
+Examples:
+  python run.py >timings.json
+  python run.py -n 5 -s ArrayString node-avsc
+
+Outputs a JSON file of timings.
 
 """
 
 from contextlib import contextmanager
+from docopt import docopt
 from json import dumps
 from subprocess import PIPE, Popen, call
 from tempfile import mkstemp
@@ -42,7 +59,7 @@ class Benchmark(object):
   _schemas_dpath = osp.join(DPATH, 'schemas')
   _scripts_dpath = osp.join(DPATH, 'scripts')
 
-  def __init__(self, name, n_records, attempts):
+  def __init__(self, name, n_records, attempts, libs):
     _logger.info('starting benchmark for %s [%s records]', name, n_records)
     self.name = name
     self.path = osp.join(self._schemas_dpath, name)
@@ -50,6 +67,7 @@ class Benchmark(object):
       raise ValueError('no schema named %s' % (name, ))
     self.n_records = n_records
     self.attempts = attempts
+    self.libs = libs
 
   def run(self):
     """Return list of timings."""
@@ -59,20 +77,23 @@ class Benchmark(object):
         for dname in os.listdir(self._scripts_dpath):
           dpath = osp.join(self._scripts_dpath, dname)
           for fname in os.listdir(dpath):
-            fpath = osp.join(dpath, fname)
-            process = Popen([fpath, tpath], stdout=PIPE)
-            process.wait()
-            if process.returncode:
-              _logger.warn('error running %s %s', dname, fname)
+            if self.libs and not osp.splitext(fname)[0] in self.libs:
+              _logger.info('skipped %s %s', dname, fname)
             else:
-              times.append({
-                'attempt': attempt,
-                'schema': self.name,
-                'command': dname,
-                'library': osp.splitext(fname)[0],
-                'ms_per_record': float(process.stdout.read())
-              })
-              _logger.info('finished %s %s', dname, fname)
+              fpath = osp.join(dpath, fname)
+              process = Popen([fpath, tpath], stdout=PIPE)
+              process.wait()
+              if process.returncode:
+                _logger.warn('error running %s %s', dname, fname)
+              else:
+                times.append({
+                  'attempt': attempt,
+                  'schema': self.name,
+                  'command': dname,
+                  'library': osp.splitext(fname)[0],
+                  'ms_per_record': float(process.stdout.read())
+                })
+                _logger.info('finished %s %s', dname, fname)
     return times
 
   @contextmanager
@@ -93,19 +114,33 @@ class Benchmark(object):
         os.remove(path)
 
   @classmethod
-  def run_all(cls, names=None, n_records=10000, attempts=5):
+  def run_all(cls, libs, fnames=None, n_records=10000, attempts=5):
     """Run all benchmarks."""
     times = []
     try:
       build_avsc_jar()
     except Exception:
       pass # Missing dependency, skip.
-    for fname in names or os.listdir(cls._schemas_dpath):
-      bench = Benchmark(fname, n_records, attempts)
-      times.extend(bench.run())
+    available_names = set(os.listdir(cls._schemas_dpath))
+    fnames = fnames or available_names
+    for fname in fnames:
+      if fname in available_names:
+        bench = Benchmark(fname, n_records, attempts, libs)
+        times.extend(bench.run())
+      else:
+        _logger.warn('schema %s not found', fname)
     return times
 
 if __name__ == '__main__':
-  names = ['%s.avsc' % (elem, ) for elem in sys.argv[1:]]
-  TIMES = Benchmark.run_all(names=names, n_records=100000, attempts=10)
+  args = docopt(__doc__)
+  if args['-s']:
+    fnames = ['%s.avsc' % (elem, ) for elem in args['-s'].split(',')]
+  else:
+    fnames = []
+  TIMES = Benchmark.run_all(
+    libs=set(args['LIB']),
+    fnames=fnames,
+    n_records=int(args['-r']),
+    attempts=int(args['-n'])
+  )
   print dumps(TIMES)
