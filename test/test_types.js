@@ -293,6 +293,34 @@ suite('types', function () {
       assert.throws(function () { t.clone(o); }, AvscError);
     });
 
+    test('clone unqualified names', function () {
+      var t = fromSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'id1', type: {name: 'an.Id', type: 'fixed', size: 1}},
+          {name: 'id2', type: ['null', 'an.Id']}
+        ]
+      });
+      var b = new Buffer([0]);
+      var o = {id1: b, id2: {Id: b}};
+      assert.deepEqual(t.clone(o), {id1: b, id2: {'an.Id': b}});
+    });
+
+    test('clone unqualified names', function () {
+      var t = fromSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'id1', type: {name: 'Id', type: 'fixed', size: 1}},
+          {name: 'id2', type: ['null', 'Id']}
+        ]
+      });
+      var b = new Buffer([0]);
+      var o = {id1: b, id2: {'an.Id': b}};
+      assert.throws(function () { t.clone(o); }, AvscError);
+    });
+
   });
 
   suite('UnwrappedUnionType', function () {
@@ -1116,6 +1144,10 @@ suite('types', function () {
   });
 
   suite('fromSchema', function  () {
+
+    test('null type', function () {
+      assert.throws(function () { fromSchema(null); }, AvscError);
+    });
 
     test('unknown types', function () {
       assert.throws(function () { fromSchema('a'); }, AvscError);
