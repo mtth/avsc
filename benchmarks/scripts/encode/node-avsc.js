@@ -34,9 +34,8 @@ avsc.decodeFile(dataPath)
 function loop() {
   var n = 0;
   var i, l, buf;
-  var opts = {unsafe: true};
   for (i = 0, l = records.length; i < l; i++) {
-    buf = type.encode(records[i], opts);
+    buf = type.toBuffer(records[i], true);
     n += buf[0];
   }
   return n;

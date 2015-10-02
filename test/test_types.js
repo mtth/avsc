@@ -279,6 +279,20 @@ suite('types', function () {
       }, AvscError);
     });
 
+    test('invalid multiple keys', function () {
+      var t = fromSchema(['null', 'int']);
+      var o = {'int': 2};
+      assert(t.isValid(o));
+      o.foo = 3;
+      assert(!t.isValid(o));
+    });
+
+    test('clone multiple keys', function () {
+      var t = fromSchema(['null', 'int']);
+      var o = {'int': 2, foo: 3};
+      assert.throws(function () { t.clone(o); }, AvscError);
+    });
+
   });
 
   suite('UnwrappedUnionType', function () {
