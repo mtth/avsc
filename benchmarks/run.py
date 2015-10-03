@@ -133,6 +133,7 @@ class Benchmark(object):
 
 if __name__ == '__main__':
   args = docopt(__doc__)
+  n_records = int(args['-r'])
   if args['-s']:
     fnames = ['%s.avsc' % (elem, ) for elem in args['-s'].split(',')]
   else:
@@ -140,7 +141,7 @@ if __name__ == '__main__':
   TIMES = Benchmark.run_all(
     libs=set(args['LIB']),
     fnames=fnames,
-    n_records=int(args['-r']),
+    n_records=n_records,
     attempts=int(args['-n'])
   )
-  print dumps(TIMES)
+  print dumps({'n_records': n_records, 'schemas': fnames, 'times': TIMES})

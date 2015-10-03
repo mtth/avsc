@@ -266,7 +266,7 @@ suite('types', function () {
       assert.throws(function () { t.clone(undefined); }, AvscError);
     });
 
-    test('clone and coerce', function () {
+    test('clone and wrap', function () {
       var t = fromSchema(['string', 'int']);
       var s = 'hi!';
       var o = t.clone(s, {wrapUnions: true});
