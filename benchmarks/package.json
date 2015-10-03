@@ -2,8 +2,7 @@
   "name": "avsc-benchmarks",
   "description": "Benchmarks for avsc.",
   "scripts": {
-    "compile-java": "cd deps/avro && mvn clean compile assembly:single",
-    "test": "python run.py"
+    "compile-java": "cd deps/avro && mvn clean compile assembly:single"
   },
   "private": true,
   "dependencies": {

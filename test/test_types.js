@@ -1034,7 +1034,8 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
       });
       var o = {name: 'Ann', age: 25};
-      var c = t.clone(o, {fieldHook: function (o) {
+      var c = t.clone(o, {fieldHook: function (o, r) {
+        assert.strictEqual(r, t);
         return this.type.type === 'string' ? o.toUpperCase() : o;
       }});
       assert.deepEqual(c, {name: 'ANN', age: 25});
