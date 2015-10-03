@@ -103,12 +103,10 @@ public class Avsc {
 
     long start = System.currentTimeMillis();
     long n = 0;
-    int m = 0;
+    long m = 0;
     for (int i = 0; i < records.size(); i++) {
       byte[] data = encode(records.get(i));
-      if (data.length % 2 == 0) {
-        m++;
-      }
+      m += data.length;
       n++;
     }
     if (m <= 0) {

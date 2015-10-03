@@ -24,16 +24,12 @@ $ python run.py -h
 + Python packages to run the benchmarks driver:
   + `docopt`
 
-+ Java, Maven to build and run the Java benchmarks.
-
-+ NPM packages:
++ NPM packages (installed via `npm install .`):
   + `pson`
-  + `node-avro-io`; somewhat tricky to install on newer versions of Node. This
-    branch seems to do the job:
+  + `node-avro-io`
 
-    ```bash
-    $ npm install git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption
-    ```
++ Java, Maven to build and run the Java benchmarks. Then run `npm run
+  compile-java` to build the executable jar.
 
 
 ## Analysis

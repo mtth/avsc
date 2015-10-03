@@ -1,0 +1,13 @@
+{
+  "name": "avsc-benchmarks",
+  "description": "Benchmarks for avsc.",
+  "scripts": {
+    "compile-java": "cd deps/avro && mvn clean compile assembly:single",
+    "test": "python run.py"
+  },
+  "private": true,
+  "dependencies": {
+    "node-avro-io": "git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption",
+    "pson": "^2.0.0"
+  }
+}
