@@ -23,6 +23,7 @@ if (!filePath) {
 var type = avsc.parse(schemaPath);
 var encoder = new avsc.streams.BlockEncoder(type);
 encoder.pipe(fs.createWriteStream(filePath, {defaultEncoding: 'binary'}));
+console.log(type.toString());
 
 while (count--) {
   encoder.write(type.random());

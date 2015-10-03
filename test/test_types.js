@@ -1151,6 +1151,27 @@ suite('types', function () {
       assert.deepEqual(t.createFingerprint(), buf);
     });
 
+    test('toString default', function () {
+      var schema = {
+        type: 'record',
+        name: 'Human',
+        fields: [
+          {
+            name: 'id1',
+            type: ['string', 'null'],
+            'default': ''
+          },
+          {
+            name: 'id2',
+            type: ['null', 'string'],
+            'default': null
+          }
+        ]
+      };
+      var type = fromSchema(schema);
+      assert.deepEqual(JSON.parse(type.toString()), schema);
+    });
+
   });
 
   suite('fromString', function () {
