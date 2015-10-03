@@ -1,7 +1,5 @@
 /* jshint node: true, mocha: true */
 
-// TODO: Rename resolve to resolve.
-
 'use strict';
 
 var types = require('../lib/types'),
@@ -158,7 +156,7 @@ suite('types', function () {
 
   });
 
-  suite('WrappedUnionType', function () {
+  suite('UnionType', function () {
 
     var data = [
       {
@@ -198,35 +196,35 @@ suite('types', function () {
       ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}]
     ];
 
-    testType(types.WrappedUnionType, data, schemas);
+    testType(types.UnionType, data, schemas);
 
     test('instanceof Union', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
+      var type = new types.UnionType(['null', 'int']);
       assert(type instanceof types.UnionType);
     });
 
     test('missing name write', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
+      var type = new types.UnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer({b: 'a'});
       }, AvscError);
     });
 
     test('read invalid index', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
+      var type = new types.UnionType(['null', 'int']);
       var buf = new Buffer([1, 0]);
       assert.throws(function () { type.fromBuffer(buf); }, AvscError);
     });
 
     test('non wrapped write', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
+      var type = new types.UnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer(1, true);
       }, Error);
     });
 
     test('to JSON', function () {
-      var type = new types.WrappedUnionType(['null', 'int']);
+      var type = new types.UnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
@@ -257,7 +255,7 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = new types.WrappedUnionType(['null', 'int']);
+      var t = new types.UnionType(['null', 'int']);
       var o = {'int': 1};
       assert.strictEqual(t.clone(null), null);
       var c = t.clone(o);
@@ -271,11 +269,11 @@ suite('types', function () {
     test('clone and coerce', function () {
       var t = fromSchema(['string', 'int']);
       var s = 'hi!';
-      var o = t.clone(s, {coerceUnions: true});
+      var o = t.clone(s, {wrapUnions: true});
       assert.deepEqual(o, {'string': s});
       assert.throws(function () { t.clone(s); }, AvscError);
       assert.throws(function () {
-        t.clone(1, {coerceUnions: true});
+        t.clone(1, {wrapUnions: true});
       }, AvscError);
     });
 
@@ -319,105 +317,6 @@ suite('types', function () {
       var b = new Buffer([0]);
       var o = {id1: b, id2: {'an.Id': b}};
       assert.throws(function () { t.clone(o); }, AvscError);
-    });
-
-  });
-
-  suite('UnwrappedUnionType', function () {
-
-    var data = [
-      {
-        name: 'null and string',
-        schema: ['null', 'string'],
-        valid: [null, 'hi'],
-        invalid: [undefined, 2, {string: 1}],
-        check: assert.deepEqual
-      },
-    ];
-
-    var schemas = [
-      [{type: 'array', items: 'int'}, {type: 'array', items: 'string'}]
-    ];
-
-    testType(types.UnwrappedUnionType, data, schemas);
-
-    test('instanceof Union', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      assert(type instanceof types.UnionType);
-    });
-
-    test('read invalid index', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      var buf = new Buffer([1, 0]);
-      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
-    });
-
-    test('to JSON', function () {
-      var type = new types.UnwrappedUnionType(['null', 'int']);
-      assert.equal(JSON.stringify(type), '["null","int"]');
-    });
-
-    test('resolve bytes to [bytes, string]', function () {
-      var t1 = fromSchema('bytes', {unwrapUnions: true});
-      var t2 = fromSchema(['bytes', 'string'], {unwrapUnions: true});
-      var a = t2.createResolver(t1);
-      var buf = new Buffer('abc');
-      assert.deepEqual(t2.fromBuffer(t1.toBuffer(buf), a), buf);
-    });
-
-    test('resolve null to [string, null]', function () {
-      var t1 = fromSchema('null');
-      var t2 = fromSchema(['string', 'null']);
-      var a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
-    });
-
-    test('resolve [record, record] to record', function () {
-      var t1 = fromSchema([
-        {
-          type: 'record',
-          name: 'A',
-          fields: [{name: 'a', type: 'int'}]
-        },
-        {
-          type: 'record',
-          name: 'B',
-          fields: [{name: 'b', type: 'string'}]
-        }
-      ], {unwrapUnions: true});
-      var t2 = fromSchema({
-        type: 'record',
-        name: 'AB',
-        aliases: ['A', 'B'],
-        fields: [
-          {name: 'a', type: ['null', 'int'], 'default': null},
-          {name: 'b', type: ['null', 'string'], 'default': null}
-        ]
-      }, {unwrapUnions: true});
-      var a = t2.createResolver(t1);
-      var buf = t1.toBuffer({a: 1});
-      assert.deepEqual(t2.fromBuffer(buf, a), {a: 1, b: null});
-      buf = t1.toBuffer({b: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), {a: null, b: 'hi'});
-    });
-
-    test('clone', function () {
-      var t = new types.UnwrappedUnionType(['null', 'int']);
-      assert.strictEqual(t.clone(null), null);
-      var c = t.clone(1);
-      assert.equal(c, 1);
-      assert.throws(function () { t.clone([]); }, AvscError);
-      assert.throws(function () { t.clone(undefined); }, AvscError);
-    });
-
-    test('clone and coerce', function () {
-      var t = fromSchema(['string', 'int'], {unwrapUnions: true});
-      var s = 'hi!';
-      var o = t.clone(s, {coerceUnions: true});
-      assert.deepEqual(o, s);
-      assert.throws(function () {
-        t.clone(1, {coerceUnions: true});
-      }, AvscError);
     });
 
   });
@@ -1228,15 +1127,6 @@ suite('types', function () {
     test('toBuffer and resize', function () {
       var type = fromSchema('string');
       assert.deepEqual(type.toBuffer('\x01', 1), new Buffer([2, 1]));
-    });
-
-    test('wrap & unwrap unions', function () {
-      // Default is to wrap.
-      var type;
-      type = fromSchema(['null', 'int']);
-      assert(type instanceof types.WrappedUnionType);
-      type = fromSchema(['null', 'int'], {unwrapUnions: true});
-      assert(type instanceof types.UnwrappedUnionType);
     });
 
     test('type hook', function () {
