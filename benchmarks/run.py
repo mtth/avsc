@@ -91,6 +91,7 @@ class Benchmark(object):
                   'schema': self.name,
                   'command': dname,
                   'library': osp.splitext(fname)[0],
+                  'n_records': self.n_records,
                   'ms_per_record': float(process.stdout.read())
                 })
                 _logger.info('finished %s %s', dname, fname)
@@ -123,7 +124,7 @@ class Benchmark(object):
       pass # Missing dependency, skip.
     available_names = set(os.listdir(cls._schemas_dpath))
     fnames = fnames or available_names
-    for fname in fnames:
+    for fname in sorted(fnames):
       if fname in available_names:
         bench = Benchmark(fname, n_records, attempts, libs)
         times.extend(bench.run())
@@ -133,7 +134,6 @@ class Benchmark(object):
 
 if __name__ == '__main__':
   args = docopt(__doc__)
-  n_records = int(args['-r'])
   if args['-s']:
     fnames = ['%s.avsc' % (elem, ) for elem in args['-s'].split(',')]
   else:
@@ -141,7 +141,7 @@ if __name__ == '__main__':
   TIMES = Benchmark.run_all(
     libs=set(args['LIB']),
     fnames=fnames,
-    n_records=n_records,
+    n_records=int(args['-r']),
     attempts=int(args['-n'])
   )
-  print dumps({'n_records': n_records, 'schemas': fnames, 'times': TIMES})
+  print dumps(TIMES)
