@@ -118,17 +118,21 @@ suite('tap', function () {
     testWriterReader({
       name: 'long',
       elems: [[1, 49210914, -12391023, 0], [], [3]],
-      reader: function () { return this.readArray(this.readLong); },
-      skipper: function () { this.skipArray(this.skipLong); },
-      writer: function (arr) { this.writeArray(arr, this.writeLong); }
+      reader: function () { return this.readArray(this.readLong, this); },
+      skipper: function () { this.skipArray(this.skipLong, this); },
+      writer: function (arr) { this.writeArray(arr, function (tap, obj) {
+        tap.writeLong(obj);
+      }); }
     });
 
     testWriterReader({
       name: 'string',
       elems: [['hello'], [], ['hi', 'qwe']],
-      reader: function () { return this.readArray(this.readString); },
-      skipper: function () { this.skipArray(this.skipString); },
-      writer: function (arr) { this.writeArray(arr, this.writeString); },
+      reader: function () { return this.readArray(this.readString, this); },
+      skipper: function () { this.skipArray(this.skipString, this); },
+      writer: function (arr) { this.writeArray(arr, function (tap, obj) {
+        tap.writeString(obj);
+      }); }
     });
 
     testWriterReader({
@@ -136,15 +140,15 @@ suite('tap', function () {
       elems: [[[], [1]], [], [[1,3]]],
       reader: function () {
         return this.readArray(function () {
-          return this.readArray(this.readLong);
-        });
+          return this.readArray(this.readLong, this);
+        }, this);
       },
       skipper: function () {
-        this.skipArray(function () { this.skipArray(this.skipLong); });
+        this.skipArray(function () { this.skipArray(this.skipLong, this); }, this);
       },
       writer: function (arr) {
-        this.writeArray(arr, function (ns) {
-          this.writeArray(ns, this.writeLong);
+        this.writeArray(arr, function (tap, ns) {
+          tap.writeArray(ns, function (tap, n) { tap.writeLong(n); });
         });
       }
     });
@@ -169,25 +173,27 @@ suite('tap', function () {
     testWriterReader({
       name: 'long',
       elems: [{one: 1, two: 2}, {}, {a: 4}],
-      reader: function () { return this.readMap(this.readLong); },
-      skipper: function () { this.skipMap(this.skipLong); },
-      writer: function (arr) { this.writeMap(arr, this.writeLong); }
+      reader: function () { return this.readMap(this.readLong, this); },
+      skipper: function () { this.skipMap(this.skipLong, this); },
+      writer: function (arr) {
+        this.writeMap(arr, function (tap, n) { tap.writeLong(n); });
+      }
     });
 
     testWriterReader({
       name: 'array string',
       elems: [{a: ['a'], b: []}, {a: ['a', 'b']}, {}],
       reader: function () {
-        return this.readMap(function () {
-          return this.readArray(this.readString);
+        return this.readMap(function (tap) {
+          return tap.readArray(tap.readString, tap);
         });
       },
       skipper: function () {
-        this.skipMap(function () { this.skipArray(this.skipString); });
+        this.skipMap(function (tap) { tap.skipArray(tap.skipString, tap); });
       },
       writer: function (arr) {
-        this.writeMap(arr, function (ns) {
-          this.writeArray(ns, this.writeString);
+        this.writeMap(arr, function (tap, strs) {
+          tap.writeArray(strs, function (tap, str) { tap.writeString(str); });
         });
       }
     });
@@ -195,13 +201,13 @@ suite('tap', function () {
     test('read with sizes', function () {
       var tap = new Tap(new Buffer([1,6,2,97,2,0]));
       assert.deepEqual(
-        tap.readMap(function () { return tap.readInt(); }), {a: 1}
+        tap.readMap(function (tap) { return tap.readInt(); }), {a: 1}
       );
     });
 
     test('skip with sizes', function () {
       var tap = new Tap(new Buffer([1,6,2,97,2,0]));
-      tap.skipMap(function () { tap.skipInt(); });
+      tap.skipMap(function (tap) { tap.skipInt(); });
       assert.equal(tap.pos, 6);
     });
 
