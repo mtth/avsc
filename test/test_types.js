@@ -13,86 +13,41 @@ var fromSchema = types.Type.fromSchema;
 
 suite('types', function () {
 
-  suite('PrimitiveType', function () {
+  suite('BooleanType', function () {
 
     var data = [
       {
-        schema: 'boolean',
         valid: [true, false],
         invalid: [null, 'hi', undefined, 1.5, 1e28, 123124123123213]
-      },
-      {
-        schema: 'int',
-        valid: [1, -3, 12314, 0, 1e9],
-        invalid: [null, 'hi', undefined, 1.5, 1e28, 123124123123213]
-      },
-      {
-        schema: 'long',
-        valid: [1, -3, 12314, 9007199254740991],
-        invalid: [null, 'hi', undefined, 9007199254740992, 1.3, 1e67]
-      },
-      {
-        schema: 'string',
-        valid: ['', 'hi'],
-        invalid: [null, undefined, 1, 0]
-      },
-      {
-        schema: 'null',
-        valid: [null],
-        invalid: [0, 1, 'hi', undefined]
-      },
-      {
-        schema: 'float',
-        valid: [1, -3.4, 12314e31],
-        invalid: [null, 'hi', undefined, 5e38],
-        check: function (a, b) { assert(floatEquals(a, b)); }
-      },
-      {
-        schema: 'double',
-        valid: [1, -3.4, 12314e31, 5e37],
-        invalid: [null, 'hi', undefined],
-        check: function (a, b) { assert(floatEquals(a, b), '' + [a, b]); }
-      },
-      {
-        schema: 'bytes',
-        valid: [new Buffer(1), new Buffer('abc')],
-        invalid: [null, 'hi', undefined, 1, 0, -3.5]
       }
     ];
 
-    var schemas = ['foo', ''];
+    testType(types.BooleanType, data);
 
-    testType(types.PrimitiveType, data, schemas);
+  });
+
+  suite('IntType', function () {
+
+    var data = [
+      {
+        valid: [1, -3, 12314, 0, 1e9],
+        invalid: [null, 'hi', undefined, 1.5, 1e28, 123124123123213]
+      }
+    ];
+
+    testType(types.IntType, data);
 
     test('toBuffer int', function () {
 
-      var type = pType('int');
+      var type = fromSchema('int');
       assert.equal(type.fromBuffer(new Buffer([0x80, 0x01])), 64);
       assert(new Buffer([0]).equals(type.toBuffer(0)));
 
     });
 
-    test('fromBuffer string', function () {
-
-      var type = pType('string');
-      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
-      var s = 'hi!';
-      assert.equal(type.fromBuffer(buf), s);
-      assert(buf.equals(type.toBuffer(s)));
-
-    });
-
-    test('toBuffer string', function () {
-
-      var type = pType('string');
-      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
-      assert(buf.equals(type.toBuffer('hi!', 1)));
-
-    });
-
     test('resolve int > long', function () {
-      var intType = pType('int');
-      var longType = pType('long');
+      var intType = fromSchema('int');
+      var longType = fromSchema('long');
       var buf = intType.toBuffer(123);
       assert.equal(
         longType.fromBuffer(buf, longType.createResolver(intType)),
@@ -110,9 +65,71 @@ suite('types', function () {
       );
     });
 
+    test('toString', function () {
+      assert.equal(fromSchema('int').toString(), '"int"');
+    });
+
+    test('clone', function () {
+      var t = fromSchema('int');
+      assert.equal(t.clone(123), 123);
+      assert.throws(function () { t.clone(''); }, AvscError);
+    });
+
+    test('resolve invalid', function () {
+      assert.throws(function () { getResolver('int', 'long'); }, AvscError);
+    });
+
+  });
+
+  suite('LongType', function () {
+
+    var data = [
+      {
+        valid: [1, -3, 12314, 9007199254740991],
+        invalid: [null, 'hi', undefined, 9007199254740992, 1.3, 1e67]
+      }
+    ];
+
+    testType(types.LongType, data);
+
+    test('resolve invalid', function () {
+      assert.throws(function () { getResolver('long', 'double'); }, AvscError);
+    });
+
+  });
+
+  suite('StringType', function () {
+
+    var data = [
+      {
+        valid: ['', 'hi'],
+        invalid: [null, undefined, 1, 0]
+      }
+    ];
+
+    testType(types.StringType, data);
+
+    test('fromBuffer string', function () {
+
+      var type = fromSchema('string');
+      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
+      var s = 'hi!';
+      assert.equal(type.fromBuffer(buf), s);
+      assert(buf.equals(type.toBuffer(s)));
+
+    });
+
+    test('toBuffer string', function () {
+
+      var type = fromSchema('string');
+      var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
+      assert(buf.equals(type.toBuffer('hi!', 1)));
+
+    });
+
     test('resolve string > bytes', function () {
-      var stringT = pType('string');
-      var bytesT = pType('bytes');
+      var stringT = fromSchema('string');
+      var bytesT = fromSchema('bytes');
       var buf = stringT.toBuffer('\x00\x01');
       assert.deepEqual(
         bytesT.fromBuffer(buf, bytesT.createResolver(stringT)),
@@ -120,23 +137,63 @@ suite('types', function () {
       );
     });
 
-    test('resolve invalid', function () {
-      assert.throws(function () { getResolver('int', 'long'); }, AvscError);
-      assert.throws(function () { getResolver('long', 'double'); }, AvscError);
-    });
+  });
 
-    test('toString', function () {
-      assert.equal(pType('int').toString(), '"int"');
-    });
+  suite('NullType', function () {
 
-    test('clone immutable', function () {
-      var t = pType('int');
-      assert.equal(t.clone(123), 123);
-      assert.throws(function () { t.clone(''); }, AvscError);
-    });
+    var data = [
+      {
+        schema: 'null',
+        valid: [null],
+        invalid: [0, 1, 'hi', undefined]
+      }
+    ];
 
-    test('clone bytes', function () {
-      var t = pType('bytes');
+    testType(types.NullType, data);
+
+  });
+
+  suite('FloatType', function () {
+
+    var data = [
+      {
+        valid: [1, -3.4, 12314e31],
+        invalid: [null, 'hi', undefined, 5e38],
+        check: function (a, b) { assert(floatEquals(a, b)); }
+      }
+    ];
+
+    testType(types.FloatType, data);
+
+  });
+
+  suite('DoubleType', function () {
+
+    var data = [
+      {
+        valid: [1, -3.4, 12314e31, 5e37],
+        invalid: [null, 'hi', undefined],
+        check: function (a, b) { assert(floatEquals(a, b), '' + [a, b]); }
+      }
+    ];
+
+    testType(types.FloatType, data);
+
+  });
+
+  suite('BytesType', function () {
+
+    var data = [
+      {
+        valid: [new Buffer(1), new Buffer('abc')],
+        invalid: [null, 'hi', undefined, 1, 0, -3.5]
+      }
+    ];
+
+    testType(types.BytesType, data);
+
+    test('clone', function () {
+      var t = fromSchema('bytes');
       var s = '\x01\x02';
       var buf = new Buffer(s);
       var clone;
@@ -151,8 +208,6 @@ suite('types', function () {
       assert.deepEqual(clone, buf);
       assert.throws(function () { t.clone(1, {coerceBuffers: true}); }, AvscError);
     });
-
-    function pType(name) { return new types.PrimitiveType(name); }
 
   });
 
@@ -1372,11 +1427,13 @@ function testType(Type, data, invalidSchemas) {
     });
   });
 
-  test('invalid', function () {
-    invalidSchemas.forEach(function (schema) {
-      assert.throws(function () { new Type(schema); }, AvscError);
+  if (invalidSchemas) {
+    test('invalid', function () {
+      invalidSchemas.forEach(function (schema) {
+        assert.throws(function () { new Type(schema); }, AvscError);
+      });
     });
-  });
+  }
 
 }
 
