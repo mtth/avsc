@@ -72,7 +72,7 @@
         try{
           var random = parsedSchema.random();
           var randomStr = JSON.stringify(random, null, 2);
-          $('#randomInput').val(randomStr);
+          $('#input').val(randomStr);
         } catch(err) {
           showError($('#schema-error'),err);
         }
