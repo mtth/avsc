@@ -1363,11 +1363,11 @@ function testType(Type, data, invalidSchemas) {
         var type = new Type(elem.schema);
         var buf = new Buffer(1024);
         var tap = new Tap(buf);
-        type._write.call(tap, items[0]);
-        type._write.call(tap, items[1]);
+        type._write(tap, items[0]);
+        type._write(tap, items[1]);
         tap.pos = 0;
-        type._skip.call(tap);
-        fn(type._read.call(tap), items[1]);
+        type._skip(tap);
+        fn(type._read(tap), items[1]);
       }
     });
   });
