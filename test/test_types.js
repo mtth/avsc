@@ -634,8 +634,10 @@ suite('types', function () {
     });
 
     test('clone coerce buffers', function () {
-      var ft = new types.FixedType({type: 'fixed', name: 'Id', size: 2});
-      var t = new types.ArrayType({type: 'array', items: ft});
+      var t = fromSchema({
+        type: 'array',
+        items: {type: 'fixed', name: 'Id', size: 2}
+      });
       var o = ['\x01\x02'];
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
@@ -735,7 +737,7 @@ suite('types', function () {
           }
         ]
       });
-      assert.deepEqual(type.fields[0].getDefault(), b);
+      assert.deepEqual(type._fields[0].getDefault(), b);
     });
 
     test('fixed buffer invalid default', function () {
@@ -821,7 +823,7 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}]
       });
       var Person = type.getRecordConstructor();
-      assert.strictEqual(Person.type, type);
+      assert.strictEqual(Person.getType(), type);
     });
 
     test('mutable defaults', function () {
@@ -1064,7 +1066,7 @@ suite('types', function () {
         fields: [{name: 'pwd', type: 'bytes'}]
       }).getRecordConstructor();
       var r = new T(new Buffer([1, 2]));
-      assert.equal(r.$toString(), T.type.toString(r));
+      assert.equal(r.$toString(), T.getType().toString(r));
     });
 
     test('clone', function () {
@@ -1091,7 +1093,7 @@ suite('types', function () {
       var o = {name: 'Ann', age: 25};
       var c = t.clone(o, {fieldHook: function (o, r) {
         assert.strictEqual(r, t);
-        return this.type.type === 'string' ? o.toUpperCase() : o;
+        return this._type instanceof types.StringType ? o.toUpperCase() : o;
       }});
       assert.deepEqual(c, {name: 'ANN', age: 25});
     });
@@ -1133,9 +1135,9 @@ suite('types', function () {
           }
         ]
       });
-      assert.equal(type.name, 'earth.Human');
-      assert.equal(type.fields[0].type.name, 'all.Id');
-      assert.equal(type.fields[1].type.name, 'all.Alien');
+      assert.equal(type._name, 'earth.Human');
+      assert.equal(type._fields[0]._type._name, 'all.Id');
+      assert.equal(type._fields[1]._type._name, 'all.Alien');
     });
 
     test('wrapped primitive', function () {
@@ -1144,7 +1146,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'nothing', type: {type: 'null'}}]
       });
-      assert.equal(type.fields[0].type.type, 'null');
+      assert.strictEqual(type._fields[0]._type.constructor, types.NullType);
     });
 
     test('fromBuffer truncated', function () {
@@ -1195,9 +1197,8 @@ suite('types', function () {
           {name: 'name', type: {type: 'string'}}
         ]
       };
-      fromSchema(o, {typeHook: function (s) { c[this.type] = s; }});
-      assert.strictEqual(c.record, o);
-      assert.strictEqual(c.string, o.fields[1].type);
+      fromSchema(o, {typeHook: function (s) { c[this._name] = s; }});
+      assert.strictEqual(c.Human, o);
     });
 
     test('fingerprint', function () {
@@ -1301,7 +1302,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
       });
-      assert.strictEqual(type, type.fields[0].type);
+      assert.strictEqual(type, type._fields[0]._type);
     });
 
     test('namespaced', function () {
@@ -1320,8 +1321,8 @@ suite('types', function () {
           }
         ]
       });
-      assert.equal(type.name, 'Person');
-      assert.equal(type.fields[0].type.name, 'a.Person');
+      assert.equal(type._name, 'Person');
+      assert.equal(type._fields[0]._type._name, 'a.Person');
     });
 
     test('redefining', function () {
@@ -1374,7 +1375,7 @@ suite('types', function () {
         aliases: ['Human', 'b.Being'],
         fields: [{name: 'age', type: 'int'}]
       });
-      assert.deepEqual(type.aliases, ['a.Human', 'b.Being']);
+      assert.deepEqual(type._aliases, ['a.Human', 'b.Being']);
     });
 
   });
