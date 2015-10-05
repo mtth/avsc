@@ -9,7 +9,7 @@
   "author": "Matthieu Monsch",
   "license": "MIT",
   "dependencies": {
-    "avsc": "^0.1.1",
+    "avsc": "^1.0.2",
     "buffer": "^3.5.0",
     "jquery": "^2.1.4",
     "jquery-ui": "^1.10.5"

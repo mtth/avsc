@@ -25250,9 +25250,13 @@ module.exports = function(arr, obj){
   window.avsc = avsc;
 
   $( function() {
+    resize();
     var parsedSchema;
     var encodedErrorElement = $('#encoded-error');
     var decodedErrorElement = $('#decoded-error');
+    window.onresize = function(event) {
+      resize();
+    }
     /* Validate schema after each new character. */
     $('#schema').on('paste keyup', function(e) {
       setTimeout(function(){
@@ -25281,17 +25285,7 @@ module.exports = function(arr, obj){
     });
 
     $('#random').click(function() {
-      if (parsedSchema) {
-        try{
-          var random = parsedSchema.random();
-          var randomStr = JSON.stringify(random, null, 2);
-          $('#input').val(randomStr);
-          clearErrors();
-          clearError(decodedErrorElement, 'Valid input!');
-        } catch(err) {
-          showError($('#schema-error'),err);
-        }
-      }
+      generateRandom();
     });
 
    function validateSchema() {
@@ -25302,6 +25296,7 @@ module.exports = function(arr, obj){
         var schema = readInput('#schema');
         parsedSchema = avsc.parse(schema);
         clearError(error_elem, 'Valid Schema!');
+        generateRandom();
       } catch (err) {
         showError(error_elem, err);
       }
@@ -25314,7 +25309,21 @@ module.exports = function(arr, obj){
       errorElement.text(msg);
     }
  
-    
+    function generateRandom() {
+      if (parsedSchema) {
+        try{
+          var random = parsedSchema.random();
+          var randomStr = JSON.stringify(random, null, 2);
+          $('#input').val(randomStr);
+          encode(); /* Update encoded string too. */
+          clearErrors();
+          clearError(decodedErrorElement, 'Valid input!');
+        } catch(err) {
+          showError($('#schema-error'),err);
+        }
+      }
+
+    }
     function encode() {
       if (parsedSchema) {
         try {
@@ -25400,6 +25409,12 @@ module.exports = function(arr, obj){
     }
     return outStr;
   }
+  /* Adjust textbox heights according to current window size */
+  function resize() {
+    var vph = $(window).height();
+    $('.textbox').css({'height': vph - 100});
+  }
+
 })();
 
 }).call(this,require("buffer").Buffer)
