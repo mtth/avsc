@@ -26,20 +26,20 @@ if (!schemaPath) {
 }
 
 var type = avsc.parse(schemaPath, {typeHook: function () {
-  if (!this.name) {
+  if (!this._name) {
     return; // Nothing to mangle.
   }
-  this.name = RANDOM.nextString(8);
+  this._name = RANDOM.nextString(8);
   var i, l;
   if (this instanceof avsc.types.RecordType) {
     var field;
-    for (i = 0, l = this.fields.length; i < l; i++) {
-      field = this.fields[i];
-      field.name = RANDOM.nextString(8);
+    for (i = 0, l = this._fields.length; i < l; i++) {
+      field = this._fields[i];
+      field._name = RANDOM.nextString(8);
     }
   } else if (this instanceof avsc.types.EnumType) {
-    for (i = 0, l = this.symbols.length; i < l; i++) {
-      this.symbols[i] = RANDOM.nextString(8).toUpperCase();
+    for (i = 0, l = this._symbols.length; i < l; i++) {
+      this._symbols[i] = RANDOM.nextString(8).toUpperCase();
     }
   }
 }});
