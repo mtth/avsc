@@ -25254,55 +25254,30 @@ module.exports = function(arr, obj){
     var encodedErrorElement = $('#encoded-error');
     var decodedErrorElement = $('#decoded-error');
     /* Validate schema after each new character. */
-    $('#schema').keyup(function(event) {
+    $('#schema').on('paste keyup', function(e) {
+      setTimeout(function(){
         validateSchema();
+      }, 0);
     });
 
-    function validateSchema() {
-      parsedSchema = null;
-      var elem = $('#schema');
-      var error_elem = $('#schema-error');
-      try {
-        var schema = readInput('#schema');
-        parsedSchema = avsc.parse(schema);
-        error_elem.removeClass('error');
-        error_elem.addClass('valid');
-        error_elem.text('Valid Schema!');
-      } catch (err) {
-        showError(error_elem, err);
-      }
-    }
- 
-    $('#encode').click(function() {
-      if (parsedSchema) {
-        try {
-          var input = readInput('#input');
-          var output = parsedSchema.encode(input);
-          $('#output').val(bufferToStr(output));
-          clearErrors();
-        }catch(err) {
-          showError(decodedErrorElement, err);
-        }
-      } else {
-        showError(decodedErrorElement, 'No valid schema found!');
-      }
-     
+    $('#input').on('paste keyup', function(event) {
+      setTimeout(function() {
+        encode();
+      }, 0);
+    }); 
+
+    $('#output').on('paste keyup', function(event) {
+      setTimeout(function() {
+        decode();
+      }, 0);
     });
 
-     $('#decode').click(function() {
-      if (parsedSchema) {
-        var input = readBuffer('#output');
-        try {
-          var decoded = parsedSchema.decode(input);
-          decoded = JSON.stringify(decoded, null, 2);
-          $('#input').val(decoded);
-          clearErrors();
-        }catch(err) {
-          showError(encodedErrorElement,err);
-        }
-      } else {
-        showError(encodedErrorElement, 'No valid schema found!');
-      }
+   $('#encode').click(function() {
+      encode();     
+    });
+
+    $('#decode').click(function() {
+      decode();
     });
 
     $('#random').click(function() {
@@ -25311,11 +25286,67 @@ module.exports = function(arr, obj){
           var random = parsedSchema.random();
           var randomStr = JSON.stringify(random, null, 2);
           $('#input').val(randomStr);
+          clearErrors();
+          clearError(decodedErrorElement, 'Valid input!');
         } catch(err) {
           showError($('#schema-error'),err);
         }
       }
     });
+
+   function validateSchema() {
+      parsedSchema = null;
+      var elem = $('#schema');
+      var error_elem = $('#schema-error');
+      try {
+        var schema = readInput('#schema');
+        parsedSchema = avsc.parse(schema);
+        clearError(error_elem, 'Valid Schema!');
+      } catch (err) {
+        showError(error_elem, err);
+      }
+    }
+
+    function clearError(errorElement, msg) {
+      errorElement.removeClass('error');
+      errorElement.removeClass('hidden');
+      errorElement.addClass('valid');
+      errorElement.text(msg);
+    }
+ 
+    
+    function encode() {
+      if (parsedSchema) {
+        try {
+          var input = readInput('#input');
+          var output = parsedSchema.encode(input);
+          $('#output').val(bufferToStr(output));
+          clearErrors();
+          clearError(decodedErrorElement, 'Valid Input!');
+        }catch(err) {
+          showError(decodedErrorElement, err);
+        }
+      } else {
+        showError(decodedErrorElement, 'No valid schema found!');
+      }
+    }
+
+    function decode() {
+      if (parsedSchema) {
+        var input = readBuffer('#output');
+        try {
+          var decoded = parsedSchema.decode(input);
+          decoded = JSON.stringify(decoded, null, 2);
+          $('#input').val(decoded);
+          clearErrors();
+          clearError(encodedErrorElement, 'Valid encoded record!');
+        }catch(err) {
+          showError(encodedErrorElement,err);
+        }
+      } else {
+        showError(encodedErrorElement, 'No valid schema found!');
+      }
+    }
 
     /* Clear any error messages shown in input/output boxes. */
     function clearErrors() {
@@ -25347,22 +25378,27 @@ module.exports = function(arr, obj){
 
   function readBuffer(elementId) {
     var rawInput = $.trim($(elementId).val());
-    var jsonInput = JSON.parse(rawInput);
-    var buf = new Buffer(jsonInput);
-    return buf; 
+    var hexArray = rawInput.split('\n');
+    var i;
+    var size = hexArray.length;
+    var buffer = [];
+    for (i =0; i < size; i++){
+      buffer.push(new Buffer(hexArray[i].substr(2), 'hex'));
+    }
+    return Buffer.concat(buffer);
   }
 
   function bufferToStr(buffer) {
-    var str = '[';
-    var nonEmpty = false;
-    for (var b of buffer) {
-      if(nonEmpty) {
-        str = str + ', ';
-      }
-      str = str + b;
-      nonEmpty = true;
+    var size = buffer.length;
+    var hexPrefix = '0x';
+    var outStr = '';
+    var i;
+    for (i = 0; i < size; i++) {
+      outStr += hexPrefix + 
+                buffer.toString('hex', i , i+1) +
+                '\n';
     }
-    return str + ']'
+    return outStr;
   }
 })();
 
