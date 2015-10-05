@@ -567,6 +567,21 @@ suite('types', function () {
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
     });
 
+    test('resolve fixed', function () {
+      var t1 = fromSchema({
+        type: 'map', values: {name: 'Id', type: 'fixed', size: 2}
+      });
+      var t2 = fromSchema({
+        type: 'map', values: {
+          name: 'Id2', aliases: ['Id'], type: 'fixed', size: 2
+        }
+      });
+      var resolver = t2.createResolver(t1);
+      var obj = {one: new Buffer([1, 2])};
+      var buf = t1.toBuffer(obj);
+      assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
+    });
+
     test('clone', function () {
       var t = new types.MapType({type: 'map', values: 'int'});
       var o = {one: 1, two: 2};
