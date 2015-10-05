@@ -25392,19 +25392,17 @@ module.exports = function(arr, obj){
     var size = hexArray.length;
     var buffer = [];
     for (i =0; i < size; i++){
-      buffer.push(new Buffer(hexArray[i].substr(2), 'hex'));
+      buffer.push(new Buffer(hexArray[i], 'hex'));
     }
     return Buffer.concat(buffer);
   }
 
   function bufferToStr(buffer) {
     var size = buffer.length;
-    var hexPrefix = '0x';
     var outStr = '';
     var i;
     for (i = 0; i < size; i++) {
-      outStr += hexPrefix + 
-                buffer.toString('hex', i , i+1) +
+      outStr +=  buffer.toString('hex', i , i+1) +
                 '\n';
     }
     return outStr;
@@ -25423,7 +25421,6 @@ module.exports = function(arr, obj){
 
 'use strict';
 
-// TODO: Add append option to `createWriteStream`.
 
 var streams = require('./streams'),
     types = require('./types'),
@@ -25433,8 +25430,8 @@ var streams = require('./streams'),
 /**
  * Parse a schema and return the corresponding type.
  *
- * @param readerSchema {Object|String} Schema (type object or type name
- * string).
+ * @param readerSchema {Object|String} Schema (type object or path to an Avro
+ * schema file).
  * @param opts {Object} Parsing options. The following keys are currently
  * supported:
  *
@@ -25449,38 +25446,29 @@ function parse(schema, opts) {
   if (schema instanceof types.Type) {
     return schema;
   }
+  if (typeof schema == 'string') {
+    // This is a file path.
+    schema = JSON.parse(fs.readFileSync(schema));
+  }
   return types.Type.fromSchema(schema, opts);
 }
 
 /**
- * Convenience function to parse an Avro schema file (`.avsc` typically).
- *
- * @param path {String} Path to Avro schema file (stored in JSON format).
- * @param opts {Object} Parsing options. See `parse` above for details.
- *
- */
-function parseFile(path, opts) {
-  return parse(JSON.parse(fs.readFileSync(path)), opts);
-}
-
-/**
- * Convenience method to decode a file.
+ * Convenience method to decode an Avro container file.
  *
  * @param path {String} Path to object container file or raw Avro file.
  * @param opts {Object}
  *
  */
 function decodeFile(path, opts) {
-  var header = streams.BlockDecoder.getHeader(path, false);
-  var Decoder = header === null ? streams.RawDecoder : streams.BlockDecoder;
-  return fs.createReadStream(path).pipe(new Decoder(opts));
+  return fs.createReadStream(path).pipe(new streams.BlockDecoder(opts));
 }
 
 
 module.exports = {
   parse: parse,
-  parseFile: parseFile,
   decodeFile: decodeFile,
+  getFileHeader: streams.BlockDecoder.getHeader,
   streams: streams,
   types: types
 };
@@ -25490,8 +25478,6 @@ module.exports = {
 /* jshint node: true */
 
 // TODO: Add snappy support. Or maybe support for custom decompressors.
-// TODO: Get `Decoder` to work even for decompressor that don't yield to the
-// event loop.
 
 'use strict';
 
@@ -25537,74 +25523,53 @@ var MAGIC_BYTES = new Buffer('Obj\x01');
 var AvscError = utils.AvscError;
 
 
-function pushObj(self) {
-  var tap = self._tap;
-  var buf = tap.buf;
-  var pos = tap.pos;
-  var obj = self._readObj.call(tap);
-  if (self._includeEncoding) {
-    self.push(new Pair(obj, buf.slice(pos, tap.pos)));
-  } else {
-    self.push(obj);
-  }
-}
-
-
 /**
  * Duplex stream for decoding fragments.
  *
  * @param opts {Object}
  *
- *  + writerType
- *  + readerType
- *  + includeEncoding
+ *  + type
+ *  + decode
  *
  */
-function RawDecoder(opts) {
+function RawDecoder(type, opts) {
   opts = opts || {};
 
-  stream.Transform.call(this, {readableObjectMode: true});
+  if (!(type instanceof types.Type)) {
+    throw new AvscError('invalid type');
+  }
 
-  this._readerType = opts.readerType;
-  this._writerType = opts.writerType || opts.readerType;
-  this._readOjb = null;
-  this._includeEncoding = opts.includeEncoding || false;
+  stream.Duplex.call(this, {readableObjectMode: true});
+  var decode = opts.decode === undefined ? true : !!opts.decode;
+
+  this._type = type;
+  this._readObj = createReader(decode, this._type);
   this._tap = new Tap(new Buffer(0));
+  this._needPush = false;
 }
-util.inherits(RawDecoder, stream.Transform);
+util.inherits(RawDecoder, stream.Duplex);
 
-RawDecoder.prototype._transform = function (chunk, encoding, cb) {
-  if (!this._writerType) {
-    this.emit('error', new AvscError('no writer type set'));
-    return;
-  }
-
-  try {
-    if (this._readerType) {
-      this._readObj = this._readerType.createAdapter(this._writerType)._read;
-    } else {
-      this._readObj = this._writerType._read;
-    }
-  } catch (err) {
-    this.emit('error', err);
-    return;
-  }
-
-  this._transform = this._transformChunk;
-  this._transform(chunk, encoding, cb);
-};
-
-RawDecoder.prototype._transformChunk = function (chunk, encoding, cb) {
+RawDecoder.prototype._write = function (chunk, encoding, cb) {
   var tap = this._tap;
   tap.buf = Buffer.concat([tap.buf.slice(tap.pos), chunk]);
   tap.pos = 0;
-
-  var len = tap.buf.length;
-  while (tap.pos < len) {
-    pushObj(this);
+  if (this._needPush) {
+    this._needPush = false;
+    this._read();
   }
-
   cb();
+};
+
+RawDecoder.prototype._read = function () {
+  var tap = this._tap;
+  var pos = tap.pos;
+  var obj = this._readObj.call(tap);
+  if (tap.isValid()) {
+    this.push(obj);
+  } else {
+    tap.pos = pos;
+    this._needPush = true;
+  }
 };
 
 
@@ -25613,28 +25578,26 @@ RawDecoder.prototype._transformChunk = function (chunk, encoding, cb) {
  *
  * @param opts {Object}
  *
- *  + readerType
- *  + unordered
- *  + includeEncoding
- *  + decompressors
+ *  + parseOpts
+ *  + decode
  *
  */
 function BlockDecoder(opts) {
   opts = opts || {};
 
   stream.Duplex.call(this, {
-    allowHalfOpen: true,
+    allowHalfOpen: true, // For async decompressors.
     readableObjectMode: true
   });
 
-  this._readerType = opts.readerType || null;
-  this._writerType = null;
+  this._type = null;
+  this._parseOpts = opts.parseOpts || {};
   this._tap = new Tap(new Buffer(0));
   this._blockTap = new Tap(new Buffer(0));
   this._syncMarker = null;
   this._readObj = null;
-  this._includeEncoding = opts.includeEncoding || false;
-  this._queue = opts.unordered ? [] : new utils.OrderedQueue();
+  this._decode = opts.decode === undefined ? true : !!opts.decode;
+  this._queue = new utils.OrderedQueue();
   this._decompress = null; // Decompression function.
   this._index = 0; // Next block index.
   this._pending = 0; // Number of blocks undergoing decompression.
@@ -25650,16 +25613,20 @@ function BlockDecoder(opts) {
 }
 util.inherits(BlockDecoder, stream.Duplex);
 
-BlockDecoder.getHeader = function (path, decode) {
+BlockDecoder.getHeader = function (path, opts) {
+  opts = opts || {};
+
+  var decode = opts.decode === undefined ? true : !!opts.decode;
+  var size = Math.max(opts.size || 4096, 4); // Mostly for testing.
   var fd = fs.openSync(path, 'r');
-  var buf = new Buffer(4096);
+  var buf = new Buffer(size);
   var pos = 0;
   var tap = new Tap(buf);
   var header = null;
 
   while (pos < 4) {
     // Make sure we have enough to check the magic bytes.
-    pos += fs.readSync(fd, buf, pos, 4096 - pos);
+    pos += fs.readSync(fd, buf, pos, size - pos);
   }
   if (MAGIC_BYTES.equals(buf.slice(0, 4))) {
     do {
@@ -25668,7 +25635,9 @@ BlockDecoder.getHeader = function (path, decode) {
     if (decode !== false) {
       var meta = header.meta;
       meta['avro.schema'] = JSON.parse(meta['avro.schema'].toString());
-      meta['avro.codec'] = meta['avro.codec'].toString();
+      if (meta['avro.codec'] !== undefined) {
+        meta['avro.codec'] = meta['avro.codec'].toString();
+      }
     }
   }
   fs.closeSync(fd);
@@ -25700,40 +25669,30 @@ BlockDecoder.prototype._decodeHeader = function () {
     return;
   }
 
-  var codec = header.meta['avro.codec'].toString();
+  var codec = (header.meta['avro.codec'] || 'null').toString();
   switch (codec) {
     case 'null':
-      this._decompress = function (buf, cb) {
-        // "Fake" async call.
-        setTimeout(function () { cb(null, buf); }, 0);
-      };
+      this._decompress = function (buf, cb) { cb(null, buf); };
       break;
     case 'deflate':
       this._decompress = zlib.inflateRaw;
       break;
-    case 'snappy':
-      this.emit(new AvscError('snappy not yet supported'));
-      return;
     default:
-      this.emit(new AvscError('unknown codec: %s', codec));
+      this.emit('error', new AvscError('unknown codec: %s', codec));
       return;
   }
 
   try {
     var schema = JSON.parse(header.meta['avro.schema'].toString());
-    this._writerType = types.Type.fromSchema(schema);
-    if (this._readerType) {
-      this._readObj = this._readerType.createAdapter(this._writerType)._read;
-    } else {
-      this._readObj = this._writerType._read;
-    }
+    this._type = types.Type.fromSchema(schema, this._parseOpts);
   } catch (err) {
     this.emit('error', err);
     return;
   }
 
+  this._readObj = createReader(this._decode, this._type);
   this._syncMarker = header.sync;
-  this.emit('metadata', this._writerType, codec, header);
+  this.emit('metadata', this._type, codec, header);
   return true;
 };
 
@@ -25760,28 +25719,18 @@ BlockDecoder.prototype._writeChunk = function (chunk, encoding, cb) {
   tap.pos = 0;
 
   var block;
-  while ((block = getBlock())) {
+  while ((block = tryReadBlock(tap))) {
     if (!this._syncMarker.equals(block.sync)) {
       cb(new AvscError('invalid sync marker'));
-      return; // TODO: Try to recover?
+      return;
     }
-    this._decompress(block.data, this._addBlockCallback());
+    this._decompress(block.data, this._createBlockCallback());
   }
 
   cb();
-
-  function getBlock() {
-    var pos = tap.pos;
-    var block = BLOCK_TYPE._read.call(tap);
-    if (!tap.isValid()) {
-      tap.pos = pos;
-      return null;
-    }
-    return block;
-  }
 };
 
-BlockDecoder.prototype._addBlockCallback = function () {
+BlockDecoder.prototype._createBlockCallback = function () {
   var self = this;
   var index = this._index++;
   this._pending++;
@@ -25792,7 +25741,7 @@ BlockDecoder.prototype._addBlockCallback = function () {
       return;
     }
     self._pending--;
-    self._queue.push(new IndexedData(index, data));
+    self._queue.push(new BlockData(index, data));
     if (self._needPush) {
       self._needPush = false;
       self._read();
@@ -25802,9 +25751,9 @@ BlockDecoder.prototype._addBlockCallback = function () {
 
 BlockDecoder.prototype._read = function () {
   var tap = this._blockTap;
-  if (tap.pos == tap.buf.length) {
-    var block = this._queue.pop();
-    if (!block) {
+  if (tap.pos >= tap.buf.length) {
+    var data = this._queue.pop();
+    if (!data) {
       if (this._finished && !this._pending) {
         this.push(null);
       } else {
@@ -25812,51 +25761,48 @@ BlockDecoder.prototype._read = function () {
       }
       return; // Wait for more data.
     }
-    tap.buf = block.buf;
+    tap.buf = data.buf;
     tap.pos = 0;
   }
-  var obj = this._readObj.call(tap);
-  this.push(obj);
+
+  this.push(this._readObj.call(tap)); // The read is guaranteed valid.
 };
 
 
 /**
  * Duplex stream for encoding.
  *
+ * @param type
  * @param opts {Object}
  *
- *  + writerType
  *  + batchSize
+ *  + unsafe
  *
  */
-function RawEncoder(opts) {
+function RawEncoder(type, opts) {
   opts = opts || {};
+
+  if (!(type instanceof types.Type)) {
+    throw new AvscError('invalid type');
+  }
 
   stream.Transform.call(this, {writableObjectMode: true});
 
-  this._writerType = opts.writerType || null;
+  this._type = type;
+  this._writeObj = type._write;
   this._tap = new Tap(new Buffer(opts.batchSize || 65536));
 }
 util.inherits(RawEncoder, stream.Transform);
 
 RawEncoder.prototype._transform = function (obj, encoding, cb) {
-  if (!this._writerType) {
-    if (!(obj.$type instanceof types.Type)) {
-      cb(new AvscError('unable to infer writer type'));
-      return;
-    }
-    this._writerType = obj.$type;
-  }
-
-  this._writeObj = this._writerType._write;
-  this._transform = RawEncoder.prototype._transformChunk;
-  this._transform(obj, encoding, cb);
-};
-
-RawEncoder.prototype._transformChunk = function (obj, encoding, cb) {
   var tap = this._tap;
   var buf = tap.buf;
   var pos = tap.pos;
+
+  if (!this._unsafe && !this._type.isValid(obj)) {
+    this.emit('error', new AvscError('invalid object: %j', obj));
+    return;
+  }
 
   this._writeObj.call(tap, obj);
   if (!tap.isValid()) {
@@ -25890,26 +25836,30 @@ RawEncoder.prototype._flush = function (cb) {
 /**
  * Duplex stream to write object container files.
  *
+ * @param type
  * @param opts {Object}
  *
  *  + `blockSize`
  *  + `codec`
  *  + `omitHeader`, useful to append to an existing block file.
- *  + `writerType`
  *  + `unsafe`
  *
  */
-function BlockEncoder(opts) {
+function BlockEncoder(type, opts) {
   opts = opts || {};
 
+  if (!(type instanceof types.Type)) {
+    throw new AvscError('invalid type');
+  }
+
   stream.Duplex.call(this, {
-    allowHalfOpen: true,
+    allowHalfOpen: true, // To support async compressors.
     writableObjectMode: true
   });
 
-  this._writerType = opts.writerType;
+  this._type = type;
+  this._writeObj = type._write;
   this._unsafe = opts.unsafe;
-  this._writeObj = null;
   this._blockSize = opts.blockSize || 65536;
   this._tap = new Tap(new Buffer(this._blockSize));
   this._codec = opts.codec || 'null';
@@ -25917,9 +25867,10 @@ function BlockEncoder(opts) {
   this._omitHeader = opts.omitHeader || false;
   this._blockCount = 0;
   this._syncMarker = opts.syncMarker || new utils.Lcg().nextBuffer(16);
-  this._queue = opts.unordered ? [] : new utils.OrderedQueue();
+  this._queue = new utils.OrderedQueue();
   this._pending = 0;
   this._finished = false;
+  this._needPush = false;
 
   this.on('finish', function () {
     this._finished = true;
@@ -25930,19 +25881,16 @@ function BlockEncoder(opts) {
 }
 util.inherits(BlockEncoder, stream.Duplex);
 
-BlockEncoder.prototype._write = function (obj, encoding, cb) {
-  if (!this._writerType) {
-    if (!(obj.$type instanceof types.Type)) {
-      cb(new AvscError('unable to infer writer type'));
-      return;
-    }
-    this._writerType = obj.$type;
-  }
-  this._writeObj = this._writerType._write;
+BlockEncoder.MAGIC_BYTES = MAGIC_BYTES;
 
+BlockEncoder.HEADER_TYPE = HEADER_TYPE;
+
+BlockEncoder.BLOCK_TYPE = BLOCK_TYPE;
+
+BlockEncoder.prototype._write = function (obj, encoding, cb) {
   if (!this._omitHeader) {
     var meta = {
-      'avro.schema': new Buffer(this._writerType.toString()),
+      'avro.schema': new Buffer(this._type.toString()),
       'avro.codec': new Buffer(this._codec)
     };
     var Header = HEADER_TYPE.getRecordConstructor();
@@ -25973,6 +25921,11 @@ BlockEncoder.prototype._writeChunk = function (obj, encoding, cb) {
   var tap = this._tap;
   var pos = tap.pos;
 
+  if (!this._unsafe && !this._type.isValid(obj)) {
+    this.emit('error', new AvscError('invalid object: %j', obj));
+    return;
+  }
+
   this._writeObj.call(tap, obj);
   if (!tap.isValid()) {
     if (pos) {
@@ -25995,8 +25948,7 @@ BlockEncoder.prototype._writeChunk = function (obj, encoding, cb) {
 BlockEncoder.prototype._flushChunk = function (pos) {
   var tap = this._tap;
   pos = pos || tap.pos;
-
-  this._compress(tap.buf.slice(0, pos), this._addBlockCallback());
+  this._compress(tap.buf.slice(0, pos), this._createBlockCallback());
   this._blockCount = 0;
 };
 
@@ -26013,12 +25965,12 @@ BlockEncoder.prototype._read = function () {
   }
 
   this.push(LONG_TYPE.encode(data.count, 10, true));
-  this.push(LONG_TYPE.encode(data.buf.length));
+  this.push(LONG_TYPE.encode(data.buf.length, 10, true));
   this.push(data.buf);
   this.push(this._syncMarker);
 };
 
-BlockEncoder.prototype._addBlockCallback = function () {
+BlockEncoder.prototype._createBlockCallback = function () {
   var self = this;
   var index = this._index++;
   var count = this._blockCount;
@@ -26030,7 +25982,7 @@ BlockEncoder.prototype._addBlockCallback = function () {
       return;
     }
     self._pending--;
-    self._queue.push(new IndexedData(index, data, count));
+    self._queue.push(new BlockData(index, data, count));
     if (self._needPush) {
       self._needPush = false;
       self._read();
@@ -26043,15 +25995,6 @@ BlockEncoder.prototype._addBlockCallback = function () {
 // Helpers.
 
 /**
- * An object with its binary representation.
- *
- */
-function Pair(obj, buf) {
-  this.obj = obj;
-  this.buf = buf;
-}
-
-/**
  * An indexed block.
  *
  * This can be used to preserve block order since compression and decompression
@@ -26059,10 +26002,43 @@ function Pair(obj, buf) {
  * used when encoding.
  *
  */
-function IndexedData(index, buf, count) {
+function BlockData(index, buf, count) {
   this.index = index;
   this.buf = buf;
   this.count = count | 0;
+}
+
+
+/**
+ * Maybe get a block.
+ *
+ */
+function tryReadBlock(tap) {
+  var pos = tap.pos;
+  var block = BLOCK_TYPE._read.call(tap);
+  if (!tap.isValid()) {
+    tap.pos = pos;
+    return null;
+  }
+  return block;
+}
+
+/**
+ * Create bytes consumer, either reading or skipping records.
+ *
+ */
+function createReader(decode, type) {
+  if (decode) {
+    return type._read;
+  } else {
+    return (function (skipper) {
+      return function () {
+        var pos = this.pos;
+        skipper.call(this);
+        return this.buf.slice(pos, this.pos);
+      };
+    })(type._skip);
+  }
 }
 
 
@@ -26381,16 +26357,17 @@ module.exports = Tap;
 (function (Buffer){
 /* jshint node: true */
 
+// TODO: Support JS keywords as record field names (e.g. `null`).
+// TODO: Try copying instead of slicing for encoding (from a large shared
+// buffer per type).
+// TODO: Add logging using `debuglog` to help identify schema parsing errors.
+// TODO: Implement `clone` method.
+// TODO: Create `Field` class.
+// TODO: Strip more keys from canonical schema (in case they get added in a
+// type hook).
+
 'use strict';
 
-// TODO: Add `equals` (and `compare`?) method to each type.
-// TODO: Add regex check for valid type and field names.
-// TODO: Support JS keywords as record field names (e.g. `null`).
-// TODO: Add logging using `debuglog` to help identify schema parsing errors.
-// TODO: Enable recursive schema JSON serialization without a replacer.
-// TODO: Implement `clone` method.
-// TODO: Implememt `toString` method on types which returns canonical string.
-// TODO: Create `Field` class.
 
 var Tap = require('./tap'),
     utils = require('./utils'),
@@ -26548,7 +26525,7 @@ Type.prototype._skip = utils.abstractFunction;
 Type.prototype._write = utils.abstractFunction;
 
 /**
- * Generate an adapter for the given type.
+ * Generate an resolver for the given type.
  *
  * @param type {Type} Writer type.
  * @param opts {Object} Options:
@@ -26556,12 +26533,12 @@ Type.prototype._write = utils.abstractFunction;
  *  + `registry` {Object}
  *
  * This method should not be called directly! It is called internally by
- * `createAdapter`, which handles things like unions properly. For convenience,
- * `createAdapter` will also raise an error if `_createAdapter` returns a
+ * `createResolver`, which handles things like unions properly. For convenience,
+ * `createResolver` will also raise an error if `_createResolver` returns a
  * false-ish value.
  *
  */
-Type.prototype._createAdapter = utils.abstractFunction;
+Type.prototype._createResolver = utils.abstractFunction;
 
 /**
  * Check that the object can be encoded by this type.
@@ -26583,76 +26560,76 @@ Type.prototype.random = utils.abstractFunction;
  * @param type {Type} Writer type.
  * @param opts {Object} Options. Available keys:
  *
- *  + `registry`, Dictionary of already generated adapters. This is required to
+ *  + `registry`, Dictionary of already generated resolvers. This is required to
  *    support some recursive schemas.
  *
  * Throws an error if incompatible.
  *
  */
-Type.prototype.createAdapter = function (type, opts) {
+Type.prototype.createResolver = function (type, opts) {
   opts = opts || {};
   opts.registry = opts.registry || {};
 
-  var adapter, key;
+  var resolver, key;
   if (this.type === 'record' && type.type === 'record') {
     key = this.name + ':' + type.name; // ':' is illegal in Avro type names.
-    adapter = opts.registry[key];
-    if (adapter) {
-      return adapter;
+    resolver = opts.registry[key];
+    if (resolver) {
+      return resolver;
     }
   }
 
-  adapter = new Adapter(this, type);
+  resolver = new Resolver(this, type);
 
-  if (key) { // Register adapter early for recursive schemas.
-    opts.registry[key] = adapter;
+  if (key) { // Register resolver early for recursive schemas.
+    opts.registry[key] = resolver;
   }
 
   if (type instanceof UnionType) {
-    var adapters = type.types.map(function (t) {
-      return this.createAdapter(t, opts);
+    var resolvers = type.types.map(function (t) {
+      return this.createResolver(t, opts);
     }, this);
-    adapter._read = function () {
+    resolver._read = function () {
       var index = this.readLong();
-      var adapter = adapters[index];
-      if (adapter === undefined) {
+      var resolver = resolvers[index];
+      if (resolver === undefined) {
         throw new AvscError('invalid union index: %s', index);
       }
-      return adapters[index]._read.call(this);
+      return resolvers[index]._read.call(this);
     };
   } else {
-    adapter._read = this._createAdapter(type, opts);
+    resolver._read = this._createResolver(type, opts);
   }
 
-  if (!adapter._read) {
+  if (!resolver._read) {
     throw new AvscError('incompatible types: %j %j', this, type);
   }
-  return adapter;
+  return resolver;
 };
 
 /**
  * Decode Avro bytes.
  *
  * @param buf {Buffer} Avro representation of an object.
- * @param adapter {Adapter} Optional adapter to decode records serialized from
- * another schema. See `createAdapter` for details.
+ * @param resolver {Resolver} Optional resolver to decode records serialized from
+ * another schema. See `createResolver` for details.
  * @param opts {Object} Options:
  *
  *  + `strict` {Boolean} Fail if part of the input buffer remains un-decoded.
- *    Defaults to true when no adapter is specified, and false otherwise.
+ *    Defaults to true when no resolver is specified, and false otherwise.
  *
  * Note: preliminary testing showed that reusing instances brings no
  * significant benefit (it doesn't appear cheaper than creating new objects).
  *
  */
-Type.prototype.decode = function (buf, adapter, unsafe) {
+Type.prototype.decode = function (buf, resolver, unsafe) {
   var tap = new Tap(buf);
   var reader;
-  if (adapter) {
-    if (adapter._readerType !== this) {
-      throw new AvscError('invalid adapter');
+  if (resolver) {
+    if (resolver._readerType !== this) {
+      throw new AvscError('invalid resolver');
     }
-    reader = adapter._read;
+    reader = resolver._read;
   } else {
     reader = this._read;
   }
@@ -26730,12 +26707,10 @@ Type.prototype.toString = function () {
  *
  */
 Type.prototype.createFingerprint = function (algorithm) {
-
   algorithm = algorithm || 'md5';
   var hash = crypto.createHash(algorithm);
   hash.end(this.toString());
   return hash.read();
-
 };
 
 // Implementations.
@@ -26804,7 +26779,7 @@ function PrimitiveType(name) {
 }
 util.inherits(PrimitiveType, Type);
 
-PrimitiveType.prototype._createAdapter = function (type) {
+PrimitiveType.prototype._createResolver = function (type) {
   var name = this.type;
   if (
     type instanceof PrimitiveType &&
@@ -26902,26 +26877,23 @@ function WrappedUnionType(schema, opts) {
     }
   };
 
-  this._createAdapter = function (type, opts) {
-
+  this._createResolver = function (type, opts) {
     // jshint -W083
     // (The loop exits after the first function is created.)
-
-    var i, l, adapter, Class;
+    var i, l, resolver, Class;
     for (i = 0, l = this.types.length; i < l; i++) {
       try {
-        adapter = this.types[i].createAdapter(type, opts);
+        resolver = this.types[i].createResolver(type, opts);
       } catch (err) {
         continue;
       }
       Class = constructors[i];
       if (Class) {
-        return function () { return new Class(adapter._read.call(this)); };
+        return function () { return new Class(resolver._read.call(this)); };
       } else {
         return function () { return null; };
       }
     }
-
   };
 
   this.isValid = function (obj) {
@@ -26995,20 +26967,19 @@ function UnwrappedUnionType(schema, opts) {
 }
 util.inherits(UnwrappedUnionType, UnionType);
 
-UnwrappedUnionType.prototype._createAdapter = function (type, opts) {
+UnwrappedUnionType.prototype._createResolver = function (type, opts) {
   // jshint -W083
   // (The loop exits after the first function is created.)
-
-  var i, l, adapter;
+  var i, l, resolver;
   for (i = 0, l = this.types.length; i < l; i++) {
     try {
-      adapter = this.types[i].createAdapter(type, opts);
+      resolver = this.types[i].createResolver(type, opts);
     } catch (err) {
       continue;
     }
-    // We don't return `adapter._read` directly because this property might not
+    // We don't return `resolver._read` directly because this property might not
     // be available yet (when the schema is recursive).
-    return function () { return adapter._read.call(this); };
+    return function () { return resolver._read.call(this); };
   }
 };
 
@@ -27079,7 +27050,7 @@ EnumType.prototype.random = function () {
   return RANDOM.choice(this.symbols);
 };
 
-EnumType.prototype._createAdapter = function (type) {
+EnumType.prototype._createResolver = function (type) {
   var symbols = this.symbols;
   if (
     type instanceof EnumType &&
@@ -27131,7 +27102,7 @@ FixedType.prototype.random = function () {
   return RANDOM.nextBuffer(this.size);
 };
 
-FixedType.prototype._createAdapter = function (type) {
+FixedType.prototype._createResolver = function (type) {
   if (
     type instanceof FixedType &&
     this.size === type.size &&
@@ -27192,11 +27163,11 @@ MapType.prototype.random = function () {
   return obj;
 };
 
-MapType.prototype._createAdapter = function (type, opts) {
+MapType.prototype._createResolver = function (type, opts) {
   if (type instanceof MapType) {
     var reader = Tap.prototype.readMap;
-    var adapter = this.values.createAdapter(type.values, opts);
-    return function () { return reader.call(this, adapter._read); };
+    var resolver = this.values.createResolver(type.values, opts);
+    return function () { return reader.call(this, resolver._read); };
   }
 };
 
@@ -27245,11 +27216,11 @@ ArrayType.prototype.random = function () {
   return arr;
 };
 
-ArrayType.prototype._createAdapter = function (type, opts) {
+ArrayType.prototype._createResolver = function (type, opts) {
   if (type instanceof ArrayType) {
     var reader = Tap.prototype.readArray;
-    var adapter = this.items.createAdapter(type.items, opts);
-    return function () { return reader.call(this, adapter._read); };
+    var resolver = this.items.createResolver(type.items, opts);
+    return function () { return reader.call(this, resolver._read); };
   }
 };
 
@@ -27328,7 +27299,7 @@ function RecordType(schema, opts) {
 
   this._construct = this._createConstructor();
 
-  this._read = this._createReader(this);
+  this._read = this._createReader();
 
   this._skip = this._createSkipper();
 
@@ -27340,7 +27311,6 @@ util.inherits(RecordType, Type);
 
 RecordType.prototype.random = function () {
   // jshint -W058
-
   var fields = [undefined];
   var i, l;
   for (i = 0, l = this.fields.length; i < l; i++) {
@@ -27355,7 +27325,6 @@ RecordType.prototype.getRecordConstructor = function () {
 
 RecordType.prototype._createConstructor = function () {
   // jshint -W054
-
   var outerArgs = [];
   var innerArgs = [];
   var innerBody = '';
@@ -27399,7 +27368,6 @@ RecordType.prototype._createConstructor = function () {
 
 RecordType.prototype._createReader = function () {
   // jshint -W054
-
   var uname = unqualify(this.name);
   var names = [];
   var values = [this._construct];
@@ -27420,7 +27388,6 @@ RecordType.prototype._createReader = function () {
 
 RecordType.prototype._createSkipper = function () {
   // jshint -W054
-
   var args = [];
   var body = 'return function skip' + unqualify(this.name) + '() {\n';
   var values = [];
@@ -27436,9 +27403,7 @@ RecordType.prototype._createSkipper = function () {
 
 RecordType.prototype._createWriter = function () {
   // jshint -W054
-
   // We still do default handling here, in case a normal JS object is passed.
-
   var args = [];
   var body = 'return function write' + unqualify(this.name) + '(obj) {\n';
   var values = [];
@@ -27474,7 +27439,6 @@ RecordType.prototype._createWriter = function () {
 
 RecordType.prototype._createChecker = function () {
   // jshint -W054
-
   var names = [];
   var values = [];
   var body = 'return function check' + unqualify(this.name) + '(obj) {\n';
@@ -27499,9 +27463,8 @@ RecordType.prototype._createChecker = function () {
   return new Function(names.join(), body).apply(undefined, values);
 };
 
-RecordType.prototype._createAdapter = function (type, opts) {
+RecordType.prototype._createResolver = function (type, opts) {
   // jshint -W054
-
   if (!~getAliases(this).indexOf(type.name)) {
     throw new AvscError('no alias for %s in %s', type.name, this.name);
   }
@@ -27511,7 +27474,7 @@ RecordType.prototype._createAdapter = function (type, opts) {
   var wFieldsMap = utils.toMap(wFields, function (f) { return f.name; });
 
   var innerArgs = []; // Arguments for reader constructor.
-  var adapters = {}; // Adapters keyed by writer field name.
+  var resolvers = {}; // Resolvers keyed by writer field name.
   var i, j, field, name, names, matches;
   for (i = 0; i < rFields.length; i++) {
     field = rFields[i];
@@ -27533,8 +27496,8 @@ RecordType.prototype._createAdapter = function (type, opts) {
       innerArgs.push('undefined');
     } else {
       name = matches[0];
-      adapters[name] = {
-        adapter: field.type.createAdapter(wFieldsMap[name].type, opts),
+      resolvers[name] = {
+        resolver: field.type.createResolver(wFieldsMap[name].type, opts),
         name: field.name // Reader field name.
       };
       innerArgs.push(field.name);
@@ -27544,7 +27507,7 @@ RecordType.prototype._createAdapter = function (type, opts) {
   // See if we can add a bypass for unused fields at the end of the record.
   var lazyIndex = -1;
   i = wFields.length;
-  while (i && adapters[wFields[--i].name] === undefined) {
+  while (i && resolvers[wFields[--i].name] === undefined) {
     lazyIndex = i;
   }
 
@@ -27559,14 +27522,14 @@ RecordType.prototype._createAdapter = function (type, opts) {
     field = type.fields[i];
     name = field.name;
     body += i >= lazyIndex ? '    ' : '  ';
-    if (adapters[name] === undefined) {
+    if (resolvers[name] === undefined) {
       args.push('t' + i);
       values.push(field.type);
       body += 't' + i + '._skip.call(this);\n';
     } else {
       args.push('t' + i);
-      values.push(adapters[name].adapter);
-      body += 'var ' + adapters[name].name + ' = ';
+      values.push(resolvers[name].resolver);
+      body += 'var ' + resolvers[name].name + ' = ';
       body += 't' + i + '._read.call(this);\n';
     }
   }
@@ -27580,10 +27543,10 @@ RecordType.prototype._createAdapter = function (type, opts) {
 // General helpers.
 
 /**
- * Adapter to read a writer's schema as a new schema.
+ * Resolver to read a writer's schema as a new schema.
  *
  */
-function Adapter(readerType, writerType) {
+function Resolver(readerType, writerType) {
   this._readerType = readerType;
   this._writerType = writerType; // Not used currently.
   this._read = null; // Added afterwards (late binding to support recursion).

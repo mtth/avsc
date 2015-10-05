@@ -154,19 +154,17 @@
     var size = hexArray.length;
     var buffer = [];
     for (i =0; i < size; i++){
-      buffer.push(new Buffer(hexArray[i].substr(2), 'hex'));
+      buffer.push(new Buffer(hexArray[i], 'hex'));
     }
     return Buffer.concat(buffer);
   }
 
   function bufferToStr(buffer) {
     var size = buffer.length;
-    var hexPrefix = '0x';
     var outStr = '';
     var i;
     for (i = 0; i < size; i++) {
-      outStr += hexPrefix + 
-                buffer.toString('hex', i , i+1) +
+      outStr +=  buffer.toString('hex', i , i+1) +
                 '\n';
     }
     return outStr;
