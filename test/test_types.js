@@ -715,9 +715,12 @@ suite('types', function () {
       var type = fromSchema({
         type: 'record',
         name: 'Person',
-        fields: [{name: 'age', type: 'int', 'default': 25}]
+        fields: [
+          {name: 'age', type: 'int', 'default': 25},
+          {name: 'name', type: 'string', 'default': '\x01'}
+        ]
       });
-      assert.deepEqual(type.toBuffer({}), new Buffer([50]));
+      assert.deepEqual(type.toBuffer({}), new Buffer([50, 2, 1]));
     });
 
     test('fixed string default', function () {
