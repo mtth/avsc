@@ -14,7 +14,7 @@ var reader;
 
 avsc.decodeFile(process.argv[2])
   .on('metadata', function (type) {
-    var schema = new io.Schema.Schema(type);
+    var schema = new io.Schema.Schema(JSON.parse(type.toString()));
     reader = new io.IO.DatumReader(schema, schema);
   })
   .on('data', function (record) { bufs.push(record.$toBuffer()); })

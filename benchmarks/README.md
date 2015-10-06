@@ -5,7 +5,7 @@
 To run all available benchmarks:
 
 ```bash
-$ python run.py >timings.json
+$ python tools/run.py >timings.json
 ```
 
 Logging messages will be printed to standard error. Any benchmarks with missing
@@ -15,7 +15,7 @@ analysis (e.g. using `pandas`, see below).
 For more options (e.g. choosing which schemas or libraries to benchmark):
 
 ```bash
-$ python run.py -h
+$ python tools/run.py -h
 ```
 
 

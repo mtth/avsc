@@ -14,7 +14,7 @@ var writer;
 
 avsc.decodeFile(process.argv[2])
   .on('metadata', function (type) {
-    var schema = new io.Schema.Schema(type);
+    var schema = new io.Schema.Schema(JSON.parse(type.toString()));
     writer = new io.IO.DatumWriter(schema);
   })
   .on('data', function (record) { records.push(record); })
@@ -44,7 +44,7 @@ function serialize(datum) {
   });
   writer.write(datum, encoder);
   return buffer;
-};
+}
 
 function loop() {
   var n = 0;

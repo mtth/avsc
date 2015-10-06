@@ -38,7 +38,7 @@ import sys
 _logger = lg.getLogger(__name__)
 lg.basicConfig(level=lg.INFO)
 
-DPATH = osp.dirname(__file__)
+DPATH = osp.dirname(osp.dirname(__file__))
 
 
 def build_avsc_jar():
