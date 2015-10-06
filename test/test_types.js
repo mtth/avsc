@@ -673,6 +673,14 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
     });
 
+    test('resolve double > double', function () {
+      var t = new types.MapType({type: 'map', values: 'double'});
+      var resolver = t.createResolver(t);
+      var obj = {one: 1, two: 2};
+      var buf = t.toBuffer(obj);
+      assert.deepEqual(t.fromBuffer(buf, resolver), obj);
+    });
+
     test('resolve invalid', function () {
       var t1 = new types.MapType({type: 'map', values: 'int'});
       var t2 = new types.MapType({type: 'map', values: 'string'});
@@ -1456,9 +1464,15 @@ suite('types', function () {
 
   });
 
-  suite('resolve unions', function () {
+  suite('resolve', function () {
 
-    test('to valid union', function () {
+    test('non type', function () {
+      var t = fromSchema({type: 'map', values: 'int'});
+      var obj = {type: 'map', values: 'int'};
+      assert.throws(function () { t.createResolver(obj); }, AvscError);
+    });
+
+    test('union to valid union', function () {
       var t1 = fromSchema(['int', 'string']);
       var t2 = fromSchema(['null', 'string', 'long']);
       var resolver = t2.createResolver(t1);
@@ -1466,13 +1480,13 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(buf, resolver), {'long': 12});
     });
 
-    test('to invalid union', function () {
+    test('union to invalid union', function () {
       var t1 = fromSchema(['int', 'string']);
       var t2 = fromSchema(['null', 'long']);
       assert.throws(function () { t2.createResolver(t1); }, AvscError);
     });
 
-    test('to non union', function () {
+    test('union to non union', function () {
       var t1 = fromSchema(['int', 'long']);
       var t2 = fromSchema('long');
       var resolver = t2.createResolver(t1);
@@ -1482,7 +1496,7 @@ suite('types', function () {
       assert.throws(function () { t2.fromBuffer(buf, resolver); }, AvscError);
     });
 
-    test('to invalid non union', function () {
+    test('union to invalid non union', function () {
       var t1 = fromSchema(['int', 'long']);
       var t2 = fromSchema('int');
       assert.throws(function() { t2.createResolver(t1); }, AvscError);
