@@ -962,6 +962,16 @@ suite('types', function () {
       assert.deepEqual(p.address, {street: null, zip: {'int': 123}});
     });
 
+    test('record keyword field name', function () {
+      var type = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'null', type: 'int'}]
+      });
+      var Person = type.getRecordConstructor();
+      assert.deepEqual(new Person(2), {'null': 2});
+    });
+
     test('record isValid', function () {
       var type = fromSchema({
         type: 'record',
