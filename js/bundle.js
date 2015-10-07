@@ -25254,6 +25254,8 @@ module.exports = function(arr, obj){
     var parsedSchema;
     var encodedErrorElement = $('#encoded-error');
     var decodedErrorElement = $('#decoded-error');
+    var inputElement = $('#input');
+    var outputElement = $('#output');
     window.onresize = function(event) {
       resize();
     }
@@ -25261,6 +25263,10 @@ module.exports = function(arr, obj){
     $('#schema').on('paste keyup', function(e) {
       setTimeout(function(){
         validateSchema();
+      }, 0);
+    }).on('input propertychange paste', function(e) {
+        setTimeout(function() {
+          generateRandom();
       }, 0);
     });
 
@@ -25276,18 +25282,10 @@ module.exports = function(arr, obj){
       }, 0);
     });
 
-   $('#encode').click(function() {
-      encode();     
-    });
-
-    $('#decode').click(function() {
-      decode();
-    });
-
-    $('#random').click(function() {
+    $('#random').click(function () {
       generateRandom();
     });
-
+         
    function validateSchema() {
       parsedSchema = null;
       var elem = $('#schema');
@@ -25296,7 +25294,6 @@ module.exports = function(arr, obj){
         var schema = readInput('#schema');
         parsedSchema = avsc.parse(schema);
         clearError(error_elem, 'Valid Schema!');
-        generateRandom();
       } catch (err) {
         showError(error_elem, err);
       }
@@ -25314,7 +25311,7 @@ module.exports = function(arr, obj){
         try{
           var random = parsedSchema.random();
           var randomStr = JSON.stringify(random, null, 2);
-          $('#input').val(randomStr);
+          inputElement.val(randomStr);
           encode(); /* Update encoded string too. */
           clearErrors();
           clearError(decodedErrorElement, 'Valid input!');
@@ -25327,13 +25324,15 @@ module.exports = function(arr, obj){
     function encode() {
       if (parsedSchema) {
         try {
-          var input = readInput('#input');
+          var input = readInput(inputElement);
           var output = parsedSchema.encode(input);
-          $('#output').val(bufferToStr(output));
+          outputElement.val(bufferToStr(output));
           clearErrors();
-          clearError(decodedErrorElement, 'Valid Input!');
+          clearError(decodedErrorElement, 'Valid input!');
         }catch(err) {
+          clearErrors();
           showError(decodedErrorElement, err);
+          clearText(outputElement);
         }
       } else {
         showError(decodedErrorElement, 'No valid schema found!');
@@ -25342,15 +25341,17 @@ module.exports = function(arr, obj){
 
     function decode() {
       if (parsedSchema) {
-        var input = readBuffer('#output');
         try {
+          var input = readBuffer(outputElement);
           var decoded = parsedSchema.decode(input);
           decoded = JSON.stringify(decoded, null, 2);
-          $('#input').val(decoded);
+          $(inputElement).val(decoded);
           clearErrors();
           clearError(encodedErrorElement, 'Valid encoded record!');
         }catch(err) {
+          clearErrors();
           showError(encodedErrorElement,err);
+          clearText(inputElement);
         }
       } else {
         showError(encodedErrorElement, 'No valid schema found!');
@@ -25373,46 +25374,50 @@ module.exports = function(arr, obj){
         element.text(err);
       }
     }
-  });
 
-  function readInput(elementId) {
-    var rawSchema = $.trim($(elementId).val());
-    /* Handle primitive types that don't need to be json. */
-    if (!rawSchema.startsWith('{')) {
-      return rawSchema;
+    function clearText(element) {
+      element.val('');
     }
-    var parsedSchema = JSON.parse(rawSchema);
-    return parsedSchema;
-  }
-
-  function readBuffer(elementId) {
-    var rawInput = $.trim($(elementId).val());
-    var hexArray = rawInput.split('\n');
-    var i;
-    var size = hexArray.length;
-    var buffer = [];
-    for (i =0; i < size; i++){
-      buffer.push(new Buffer(hexArray[i], 'hex'));
+ 
+    function readInput(elementId) {
+      var rawSchema = $.trim($(elementId).val());
+      /* Handle primitive types that don't need to be json. */
+      if (!rawSchema.startsWith('{')) {
+        return rawSchema;
+      }
+      var parsedSchema = JSON.parse(rawSchema);
+      return parsedSchema;
     }
-    return Buffer.concat(buffer);
-  }
 
-  function bufferToStr(buffer) {
-    var size = buffer.length;
-    var outStr = '';
-    var i;
-    for (i = 0; i < size; i++) {
-      outStr +=  buffer.toString('hex', i , i+1) +
-                '\n';
+    function readBuffer(elementId) {
+      var rawInput = $.trim($(elementId).val());
+      var hexArray = rawInput.split('\n');
+      var i;
+      var size = hexArray.length;
+      var buffer = [];
+      for (i =0; i < size; i++){
+        buffer.push(new Buffer(hexArray[i], 'hex'));
+      }
+      return Buffer.concat(buffer);
     }
-    return outStr;
-  }
-  /* Adjust textbox heights according to current window size */
-  function resize() {
-    var vph = $(window).height();
-    $('.textbox').css({'height': vph - 100});
-  }
 
+    function bufferToStr(buffer) {
+      var size = buffer.length;
+      var outStr = '';
+      var i;
+      for (i = 0; i < size; i++) {
+        outStr +=  buffer.toString('hex', i , i+1) +
+                  '\n';
+      }
+      return outStr;
+    }
+    /* Adjust textbox heights according to current window size */
+    function resize() {
+      $('#table').removeClass('hidden');
+      var vph = $(window).height();
+      $('.textbox').css({'height': vph - 100});
+    }
+ });
 })();
 
 }).call(this,require("buffer").Buffer)

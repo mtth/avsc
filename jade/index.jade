@@ -10,7 +10,7 @@ html(lang='en')
   
   body
     div.container
-      table
+      table#table.hidden
         tr.input-row
           td.wide
             div.outer
@@ -33,3 +33,9 @@ html(lang='en')
               div.label
                 |Encoded data
               div#encoded-error.message.hidden
+        tr.buttons-row
+          td.wide
+            button#random.button-label
+              |Generate Random Input
+          td.wide
+          td.wide
