@@ -55,6 +55,22 @@ suite('index', function () {
 
     });
 
+    test('getFileHeader', function () {
+      var header;
+      var fpath = path.join(DPATH, 'person-10.avro');
+      header = avsc.getFileHeader(fpath);
+      assert(header !== null);
+      assert.equal(typeof header.meta['avro.schema'], 'object');
+      header = avsc.getFileHeader(fpath, {decode: false});
+      assert(Buffer.isBuffer(header.meta['avro.schema']));
+      header = avsc.getFileHeader(fpath, {size: 2});
+      assert.equal(typeof header.meta['avro.schema'], 'object');
+      header = avsc.getFileHeader(path.join(DPATH, 'person-10.avro.raw'));
+      assert(header === null);
+      header = avsc.getFileHeader(path.join(DPATH, 'person-10.no-codec.avro'));
+      assert(header !== null);
+    });
+
   });
 
 });

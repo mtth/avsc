@@ -2,19 +2,18 @@
 
 'use strict';
 
-var streams = require('../lib/streams'),
+var _streams = require('../lib/streams'),
     types = require('../lib/types'),
     utils = require('../lib/utils'),
-    assert = require('assert'),
-    path = require('path');
+    assert = require('assert');
 
 
 var fromSchema = types.Type.fromSchema;
-var DPATH = path.join(__dirname, 'dat');
 var SYNC = new Buffer('atokensyncheader');
 var AvscError = utils.AvscError;
-var Header = streams.BlockEncoder.HEADER_TYPE.getRecordConstructor();
-var MAGIC_BYTES = streams.BlockEncoder.MAGIC_BYTES;
+var Header = _streams.HEADER_TYPE.getRecordConstructor();
+var MAGIC_BYTES = _streams.MAGIC_BYTES;
+var streams = _streams.streams;
 
 
 suite('streams', function () {
@@ -244,24 +243,6 @@ suite('streams', function () {
   suite('BlockDecoder', function () {
 
     var BlockDecoder = streams.BlockDecoder;
-
-    test('getHeader', function () {
-      var header;
-      var fpath = path.join(DPATH, 'person-10.avro');
-      header = BlockDecoder.getHeader(fpath);
-      assert(header !== null);
-      assert.equal(typeof header.meta['avro.schema'], 'object');
-      header = BlockDecoder.getHeader(fpath, {decode: false});
-      assert(Buffer.isBuffer(header.meta['avro.schema']));
-      header = BlockDecoder.getHeader(fpath, {size: 2});
-      assert.equal(typeof header.meta['avro.schema'], 'object');
-      header = BlockDecoder.getHeader(path.join(DPATH, 'person-10.avro.raw'));
-      assert(header === null);
-      header = BlockDecoder.getHeader(
-        path.join(DPATH, 'person-10.no-codec.avro')
-      );
-      assert(header !== null);
-    });
 
     test('invalid magic bytes', function (cb) {
       var decoder = new BlockDecoder()
