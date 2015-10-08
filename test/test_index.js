@@ -14,6 +14,15 @@ suite('index', function () {
 
   suite('parse', function () {
 
+    test('object', function () {
+      var obj = {
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'so', type: 'Person'}]
+      };
+      assert(avsc.parse(obj) instanceof avsc.types.RecordType);
+    });
+
     test('schema instance', function () {
       var type = avsc.parse({
         type: 'record',
@@ -21,6 +30,14 @@ suite('index', function () {
         fields: [{name: 'so', type: 'Person'}]
       });
       assert.strictEqual(avsc.parse(type), type);
+    });
+
+    test('stringified schema', function () {
+      assert(avsc.parse('"int"') instanceof avsc.types.IntType);
+    });
+
+    test('type name', function () {
+      assert(avsc.parse('double') instanceof avsc.types.DoubleType);
     });
 
     test('file', function () {
