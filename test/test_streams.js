@@ -30,7 +30,7 @@ suite('streams', function () {
           assert.strictEqual(buf, undefined);
           buf = chunk;
         })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(buf, new Buffer([2, 0, 3]));
           cb();
         });
@@ -48,7 +48,7 @@ suite('streams', function () {
           assert.strictEqual(buf, undefined);
           buf = chunk;
         })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(buf, data);
           cb();
         });
@@ -62,7 +62,7 @@ suite('streams', function () {
       var chunks = [];
       var encoder = new RawEncoder(t, {batchSize: 2})
         .on('data', function (chunk) { chunks.push(chunk); })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(chunks, [data, data]);
           cb();
         });
@@ -76,15 +76,11 @@ suite('streams', function () {
       var chunks = [];
       var encoder = new RawEncoder(t, {batchSize: 2})
         .on('data', function (chunk) { chunks.push(chunk); })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(chunks, []);
           cb();
         });
       encoder.end();
-    });
-
-    test('missing writer type', function () {
-      assert.throws(function () { new RawEncoder(); }, AvscError);
     });
 
     test('missing writer type', function () {
@@ -109,7 +105,7 @@ suite('streams', function () {
       var objs = [];
       var decoder = new RawDecoder(t)
         .on('data', function (obj) { objs.push(obj); })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(objs, [0]);
           cb();
         });
@@ -125,7 +121,7 @@ suite('streams', function () {
       var objs = [];
       var decoder = new RawDecoder(t)
         .on('data', function (obj) { objs.push(obj); })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(objs, [1, 2]);
           cb();
         });
@@ -139,7 +135,7 @@ suite('streams', function () {
       var objs = [];
       var decoder = new RawDecoder(t, {decode: false})
         .on('data', function (obj) { objs.push(obj); })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(objs, bufs);
           cb();
         });
@@ -152,7 +148,7 @@ suite('streams', function () {
       var objs = [];
       var decoder = new RawDecoder(t)
         .on('data', function (obj) { objs.push(obj); })
-        .on('finish', function () {
+        .on('end', function () {
           assert.deepEqual(objs, [new Buffer([6])]);
           cb();
         });
@@ -161,6 +157,131 @@ suite('streams', function () {
       process.nextTick(function () { decoder.end(new Buffer([6])); });
     });
 
+  });
+
+  suite('FrameEncoder', function () {
+
+    var FrameEncoder = streams.FrameEncoder;
+    var END = new Buffer([0, 0, 0, 0]);
+
+    test('write once', function (cb) {
+      var t = fromSchema('int');
+      var bufs = [];
+      var encoder = new FrameEncoder(t)
+        .on('data', function (chunk) {
+          bufs.push(chunk);
+        })
+        .on('end', function () {
+          assert.deepEqual(bufs, [new Buffer([0, 0, 0, 1, 2]), END]);
+          cb();
+        });
+      encoder.end(1);
+    });
+
+    test('resize', function (cb) {
+      var t = fromSchema({type: 'fixed', name: 'A', size: 2});
+      var data = new Buffer([48, 18]);
+      var bufs = [];
+      var encoder = new FrameEncoder(t, {frameSize: 1})
+        .on('data', function (chunk) {
+          bufs.push(chunk);
+        })
+        .on('end', function () {
+          assert.deepEqual(bufs, [new Buffer([0, 0, 0, 2, 48, 18]), END]);
+          cb();
+        });
+      encoder.write(data);
+      encoder.end();
+    });
+
+    test('empty', function (cb) {
+      var t = fromSchema('int');
+      var chunks = [];
+      var encoder = new FrameEncoder(t, {batchSize: 2})
+        .on('data', function (chunk) { chunks.push(chunk); })
+        .on('end', function () {
+          assert.deepEqual(chunks, [END]);
+          cb();
+        });
+      encoder.end();
+    });
+
+    test('missing writer type', function () {
+      assert.throws(function () { new FrameEncoder(); }, AvscError);
+    });
+
+    test('invalid object', function (cb) {
+      var t = fromSchema('int');
+      var encoder = new FrameEncoder(t)
+        .on('error', function () { cb(); });
+      encoder.write('hi');
+    });
+
+  });
+
+  suite('FrameDecoder', function () {
+
+    var FrameDecoder = streams.FrameDecoder;
+
+    test('single item', function (cb) {
+      var t = fromSchema('int');
+      var objs = [];
+      var decoder = new FrameDecoder(t)
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, [0]);
+          cb();
+        });
+      decoder.end(new Buffer([0, 0, 0, 1, 0, 0, 0, 0, 0]));
+    });
+
+    test('no writer type', function () {
+      assert.throws(function () { new FrameDecoder(); }, AvscError);
+    });
+
+    test('decoding no trailing', function (cb) {
+      var t = fromSchema('int');
+      var objs = [];
+      var decoder = new FrameDecoder(t)
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, [1, 2]);
+          cb();
+        });
+      decoder.write(new Buffer([0, 0, 0, 1, 2]));
+      decoder.end(new Buffer([0, 0, 0, 1, 4]));
+    });
+
+    test('no decoding', function (cb) {
+      var t = fromSchema('int');
+      var bufs = [new Buffer([3]), new Buffer([124, 5])];
+      var objs = [];
+      var decoder = new FrameDecoder(t, {decode: false})
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, bufs);
+          cb();
+        });
+      decoder.write(new Buffer([0, 0, 0, 1]));
+      decoder.write(bufs[0]);
+      decoder.write(new Buffer([0, 0, 0, 2]));
+      decoder.end(bufs[1]);
+    });
+
+    test('write partial', function (cb) {
+      var t = fromSchema('bytes');
+      var objs = [];
+      var decoder = new FrameDecoder(t)
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, [new Buffer([1])]);
+          cb();
+        });
+      decoder.write(new Buffer([0, 0]));
+      decoder.write(new Buffer([0, 2, 2]));
+      // Let the first read go through (and return null).
+      process.nextTick(function () { decoder.end(new Buffer([1])); });
+    });
 
   });
 
@@ -236,6 +357,17 @@ suite('streams', function () {
         });
       encoder.write(buf);
       encoder.end(buf);
+    });
+
+    test('compression error', function (cb) {
+      var t = fromSchema('int');
+      var chunks = [];
+      var codecs = {
+        invalid: function (data, cb) { cb(new AvscError('ouch')); }
+      };
+      var encoder = new BlockEncoder(t, {codec: 'invalid', codecs: codecs})
+        .on('error', function () { cb(); });
+      encoder.end(12);
     });
 
   });
@@ -374,6 +506,31 @@ suite('streams', function () {
         encoder.write(p1[i]);
       }
       encoder.end();
+    });
+
+    test('decompression error', function (cb) {
+      var t = fromSchema('int');
+      var codecs = {
+        'null': function (data, cb) { cb(new AvscError('ouch')); }
+      };
+      var encoder = new streams.BlockEncoder(t, {codec: 'null'});
+      var decoder = new streams.BlockDecoder({codecs: codecs})
+        .on('error', function (err) { cb(); });
+      encoder.pipe(decoder);
+      encoder.end(1);
+    });
+
+    test('decompression late read', function (cb) {
+      var chunks = [];
+      var encoder = new streams.BlockEncoder(fromSchema('int'));
+      var decoder = new streams.BlockDecoder();
+      encoder.pipe(decoder);
+      encoder.end(1);
+      decoder.on('data', function (chunk) { chunks.push(chunk); })
+        .on('end', function () {
+          assert.deepEqual(chunks, [1]);
+          cb();
+        });
     });
 
   });
