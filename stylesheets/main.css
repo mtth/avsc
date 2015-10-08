@@ -1,11 +1,11 @@
 body {
-  background-color: #2E2F2E;
+  background-color: #DEDEDE;
 }
 .container {
   margin: auto;
   font-family: Helvetica, arial, freesans, clean, sans-serif;
   font-size: 1em;
-  background-color: #2E2F2E;
+  background-color: #DEDEDE;
 }
 .valid {
   background-color: rgba(65, 239, 160, 0.78);
@@ -26,9 +26,9 @@ body {
   color: #CACCCB;
   font-weight: 200;
   font-family: "Courier New", Courier, monospace;
-  border-radius: 3px;
   resize: none;
-  background-color: black; 
+  border: none;
+  background-color: white; 
 }
 .narrow {
   width: 10%;
@@ -44,6 +44,7 @@ table {
   left: 5px;
   right: 5px;
   position: absolute;
+  table-layout: fixed;
 }
 td {
   text-align: center;
@@ -59,7 +60,6 @@ button {
   color: #FFFFFF;
 }
 .label {
-  border-radius: 3px;
   padding: 2px;
   opacity: 0.8;
   font-size: 11px;
@@ -90,3 +90,39 @@ button {
   position: relative;
   height: 98%;
 }
+.tooltip-wrapper {
+  border: 1px solid #999;
+  height: 20em;
+  position: relative;
+  width: 100%;
+}
+
+.tooltip-circle{
+  background-color: #169ccc;
+  border: 1px solid #999;
+  height: 10em;
+  position: absolute;
+  width: 90%;
+  -moz-border-radius: 80px;
+  -webkit-border-radius: 80px;
+  border-radius: 80px;    
+  height:3em;
+  top:10%;
+  left: 5%;
+}
+
+.tooltip-triangle
+{
+  border-color: transparent transparent #169ccc transparent;
+  border-style: solid;
+  border-width: 2em;
+  position: relative;
+  top: -1em;
+  left: 2em;
+  -webkit-transform:rotate(-6deg);
+  -moz-transform: rotate(-40deg);
+  width: 0px;
+}
+
+
+

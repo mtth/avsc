@@ -1,0 +1,96 @@
+0 info it worked if it ends with ok
+1 verbose cli [ 'node', '/Users/nmirian/.npmprefix/bin/npm', 'install', '.' ]
+2 info using npm@1.4.23
+3 info using node@v0.10.29
+4 verbose readDependencies using package.json deps
+5 verbose install where, deps [ '/Users/nmirian/w2/avsc',
+5 verbose install   [ 'avsc', 'buffer', 'jquery', 'jquery-ui' ] ]
+6 info preinstall @0.0.1
+7 warn package.json buffer@3.5.0 buffer is also the name of a node core module.
+8 verbose readDependencies using package.json deps
+9 verbose already installed skipping jquery-ui@^1.10.5 /Users/nmirian/w2/avsc
+10 verbose cache add [ 'avsc@^2.0.0', null ]
+11 verbose cache add name=undefined spec="avsc@^2.0.0" args=["avsc@^2.0.0",null]
+12 verbose parsed url { protocol: null,
+12 verbose parsed url   slashes: null,
+12 verbose parsed url   auth: null,
+12 verbose parsed url   host: null,
+12 verbose parsed url   port: null,
+12 verbose parsed url   hostname: null,
+12 verbose parsed url   hash: null,
+12 verbose parsed url   search: null,
+12 verbose parsed url   query: null,
+12 verbose parsed url   pathname: 'avsc@^2.0.0',
+12 verbose parsed url   path: 'avsc@^2.0.0',
+12 verbose parsed url   href: 'avsc@^2.0.0' }
+13 verbose already installed skipping jquery@^2.1.4 /Users/nmirian/w2/avsc
+14 verbose already installed skipping buffer@^3.5.0 /Users/nmirian/w2/avsc
+15 verbose cache add name="avsc" spec="^2.0.0" args=["avsc","^2.0.0"]
+16 verbose parsed url { protocol: null,
+16 verbose parsed url   slashes: null,
+16 verbose parsed url   auth: null,
+16 verbose parsed url   host: null,
+16 verbose parsed url   port: null,
+16 verbose parsed url   hostname: null,
+16 verbose parsed url   hash: null,
+16 verbose parsed url   search: null,
+16 verbose parsed url   query: null,
+16 verbose parsed url   pathname: '^2.0.0',
+16 verbose parsed url   path: '^2.0.0',
+16 verbose parsed url   href: '^2.0.0' }
+17 verbose addNamed [ 'avsc', '^2.0.0' ]
+18 verbose addNamed [ null, '>=2.0.0-0 <3.0.0-0' ]
+19 silly lockFile c50842a3-avsc-2-0-0 avsc@^2.0.0
+20 verbose lock avsc@^2.0.0 /Users/nmirian/.npm/c50842a3-avsc-2-0-0.lock
+21 silly addNameRange { name: 'avsc', range: '>=2.0.0-0 <3.0.0-0', hasData: false }
+22 verbose request where is /avsc
+23 verbose request registry https://registry.npmjs.org/
+24 verbose request id 02421ca56a159281
+25 verbose url raw /avsc
+26 verbose url resolving [ 'https://registry.npmjs.org/', './avsc' ]
+27 verbose url resolved https://registry.npmjs.org/avsc
+28 verbose request where is https://registry.npmjs.org/avsc
+29 info trying registry request attempt 1 at 23:50:38
+30 verbose etag "3ZYX59TEM92JNK8H1K1HJXS49"
+31 http GET https://registry.npmjs.org/avsc
+32 http 304 https://registry.npmjs.org/avsc
+33 silly registry.get cb [ 304,
+33 silly registry.get   { date: 'Wed, 07 Oct 2015 06:50:39 GMT',
+33 silly registry.get     via: '1.1 varnish',
+33 silly registry.get     'cache-control': 'max-age=60',
+33 silly registry.get     etag: '"3ZYX59TEM92JNK8H1K1HJXS49"',
+33 silly registry.get     age: '0',
+33 silly registry.get     connection: 'keep-alive',
+33 silly registry.get     'x-served-by': 'cache-sjc3133-SJC',
+33 silly registry.get     'x-cache': 'MISS',
+33 silly registry.get     'x-cache-hits': '0',
+33 silly registry.get     'x-timer': 'S1444200639.015988,VS0,VE362',
+33 silly registry.get     vary: 'Accept' } ]
+34 verbose etag https://registry.npmjs.org/avsc from cache
+35 silly addNameRange number 2 { name: 'avsc', range: '>=2.0.0-0 <3.0.0-0', hasData: true }
+36 silly addNameRange versions [ 'avsc',
+36 silly addNameRange   [ '0.1.1',
+36 silly addNameRange     '0.1.2',
+36 silly addNameRange     '0.1.3',
+36 silly addNameRange     '0.1.6',
+36 silly addNameRange     '0.1.7',
+36 silly addNameRange     '0.2.0',
+36 silly addNameRange     '1.0.0',
+36 silly addNameRange     '1.0.1',
+36 silly addNameRange     '1.0.2' ] ]
+37 silly lockFile c50842a3-avsc-2-0-0 avsc@^2.0.0
+38 silly lockFile c50842a3-avsc-2-0-0 avsc@^2.0.0
+39 error notarget No compatible version found: avsc@'>=2.0.0-0 <3.0.0-0'
+39 error notarget Valid install targets:
+39 error notarget ["0.1.1","0.1.2","0.1.3","0.1.6","0.1.7","0.2.0","1.0.0","1.0.1","1.0.2"]
+39 error notarget
+39 error notarget This is most likely not a problem with npm itself.
+39 error notarget In most cases you or one of your dependencies are requesting
+39 error notarget a package version that doesn't exist.
+40 error System Darwin 14.5.0
+41 error command "node" "/Users/nmirian/.npmprefix/bin/npm" "install" "."
+42 error cwd /Users/nmirian/w2/avsc
+43 error node -v v0.10.29
+44 error npm -v 1.4.23
+45 error code ETARGET
+46 verbose exit [ 1, true ]
