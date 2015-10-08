@@ -39,6 +39,21 @@ suite('streams', function () {
       encoder.end(-2);
     });
 
+    test('write multiple', function (cb) {
+      var t = fromSchema('int');
+      var bufs = [];
+      var encoder = new RawEncoder(t, {batchSize: 1})
+        .on('data', function (chunk) {
+          bufs.push(chunk);
+        })
+        .on('end', function () {
+          assert.deepEqual(bufs, [new Buffer([1]), new Buffer([2])]);
+          cb();
+        });
+      encoder.write(-1);
+      encoder.end(1);
+    });
+
     test('resize', function (cb) {
       var t = fromSchema({type: 'fixed', name: 'A', size: 2});
       var data = new Buffer([48, 18]);
@@ -176,6 +191,28 @@ suite('streams', function () {
           cb();
         });
       encoder.end(1);
+    });
+
+    test('write multiple', function (cb) {
+      var t = fromSchema('int');
+      var bufs = [];
+      var encoder = new FrameEncoder(t)
+        .on('data', function (chunk) {
+          bufs.push(chunk);
+        })
+        .on('end', function () {
+          assert.deepEqual(
+            bufs,
+            [
+              new Buffer([0, 0, 0, 1, 2]),
+              new Buffer([0, 0, 0, 2, 128, 1]),
+              END
+            ]
+          );
+          cb();
+        });
+      encoder.write(1);
+      encoder.end(64);
     });
 
     test('resize', function (cb) {
@@ -319,7 +356,7 @@ suite('streams', function () {
       encoder.end();
     });
 
-    test('flush', function (cb) {
+    test('flush on finish', function (cb) {
       var t = fromSchema('int');
       var chunks = [];
       var encoder = new BlockEncoder(t, {
@@ -340,6 +377,29 @@ suite('streams', function () {
       encoder.end(4);
     });
 
+    test('flush when full', function (cb) {
+      var chunks = [];
+      var encoder = new BlockEncoder(fromSchema('int'), {
+        omitHeader: true,
+        syncMarker: SYNC,
+        blockSize: 2
+      }).on('data', function (chunk) { chunks.push(chunk); })
+        .on('end', function () {
+          var b1 = new Buffer([2]);
+          var b2 = new Buffer([16]);
+          assert.deepEqual(
+            chunks,
+            [
+              new Buffer([2]), new Buffer([2]), new Buffer([2]), SYNC,
+              new Buffer([2]), new Buffer([4]), new Buffer([128, 1]), SYNC
+            ]
+          );
+          cb();
+        });
+      encoder.write(1);
+      encoder.end(64);
+    });
+
     test('resize', function (cb) {
       var t = fromSchema({type: 'fixed', size: 8, name: 'Eight'});
       var buf = new Buffer('abcdefgh');
@@ -350,9 +410,9 @@ suite('streams', function () {
         blockSize: 4
       }).on('data', function (chunk) { chunks.push(chunk); })
         .on('end', function () {
-          var b1 = new Buffer([2]);
-          var b2 = new Buffer([16]);
-          assert.deepEqual(chunks, [b1, b2, buf, SYNC, b1, b2, buf, SYNC]);
+          var b1 = new Buffer([4]);
+          var b2 = new Buffer([32]);
+          assert.deepEqual(chunks, [b1, b2, Buffer.concat([buf, buf]), SYNC]);
           cb();
         });
       encoder.write(buf);
