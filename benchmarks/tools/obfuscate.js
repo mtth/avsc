@@ -25,7 +25,7 @@ if (!schemaPath) {
   process.exit(1);
 }
 
-var type = avsc.parse(schemaPath, {typeHook: function () {
+var type = avsc.createType(schemaPath, {typeHook: function () {
   if (!this._name) {
     return; // Nothing to mangle.
   }

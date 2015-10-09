@@ -20,7 +20,7 @@ if (!filePath) {
   process.exit(1);
 }
 
-var type = avsc.parse(schemaPath);
+var type = avsc.createType(schemaPath);
 var encoder = new avsc.streams.BlockEncoder(type);
 encoder.pipe(fs.createWriteStream(filePath, {defaultEncoding: 'binary'}));
 

@@ -102,6 +102,10 @@ suite('streams', function () {
       assert.throws(function () { new RawEncoder(); }, AvscError);
     });
 
+    test('invalid writer type', function () {
+      assert.throws(function () { new RawEncoder('int'); }, AvscError);
+    });
+
     test('invalid object', function (cb) {
       var t = fromSchema('int');
       var encoder = new RawEncoder(t)
@@ -385,8 +389,6 @@ suite('streams', function () {
         blockSize: 2
       }).on('data', function (chunk) { chunks.push(chunk); })
         .on('end', function () {
-          var b1 = new Buffer([2]);
-          var b2 = new Buffer([16]);
           assert.deepEqual(
             chunks,
             [
@@ -421,7 +423,6 @@ suite('streams', function () {
 
     test('compression error', function (cb) {
       var t = fromSchema('int');
-      var chunks = [];
       var codecs = {
         invalid: function (data, cb) { cb(new AvscError('ouch')); }
       };
@@ -575,7 +576,7 @@ suite('streams', function () {
       };
       var encoder = new streams.BlockEncoder(t, {codec: 'null'});
       var decoder = new streams.BlockDecoder({codecs: codecs})
-        .on('error', function (err) { cb(); });
+        .on('error', function () { cb(); });
       encoder.pipe(decoder);
       encoder.end(1);
     });
