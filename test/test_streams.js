@@ -4,13 +4,11 @@
 
 var _streams = require('../lib/streams'),
     types = require('../lib/types'),
-    utils = require('../lib/utils'),
     assert = require('assert');
 
 
 var fromSchema = types.Type.fromSchema;
 var SYNC = new Buffer('atokensyncheader');
-var AvscError = utils.AvscError;
 var Header = _streams.HEADER_TYPE.getRecordConstructor();
 var MAGIC_BYTES = _streams.MAGIC_BYTES;
 var streams = _streams.streams;
@@ -99,11 +97,11 @@ suite('streams', function () {
     });
 
     test('missing writer type', function () {
-      assert.throws(function () { new RawEncoder(); }, AvscError);
+      assert.throws(function () { new RawEncoder(); });
     });
 
     test('invalid writer type', function () {
-      assert.throws(function () { new RawEncoder('int'); }, AvscError);
+      assert.throws(function () { new RawEncoder('int'); });
     });
 
     test('invalid object', function (cb) {
@@ -132,7 +130,7 @@ suite('streams', function () {
     });
 
     test('no writer type', function () {
-      assert.throws(function () { new RawDecoder(); }, AvscError);
+      assert.throws(function () { new RawDecoder(); });
     });
 
     test('decoding', function (cb) {
@@ -248,7 +246,7 @@ suite('streams', function () {
     });
 
     test('missing writer type', function () {
-      assert.throws(function () { new FrameEncoder(); }, AvscError);
+      assert.throws(function () { new FrameEncoder(); });
     });
 
     test('invalid object', function (cb) {
@@ -277,7 +275,7 @@ suite('streams', function () {
     });
 
     test('no writer type', function () {
-      assert.throws(function () { new FrameDecoder(); }, AvscError);
+      assert.throws(function () { new FrameDecoder(); });
     });
 
     test('decoding no trailing', function (cb) {
@@ -331,7 +329,7 @@ suite('streams', function () {
     var BlockEncoder = streams.BlockEncoder;
 
     test('invalid type', function () {
-      assert.throws(function () { new BlockEncoder(); }, AvscError);
+      assert.throws(function () { new BlockEncoder(); });
     });
 
     test('invalid codec', function (cb) {
@@ -424,7 +422,7 @@ suite('streams', function () {
     test('compression error', function (cb) {
       var t = fromSchema('int');
       var codecs = {
-        invalid: function (data, cb) { cb(new AvscError('ouch')); }
+        invalid: function (data, cb) { cb(new Error('ouch')); }
       };
       var encoder = new BlockEncoder(t, {codec: 'invalid', codecs: codecs})
         .on('error', function () { cb(); });
@@ -572,7 +570,7 @@ suite('streams', function () {
     test('decompression error', function (cb) {
       var t = fromSchema('int');
       var codecs = {
-        'null': function (data, cb) { cb(new AvscError('ouch')); }
+        'null': function (data, cb) { cb(new Error('ouch')); }
       };
       var encoder = new streams.BlockEncoder(t, {codec: 'null'});
       var decoder = new streams.BlockDecoder({codecs: codecs})

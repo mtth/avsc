@@ -28,7 +28,7 @@ suite('utils', function () {
   });
 
   test('abstract function', function () {
-    assert.throws(utils.abstractFunction, utils.AvscError);
+    assert.throws(utils.abstractFunction, utils.Error);
   });
 
   suite('OrderedQueue', function () {

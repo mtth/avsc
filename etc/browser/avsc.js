@@ -3,26 +3,22 @@
 'use strict';
 
 /**
- * Entry point for browserify.
+ * Shim entry point for browserify.
+ *
+ * It only exposes the part of the API which can run in the browser.
  *
  */
 
 var types = require('../../lib/types');
 
 
-/**
- * Refer to the original function for documentation.
- *
- * Only difference is that we don't support reading from files here.
- *
- */
 function parse(schema, opts) {
   var obj;
   if (typeof schema == 'string') {
     try {
       obj = JSON.parse(schema);
     } catch (err) {
-      // Pass.
+      // Pass. We don't support reading files here.
     }
   }
   if (obj === undefined) {

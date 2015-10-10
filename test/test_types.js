@@ -4,11 +4,9 @@
 
 var types = require('../lib/types'),
     Tap = require('../lib/tap'),
-    utils = require('../lib/utils'),
     assert = require('assert');
 
 
-var AvscError = utils.AvscError;
 var fromSchema = types.Type.fromSchema;
 
 suite('types', function () {
@@ -77,11 +75,11 @@ suite('types', function () {
     test('clone', function () {
       var t = fromSchema('int');
       assert.equal(t.clone(123), 123);
-      assert.throws(function () { t.clone(''); }, AvscError);
+      assert.throws(function () { t.clone(''); });
     });
 
     test('resolve invalid', function () {
-      assert.throws(function () { getResolver('int', 'long'); }, AvscError);
+      assert.throws(function () { getResolver('int', 'long'); });
     });
 
   });
@@ -98,7 +96,7 @@ suite('types', function () {
     testType(types.LongType, data);
 
     test('resolve invalid', function () {
-      assert.throws(function () { getResolver('long', 'double'); }, AvscError);
+      assert.throws(function () { getResolver('long', 'double'); });
     });
 
   });
@@ -206,12 +204,12 @@ suite('types', function () {
       assert.deepEqual(clone, buf);
       clone[0] = 0;
       assert.equal(buf[0], 1);
-      assert.throws(function () { t.clone(s); }, AvscError);
+      assert.throws(function () { t.clone(s); });
       clone = t.clone(s, {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
-      assert.throws(function () { t.clone(1, {coerceBuffers: true}); }, AvscError);
+      assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
     });
 
   });
@@ -273,13 +271,13 @@ suite('types', function () {
       var type = new types.UnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer({b: 'a'});
-      }, AvscError);
+      });
     });
 
     test('read invalid index', function () {
       var type = new types.UnionType(['null', 'int']);
       var buf = new Buffer([1, 0]);
-      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
+      assert.throws(function () { type.fromBuffer(buf); });
     });
 
     test('non wrapped write', function () {
@@ -328,8 +326,8 @@ suite('types', function () {
       assert.deepEqual(c, o);
       c.int = 2;
       assert.equal(o.int, 1);
-      assert.throws(function () { t.clone([]); }, AvscError);
-      assert.throws(function () { t.clone(undefined); }, AvscError);
+      assert.throws(function () { t.clone([]); });
+      assert.throws(function () { t.clone(undefined); });
     });
 
     test('clone and wrap', function () {
@@ -337,10 +335,10 @@ suite('types', function () {
       var s = 'hi!';
       var o = t.clone(s, {wrapUnions: true});
       assert.deepEqual(o, {'string': s});
-      assert.throws(function () { t.clone(s); }, AvscError);
+      assert.throws(function () { t.clone(s); });
       assert.throws(function () {
         t.clone(1, {wrapUnions: true});
-      }, AvscError);
+      });
     });
 
     test('invalid multiple keys', function () {
@@ -354,7 +352,7 @@ suite('types', function () {
     test('clone multiple keys', function () {
       var t = fromSchema(['null', 'int']);
       var o = {'int': 2, foo: 3};
-      assert.throws(function () { t.clone(o); }, AvscError);
+      assert.throws(function () { t.clone(o); });
     });
 
     test('clone unqualified names', function () {
@@ -382,7 +380,7 @@ suite('types', function () {
       });
       var b = new Buffer([0]);
       var o = {id1: b, id2: {'an.Id': b}};
-      assert.throws(function () { t.clone(o); }, AvscError);
+      assert.throws(function () { t.clone(o); });
     });
 
   });
@@ -449,13 +447,13 @@ suite('types', function () {
       var type = fromSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
         type.toBuffer('B');
-      }, AvscError);
+      });
     });
 
     test('read invalid index', function () {
       var type = new types.EnumType({type: 'enum', symbols: ['A'], name: 'a'});
       var buf = new Buffer([2]);
-      assert.throws(function () { type.fromBuffer(buf); }, AvscError);
+      assert.throws(function () { type.fromBuffer(buf); });
     });
 
     test('resolve', function () {
@@ -474,10 +472,10 @@ suite('types', function () {
       resolver = t1.createResolver(t2);
       assert.equal(t1.fromBuffer(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['bar', 'bax']);
-      assert.throws(function () { t1.createResolver(t2); }, AvscError);
+      assert.throws(function () { t1.createResolver(t2); });
       assert.throws(function () {
         t1.createResolver(fromSchema('int'));
-      }, AvscError);
+      });
       function newEnum(name, symbols, aliases, namespace) {
         var obj = {type: 'enum', name: name, symbols: symbols};
         if (aliases !== undefined) {
@@ -493,8 +491,8 @@ suite('types', function () {
     test('clone', function () {
       var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
       assert.equal(t.clone('bar'), 'bar');
-      assert.throws(function () { t.clone('BAR'); }, AvscError);
-      assert.throws(function () { t.clone(null); }, AvscError);
+      assert.throws(function () { t.clone('BAR'); });
+      assert.throws(function () { t.clone(null); });
     });
 
   });
@@ -553,11 +551,11 @@ suite('types', function () {
       var t2 = new types.FixedType({name: 'Id', size: 4});
       assert.doesNotThrow(function () { t2.createResolver(t1); });
       t2 = new types.FixedType({name: 'Id2', size: 4});
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
       t2 = new types.FixedType({name: 'Id2', size: 4, aliases: ['Id']});
       assert.doesNotThrow(function () { t2.createResolver(t1); });
       t2 = new types.FixedType({name: 'Id2', size: 5, aliases: ['Id']});
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('clone', function () {
@@ -569,13 +567,13 @@ suite('types', function () {
       assert.deepEqual(clone, buf);
       clone[0] = 0;
       assert.equal(buf[0], 1);
-      assert.throws(function () { t.clone(s); }, AvscError);
+      assert.throws(function () { t.clone(s); });
       clone = t.clone(s, {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
-      assert.throws(function () { t.clone(1, {coerceBuffers: true}); }, AvscError);
-      assert.throws(function () { t.clone(new Buffer([2])); }, AvscError);
+      assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
+      assert.throws(function () { t.clone(new Buffer([2])); });
     });
 
     test('toString schema with extra fields', function () {
@@ -684,9 +682,9 @@ suite('types', function () {
     test('resolve invalid', function () {
       var t1 = new types.MapType({type: 'map', values: 'int'});
       var t2 = new types.MapType({type: 'map', values: 'string'});
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
       t2 = new types.ArrayType({type: 'array', items: 'string'});
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('resolve fixed', function () {
@@ -711,7 +709,7 @@ suite('types', function () {
       assert.deepEqual(c, o);
       c.one = 3;
       assert.equal(o.one, 1);
-      assert.throws(function () { t.clone(undefined); }, AvscError);
+      assert.throws(function () { t.clone(undefined); });
     });
 
     test('clone coerce buffers', function () {
@@ -787,9 +785,9 @@ suite('types', function () {
     test('resolve invalid', function () {
       var t1 = new types.ArrayType({type: 'array', items: 'string'});
       var t2 = new types.ArrayType({type: 'array', items: 'long'});
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
       t2 = new types.MapType({type: 'map', values: 'string'});
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('clone', function () {
@@ -799,7 +797,7 @@ suite('types', function () {
       assert.deepEqual(c, o);
       c.one = 3;
       assert.equal(o[0], 1);
-      assert.throws(function () { t.clone({}); }, AvscError);
+      assert.throws(function () { t.clone({}); });
     });
 
     test('clone coerce buffers', function () {
@@ -851,7 +849,7 @@ suite('types', function () {
           name: 'Person',
           fields: [{name: 'age', type: 'int'}, {name: 'age', type: 'float'}]
         });
-      }, AvscError);
+      });
     });
 
     test('default constructor', function () {
@@ -925,7 +923,7 @@ suite('types', function () {
             }
           ]
         });
-      }, AvscError);
+      });
     });
 
     test('union invalid default', function () {
@@ -935,7 +933,7 @@ suite('types', function () {
           name: 'Person',
           fields: [{name: 'name', type: ['null', 'string'], 'default': ''}]
         });
-      }, AvscError);
+      });
     });
 
     test('record default', function () {
@@ -1048,7 +1046,7 @@ suite('types', function () {
         name: 'Human',
         fields: [{name: 'name', type: 'string'}]
       });
-      assert.throws(function () { v3.createResolver(v1); }, AvscError);
+      assert.throws(function () { v3.createResolver(v1); });
     });
 
     test('resolve alias with namespace', function () {
@@ -1064,7 +1062,7 @@ suite('types', function () {
         aliases: ['Person'],
         fields: [{name: 'name', type: 'string'}]
       });
-      assert.throws(function () { v2.createResolver(v1); }, AvscError);
+      assert.throws(function () { v2.createResolver(v1); });
       var v3 = fromSchema({
         type: 'record',
         name: 'Human',
@@ -1128,7 +1126,7 @@ suite('types', function () {
           {name: 'name', type: 'string'}
         ]
       });
-      assert.throws(function () { v2.createResolver(v1); }, AvscError);
+      assert.throws(function () { v2.createResolver(v1); });
     });
 
     test('resolve from recursive schema', function () {
@@ -1205,7 +1203,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'number', type: 'string', aliases: ['phone']}]
       });
-      assert.throws(function () { v2.createResolver(v1); }, AvscError);
+      assert.throws(function () { v2.createResolver(v1); });
     });
 
     test('toString schema', function () {
@@ -1317,12 +1315,12 @@ suite('types', function () {
   suite('fromSchema', function  () {
 
     test('null type', function () {
-      assert.throws(function () { fromSchema(null); }, AvscError);
+      assert.throws(function () { fromSchema(null); });
     });
 
     test('unknown types', function () {
-      assert.throws(function () { fromSchema('a'); }, AvscError);
-      assert.throws(function () { fromSchema({type: 'b'}); }, AvscError);
+      assert.throws(function () { fromSchema('a'); });
+      assert.throws(function () { fromSchema({type: 'b'}); });
     });
 
     test('namespaced type', function () {
@@ -1367,21 +1365,21 @@ suite('types', function () {
       var type = fromSchema('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([128]));
-      }, AvscError);
+      });
     });
 
     test('fromBuffer bad resolver', function () {
       var type = fromSchema('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([0]), 123, {});
-      }, AvscError);
+      });
     });
 
     test('fromBuffer trailing', function () {
       var type = fromSchema('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([0, 2]));
-      }, AvscError);
+      });
     });
 
     test('fromBuffer trailing with resolver', function () {
@@ -1392,7 +1390,7 @@ suite('types', function () {
 
     test('toBuffer strict & not', function () {
       var type = fromSchema('int');
-      assert.throws(function () { type.toBuffer('abc'); }, AvscError);
+      assert.throws(function () { type.toBuffer('abc'); });
       type.toBuffer('abc', true);
     });
 
@@ -1479,7 +1477,7 @@ suite('types', function () {
     test('non type', function () {
       var t = fromSchema({type: 'map', values: 'int'});
       var obj = {type: 'map', values: 'int'};
-      assert.throws(function () { t.createResolver(obj); }, AvscError);
+      assert.throws(function () { t.createResolver(obj); });
     });
 
     test('union to valid union', function () {
@@ -1493,7 +1491,7 @@ suite('types', function () {
     test('union to invalid union', function () {
       var t1 = fromSchema(['int', 'string']);
       var t2 = fromSchema(['null', 'long']);
-      assert.throws(function () { t2.createResolver(t1); }, AvscError);
+      assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('union to non union', function () {
@@ -1503,13 +1501,13 @@ suite('types', function () {
       var buf = t1.toBuffer({'int': 12});
       assert.equal(t2.fromBuffer(buf, resolver), 12);
       buf = new Buffer([4, 0]);
-      assert.throws(function () { t2.fromBuffer(buf, resolver); }, AvscError);
+      assert.throws(function () { t2.fromBuffer(buf, resolver); });
     });
 
     test('union to invalid non union', function () {
       var t1 = fromSchema(['int', 'long']);
       var t2 = fromSchema('int');
-      assert.throws(function() { t2.createResolver(t1); }, AvscError);
+      assert.throws(function() { t2.createResolver(t1); });
     });
 
   });
@@ -1561,7 +1559,7 @@ suite('types', function () {
             }
           ]
         });
-      }, AvscError);
+      });
     });
 
     test('missing', function () {
@@ -1571,19 +1569,17 @@ suite('types', function () {
           name: 'Person',
           fields: [{name: 'so', type: 'Friend'}]
         });
-      }, AvscError);
+      });
     });
 
     test('redefining primitive', function () {
       assert.throws( // Unqualified.
-        function () { fromSchema({type: 'fixed', name: 'int', size: 2}); },
-        AvscError
+        function () { fromSchema({type: 'fixed', name: 'int', size: 2}); }
       );
       assert.throws( // Qualified.
         function () {
           fromSchema({type: 'fixed', name: 'int', size: 2, namespace: 'a'});
-        },
-        AvscError
+        }
       );
     });
 
@@ -1639,7 +1635,7 @@ suite('types', function () {
     test('invalid no check', function () {
       var t = fromSchema('float');
       var buf = new Buffer(2);
-      assert.throws(function () { t.encode('hi', buf, 0); }, AvscError);
+      assert.throws(function () { t.encode('hi', buf, 0); });
       assert.doesNotThrow(function () { t.encode('hi', buf, 0, true); });
     });
 
@@ -1696,7 +1692,7 @@ function testType(Type, data, invalidSchemas) {
   if (invalidSchemas) {
     test('invalid', function () {
       invalidSchemas.forEach(function (schema) {
-        assert.throws(function () { new Type(schema); }, AvscError);
+        assert.throws(function () { new Type(schema); });
       });
     });
   }

@@ -9,6 +9,17 @@
  *
  */
 
+function createHash(algorithm) {
+  if (algorithm !== 'md5') {
+    throw new Error('only md5 is supported in the browser');
+  }
+  return new Hash();
+}
+
+function Hash() { this.data = undefined; }
+Hash.prototype.end = function (data) { this.data = data; };
+Hash.prototype.read = function () { return md5(this.data); };
+
 function md5cycle(x, k) {
   var a = x[0], b = x[1], c = x[2], d = x[3];
 
@@ -155,25 +166,6 @@ function md5(s) {
 function add32(a, b) {
   return (a + b) & 0xFFFFFFFF;
 }
-
-/**
- * Mock the function used to compute the fingerprint.
- *
- */
-function createHash(algorithm) {
-  if (algorithm !== 'md5') {
-    throw new Error('only md5 is supported in the browser');
-  }
-  return new Hash();
-}
-
-/**
- * Fake stream object.
- *
- */
-function Hash() { this.data = undefined; }
-Hash.prototype.end = function (data) { this.data = data; };
-Hash.prototype.read = function () { return md5(this.data); };
 
 
 module.exports = {

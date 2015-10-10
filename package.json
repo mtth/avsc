@@ -11,32 +11,31 @@
     "encoding",
     "decoding"
   ],
-  "main": "./lib",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/mtth/avsc.git"
-  },
   "files": [
     "lib",
     "etc/browser"
   ],
+  "main": "./lib",
+  "browser": {
+    "./lib": "./etc/browser/avsc.js",
+    "crypto": "./etc/browser/crypto.js"
+  },
   "engines": {
     "node": ">=0.11"
   },
   "scripts": {
     "test": "mocha --ui tdd",
-    "cover": "istanbul cover _mocha -- --ui tdd",
-    "bench": "python benchmarks >timings.json"
+    "cover": "istanbul cover _mocha -- --ui tdd"
   },
-  "author": "Matthieu Monsch",
-  "license": "MIT",
   "devDependencies": {
     "coveralls": "^2.11.4",
     "istanbul": "^0.3.19",
     "mocha": "^2.3.2"
   },
-  "browser": {
-    "./lib": "./etc/browser",
-    "crypto": "./etc/browser/crypto.js"
+  "author": "Matthieu Monsch",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mtth/avsc.git"
   }
 }
