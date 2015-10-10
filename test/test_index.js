@@ -12,7 +12,7 @@ var DPATH = path.join(__dirname, 'dat');
 
 suite('index', function () {
 
-  suite('createType', function () {
+  suite('parse', function () {
 
     test('object', function () {
       var obj = {
@@ -20,29 +20,29 @@ suite('index', function () {
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
       };
-      assert(avsc.createType(obj) instanceof avsc.types.RecordType);
+      assert(avsc.parse(obj) instanceof avsc.types.RecordType);
     });
 
     test('schema instance', function () {
-      var type = avsc.createType({
+      var type = avsc.parse({
         type: 'record',
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
       });
-      assert.strictEqual(avsc.createType(type), type);
+      assert.strictEqual(avsc.parse(type), type);
     });
 
     test('stringified schema', function () {
-      assert(avsc.createType('"int"') instanceof avsc.types.IntType);
+      assert(avsc.parse('"int"') instanceof avsc.types.IntType);
     });
 
     test('type name', function () {
-      assert(avsc.createType('double') instanceof avsc.types.DoubleType);
+      assert(avsc.parse('double') instanceof avsc.types.DoubleType);
     });
 
     test('file', function () {
-      var t1 = avsc.createType({type: 'fixed', name: 'id.Id', size: 64});
-      var t2 = avsc.createType(path.join(DPATH, 'Id.avsc'));
+      var t1 = avsc.parse({type: 'fixed', name: 'id.Id', size: 64});
+      var t2 = avsc.parse(path.join(DPATH, 'Id.avsc'));
       assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
     });
 
@@ -52,7 +52,7 @@ suite('index', function () {
 
     test('block file matching type', function (cb) {
       var n = 0;
-      var type = avsc.createType(path.join(DPATH, 'Person.avsc'));
+      var type = avsc.parse(path.join(DPATH, 'Person.avsc'));
       avsc.createFileDecoder(path.join(DPATH, 'person-10.avro'), type)
         .on('data', function (obj) {
           n++;
@@ -80,13 +80,13 @@ suite('index', function () {
     });
 
     test('block file invalid type', function (cb) {
-      var type = avsc.createType(path.join(DPATH, 'Id.avsc'));
+      var type = avsc.parse(path.join(DPATH, 'Id.avsc'));
       avsc.createFileDecoder(path.join(DPATH, 'person-10.avro'), type)
         .on('error', function  () { cb(); });
     });
 
     test('raw file', function (cb) {
-      var type = avsc.createType(path.join(DPATH, 'Person.avsc'));
+      var type = avsc.parse(path.join(DPATH, 'Person.avsc'));
       var n = 0;
       avsc.createFileDecoder(path.join(DPATH, 'person-10.avro.raw'), type)
         .on('data', function (obj) {
