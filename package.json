@@ -17,7 +17,8 @@
     "url": "git://github.com/mtth/avsc.git"
   },
   "files": [
-    "lib"
+    "lib",
+    "etc/browser"
   ],
   "engines": {
     "node": ">=0.11"
@@ -33,5 +34,9 @@
     "coveralls": "^2.11.4",
     "istanbul": "^0.3.19",
     "mocha": "^2.3.2"
+  },
+  "browser": {
+    "./lib": "./etc/browser",
+    "crypto": "./etc/browser/crypto.js"
   }
 }
