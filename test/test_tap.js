@@ -36,17 +36,6 @@ suite('tap', function () {
 
   });
 
-  suite('null', function () {
-
-    test('write read', function () {
-
-      var tap = newTap(10);
-      assert.strictEqual(tap.readNull(), null);
-
-    });
-
-  });
-
   suite('boolean', function () {
 
     testWriterReader({

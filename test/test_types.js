@@ -27,6 +27,15 @@ suite('types', function () {
       assert.equal(t.toJSON(), 'boolean');
     });
 
+    test('compare buffers', function () {
+      var t = new types.BooleanType();
+      var bt = t.toBuffer(true);
+      var bf = t.toBuffer(false);
+      assert.equal(t.compareBuffers(bt, bf), 1);
+      assert.equal(t.compareBuffers(bf, bt), -1);
+      assert.equal(t.compareBuffers(bt, bt), 0);
+    });
+
   });
 
   suite('IntType', function () {
@@ -168,6 +177,16 @@ suite('types', function () {
 
     testType(types.FloatType, data);
 
+    test('compare buffer', function () {
+      var t = fromSchema('float');
+      var b1 = t.toBuffer(0.5);
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer(-0.75);
+      assert.equal(t.compareBuffers(b1, b2), 1);
+      var b3 = t.toBuffer(175);
+      assert.equal(t.compareBuffers(b1, b3), -1);
+    });
+
   });
 
   suite('DoubleType', function () {
@@ -181,6 +200,17 @@ suite('types', function () {
     ];
 
     testType(types.DoubleType, data);
+
+    test('compare buffer', function () {
+      var t = fromSchema('double');
+      var b1 = t.toBuffer(0.5);
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer(-0.75);
+      assert.equal(t.compareBuffers(b1, b2), 1);
+      var b3 = t.toBuffer(175);
+      assert.equal(t.compareBuffers(b1, b3), -1);
+    });
+
 
   });
 
@@ -210,6 +240,16 @@ suite('types', function () {
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
+    });
+
+    test('compare', function () {
+      var t = fromSchema('bytes');
+      var b1 = t.toBuffer(new Buffer([0, 2]));
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer(new Buffer([0, 2, 3]));
+      assert.equal(t.compareBuffers(b1, b2), -1);
+      var b3 = t.toBuffer(new Buffer([1]));
+      assert.equal(t.compareBuffers(b3, b1), 1);
     });
 
   });
@@ -383,6 +423,17 @@ suite('types', function () {
       assert.throws(function () { t.clone(o); });
     });
 
+    test('compare buffers', function () {
+      var t = fromSchema(['null', 'double']);
+      var b1 = t.toBuffer(null);
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer({'double': 4});
+      assert.equal(t.compareBuffers(b2, b1), 1);
+      assert.equal(t.compareBuffers(b1, b2), -1);
+      var b3 = t.toBuffer({'double': 6});
+      assert.equal(t.compareBuffers(b3, b2), 1);
+    });
+
   });
 
   suite('EnumType', function () {
@@ -495,6 +546,14 @@ suite('types', function () {
       assert.throws(function () { t.clone(null); });
     });
 
+    test('compare buffers', function () {
+      var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
+      var b1 = t.toBuffer('bar');
+      var b2 = t.toBuffer('baz');
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      assert.equal(t.compareBuffers(b2, b1), 1);
+    });
+
   });
 
   suite('FixedType', function () {
@@ -580,6 +639,14 @@ suite('types', function () {
       var t = fromSchema({type: 'fixed', name: 'Id', size: 2});
       t.one = 1;
       assert.equal(t.toString(), '{"name":"Id","type":"fixed","size":2}');
+    });
+
+    test('compare buffers', function () {
+      var t = fromSchema({type: 'fixed', name: 'Id', size: 2});
+      var b1 = new Buffer([1, 2]);
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = new Buffer([2, 2]);
+      assert.equal(t.compareBuffers(b1, b2), -1);
     });
 
   });
@@ -720,6 +787,12 @@ suite('types', function () {
       assert.deepEqual(c, {one: new Buffer([1])});
     });
 
+    test('compare buffers', function () {
+      var t = new types.MapType({type: 'map', values: 'bytes'});
+      var b1 = t.toBuffer({});
+      assert.throws(function () { t.compareBuffers(b1, b1); });
+    });
+
   });
 
   suite('ArrayType', function () {
@@ -809,6 +882,15 @@ suite('types', function () {
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, [new Buffer([1, 2])]);
+    });
+
+    test('compare buffers', function () {
+      var t = fromSchema({type: 'array', items: 'int'});
+      assert.equal(t.compareBuffers(t.toBuffer([]), t.toBuffer([])), 0);
+      assert.equal(t.compareBuffers(t.toBuffer([1, 2]), t.toBuffer([])), 1);
+      assert.equal(t.compareBuffers(t.toBuffer([1]), t.toBuffer([1, -1])), -1);
+      assert.equal(t.compareBuffers(t.toBuffer([1]), t.toBuffer([2])), -1);
+      assert.equal(t.compareBuffers(t.toBuffer([1, 2]), t.toBuffer([1])), 1);
     });
 
   });
@@ -1308,6 +1390,49 @@ suite('types', function () {
       assert.deepEqual(fields[1].getType(), fromSchema('string'));
       fields.push('null');
       assert.equal(t.getFields().length, 2); // No change.
+    });
+
+    test('compare buffers default order', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'long'},
+          {name: 'name', type: 'string'},
+          {name: 'weight', type: 'float'},
+        ]
+      });
+      var b1 = t.toBuffer({age: 20, name: 'Ann', weight: 0.5});
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer({age: 20, name: 'Bob', weight: 0});
+      assert.equal(t.compareBuffers(b1, b2), -1);
+      var b3 = t.toBuffer({age: 19, name: 'Carrie', weight: 0});
+      assert.equal(t.compareBuffers(b1, b3), 1);
+    });
+
+    test('compare buffers custom order', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'meta', type: {type: 'map', values: 'int'}, order: 'ignore'},
+          {name: 'name', type: 'string', order: 'descending'}
+        ]
+      });
+      var b1 = t.toBuffer({meta: {}, name: 'Ann'});
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer({meta: {foo: 1}, name: 'Bob'});
+      assert.equal(t.compareBuffers(b1, b2), 1);
+      var b3 = t.toBuffer({meta: {foo: 0}, name: 'Alex'});
+      assert.equal(t.compareBuffers(b1, b3), -1);
+    });
+
+    test('compare buffers invalid order', function () {
+      assert.throws(function () { fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int', order: 'up'}]
+      }); });
     });
 
   });

@@ -33,7 +33,7 @@ A few examples to boot:
   ```javascript
   var avsc = require('avsc'); // Implied in all other examples below.
 
-  var type = avsc.createType('Person.avsc');
+  var type = avsc.parse('Person.avsc');
   var buf = type.toBuffer({name: 'Ann', age: 25}); // Serialize a JS object.
   var obj = type.fromBuffer(buf); // And deserialize it back.
   ```
@@ -49,7 +49,7 @@ A few examples to boot:
 + Generate a random instance from a schema object:
 
   ```javascript
-  var type = avsc.createType({
+  var type = avsc.parse({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -65,7 +65,7 @@ A few examples to boot:
 + Create a duplex stream to serialize objects on the fly:
 
   ```javascript
-  var type = avsc.createType({type: 'array', items: 'int'});
+  var type = avsc.parse({type: 'array', items: 'int'});
 
   var encoder = new avsc.streams.RawEncoder(type)
     .on('data', function (chunk) { /* Do something with the chunk. */ });
