@@ -5,9 +5,11 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 ## Features
 
-+ Arbitrary Avro schema support, and [schema evolution][schema-evolution].
++ Arbitrary Avro schema support, including [schema evolution][schema-evolution]
+  and [sorting][sort-order].
++ [Fast](#performance). Did you know that Avro could be faster than JSON?
 + No dependencies.
-+ [Fast!](#performance) Did you know that Avro could be faster than JSON?
++ Runs in the browser.
 
 
 ## Installation
@@ -42,7 +44,7 @@ A few examples to boot:
   container file:
 
   ```javascript
-  avsc.decodeFile('records.avro')
+  avsc.createFileDecoder('records.avro')
     .on('data', function (record) { /* Do something with the record. */ });
   ```
 
@@ -96,7 +98,6 @@ encodings orders of magnitude smaller without compression). See the
 ## Limitations
 
 + Protocols aren't yet implemented.
-+ No snappy codec support currently.
 + JavaScript doesn't natively support the `long` type, so numbers larger than
   `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
   might suffer a loss of precision.
@@ -106,4 +107,5 @@ encodings orders of magnitude smaller without compression). See the
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
+[sort-order]: https://avro.apache.org/docs/current/spec.html#order
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
