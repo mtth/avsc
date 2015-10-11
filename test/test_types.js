@@ -434,6 +434,16 @@ suite('types', function () {
       assert.equal(t.compareBuffers(b3, b2), 1);
     });
 
+    test('compare', function () {
+      var t;
+      t = fromSchema(['null', 'int']);
+      assert.equal(t.compare(null, {'int': 3}), -1);
+      assert.equal(t.compare(null, null), 0);
+      t = fromSchema(['int', 'float']);
+      assert.equal(t.compare({'int': 2}, {'float': 0.5}), -1);
+      assert.equal(t.compare({'int': 20}, {'int': 5}), 1);
+    });
+
   });
 
   suite('EnumType', function () {
@@ -552,6 +562,12 @@ suite('types', function () {
       var b2 = t.toBuffer('baz');
       assert.equal(t.compareBuffers(b1, b1), 0);
       assert.equal(t.compareBuffers(b2, b1), 1);
+    });
+
+    test('compare', function () {
+      var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['b', 'a']});
+      assert.equal(t.compare('b', 'a'), -1);
+      assert.equal(t.compare('a', 'a'), 0);
     });
 
   });
@@ -893,6 +909,14 @@ suite('types', function () {
       assert.equal(t.compareBuffers(t.toBuffer([1, 2]), t.toBuffer([1])), 1);
     });
 
+    test('compare', function () {
+      var t = fromSchema({type: 'array', items: 'int'});
+      assert.equal(t.compare([], []), 0);
+      assert.equal(t.compare([], [-1]), -1);
+      assert.equal(t.compare([1], [1]), 0);
+      assert.equal(t.compare([2], [1, 2]), 1);
+    });
+
   });
 
   suite('RecordType', function () {
@@ -1076,6 +1100,22 @@ suite('types', function () {
       assert.doesNotThrow(function () {
         (new Person()).$toBuffer(true);
       });
+    });
+
+    test('record compare', function () {
+      var P = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'data', type: {type: 'map', values: 'int'}, order:'ignore'},
+          {name: 'age', type: 'int'}
+        ]
+      }).getRecordConstructor();
+      var p1 = new P({}, 1);
+      var p2 = new P({}, 2);
+      assert.equal(p1.$compare(p2), -1);
+      assert.equal(p2.$compare(p2), 0);
+      assert.equal(p2.$compare(p1), 1);
     });
 
     test('Record type', function () {
@@ -1390,6 +1430,22 @@ suite('types', function () {
       assert.deepEqual(fields[1].getType(), fromSchema('string'));
       fields.push('null');
       assert.equal(t.getFields().length, 2); // No change.
+    });
+
+    test('field order', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      });
+      var field = t.getFields()[0];
+      assert.equal(field.getOrder(), 'ascending'); // Default.
+      assert.throws(function () { field.setOrder('none'); });
+      assert.equal(field.getOrder(), 'ascending');
+      field.setOrder('ignore');
+      assert.equal(field.getOrder(), 'ignore');
+      field.setOrder('descending');
+      assert.equal(field.getOrder(), 'descending');
     });
 
     test('compare buffers default order', function () {
