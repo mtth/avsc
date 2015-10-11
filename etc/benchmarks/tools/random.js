@@ -9,7 +9,7 @@
  *
  */
 
-var avsc = require('../../lib'),
+var avsc = require('../../../lib'),
     fs = require('fs');
 
 var schemaPath = process.argv[2];
@@ -20,7 +20,7 @@ if (!filePath) {
   process.exit(1);
 }
 
-var type = avsc.createType(schemaPath);
+var type = avsc.parse(schemaPath);
 var encoder = new avsc.streams.BlockEncoder(type);
 encoder.pipe(fs.createWriteStream(filePath, {defaultEncoding: 'binary'}));
 

@@ -2,7 +2,7 @@
 
 'use strict';
 
-var avsc = require('../../../lib');
+var avsc = require('../../../../lib');
 
 var dataPath = process.argv[2];
 if (!dataPath) {
@@ -13,7 +13,7 @@ var loops = 5;
 var bufs = [];
 var type = null;
 
-avsc.decodeFile(dataPath)
+avsc.createFileDecoder(dataPath)
   .on('metadata', function (writerType) { type = writerType; })
   .on('data', function (record) { bufs.push(record.$toBuffer()); })
   .on('end', function () {

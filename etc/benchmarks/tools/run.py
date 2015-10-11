@@ -35,10 +35,11 @@ import os.path as osp
 import sys
 
 
-_logger = lg.getLogger(__name__)
-lg.basicConfig(level=lg.INFO)
-
 DPATH = osp.dirname(osp.dirname(__file__))
+FORMAT = '%(asctime)s %(levelname)s %(message)s'
+
+_logger = lg.getLogger(__name__)
+lg.basicConfig(level=lg.INFO, format=FORMAT)
 
 
 def build_avsc_jar():

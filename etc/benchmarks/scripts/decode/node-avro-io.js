@@ -5,14 +5,14 @@
 'use strict';
 
 var io = require('node-avro-io'),
-    avsc = require('../../../lib');
+    avsc = require('../../../../lib');
 
 
 var loops = 2;
 var bufs = [];
 var reader;
 
-avsc.decodeFile(process.argv[2])
+avsc.createFileDecoder(process.argv[2])
   .on('metadata', function (type) {
     var schema = new io.Schema.Schema(JSON.parse(type.toString()));
     reader = new io.IO.DatumReader(schema, schema);

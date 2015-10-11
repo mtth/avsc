@@ -5,14 +5,14 @@
 'use strict';
 
 var io = require('node-avro-io'),
-    avsc = require('../../../lib');
+    avsc = require('../../../../lib');
 
 
 var loops = 2;
 var records = [];
 var writer;
 
-avsc.decodeFile(process.argv[2])
+avsc.createFileDecoder(process.argv[2])
   .on('metadata', function (type) {
     var schema = new io.Schema.Schema(JSON.parse(type.toString()));
     writer = new io.IO.DatumWriter(schema);
@@ -51,7 +51,7 @@ function loop() {
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
     buf = serialize(records[i]);
-    n += buf[0];
+    n += buf.length;
   }
   return n;
 }

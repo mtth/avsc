@@ -2,7 +2,7 @@
 
 'use strict';
 
-var avsc = require('../../../lib'),
+var avsc = require('../../../../lib'),
     pson = require('pson');
 
 var dataPath = process.argv[2];
@@ -15,7 +15,7 @@ var records = [];
 var pPair = new pson.ProgressivePair([]);
 var sPair;
 
-avsc.decodeFile(dataPath)
+avsc.createFileDecoder(dataPath)
   .on('data', function (record) {
     // Learn data upfront.
     pPair.include(record);
@@ -42,7 +42,7 @@ function loop() {
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
     buf = sPair.encode(records[i]);
-    n += buf[0];
+    n += buf.length;
   }
   return n;
 }

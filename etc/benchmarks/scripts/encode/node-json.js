@@ -2,7 +2,7 @@
 
 'use strict';
 
-var avsc = require('../../../lib');
+var avsc = require('../../../../lib');
 
 var dataPath = process.argv[2];
 if (!dataPath) {
@@ -11,9 +11,8 @@ if (!dataPath) {
 
 var loops = 5;
 var records = [];
-var type = null;
 
-avsc.decodeFile(dataPath)
+avsc.createFileDecoder(dataPath)
   .on('data', function (record) { records.push(record); })
   .on('end', function () {
     var i = 0;

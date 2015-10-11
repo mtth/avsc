@@ -14,8 +14,8 @@
  *
  */
 
-var avsc = require('../../lib'),
-    utils = require('../../lib/utils');
+var avsc = require('../../../lib'),
+    utils = require('../../../lib/utils');
 
 var RANDOM = new utils.Lcg();
 
@@ -25,7 +25,7 @@ if (!schemaPath) {
   process.exit(1);
 }
 
-var type = avsc.createType(schemaPath, {typeHook: function () {
+var type = avsc.parse(schemaPath, {typeHook: function () {
   if (!this._name) {
     return; // Nothing to mangle.
   }
