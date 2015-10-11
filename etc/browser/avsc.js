@@ -9,8 +9,11 @@
  *
  */
 
-var types = require('../../lib/types');
+var types = require('../../lib/types'),
+    Tap = require('../../lib/tap');
 
+
+// No filesystem access in the browser.
 
 function parse(schema, opts) {
   var obj;
@@ -26,6 +29,41 @@ function parse(schema, opts) {
   }
   return types.Type.fromSchema(obj, opts);
 }
+
+
+// No utf8 and binary functions on browserify's `Buffer`, we must use the
+// generic slice and write equivalents.
+
+Tap.prototype.readString = function () {
+  var len = this.readLong();
+  var pos = this.pos;
+  var buf = this.buf;
+  this.pos += len;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.slice(pos, pos + len).toString();
+};
+
+Tap.prototype.writeString = function (s) {
+  var len = Buffer.byteLength(s);
+  this.writeLong(len);
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  this.buf.write(s, pos);
+};
+
+Tap.prototype.writeBinary = function (s, len) {
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  this.buf.write(s, pos, len, 'binary');
+};
 
 
 module.exports = {
