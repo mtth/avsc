@@ -58,15 +58,14 @@ button {
   color: #FFFFFF;
 }
 .label {
-  padding: 2px;
   opacity: 0.8;
   font-size: 19px;
-  background-color: #74AD86;
+  background-color: white;
   top:10px;
-  right: 20px;
+  right: 36px;
   position:absolute;
   margin: 0 auto;
-  
+  width: 10%; 
 }
 .message {
   padding: 2px;
@@ -129,7 +128,10 @@ button {
   position: relative;
   pointer-events:all;
 }
-
 a {
   text-decoration:none;
+}
+.icon {
+  margin: 10px auto;
+  width: 90%;
 }

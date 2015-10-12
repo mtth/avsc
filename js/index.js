@@ -16,6 +16,8 @@
     var parsedSchema;
     var encodedErrorElement = $('#encoded-error');
     var decodedErrorElement = $('#decoded-error');
+    var encodedValidElement = $('#output-valid');
+    var decodedValidElement = $('#input-valid');
     var inputElement = $('#input');
     var outputElement = $('#output');
     window.onresize = function(event) {
@@ -26,7 +28,7 @@
       setTimeout(function(){
         validateSchema();
       }, 0);
-    }).on('input propertychange paste', function(e) {
+    }).on('input paste', function(e) {
         setTimeout(function() {
           generateRandom();
       }, 0);
@@ -51,21 +53,29 @@
    function validateSchema() {
       parsedSchema = null;
       var elem = $('#schema');
+      var valid_elem = $('#schema-valid');
       var error_elem = $('#schema-error');
       try {
         var schema = readInput('#schema');
         parsedSchema = avsc.parse(schema);
-        clearError(error_elem, 'Valid Schema!');
+        toggleError(error_elem, valid_elem, null);
       } catch (err) {
-        showError(error_elem, err);
+        toggleError(error_elem, valid_elem, err);
+        clearValidIcons();
       }
     }
-
-    function clearError(errorElement, msg) {
-      errorElement.removeClass('error');
-      errorElement.removeClass('hidden');
-      errorElement.addClass('valid');
-      errorElement.text(msg);
+    /* If msg is null, make the valid_element visible, otherwise 
+    show `msg` in errorElement. */
+    function toggleError(errorElement, valid_element, msg) {
+      if(!!msg) {
+        errorElement.removeClass('hidden');
+        errorElement.text(msg);
+        valid_element.addClass('hidden');
+      } else {
+        errorElement.addClass('hidden');
+        errorElement.text("");
+        valid_element.show('slow');
+      }
     }
  
     function generateRandom() {
@@ -76,9 +86,9 @@
           inputElement.val(randomStr);
           encode(); /* Update encoded string too. */
           clearErrors();
-          clearError(decodedErrorElement, 'Valid input!');
+          toggleError(decodedErrorElement, decodedValidElement, null);
         } catch(err) {
-          showError($('#schema-error'),err);
+          toggleError($('#schema-error'), $('#schema-valid'), err);
         }
       }
 
@@ -90,14 +100,16 @@
           var output = parsedSchema.toBuffer(input);
           outputElement.val(bufferToStr(output));
           clearErrors();
-          clearError(decodedErrorElement, 'Valid input!');
+          toggleError(decodedErrorElement, decodedValidElement, null);
+          toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
           clearErrors();
-          showError(decodedErrorElement, err);
+          clearValidIcons();
+          toggleError(decodedErrorElement, decodedValidElement, err);
           clearText(outputElement);
         }
       } else {
-        showError(decodedErrorElement, 'No valid schema found!');
+        toggleError(decodedErrorElement, decodedValidElement, 'No valid schema found!');
       }
     }
 
@@ -109,14 +121,15 @@
           //todo: probably do sth here
           $(inputElement).val(decoded);
           clearErrors();
-          clearError(encodedErrorElement, 'Valid encoded record!');
+          toggleError(encodedErrorElement, encodedValidElement,null);
         }catch(err) {
           clearErrors();
-          showError(encodedErrorElement,err);
+          clearValidIcons();
+          toggleError(encodedErrorElement,encodedValidElement, err);
           clearText(inputElement);
         }
       } else {
-        showError(encodedErrorElement, 'No valid schema found!');
+        toggleError(encodedErrorElement, encodedValidElement, 'No valid schema found!');
       }
     }
 
@@ -128,15 +141,12 @@
       encodedErrorElement.text('');
       encodedErrorElement.addClass('hidden');
     }
-    /* Show `err` in the `element`. */
-    function showError(element, err) {
-      if (err != null) {
-        element.removeClass('hidden');
-        element.addClass('error');
-        element.text(err);
-      }
-    }
 
+    function clearValidIcons() {
+      decodedValidElement.hide("slow");
+      encodedValidElement.hide("slow");
+    }
+    
     function clearText(element) {
       element.val('');
     }
