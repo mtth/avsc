@@ -17,6 +17,7 @@ Usage:
 """
 
 from json import load
+import matplotlib.pyplot as plt
 import pandas as pd
 import sys
 
@@ -46,7 +47,38 @@ def get_ops_df(df):
   fdf.index.name = 'schema'
   return fdf
 
+def plot(df, command, schema, libraries=None):
+  filtered = df[df['schema'] == schema][df['command'] == command]
+  grouped = filtered.groupby(['library'])
+  rates = grouped['rate'].median()
+  if libraries:
+    rates = rates[libraries]
+  rates = rates.transpose()
+  # rates.columns.name = ''
+  # rates.columns = ['Decoding', 'Encoding']
+  ax = rates.plot(
+    kind='bar',
+    # title='Throughput rates for different JavaScript serialization',
+    color=['steelblue', 'grey', 'grey', 'grey'],
+  )
+  plt.tick_params(axis='x', which='both', bottom='off', top='off')
+  plt.tick_params(axis='y', which='both', left='off', right='off')
+  ax.spines['top'].set_visible(False)
+  ax.spines['right'].set_visible(False)
+  # plt.style.use('ggplot')
+  # ax.xaxis.set_ticks([])
+  ax.yaxis.grid(True)
+  ax.set_xticklabels(rates.index, rotation=0)
+  ax.set_xlabel('Library')
+  ax.set_ylabel('Throughput (records per second)')
+  # container = ax.get_legend_handles_labels()[0][1] # Second columns.
+  # for patch in container.patches:
+  #   patch.set_hatch('/')
+  return ax
+
 if __name__ == '__main__':
   DF = get_df(sys.argv[1])
   for name, df in DF.groupby('command'):
     print '%s\n\n%s\n' % (name, get_ops_df(df))
+  plot(DF, 'decode', 'Coupon.avsc', ['node-avsc', 'node-json', 'node-pson', 'node-avro-io'])
+  plt.show()
