@@ -104,7 +104,7 @@ button {
   -moz-border-radius: 80px;
   -webkit-border-radius: 80px;
   border-radius: 80px;    
-  height:3em;
+  height:4em;
   top:10%;
   left: 5%;
   z-index: -10;
@@ -118,14 +118,18 @@ button {
   top: -1em;
   left: 2em;
   -webkit-transform:rotate(-6deg);
-  -moz-transform: rotate(-40deg);
+  -moz-transform: rotate(-6deg);
   width: 0px;
 }
 
 .tooltip-label {
-  z-index: -1;
-  top: -16px;
+  top: -23px;
+  left: 2em;
+  width: 80%;
   position: relative;
+  pointer-events:all;
 }
 
-
+a {
+  text-decoration:none;
+}

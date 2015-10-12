@@ -2554,10 +2554,10 @@ function hasOwnProperty(obj, prop) {
       }, 0);
     });
 
-    $('#random').click(function () {
+    $('#random').click(function () {   
       generateRandom();
     });
-         
+
    function validateSchema() {
       parsedSchema = null;
       var elem = $('#schema');
