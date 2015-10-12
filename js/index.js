@@ -72,7 +72,7 @@
       if (parsedSchema) {
         try{
           var random = parsedSchema.random();
-          var randomStr = JSON.stringify(random, null, 2);
+          var randomStr = parsedSchema.toString(random);
           inputElement.val(randomStr);
           encode(); /* Update encoded string too. */
           clearErrors();
@@ -87,7 +87,7 @@
       if (parsedSchema) {
         try {
           var input = readInput(inputElement);
-          var output = parsedSchema.encode(input);
+          var output = parsedSchema.toBuffer(input);
           outputElement.val(bufferToStr(output));
           clearErrors();
           clearError(decodedErrorElement, 'Valid input!');
@@ -106,7 +106,7 @@
         try {
           var input = readBuffer(outputElement);
           var decoded = parsedSchema.decode(input);
-          decoded = JSON.stringify(decoded, null, 2);
+          //todo: probably do sth here
           $(inputElement).val(decoded);
           clearErrors();
           clearError(encodedErrorElement, 'Valid encoded record!');
@@ -142,13 +142,17 @@
     }
  
     function readInput(elementId) {
-      var rawSchema = $.trim($(elementId).val());
+      var rawInput = $.trim($(elementId).val());
       /* Handle primitive types that don't need to be json. */
-      if (!rawSchema.startsWith('{')) {
-        return rawSchema;
+      if (!rawInput.startsWith('{')) {
+        return rawInput;
       }
-      var parsedSchema = JSON.parse(rawSchema);
-      return parsedSchema;
+      if (!!parsedSchema) {
+        return parsedSchema.fromString(rawInput);
+      } else {
+        /* When parsing the schema itself */
+        return JSON.parse(rawInput);
+      }
     }
 
     function readBuffer(elementId) {
