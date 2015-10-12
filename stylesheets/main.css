@@ -1,9 +1,9 @@
 body {
   background-color: #DEDEDE;
+  font-family: 'Indie Flower', cursive;
 }
 .container {
   margin: auto;
-  font-family: Helvetica, arial, freesans, clean, sans-serif;
   font-size: 1em;
   background-color: #DEDEDE;
 }
@@ -14,7 +14,6 @@ body {
 .button-label {
   text-align: center;
   font-size:13px;
-  font-family: Helvetica, arial, freesans, clean, sans-serif;
 }
 
 .textbox {
@@ -23,7 +22,6 @@ body {
   width: 90%;
   height: 90%;
   font-size: medium;
-  color: #CACCCB;
   font-weight: 200;
   font-family: "Courier New", Courier, monospace;
   resize: none;
@@ -62,7 +60,7 @@ button {
 .label {
   padding: 2px;
   opacity: 0.8;
-  font-size: 11px;
+  font-size: 19px;
   background-color: #74AD86;
   top:10px;
   right: 20px;
@@ -91,10 +89,10 @@ button {
   height: 98%;
 }
 .tooltip-wrapper {
-  border: 1px solid #999;
   height: 20em;
   position: relative;
   width: 100%;
+  top: -23px;
 }
 
 .tooltip-circle{
@@ -109,10 +107,10 @@ button {
   height:3em;
   top:10%;
   left: 5%;
+  z-index: -10;
 }
 
-.tooltip-triangle
-{
+.tooltip-triangle {
   border-color: transparent transparent #169ccc transparent;
   border-style: solid;
   border-width: 2em;
@@ -124,5 +122,10 @@ button {
   width: 0px;
 }
 
+.tooltip-label {
+  z-index: -1;
+  top: -16px;
+  position: relative;
+}
 
 

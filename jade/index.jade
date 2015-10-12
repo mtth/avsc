@@ -6,6 +6,8 @@ html(lang='en')
     meta(name='viewport', content='width=device-width')
     title Avsc
     link(rel='stylesheet', href='../stylesheets/main.css', type='text/css')
+    
+    link(href='https://fonts.googleapis.com/css?family=Indie+Flower' rel='stylesheet' type='text/css')
     script(src='../js/bundle.js' async)
   
   body
@@ -41,8 +43,14 @@ html(lang='en')
               div.tooltip-label
                 Enter your schema here
           td.wide
-            div.tooltip
-              |Enter your input record... or click below to generate a random one.
+            div.tooltip-wrapper
+              div.tooltip-circle
+              div.tooltip-triangle
+              div.tooltip-label
+                |Your input record.
           td.wide
-            div.tooltip 
-              |Your decoded record
+            div.tooltip-wrapper
+              div.tooltip-circle
+              div.tooltip-triangle
+              div.tooltip-label
+                |Your encoded record

@@ -25415,7 +25415,7 @@ module.exports = function(arr, obj){
     function resize() {
       $('#table').removeClass('hidden');
       var vph = $(window).height();
-      $('.textbox').css({'height': vph - 100});
+      $('.textbox').css({'height': vph - 200});
     }
  });
 })();
