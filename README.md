@@ -28,8 +28,8 @@ Libraries compared:
 
 These rates are for decoding a [realistic record schema][coupon-schema],
 modeled after a popular open-source API. Encoding rates are slightly lower but
-relative rates across libraries remain similar. You can find the raw numbers
-and more details on the [benchmarks page][benchmarks].
+ratios across libraries are similar. You can find the raw numbers and more
+details on the [benchmarks page][benchmarks].
 
 
 ## Installation
@@ -44,7 +44,7 @@ including `0.11`.
 
 ## Documentation
 
-+ [Quickstart](https://github.com/mtth/avsc/wiki/Quickstart)
++ [Overview](https://github.com/mtth/avsc/wiki)
 + [API](https://github.com/mtth/avsc/wiki/API)
 + [Advanced usage](https://github.com/mtth/avsc/wiki/Advanced-usage)
 
@@ -62,7 +62,7 @@ var avsc = require('avsc');
   ```javascript
   var type = avsc.parse('Person.avsc'); // Load schema from a file.
   var buf = type.toBuffer({name: 'Ann', age: 25}); // Serialize an object.
-  var obj = type.fromBuffer(buf); // == {name: 'Ann', age: 25}
+  var obj = type.fromBuffer(buf); // {name: 'Ann', age: 25}
   ```
 
 + Generate random instances from a schema:
