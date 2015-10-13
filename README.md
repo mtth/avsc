@@ -5,8 +5,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 ## Features
 
-+ Full Avro schema support, including recursive schemas, [binary
-  sorting][sort-order], and [schema evolution][schema-evolution].
++ Full Avro schema support, including recursive schemas, [sort
+  order][sort-order], and [schema evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
 + No dependencies, `avsc` even runs in the browser!
@@ -38,8 +38,8 @@ details on the [benchmarks page][benchmarks].
 $ npm install avsc
 ```
 
-`avsc` is compatible with [io.js][] and versions of [node.js][] from and
-including `0.11`.
+`avsc` is compatible with all versions of [node.js][] since `0.11` and all
+major browsers via [browserify][].
 
 
 ## Documentation
@@ -51,7 +51,7 @@ including `0.11`.
 
 ## Examples
 
-Inside a node.js module, or using [browserify][]:
+Inside a node.js module, or using browserify:
 
 ```javascript
 var avsc = require('avsc');
