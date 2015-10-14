@@ -2627,9 +2627,9 @@ function hasOwnProperty(obj, prop) {
       if (parsedSchema) {
         try {
           var input = readBuffer(outputElement);
-          var decoded = parsedSchema.decode(input);
+          var decoded = parsedSchema.fromBuffer(input);
           //todo: probably do sth here
-          $(inputElement).val(decoded);
+          $(inputElement).val(parsedSchema.toString(decoded));
           clearErrors();
           toggleError(encodedErrorElement, encodedValidElement,null);
         }catch(err) {
@@ -2663,10 +2663,6 @@ function hasOwnProperty(obj, prop) {
  
     function readInput(elementId) {
       var rawInput = $.trim($(elementId).val());
-      /* Handle primitive types that don't need to be json. */
-      if (!rawInput.startsWith('{')) {
-        return rawInput;
-      }
       if (!!parsedSchema) {
         return parsedSchema.fromString(rawInput);
       } else {
@@ -2677,7 +2673,7 @@ function hasOwnProperty(obj, prop) {
 
     function readBuffer(elementId) {
       var rawInput = $.trim($(elementId).val());
-      var hexArray = rawInput.split('\n');
+      var hexArray = rawInput.split(', ');
       var i;
       var size = hexArray.length;
       var buffer = [];
@@ -2691,9 +2687,13 @@ function hasOwnProperty(obj, prop) {
       var size = buffer.length;
       var outStr = '';
       var i;
+      var commaNeeded = false;
       for (i = 0; i < size; i++) {
-        outStr +=  buffer.toString('hex', i , i+1) +
-                  '\n';
+        if(commaNeeded) {
+          outStr += ', ';
+        }
+        commaNeeded = true;
+        outStr +=  buffer.toString('hex', i , i+1);
       }
       return outStr;
     }
@@ -2701,7 +2701,7 @@ function hasOwnProperty(obj, prop) {
     function resize() {
       $('#table').removeClass('hidden');
       var vph = $(window).height();
-      $('.textbox').css({'height': vph - 200});
+      $('.textbox').css({'height': 0.8 *vph});
     }
  });
 })();

@@ -18,7 +18,6 @@ body {
 
 .textbox {
   padding: 10px;
-  padding-top: 35px;
   width: 90%;
   height: 90%;
   font-size: medium;
@@ -88,7 +87,7 @@ button {
   height: 98%;
 }
 .tooltip-wrapper {
-  height: 20em;
+  height: 100%;
   position: relative;
   width: 100%;
   top: -23px;
@@ -104,7 +103,7 @@ button {
   -webkit-border-radius: 80px;
   border-radius: 80px;    
   height:4em;
-  top:10%;
+  top:28%;
   left: 5%;
   z-index: -10;
 }
@@ -134,4 +133,7 @@ a {
 .icon {
   margin: 10px auto;
   width: 90%;
+}
+.buttons-row {
+  height: 10%;
 }
