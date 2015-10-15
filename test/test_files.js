@@ -7,7 +7,8 @@ var files = require('../lib/files'),
     types = require('../lib/types'),
     assert = require('assert'),
     fs = require('fs'),
-    path = require('path');
+    path = require('path'),
+    tmp = require('tmp');
 
 
 var DPATH = path.join(__dirname, 'dat');
@@ -450,59 +451,48 @@ suite('streams', function () {
 
   });
 
-  suite('createFileDecoder', function () {
+  test('createFileDecoder', function (cb) {
+    var n = 0;
+    var type = loadSchema(path.join(DPATH, 'Person.avsc'));
+    files.createFileDecoder(path.join(DPATH, 'person-10.avro'))
+      .on('metadata', function (writerType) {
+        assert.equal(writerType.toString(), type.toString());
+      })
+      .on('data', function (obj) {
+        n++;
+        assert(type.isValid(obj));
+      })
+      .on('end', function () {
+        assert.equal(n, 10);
+        cb();
+      });
+  });
 
-    var createFileDecoder = files.createFileDecoder;
-
-    test('block file matching type', function (cb) {
-      var n = 0;
-      var type = loadSchema(path.join(DPATH, 'Person.avsc'));
-      createFileDecoder(path.join(DPATH, 'person-10.avro'), type)
+  test('createFileEncoder', function (cb) {
+    var type = fromSchema({
+      type: 'record',
+      name: 'Person',
+      fields: [
+        {name: 'name', type: 'string'},
+        {name: 'age', type: 'int'}
+      ]
+    });
+    var path = tmp.fileSync().name;
+    var encoder = files.createFileEncoder(path, type);
+    encoder.write({name: 'Ann', age: 32});
+    encoder.end({name: 'Bob', age: 33});
+    var n = 0;
+    encoder.on('finish', function () {
+      files.createFileDecoder(path)
         .on('data', function (obj) {
           n++;
           assert(type.isValid(obj));
         })
         .on('end', function () {
-          assert.equal(n, 10);
+          assert.equal(n, 2);
           cb();
         });
     });
-
-    test('block file no type', function (cb) {
-      var n = 0;
-      var type;
-      createFileDecoder(path.join(DPATH, 'person-10.avro'))
-        .on('metadata', function (writerType) { type = writerType; })
-        .on('data', function (obj) {
-          n++;
-          assert(type.isValid(obj));
-        })
-        .on('end', function () {
-          assert.equal(n, 10);
-          cb();
-        });
-    });
-
-    test('block file invalid type', function (cb) {
-      var type = loadSchema(path.join(DPATH, 'Id.avsc'));
-      createFileDecoder(path.join(DPATH, 'person-10.avro'), type)
-        .on('error', function  () { cb(); });
-    });
-
-    test('raw file', function (cb) {
-      var type = loadSchema(path.join(DPATH, 'Person.avsc'));
-      var n = 0;
-      createFileDecoder(path.join(DPATH, 'person-10.avro.raw'), type)
-        .on('data', function (obj) {
-          n++;
-          assert(type.isValid(obj));
-        })
-        .on('end', function () {
-          assert.equal(n, 10);
-          cb();
-        });
-    });
-
   });
 
   test('extractFileHeader', function () {

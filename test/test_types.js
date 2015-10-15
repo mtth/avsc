@@ -1836,7 +1836,7 @@ suite('types', function () {
 function testType(Type, data, invalidSchemas) {
 
   data.forEach(function (elem) {
-    test(elem.name || elem.schema, function () {
+    test('roundtrip', function () {
       var type = new Type(elem.schema);
       elem.valid.forEach(function (v) {
         assert(type.isValid(v), '' + v);

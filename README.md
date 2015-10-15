@@ -60,15 +60,8 @@ var avsc = require('avsc');
 + Encode and decode objects:
 
   ```javascript
-  var type = avsc.parse('./Person.avsc'); // Load schema from a file.
-  var buf = type.toBuffer({name: 'Ann', age: 25}); // Serialize an object.
-  var obj = type.fromBuffer(buf); // {name: 'Ann', age: 25}
-  ```
-
-+ Generate random instances from a schema:
-
-  ```javascript
-  var type = avsc.parse({ // Declare schema inline.
+  // We can declare a schema inline:
+  var type = avsc.parse({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -76,7 +69,26 @@ var avsc = require('avsc');
       {name: 'name', type: 'string'}
     ]
   });
-  var pet = type.random(); // E.g. {kind: 'CAT', name: 'qwXlrew'}
+  var pet = {kind: 'CAT', name: 'Albert'};
+  var buf = type.toBuffer(pet); // Serialized object.
+  var obj = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
+  ```
+
++ Generate random instances of a schema:
+
+  ```javascript
+  // We can also parse a JSON-stringified schema:
+  var type = avsc.parse('{"type": "fixed", "name": "Id", "size": 4}');
+  var id = type.random(); // E.g. Buffer([48, 152, 2, 123])
+  ```
+
++ Check whether an object fits a given schema:
+
+  ```javascript
+  // Or we can specify a path to a schema file (not in the browser):
+  var type = avsc.parse('./Person.avsc');
+  var person = {name: 'Bob', address: {city: 'Cambridge', zip: '02139'}};
+  var status = type.isValid(person); // Boolean status.
   ```
 
 + Get a [readable stream][readable-stream] of decoded records from an Avro
@@ -84,6 +96,7 @@ var avsc = require('avsc');
 
   ```javascript
   avsc.createFileDecoder('records.avro')
+    .on('metadata', function (type) { /* `type` is the writer's type. */ })
     .on('data', function (record) { /* Do something with the record. */ });
   ```
 

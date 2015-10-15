@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "2.0.1",
+  "version": "2.1.0",
   "description": "A serialization API to make you smile",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -31,7 +31,8 @@
   "devDependencies": {
     "coveralls": "^2.11.4",
     "istanbul": "^0.3.19",
-    "mocha": "^2.3.2"
+    "mocha": "^2.3.2",
+    "tmp": "0.0.28"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
