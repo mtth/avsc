@@ -9,7 +9,7 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   order][sort-order], and [schema evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
-+ No dependencies, `avsc` even runs in the browser!
++ No dependencies, `avsc` even runs in the browser.
 
 
 ## Performance
@@ -95,7 +95,7 @@ var avsc = require('avsc');
   container file (not in the browser):
 
   ```javascript
-  avsc.createFileDecoder('records.avro')
+  avsc.createFileDecoder('./records.avro')
     .on('metadata', function (type) { /* `type` is the writer's type. */ })
     .on('data', function (record) { /* Do something with the record. */ });
   ```
