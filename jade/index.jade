@@ -17,7 +17,7 @@ html(lang='en')
           td.wide
             div.outer
               div
-                textarea#schema.textbox.verifiable
+                div(contentEditable='true')#schema.textbox.verifiable
               div.label
                 img#schema-valid(src='../assets/valid.png').icon.hidden
 
@@ -25,14 +25,14 @@ html(lang='en')
           td.wide
             div.outer
               div
-                textarea#input.textbox
+                div(contentEditable='true')#input.textbox
               div.label
                 img#input-valid(src='../assets/valid.png').icon.hidden
               div#decoded-error.message.hidden.error
           td.wide
             div.outer
               div 
-                textarea#output.textbox.verifiable  
+                div(contentEditable='true')#output.textbox.verifiable  
               div.label
                 img#output-valid(src='../assets/valid.png').icon.hidden
               div#encoded-error.message.hidden.error

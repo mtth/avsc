@@ -2,6 +2,9 @@ body {
   background-color: #DEDEDE;
   font-family: 'Indie Flower', cursive;
 }
+.highlight {
+    background-color: #FFFF88;
+}
 .container {
   margin: auto;
   font-size: 1em;
@@ -17,6 +20,7 @@ body {
 }
 
 .textbox {
+  text-align: left;
   padding: 10px;
   width: 90%;
   height: 90%;

@@ -9,6 +9,7 @@
 
 
   require('jquery-ui');
+  require('jquery-highlight');
   window.avsc = avsc;
 
   $( function() {
@@ -20,15 +21,26 @@
     var decodedValidElement = $('#input-valid');
     var inputElement = $('#input');
     var outputElement = $('#output');
+ 
     window.onresize = function(event) {
       resize();
     }
+    /* When pasting something into an editable div, it 
+     * pastes all the html styles with it too, which need to be cleaned up.
+     *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
+
+    $('[contenteditable]').on('paste',function(e) {
+      e.preventDefault();
+      var text = (e.originalEvent || e).clipboardData.getData('text/plain');
+      window.document.execCommand('insertText', false, text);
+    });
+
     /* Validate schema after each new character. */
-    $('#schema').on('paste keyup', function(e) {
+    $('#schema').on('keyup', function(e) {
       setTimeout(function(){
-        validateSchema();
+         validateSchema();
       }, 0);
-    }).on('input paste', function(e) {
+    }).on('input', function(e) {
         setTimeout(function() {
           generateRandom();
       }, 0);
@@ -83,7 +95,7 @@
         try{
           var random = parsedSchema.random();
           var randomStr = parsedSchema.toString(random);
-          inputElement.val(randomStr);
+          inputElement.text(randomStr);
           encode(); /* Update encoded string too. */
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
@@ -98,7 +110,7 @@
         try {
           var input = readInput(inputElement);
           var output = parsedSchema.toBuffer(input);
-          outputElement.val(bufferToStr(output));
+          outputElement.text(bufferToStr(output));
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
@@ -119,7 +131,7 @@
           var input = readBuffer(outputElement);
           var decoded = parsedSchema.fromBuffer(input);
           //todo: probably do sth here
-          $(inputElement).val(parsedSchema.toString(decoded));
+          $(inputElement).text(parsedSchema.toString(decoded));
           clearErrors();
           toggleError(encodedErrorElement, encodedValidElement,null);
         }catch(err) {
@@ -148,11 +160,11 @@
     }
     
     function clearText(element) {
-      element.val('');
+      element.text('');
     }
  
     function readInput(elementId) {
-      var rawInput = $.trim($(elementId).val());
+      var rawInput = getText(elementId);
       if (!!parsedSchema) {
         return parsedSchema.fromString(rawInput);
       } else {
@@ -162,8 +174,8 @@
     }
 
     function readBuffer(elementId) {
-      var rawInput = $.trim($(elementId).val());
-      var hexArray = rawInput.split(', ');
+      var rawInput = getText(elementId);
+      var hexArray = rawInput.split(',');
       var i;
       var size = hexArray.length;
       var buffer = [];
@@ -171,6 +183,11 @@
         buffer.push(new Buffer(hexArray[i], 'hex'));
       }
       return Buffer.concat(buffer);
+    }
+    function getText(elementId) {
+      var rawInput = $.trim($(elementId).text());
+      return rawInput.replace(/\s/g, "");
+
     }
 
     function bufferToStr(buffer) {
@@ -193,5 +210,6 @@
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
     }
+
  });
 })();
