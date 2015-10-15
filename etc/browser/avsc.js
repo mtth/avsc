@@ -2,18 +2,10 @@
 
 'use strict';
 
-/**
- * Shim entry point for browserify.
- *
- * It only exposes the part of the API which can run in the browser.
- *
- */
 
-var types = require('../../lib/types'),
-    Tap = require('../../lib/tap');
+var Tap = require('../../lib/tap'),
+    types = require('../../lib/types');
 
-
-// No filesystem access in the browser.
 
 function parse(schema, opts) {
   var obj;
@@ -21,7 +13,7 @@ function parse(schema, opts) {
     try {
       obj = JSON.parse(schema);
     } catch (err) {
-      // Pass. We don't support reading files here.
+      // Pass. No file reading from the browser.
     }
   }
   if (obj === undefined) {
@@ -30,8 +22,7 @@ function parse(schema, opts) {
   return types.Type.fromSchema(obj, opts);
 }
 
-
-// No utf8 and binary functions on browserify's `Buffer`, we must use the
+// No utf8 and binary functions on browserify's `Buffer`, we must patch in the
 // generic slice and write equivalents.
 
 Tap.prototype.readString = function () {

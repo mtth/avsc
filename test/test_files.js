@@ -2,16 +2,20 @@
 
 'use strict';
 
-var _streams = require('../lib/streams'),
+
+var files = require('../lib/files'),
     types = require('../lib/types'),
-    assert = require('assert');
+    assert = require('assert'),
+    fs = require('fs'),
+    path = require('path');
 
 
-var fromSchema = types.Type.fromSchema;
+var DPATH = path.join(__dirname, 'dat');
+var Header = files.HEADER_TYPE.getRecordConstructor();
+var MAGIC_BYTES = files.MAGIC_BYTES;
 var SYNC = new Buffer('atokensyncheader');
-var Header = _streams.HEADER_TYPE.getRecordConstructor();
-var MAGIC_BYTES = _streams.MAGIC_BYTES;
-var streams = _streams.streams;
+var fromSchema = types.Type.fromSchema;
+var streams = files.streams;
 
 
 suite('streams', function () {
@@ -446,4 +450,83 @@ suite('streams', function () {
 
   });
 
+  suite('createFileDecoder', function () {
+
+    var createFileDecoder = files.createFileDecoder;
+
+    test('block file matching type', function (cb) {
+      var n = 0;
+      var type = loadSchema(path.join(DPATH, 'Person.avsc'));
+      createFileDecoder(path.join(DPATH, 'person-10.avro'), type)
+        .on('data', function (obj) {
+          n++;
+          assert(type.isValid(obj));
+        })
+        .on('end', function () {
+          assert.equal(n, 10);
+          cb();
+        });
+    });
+
+    test('block file no type', function (cb) {
+      var n = 0;
+      var type;
+      createFileDecoder(path.join(DPATH, 'person-10.avro'))
+        .on('metadata', function (writerType) { type = writerType; })
+        .on('data', function (obj) {
+          n++;
+          assert(type.isValid(obj));
+        })
+        .on('end', function () {
+          assert.equal(n, 10);
+          cb();
+        });
+    });
+
+    test('block file invalid type', function (cb) {
+      var type = loadSchema(path.join(DPATH, 'Id.avsc'));
+      createFileDecoder(path.join(DPATH, 'person-10.avro'), type)
+        .on('error', function  () { cb(); });
+    });
+
+    test('raw file', function (cb) {
+      var type = loadSchema(path.join(DPATH, 'Person.avsc'));
+      var n = 0;
+      createFileDecoder(path.join(DPATH, 'person-10.avro.raw'), type)
+        .on('data', function (obj) {
+          n++;
+          assert(type.isValid(obj));
+        })
+        .on('end', function () {
+          assert.equal(n, 10);
+          cb();
+        });
+    });
+
+  });
+
+  test('extractFileHeader', function () {
+    var header;
+    var fpath = path.join(DPATH, 'person-10.avro');
+    header = files.extractFileHeader(fpath);
+    assert(header !== null);
+    assert.equal(typeof header.meta['avro.schema'], 'object');
+    header = files.extractFileHeader(fpath, {decode: false});
+    assert(Buffer.isBuffer(header.meta['avro.schema']));
+    header = files.extractFileHeader(fpath, {size: 2});
+    assert.equal(typeof header.meta['avro.schema'], 'object');
+    header = files.extractFileHeader(path.join(DPATH, 'person-10.avro.raw'));
+    assert(header === null);
+    header = files.extractFileHeader(
+      path.join(DPATH, 'person-10.no-codec.avro')
+    );
+    assert(header !== null);
+  });
+
 });
+
+// Helpers.
+
+function loadSchema(path) {
+  return fromSchema(JSON.parse(fs.readFileSync(path)));
+}

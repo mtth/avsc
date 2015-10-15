@@ -2,12 +2,14 @@
 
 'use strict';
 
-var types = require('../lib/types'),
-    Tap = require('../lib/tap'),
+
+var Tap = require('../lib/tap'),
+    types = require('../lib/types'),
     assert = require('assert');
 
 
 var fromSchema = types.Type.fromSchema;
+
 
 suite('types', function () {
 

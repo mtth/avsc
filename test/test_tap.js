@@ -2,6 +2,7 @@
 
 'use strict';
 
+
 var Tap = require('../lib/tap'),
     assert = require('assert');
 

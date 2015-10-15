@@ -38,8 +38,8 @@ details on the [benchmarks page][benchmarks].
 $ npm install avsc
 ```
 
-`avsc` is compatible with all versions of [node.js][] since `0.11` and all
-major browsers via [browserify][].
+`avsc` is compatible with all versions of [node.js][] since `0.11` and major
+browsers via [browserify][].
 
 
 ## Documentation
@@ -60,7 +60,7 @@ var avsc = require('avsc');
 + Encode and decode objects:
 
   ```javascript
-  var type = avsc.parse('Person.avsc'); // Load schema from a file.
+  var type = avsc.parse('./Person.avsc'); // Load schema from a file.
   var buf = type.toBuffer({name: 'Ann', age: 25}); // Serialize an object.
   var obj = type.fromBuffer(buf); // {name: 'Ann', age: 25}
   ```

@@ -2,8 +2,10 @@
 
 'use strict';
 
+
 var utils = require('../lib/utils'),
     assert = require('assert');
+
 
 suite('utils', function () {
 
