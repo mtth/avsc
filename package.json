@@ -9,7 +9,8 @@
     "schema",
     "json",
     "encoding",
-    "decoding"
+    "decoding",
+    "serialization"
   ],
   "files": [
     "lib",

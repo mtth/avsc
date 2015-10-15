@@ -96,7 +96,6 @@ var avsc = require('avsc');
 + Protocols aren't yet implemented.
 
 
-[io.js]: https://iojs.org/en/
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution

@@ -2,6 +2,12 @@
 
 'use strict';
 
+/**
+ * Shim entry point used when `avsc` is `require`d from browserify.
+ *
+ * It doesn't expose any of the filesystem methods and patches a few others.
+ *
+ */
 
 var Tap = require('../../lib/tap'),
     types = require('../../lib/types');
