@@ -33,16 +33,16 @@
       e.preventDefault();
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
       window.document.execCommand('insertText', false, text);
+      if(e.target.id === 'schema') {
+        validateSchema();
+        generateRandom();
+      }
     });
 
     /* Validate schema after each new character. */
     $('#schema').on('keyup', function(e) {
       setTimeout(function(){
          validateSchema();
-      }, 0);
-    }).on('input', function(e) {
-        setTimeout(function() {
-          generateRandom();
       }, 0);
     });
 
@@ -72,6 +72,7 @@
         parsedSchema = avsc.parse(schema);
         toggleError(error_elem, valid_elem, null);
       } catch (err) {
+        console.log(err);
         toggleError(error_elem, valid_elem, err);
         clearValidIcons();
       }
@@ -97,8 +98,6 @@
           var randomStr = parsedSchema.toString(random);
           inputElement.text(randomStr);
           encode(); /* Update encoded string too. */
-          clearErrors();
-          toggleError(decodedErrorElement, decodedValidElement, null);
         } catch(err) {
           toggleError($('#schema-error'), $('#schema-valid'), err);
         }
@@ -133,7 +132,8 @@
           //todo: probably do sth here
           $(inputElement).text(parsedSchema.toString(decoded));
           clearErrors();
-          toggleError(encodedErrorElement, encodedValidElement,null);
+          toggleError(decodedErrorElement, decodedValidElement, null);
+          toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
           clearErrors();
           clearValidIcons();
@@ -147,7 +147,6 @@
 
     /* Clear any error messages shown in input/output boxes. */
     function clearErrors() {
-      
       decodedErrorElement.text('');
       decodedErrorElement.addClass('hidden');
       encodedErrorElement.text('');
@@ -175,7 +174,7 @@
 
     function readBuffer(elementId) {
       var rawInput = getText(elementId);
-      var hexArray = rawInput.split(',');
+      var hexArray = rawInput.split(/[\s,]+/);
       var i;
       var size = hexArray.length;
       var buffer = [];
@@ -194,13 +193,11 @@
       var size = buffer.length;
       var outStr = '';
       var i;
-      var commaNeeded = false;
-      for (i = 0; i < size; i++) {
-        if(commaNeeded) {
-          outStr += ', ';
-        }
-        commaNeeded = true;
-        outStr +=  buffer.toString('hex', i , i+1);
+      for (i = 1; i <= size; i++) {
+        outStr +=  buffer.toString('hex', i-1 , i) + ' ';
+        if (i % 8 == 0 ) {
+          outStr += '\n';
+        } 
       }
       return outStr;
     }
