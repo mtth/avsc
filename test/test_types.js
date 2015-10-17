@@ -86,6 +86,14 @@ suite('types', function () {
       assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), 123);
     });
 
+    test('resolve int > double', function () {
+      var wt = fromSchema('int');
+      var rt = fromSchema('double');
+      var n = Math.pow(2, 30) + 1;
+      var buf = wt.toBuffer(n);
+      assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), n);
+    });
+
     test('toString', function () {
       assert.equal(fromSchema('int').toString(), '"int"');
     });
@@ -115,6 +123,16 @@ suite('types', function () {
 
     test('resolve invalid', function () {
       assert.throws(function () { getResolver('long', 'double'); });
+    });
+
+    test('resolve long > float', function () {
+      var t1 = fromSchema('long');
+      var t2 = fromSchema('float');
+      var n = 9007199254740990; // Number.MAX_SAFE_INTEGER - 1
+      var buf = t1.toBuffer(n);
+      var f = t2.fromBuffer(buf, t2.createResolver(t1));
+      assert(Math.abs(f - n) / n < 1e-7);
+      assert(t2.isValid(f));
     });
 
     test('precision loss', function () {
@@ -198,6 +216,10 @@ suite('types', function () {
       assert.equal(t.compareBuffers(b1, b3), -1);
     });
 
+    test('resolver double > float', function () {
+      assert.throws(function () { getResolver('float', 'double'); });
+    });
+
   });
 
   suite('DoubleType', function () {
@@ -211,6 +233,10 @@ suite('types', function () {
     ];
 
     testType(types.DoubleType, data);
+
+    test('resolver string > double', function () {
+      assert.throws(function () { getResolver('double', 'string'); });
+    });
 
     test('compare buffer', function () {
       var t = fromSchema('double');
