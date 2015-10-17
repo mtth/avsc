@@ -208,5 +208,18 @@
       $('.textbox').css({'height': 0.8 *vph});
     }
 
+    /*
+    * Gets the full path to a field name, 
+    * and returns two schemas ending before and after the field.
+    * The full path is given as an array of field names. 
+    */
+    function getSchemasUntil(path, type) {
+      if (! path instanceof Array) {
+        console.log("Invalid path: " + path);
+        return null;
+      }
+      var fields = type._fields;
+    }
+
  });
 })();

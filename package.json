@@ -8,6 +8,9 @@
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
+  "scripts" : {
+    "test": "mocha --ui tdd"
+  },
   "dependencies": {
     "avsc": "git://github.com/mtth/avsc.git#2.0",
     "buffer": "^3.5.0",
