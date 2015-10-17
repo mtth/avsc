@@ -79,6 +79,13 @@ suite('types', function () {
       );
     });
 
+    test('resolve int > float', function () {
+      var wt = fromSchema('int');
+      var rt = fromSchema('float');
+      var buf = wt.toBuffer(123);
+      assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), 123);
+    });
+
     test('toString', function () {
       assert.equal(fromSchema('int').toString(), '"int"');
     });
@@ -110,6 +117,12 @@ suite('types', function () {
       assert.throws(function () { getResolver('long', 'double'); });
     });
 
+    test('precision loss', function () {
+      var type = fromSchema('long');
+      var buf = new Buffer([0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]);
+      assert.throws(function () { type.fromBuffer(buf); });
+    });
+
   });
 
   suite('StringType', function () {
@@ -124,21 +137,17 @@ suite('types', function () {
     testType(types.StringType, data);
 
     test('fromBuffer string', function () {
-
       var type = fromSchema('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
       assert.equal(type.fromBuffer(buf), s);
       assert(buf.equals(type.toBuffer(s)));
-
     });
 
     test('toBuffer string', function () {
-
       var type = fromSchema('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       assert(buf.equals(type.toBuffer('hi!', 1)));
-
     });
 
     test('resolve string > bytes', function () {
@@ -171,7 +180,7 @@ suite('types', function () {
 
     var data = [
       {
-        valid: [1, -3.4, 12314e31],
+        valid: [1, -3, 123e7],
         invalid: [null, 'hi', undefined, 5e38],
         check: function (a, b) { assert(floatEquals(a, b)); }
       }

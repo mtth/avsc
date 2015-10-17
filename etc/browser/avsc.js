@@ -62,6 +62,15 @@ Tap.prototype.writeBinary = function (s, len) {
   this.buf.write(s, pos, len, 'binary');
 };
 
+// In case Math.fround isn't available, we polyfill.
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Math/fround
+
+Math.fround = Math.fround || (function (array) {
+  return function(x) {
+    return array[0] = x, array[0];
+  };
+})(new Float32Array(1));
+
 
 module.exports = {
   parse: parse,

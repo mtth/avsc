@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "2.1.1",
+  "version": "2.1.2",
   "description": "A serialization API to make you smile",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
