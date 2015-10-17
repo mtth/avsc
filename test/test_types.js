@@ -220,6 +220,21 @@ suite('types', function () {
       assert.throws(function () { getResolver('float', 'double'); });
     });
 
+    test('fromString', function () {
+      var t = fromSchema('float');
+      var f = t.fromString('3.1');
+      assert(t.isValid(f));
+    });
+
+    test('clone from double', function () {
+      var t = fromSchema('float');
+      var d = 3.1;
+      var f;
+      assert.throws(function () { t.clone(d); }); // Without rounding.
+      f = t.clone(d, {roundFloats: true}); // With.
+      assert(t.isValid(f));
+    });
+
   });
 
   suite('DoubleType', function () {
