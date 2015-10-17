@@ -12,7 +12,7 @@ suite('tap', function () {
   suite('int & long', function () {
 
     testWriterReader({
-      elems: [0, -1, 109213, -1211, -1312411211],
+      elems: [0, -1, 109213, -1211, -1312411211, 900719925474090],
       reader: function () { return this.readLong(); },
       skipper: function () { this.skipLong(); },
       writer: function (n) { this.writeLong(n); }

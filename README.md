@@ -23,8 +23,8 @@ Libraries compared:
 + `node-avsc`, this package.
 + `node-json`, built-in JSON serializer.
 + [`node-pson`](https://www.npmjs.com/package/pson), an alternative to JSON.
-+ [`node-avro-io`](https://www.npmjs.com/package/node-avro-io), most popular
-  previously existing Avro implementation.
++ [`node-avro-io`](https://www.npmjs.com/package/node-avro-io), popular
+  existing Avro implementation.
 
 These rates are for decoding a [realistic record schema][coupon-schema],
 modeled after a popular open-source API. Encoding rates are slightly lower but

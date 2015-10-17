@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "2.1.0",
+  "version": "2.1.1",
   "description": "A serialization API to make you smile",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -25,7 +25,7 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "test": "mocha --ui tdd",
+    "test": "mocha --ui tdd --no-deprecation",
     "cover": "istanbul cover _mocha -- --ui tdd"
   },
   "devDependencies": {

@@ -99,8 +99,8 @@ suite('types', function () {
 
     var data = [
       {
-        valid: [1, -3, 12314, 9007199254740991],
-        invalid: [null, 'hi', undefined, 9007199254740992, 1.3, 1e67]
+        valid: [1, -3, 12314, 9007199254740990, 900719925474090],
+        invalid: [null, 'hi', undefined, 9007199254740991, 1.3, 1e67]
       }
     ];
 
@@ -1829,6 +1829,10 @@ suite('types', function () {
     var t = fromSchema('string');
     var buf = t.toBuffer('\x01');
     assert.deepEqual(buf, new Buffer([2, 1]));
+  });
+
+  test('getDefaultRegistry', function () {
+    assert.doesNotThrow(types.Type.getDefaultRegistry);
   });
 
 });
