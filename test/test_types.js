@@ -1893,10 +1893,6 @@ suite('types', function () {
     assert.deepEqual(buf, new Buffer([2, 1]));
   });
 
-  test('getDefaultRegistry', function () {
-    assert.doesNotThrow(types.Type.getDefaultRegistry);
-  });
-
 });
 
 function testType(Type, data, invalidSchemas) {
