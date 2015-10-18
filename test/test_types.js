@@ -178,6 +178,19 @@ suite('types', function () {
       );
     });
 
+    test('encode resize', function () {
+      var t = fromSchema('string');
+      var s = 'hello';
+      var b, pos;
+      b = new Buffer(2);
+      pos = t.encode(s, b);
+      assert(pos < 0);
+      b = new Buffer(2 - pos);
+      pos = t.encode(s, b);
+      assert(pos >= 0);
+      assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
+    });
+
   });
 
   suite('NullType', function () {
@@ -1842,7 +1855,7 @@ suite('types', function () {
       var t = fromSchema('bytes');
       var buf = new Buffer([4, 1]);
       var res = t.decode(buf, 0);
-      assert.deepEqual(res, {offset: -1});
+      assert.deepEqual(res, {object: undefined, offset: -1});
     });
 
   });
@@ -1862,7 +1875,7 @@ suite('types', function () {
       var t = fromSchema('string');
       var buf = new Buffer(1);
       var n = t.encode('\x01\x02', buf, 0);
-      assert.equal(n, -1);
+      assert.equal(n, -2);
     });
 
     test('invalid no check', function () {
