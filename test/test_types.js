@@ -212,7 +212,7 @@ suite('types', function () {
     var data = [
       {
         valid: [1, -3, 123e7],
-        invalid: [null, 'hi', undefined, 5e38],
+        invalid: [null, 'hi', undefined],
         check: function (a, b) { assert(floatEquals(a, b)); }
       }
     ];
@@ -243,8 +243,7 @@ suite('types', function () {
       var t = fromSchema('float');
       var d = 3.1;
       var f;
-      assert.throws(function () { t.clone(d); }); // Without rounding.
-      f = t.clone(d, {roundFloats: true}); // With.
+      f = t.clone(d);
       assert(t.isValid(f));
     });
 
