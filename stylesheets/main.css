@@ -5,6 +5,11 @@ body {
 .highlight {
     background-color: #FFFF88;
 }
+
+.highlightable span:hover {
+  background-color: #FFFF88;
+  font-weight:bold;
+}
 .container {
   margin: auto;
   font-size: 1em;

@@ -2,13 +2,12 @@
 
 (function () {
   'use strict';
-
+  global.jQuery = require("jquery")
+  require('jquery-ui');
   var avsc = require('avsc'),
       buffer = require('buffer'),
       $ = require('jquery');
-
-
-  require('jquery-ui');
+  require('./lib/jquery-lettering.min.js'); 
   require('jquery-highlight');
   window.avsc = avsc;
 
@@ -28,7 +27,6 @@
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
      *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
-
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
@@ -43,6 +41,7 @@
     $('#schema').on('keyup', function(e) {
       setTimeout(function(){
          validateSchema();
+         generateRandom();
       }, 0);
     });
 
@@ -50,12 +49,20 @@
       setTimeout(function() {
         encode();
       }, 0);
-    }); 
+    }).on('mouseover', function(event) {
+      //$('.highlightable').lettering('words');
+      var $this = $(this);
+      $this.html($this.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+    });
 
+    
     $('#output').on('paste keyup', function(event) {
       setTimeout(function() {
         decode();
       }, 0);
+    }).on('mouseover', function(event) {
+      var $this = $(this);
+      $this.html($this.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
     });
 
     $('#random').click(function () {   
@@ -207,19 +214,10 @@
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
     }
+    function updateTexts() {
 
-    /*
-    * Gets the full path to a field name, 
-    * and returns two schemas ending before and after the field.
-    * The full path is given as an array of field names. 
-    */
-    function getSchemasUntil(path, type) {
-      if (! path instanceof Array) {
-        console.log("Invalid path: " + path);
-        return null;
-      }
-      var fields = type._fields;
     }
 
+  
  });
 })();

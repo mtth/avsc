@@ -2507,18 +2507,17 @@ function hasOwnProperty(obj, prop) {
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./support/isBuffer":7,"_process":6,"inherits":5}],9:[function(require,module,exports){
-(function (Buffer){
+(function (global,Buffer){
 /* jshint browser: true, browserify: true */
 
 (function () {
   'use strict';
-
+  global.jQuery = require("jquery")
+  require('jquery-ui');
   var avsc = require('avsc'),
       buffer = require('buffer'),
       $ = require('jquery');
-
-
-  require('jquery-ui');
+  require('./lib/jquery-lettering.min.js'); 
   require('jquery-highlight');
   window.avsc = avsc;
 
@@ -2538,7 +2537,6 @@ function hasOwnProperty(obj, prop) {
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
      *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
-
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
@@ -2553,6 +2551,7 @@ function hasOwnProperty(obj, prop) {
     $('#schema').on('keyup', function(e) {
       setTimeout(function(){
          validateSchema();
+         generateRandom();
       }, 0);
     });
 
@@ -2560,12 +2559,20 @@ function hasOwnProperty(obj, prop) {
       setTimeout(function() {
         encode();
       }, 0);
-    }); 
+    }).on('mouseover', function(event) {
+      //$('.highlightable').lettering('words');
+      var $this = $(this);
+      $this.html($this.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+    });
 
+    
     $('#output').on('paste keyup', function(event) {
       setTimeout(function() {
         decode();
       }, 0);
+    }).on('mouseover', function(event) {
+      var $this = $(this);
+      $this.html($this.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
     });
 
     $('#random').click(function () {   
@@ -2717,25 +2724,19 @@ function hasOwnProperty(obj, prop) {
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
     }
+    function updateTexts() {
 
-    /*
-    * Gets the full path to a field name, 
-    * and returns two schemas ending before and after the field.
-    * The full path is given as an array of field names. 
-    */
-    function getSchemasUntil(path, type) {
-      if (! path instanceof Array) {
-        console.log("Invalid path: " + path);
-        return null;
-      }
-      var fields = type._fields;
     }
 
+  
  });
 })();
 
-}).call(this,require("buffer").Buffer)
-},{"avsc":10,"buffer":1,"jquery":17,"jquery-highlight":15,"jquery-ui":16}],10:[function(require,module,exports){
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
+},{"./lib/jquery-lettering.min.js":10,"avsc":11,"buffer":1,"jquery":18,"jquery-highlight":16,"jquery-ui":17}],10:[function(require,module,exports){
+/* Lettering.JS 0.6.1 by Dave Rupert  - http://daverupert.com */
+(function($){function injector(t,splitter,klass,after){var a=t.text().split(splitter),inject='';if(a.length){$(a).each(function(i,item){inject+='<span class="'+klass+(i+1)+'">'+item+'</span>'+after});t.empty().append(inject)}}var methods={init:function(){return this.each(function(){injector($(this),'','char','')})},words:function(){return this.each(function(){injector($(this),' ','word',' ')})},lines:function(){return this.each(function(){var r="eefec303079ad17405c889e092e105b0";injector($(this).children("br").replaceWith(r).end(),r,'line','')})}};$.fn.lettering=function(method){if(method&&methods[method]){return methods[method].apply(this,[].slice.call(arguments,1))}else if(method==='letters'||!method){return methods.init.apply(this,[].slice.call(arguments,0))}$.error('Method '+method+' does not exist on jQuery.lettering');return this}})(jQuery);
+},{}],11:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -2811,7 +2812,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"../../lib/tap":12,"../../lib/types":13,"buffer":1}],11:[function(require,module,exports){
+},{"../../lib/tap":13,"../../lib/types":14,"buffer":1}],12:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -2988,7 +2989,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],12:[function(require,module,exports){
+},{"buffer":1}],13:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -3249,7 +3250,7 @@ Tap.prototype.writeBinary = function (str, len) {
 module.exports = Tap;
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],13:[function(require,module,exports){
+},{"buffer":1}],14:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -4896,7 +4897,7 @@ module.exports = (function () {
 })();
 
 }).call(this,require("buffer").Buffer)
-},{"./tap":12,"./utils":14,"buffer":1,"crypto":11,"util":8}],14:[function(require,module,exports){
+},{"./tap":13,"./utils":15,"buffer":1,"crypto":12,"util":8}],15:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -5159,7 +5160,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":1}],15:[function(require,module,exports){
+},{"buffer":1}],16:[function(require,module,exports){
 /*
  * jQuery Highlight plugin
  *
@@ -5310,7 +5311,7 @@ module.exports = {
     };
 }));
 
-},{"jquery":17}],16:[function(require,module,exports){
+},{"jquery":18}],17:[function(require,module,exports){
 var jQuery = require('jquery');
 
 /*! jQuery UI - v1.10.3 - 2013-05-03
@@ -20317,7 +20318,7 @@ $.widget( "ui.tooltip", {
 
 }( jQuery ) );
 
-},{"jquery":17}],17:[function(require,module,exports){
+},{"jquery":18}],18:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.1.4
  * http://jquery.com/
