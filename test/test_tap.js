@@ -121,6 +121,77 @@ suite('tap', function () {
 
   });
 
+  suite('pack & unpack longs', function () {
+
+    test('unpack single byte', function () {
+      var t = newTap(10);
+      t.writeLong(5);
+      t.pos = 0;
+      assert.deepEqual(t.unpackLong(), new Buffer([5, 0, 0, 0, 0, 0, 0, 0]));
+      t.pos = 0;
+      t.writeLong(-5);
+      t.pos = 0;
+      assert.deepEqual(
+        t.unpackLong(),
+        new Buffer([-5, -1, -1, -1, -1, -1, -1, -1])
+      );
+      t.pos = 0;
+    });
+
+    test('unpack multiple bytes', function () {
+      var t = newTap(10);
+      var l;
+      l = 18932;
+      t.writeLong(l);
+      t.pos = 0;
+      assert.deepEqual(t.unpackLong().readInt32LE(), l);
+      t.pos = 0;
+      l = -3210984;
+      t.writeLong(l);
+      t.pos = 0;
+      assert.deepEqual(t.unpackLong().readInt32LE(), l);
+    });
+
+    test('pack single byte', function () {
+      var t = newTap(10);
+      var b = new Buffer(8);
+      b.fill(0);
+      b.writeInt32LE(12);
+      t.packLong(b);
+      assert.equal(t.pos, 1);
+      t.pos = 0;
+      assert.deepEqual(t.readLong(), 12);
+      t.pos = 0;
+      b.writeInt32LE(-37);
+      b.writeInt32LE(-1, 4);
+      t.packLong(b);
+      assert.equal(t.pos, 1);
+      t.pos = 0;
+      assert.deepEqual(t.readLong(), -37);
+    });
+
+    test('roundtrip', function () {
+      roundtrip(1231514);
+      roundtrip(-123);
+      roundtrip(124124);
+      roundtrip(109283109271);
+      roundtrip(Number.MAX_SAFE_INTEGER);
+      roundtrip(Number.MIN_SAFE_INTEGER);
+      roundtrip(0);
+      roundtrip(-1);
+
+      function roundtrip(n) {
+        var t1 = newTap(10);
+        var t2 = newTap(10);
+        t1.writeLong(n);
+        t1.pos = 0;
+        t2.packLong(t1.unpackLong());
+        assert.deepEqual(t2, t1);
+      }
+    });
+
+  });
+
 });
 
 function newTap(n) {
