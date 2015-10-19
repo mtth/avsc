@@ -2594,26 +2594,13 @@ function hasOwnProperty(obj, prop) {
         clearValidIcons();
       }
     }
-    /* If msg is null, make the valid_element visible, otherwise 
-    show `msg` in errorElement. */
-    function toggleError(errorElement, valid_element, msg) {
-      if(!!msg) {
-        errorElement.removeClass('hidden');
-        errorElement.text(msg);
-        valid_element.addClass('hidden');
-      } else {
-        errorElement.addClass('hidden');
-        errorElement.text("");
-        valid_element.show('slow');
-      }
-    }
- 
     function generateRandom() {
       if (parsedSchema) {
         try{
           var random = parsedSchema.random();
           var randomStr = parsedSchema.toString(random);
-          inputElement.text(randomStr);
+          var randomJson = JSON.parse(randomStr);
+          inputElement.text(JSON.stringify(randomJson, null, 2));
           encode(); /* Update encoded string too. */
         } catch(err) {
           toggleError($('#schema-error'), $('#schema-valid'), err);
@@ -2646,8 +2633,9 @@ function hasOwnProperty(obj, prop) {
         try {
           var input = readBuffer(outputElement);
           var decoded = parsedSchema.fromBuffer(input);
-          //todo: probably do sth here
-          $(inputElement).text(parsedSchema.toString(decoded));
+          var decodedStr = parsedSchema.toString(decoded);
+          var decodedJson = JSON.parse(decodedStr);
+          $(inputElement).text(JSON.stringify(decodedJson, null, 2));
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
@@ -2662,6 +2650,20 @@ function hasOwnProperty(obj, prop) {
       }
     }
 
+    /* If msg is null, make the valid_element visible, otherwise 
+    show `msg` in errorElement. */
+    function toggleError(errorElement, valid_element, msg) {
+      if(!!msg) {
+        errorElement.removeClass('hidden');
+        errorElement.text(msg);
+        valid_element.addClass('hidden');
+      } else {
+        errorElement.addClass('hidden');
+        errorElement.text("");
+        valid_element.show('slow');
+      }
+    }
+ 
     /* Clear any error messages shown in input/output boxes. */
     function clearErrors() {
       decodedErrorElement.text('');
@@ -2688,7 +2690,9 @@ function hasOwnProperty(obj, prop) {
         return JSON.parse(rawInput);
       }
     }
-
+    /*Used for decoding.
+    *Read the text represented as space-seperated hex numbers in elementId
+    *and construct a Buffer object*/
     function readBuffer(elementId) {
       var rawInput = getText(elementId);
       var hexArray = rawInput.split(/[\s,]+/);
@@ -2724,11 +2728,6 @@ function hasOwnProperty(obj, prop) {
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
     }
-    function updateTexts() {
-
-    }
-
-  
  });
 })();
 

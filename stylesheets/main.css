@@ -94,13 +94,12 @@ button {
 }
 .outer {
   position: relative;
-  height: 98%;
 }
 .tooltip-wrapper {
   height: 100%;
   position: relative;
   width: 100%;
-  top: -14px;
+  top: -30px;
 }
 
 .tooltip-circle{
