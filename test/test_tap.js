@@ -127,12 +127,15 @@ suite('tap', function () {
       var t = newTap(10);
       t.writeLong(5);
       t.pos = 0;
-      assert.deepEqual(t.unpackLong(), new Buffer([5, 0, 0, 0, 0, 0, 0, 0]));
+      assert.deepEqual(
+        t.unpackLongBytes(),
+        new Buffer([5, 0, 0, 0, 0, 0, 0, 0])
+      );
       t.pos = 0;
       t.writeLong(-5);
       t.pos = 0;
       assert.deepEqual(
-        t.unpackLong(),
+        t.unpackLongBytes(),
         new Buffer([-5, -1, -1, -1, -1, -1, -1, -1])
       );
       t.pos = 0;
@@ -144,12 +147,12 @@ suite('tap', function () {
       l = 18932;
       t.writeLong(l);
       t.pos = 0;
-      assert.deepEqual(t.unpackLong().readInt32LE(), l);
+      assert.deepEqual(t.unpackLongBytes().readInt32LE(), l);
       t.pos = 0;
       l = -3210984;
       t.writeLong(l);
       t.pos = 0;
-      assert.deepEqual(t.unpackLong().readInt32LE(), l);
+      assert.deepEqual(t.unpackLongBytes().readInt32LE(), l);
     });
 
     test('pack single byte', function () {
@@ -157,14 +160,14 @@ suite('tap', function () {
       var b = new Buffer(8);
       b.fill(0);
       b.writeInt32LE(12);
-      t.packLong(b);
+      t.packLongBytes(b);
       assert.equal(t.pos, 1);
       t.pos = 0;
       assert.deepEqual(t.readLong(), 12);
       t.pos = 0;
       b.writeInt32LE(-37);
       b.writeInt32LE(-1, 4);
-      t.packLong(b);
+      t.packLongBytes(b);
       assert.equal(t.pos, 1);
       t.pos = 0;
       assert.deepEqual(t.readLong(), -37);
@@ -185,7 +188,7 @@ suite('tap', function () {
         var t2 = newTap(10);
         t1.writeLong(n);
         t1.pos = 0;
-        t2.packLong(t1.unpackLong());
+        t2.packLongBytes(t1.unpackLongBytes());
         assert.deepEqual(t2, t1);
       }
     });
