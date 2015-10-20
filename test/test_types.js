@@ -143,13 +143,13 @@ suite('types', function () {
 
   });
 
-  suite('SlowLongType', function () {
+  suite('AbstractLongType', function () {
 
     var fastLongType = new types.LongType();
 
     suite('unpacked', function () {
 
-      var slowLongType = new types.SlowLongType({
+      var slowLongType = new types.AbstractLongType({
         read: function (buf) {
           var neg = buf[7] >> 7;
           if (neg) { // Negative number.
@@ -210,9 +210,8 @@ suite('types', function () {
 
     suite('packed', function () {
 
-      var slowLongType = new types.SlowLongType({
-        unpacked: false,
-        unpack: false,
+      var slowLongType = new types.AbstractLongType({
+        manualMode: true,
         read: function (buf) {
           var tap = new Tap(buf);
           return tap.readLong();
