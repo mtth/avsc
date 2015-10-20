@@ -42,7 +42,7 @@ function loop() {
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
     buf = sPair.encode(records[i]);
-    n += buf.length;
+    n += buf[0] + buf.length;
   }
   return n;
 }

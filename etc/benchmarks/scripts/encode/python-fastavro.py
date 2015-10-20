@@ -21,7 +21,7 @@ n = 0
 buf = BytesIO()
 for _ in repeat(None, LOOPS):
   for record in RECORDS:
-    n += 1
-    dump(buf, record, SCHEMA)
+    s = dump(buf, record, SCHEMA)
+    n += s[0] + len(s)
     buf.seek(0)
 print 1000. * (time() - start) / n

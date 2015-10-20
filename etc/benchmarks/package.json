@@ -6,6 +6,7 @@
   },
   "private": true,
   "dependencies": {
+    "etp-avro": "^0.1.3-141",
     "node-avro-io": "git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption",
     "pson": "^2.0.0"
   }

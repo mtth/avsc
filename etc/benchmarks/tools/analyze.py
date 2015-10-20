@@ -4,7 +4,15 @@
 """Analyze timings data using pandas.
 
 Usage:
+  analyze.py [-i] PATH
 
+Arguments:
+  PATH            Path to JSON file containing timings data.
+
+Options:
+  -i              Output image.
+
+Example:
   $ python analyze.py timings.json
 
   command:
@@ -16,6 +24,7 @@ Usage:
 
 """
 
+from docopt import docopt
 from json import load
 import matplotlib.pyplot as plt
 import pandas as pd
@@ -54,31 +63,29 @@ def plot(df, command, schema, libraries=None):
   if libraries:
     rates = rates[libraries]
   rates = rates.transpose()
-  # rates.columns.name = ''
-  # rates.columns = ['Decoding', 'Encoding']
   ax = rates.plot(
     kind='bar',
     # title='Throughput rates for different JavaScript serialization',
-    color=['steelblue', 'grey', 'grey', 'grey'],
+    color=['steelblue', 'grey', 'grey', 'grey', 'grey'],
   )
   plt.tick_params(axis='x', which='both', bottom='off', top='off')
   plt.tick_params(axis='y', which='both', left='off', right='off')
   ax.spines['top'].set_visible(False)
   ax.spines['right'].set_visible(False)
-  # plt.style.use('ggplot')
-  # ax.xaxis.set_ticks([])
   ax.yaxis.grid(True)
   ax.set_xticklabels(rates.index, rotation=0)
   ax.set_xlabel('Library')
   ax.set_ylabel('Throughput (records per second)')
-  # container = ax.get_legend_handles_labels()[0][1] # Second columns.
-  # for patch in container.patches:
-  #   patch.set_hatch('/')
   return ax
 
 if __name__ == '__main__':
+  args = docopt(__doc__)
   DF = get_df(sys.argv[1])
   for name, df in DF.groupby('command'):
     print '%s\n\n%s\n' % (name, get_ops_df(df))
-  plot(DF, 'decode', 'Coupon.avsc', ['node-avsc', 'node-json', 'node-pson', 'node-avro-io'])
-  plt.show()
+  if args['-i']:
+    libraries = [
+      'node-avsc', 'node-json', 'node-etp-avro', 'node-pson', 'node-avro-io'
+    ]
+    plot(DF, 'decode', 'Coupon.avsc', libraries)
+    plt.show()

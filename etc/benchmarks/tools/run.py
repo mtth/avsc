@@ -4,13 +4,14 @@
 """Avsc benchmark runner.
 
 Usage:
-  run.py [-n ITERATIONS] [-r RECORDS] [-s SCHEMAS] [LIB ...]
+  run.py [-c COMMANDS] [-n ITERATIONS] [-r RECORDS] [-s SCHEMAS] [LIB ...]
   run.py -h
 
 Arguments:
   LIB             Library to run. E.g. `java-avro`, `node-avsc`.
 
 Options:
+  -c COMMANDS     Commands to run. All if unspecified.
   -n ITERATIONS   Number of iterations. [default: 10]
   -r RECORDS      Number of random records generated. [default: 100000]
   -s SCHEMAS      Comma-separated list of schemas to test. All if unspecified.
@@ -60,7 +61,7 @@ class Benchmark(object):
   _schemas_dpath = osp.join(DPATH, 'schemas')
   _scripts_dpath = osp.join(DPATH, 'scripts')
 
-  def __init__(self, name, n_records, attempts, libs):
+  def __init__(self, name, n_records, attempts, libs, commands):
     _logger.info('starting benchmark for %s [%s records]', name, n_records)
     self.name = name
     self.path = osp.join(self._schemas_dpath, name)
@@ -69,13 +70,14 @@ class Benchmark(object):
     self.n_records = n_records
     self.attempts = attempts
     self.libs = libs
+    self.commands = sorted(commands or os.listdir(self._scripts_dpath))
 
   def run(self):
     """Return list of timings."""
     times = []
     for attempt in range(self.attempts):
       with self._generate_data() as tpath:
-        for dname in os.listdir(self._scripts_dpath):
+        for dname in self.commands:
           dpath = osp.join(self._scripts_dpath, dname)
           for fname in os.listdir(dpath):
             if self.libs and not osp.splitext(fname)[0] in self.libs:
@@ -116,7 +118,7 @@ class Benchmark(object):
         os.remove(path)
 
   @classmethod
-  def run_all(cls, libs, fnames=None, n_records=10000, attempts=5):
+  def run_all(cls, libs, commands, fnames=None, n_records=10000, attempts=5):
     """Run all benchmarks."""
     times = []
     try:
@@ -127,7 +129,7 @@ class Benchmark(object):
     fnames = fnames or available_names
     for fname in sorted(fnames):
       if fname in available_names:
-        bench = Benchmark(fname, n_records, attempts, libs)
+        bench = Benchmark(fname, n_records, attempts, libs, commands)
         times.extend(bench.run())
       else:
         _logger.warn('schema %s not found', fname)
@@ -139,10 +141,12 @@ if __name__ == '__main__':
     fnames = ['%s.avsc' % (elem, ) for elem in args['-s'].split(',')]
   else:
     fnames = []
+  commands = args['-c'].split(',') if '-c' in args else None
   TIMES = Benchmark.run_all(
     libs=set(args['LIB']),
+    commands=commands,
     fnames=fnames,
     n_records=int(args['-r']),
-    attempts=int(args['-n'])
+    attempts=int(args['-n']),
   )
   print dumps(TIMES)
