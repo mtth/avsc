@@ -171,6 +171,13 @@ suite('tap', function () {
       assert.equal(t.pos, 1);
       t.pos = 0;
       assert.deepEqual(t.readLong(), -37);
+      t.pos = 0;
+      b.writeInt32LE(-1);
+      b.writeInt32LE(-1, 4);
+      t.packLongBytes(b);
+      assert.deepEqual(t.buf.slice(0, t.pos), new Buffer([1]));
+      t.pos = 0;
+      assert.deepEqual(t.readLong(), -1);
     });
 
     test('roundtrip', function () {

@@ -143,6 +143,119 @@ suite('types', function () {
 
   });
 
+  suite('SlowLongType', function () {
+
+    var fastLongType = new types.LongType();
+
+    suite('unpacked', function () {
+
+      var slowLongType = new types.SlowLongType({
+        read: function (buf) {
+          var neg = buf[7] >> 7;
+          if (neg) { // Negative number.
+            invert(buf);
+          }
+          var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
+          if (neg) {
+            invert(buf);
+            n = -n - 1;
+          }
+          return n;
+        },
+        write: function (n) {
+          var buf = new Buffer(8);
+          var neg = n < 0;
+          if (neg) {
+            invert(buf);
+            n = -n - 1;
+          }
+          buf.writeInt32LE(n | 0);
+          var h = n / Math.pow(2, 32) | 0;
+          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
+          if (neg) {
+            invert(buf);
+          }
+          return buf;
+        },
+        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
+        fromJSON: JSON.parse,
+        compare: function (n1, n2) {
+          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+        }
+      });
+
+      test('encode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+        });
+      });
+
+      test('decode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          var buf = fastLongType.toBuffer(n);
+          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+        });
+      });
+
+      test('clone', function () {
+        assert.equal(slowLongType.clone(123), 123);
+        assert.equal(slowLongType.fromString('-1'), -1);
+      });
+
+      test('random', function () {
+        assert(slowLongType.isValid(slowLongType.random()));
+      });
+
+    });
+
+    suite('packed', function () {
+
+      var slowLongType = new types.SlowLongType({
+        unpacked: false,
+        unpack: false,
+        read: function (buf) {
+          var tap = new Tap(buf);
+          return tap.readLong();
+        },
+        write: function (n) {
+          var buf = new Buffer(10);
+          var tap = new Tap(buf);
+          tap.writeLong(n);
+          return buf.slice(0, tap.pos);
+        },
+        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
+        fromJSON: JSON.parse,
+        compare: function (n1, n2) {
+          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+        }
+      });
+
+      test('encode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+        });
+      });
+
+      test('decode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          var buf = fastLongType.toBuffer(n);
+          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+        });
+      });
+
+      test('clone', function () {
+        assert.equal(slowLongType.clone(123), 123);
+        assert.equal(slowLongType.fromString('-1'), -1);
+      });
+
+      test('random', function () {
+        assert(slowLongType.isValid(slowLongType.random()));
+      });
+
+    });
+
+  });
+
   suite('StringType', function () {
 
     var data = [
@@ -1945,13 +2058,16 @@ function testType(Type, data, invalidSchemas) {
 }
 
 function getResolver(reader, writer) {
-
   return fromSchema(reader).createResolver(fromSchema(writer));
-
 }
 
 function floatEquals(a, b) {
-
   return Math.abs((a - b) / Math.min(a, b)) < 1e-7;
+}
 
+function invert(buf) {
+  var len = buf.length;
+  while (len--) {
+    buf[len] = ~buf[len];
+  }
 }
