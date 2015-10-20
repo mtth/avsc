@@ -1,5 +1,4 @@
 /* jshint browser: true, browserify: true */
-
 (function () {
   'use strict';
   global.jQuery = require("jquery")
@@ -10,10 +9,8 @@
   require('./lib/jquery-lettering.min.js'); 
   require('jquery-highlight');
   window.avsc = avsc;
-
   $( function() {
     resize();
-    var parsedSchema;
     var encodedErrorElement = $('#encoded-error');
     var decodedErrorElement = $('#decoded-error');
     var encodedValidElement = $('#output-valid');
@@ -70,25 +67,24 @@
     });
 
    function validateSchema() {
-      parsedSchema = null;
+      window.schema = null;
       var elem = $('#schema');
       var valid_elem = $('#schema-valid');
       var error_elem = $('#schema-error');
       try {
-        var schema = readInput('#schema');
-        parsedSchema = avsc.parse(schema);
+        var rawSchema = readSchemaFromInput();
+        window.schema = avsc.parse(rawSchema);
         toggleError(error_elem, valid_elem, null);
       } catch (err) {
-        console.log(err);
         toggleError(error_elem, valid_elem, err);
         clearValidIcons();
       }
     }
     function generateRandom() {
-      if (parsedSchema) {
+      if (window.schema) {
         try{
-          var random = parsedSchema.random();
-          var randomStr = parsedSchema.toString(random);
+          var random = window.schema.random();
+          var randomStr = window.schema.toString(random);
           var randomJson = JSON.parse(randomStr);
           inputElement.text(JSON.stringify(randomJson, null, 2));
           encode(); /* Update encoded string too. */
@@ -99,10 +95,10 @@
 
     }
     function encode() {
-      if (parsedSchema) {
+      if (window.schema) {
         try {
-          var input = readInput(inputElement);
-          var output = parsedSchema.toBuffer(input);
+          var input = readInput();
+          var output = window.schema.toBuffer(input);
           outputElement.text(bufferToStr(output));
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
@@ -119,11 +115,11 @@
     }
 
     function decode() {
-      if (parsedSchema) {
+      if (window.schema) {
         try {
           var input = readBuffer(outputElement);
-          var decoded = parsedSchema.fromBuffer(input);
-          var decodedStr = parsedSchema.toString(decoded);
+          var decoded = window.schema.fromBuffer(input);
+          var decodedStr = window.schema.toString(decoded);
           var decodedJson = JSON.parse(decodedStr);
           $(inputElement).text(JSON.stringify(decodedJson, null, 2));
           clearErrors();
@@ -170,13 +166,17 @@
     function clearText(element) {
       element.text('');
     }
- 
-    function readInput(elementId) {
-      var rawInput = getText(elementId);
-      if (!!parsedSchema) {
-        return parsedSchema.fromString(rawInput);
+    /* If the schema is pasted with proper json formats, simply json.parse wouldn't work.*/
+    function readSchemaFromInput() {
+      var trimmedInput = $.trim($('#schema').text()).replace(/\s/g, "");
+      return JSON.parse(trimmedInput);
+    }
+
+    function readInput() {
+      var rawInput = $.trim($(inputElement).text());
+      if(!!window.schema) {
+        return window.schema.fromString(rawInput);
       } else {
-        /* When parsing the schema itself */
         return JSON.parse(rawInput);
       }
     }
@@ -184,7 +184,7 @@
     *Read the text represented as space-seperated hex numbers in elementId
     *and construct a Buffer object*/
     function readBuffer(elementId) {
-      var rawInput = getText(elementId);
+      var rawInput = $.trim(outputElement.text());
       var hexArray = rawInput.split(/[\s,]+/);
       var i;
       var size = hexArray.length;
@@ -194,12 +194,7 @@
       }
       return Buffer.concat(buffer);
     }
-    function getText(elementId) {
-      var rawInput = $.trim($(elementId).text());
-      return rawInput.replace(/\s/g, "");
-
-    }
-
+    
     function bufferToStr(buffer) {
       var size = buffer.length;
       var outStr = '';
