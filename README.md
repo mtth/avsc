@@ -105,13 +105,15 @@ var avsc = require('avsc');
 
 + JavaScript doesn't natively support `long`s, so numbers larger than
   `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
-  might suffer a loss of precision.
+  might suffer a loss of precision. This can however be resolved by using a
+  [custom `long` implementation][custom-long].
 + Protocols aren't yet implemented.
 
 
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
+[custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
 [sort-order]: https://avro.apache.org/docs/current/spec.html#order
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [browserify]: http://browserify.org/

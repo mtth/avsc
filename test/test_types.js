@@ -5,7 +5,8 @@
 
 var Tap = require('../lib/tap'),
     types = require('../lib/types'),
-    assert = require('assert');
+    assert = require('assert'),
+    util = require('util');
 
 
 var fromSchema = types.Type.fromSchema;
@@ -149,40 +150,50 @@ suite('types', function () {
 
     suite('unpacked', function () {
 
-      var slowLongType = new types.AbstractLongType({
-        read: function (buf) {
-          var neg = buf[7] >> 7;
-          if (neg) { // Negative number.
-            invert(buf);
-          }
-          var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
-          if (neg) {
-            invert(buf);
-            n = -n - 1;
-          }
-          return n;
-        },
-        write: function (n) {
-          var buf = new Buffer(8);
-          var neg = n < 0;
-          if (neg) {
-            invert(buf);
-            n = -n - 1;
-          }
-          buf.writeInt32LE(n | 0);
-          var h = n / Math.pow(2, 32) | 0;
-          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
-          if (neg) {
-            invert(buf);
-          }
-          return buf;
-        },
-        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
-        fromJSON: JSON.parse,
-        compare: function (n1, n2) {
-          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+      // Using inheritance to also test empty options object.
+      function SlowLongType() { types.AbstractLongType.call(this); }
+      util.inherits(SlowLongType, types.AbstractLongType);
+
+      SlowLongType.prototype.read = function (buf) {
+        var neg = buf[7] >> 7;
+        if (neg) { // Negative number.
+          invert(buf);
         }
-      });
+        var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
+        if (neg) {
+          invert(buf);
+          n = -n - 1;
+        }
+        return n;
+      };
+
+      SlowLongType.prototype.write = function (n) {
+        var buf = new Buffer(8);
+        var neg = n < 0;
+        if (neg) {
+          invert(buf);
+          n = -n - 1;
+        }
+        buf.writeInt32LE(n | 0);
+        var h = n / Math.pow(2, 32) | 0;
+        buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
+        if (neg) {
+          invert(buf);
+        }
+        return buf;
+      };
+
+      SlowLongType.prototype.isValid = function (n) {
+        return typeof n == 'number' && n % 1 === 0;
+      };
+
+      SlowLongType.prototype.fromJSON = JSON.parse;
+
+      SlowLongType.prototype.compare = function (n1, n2) {
+        return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+      };
+
+      var slowLongType = new SlowLongType();
 
       test('encode', function () {
         [123, -1, 321414, 900719925474090].forEach(function (n) {
