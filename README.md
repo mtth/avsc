@@ -9,7 +9,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   order][sort-order], and [schema evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
-+ Compatible with any [64 bit integer precision][custom-long] library.
++ Compatible with [64 bit integer libraries][custom-long] for full `long`
+  precision.
 + No dependencies, `avsc` even runs in the browser.
 
 
