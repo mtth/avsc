@@ -9,6 +9,7 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   order][sort-order], and [schema evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
++ Compatible with any [64 bit integer precision][custom-long] library.
 + No dependencies, `avsc` even runs in the browser.
 
 
@@ -103,10 +104,6 @@ var avsc = require('avsc');
 
 ## Limitations
 
-+ JavaScript doesn't natively support `long`s, so numbers larger than
-  `Number.MAX_SAFE_INTEGER` (or smaller than the corresponding lower bound)
-  might suffer a loss of precision. This can however be resolved by using a
-  [custom `long` implementation][custom-long].
 + Protocols aren't yet implemented.
 
 
