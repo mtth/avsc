@@ -264,6 +264,16 @@ suite('types', function () {
 
     });
 
+    test('incomplete buffer', function () {
+      // Check that `read` doesn't get called.
+      var slowLongType = new types.AbstractLongType();
+      var buf = fastLongType.toBuffer(12314);
+      assert.deepEqual(
+        slowLongType.decode(buf.slice(0, 1)),
+        {object: undefined, offset: -1}
+      );
+    });
+
   });
 
   suite('StringType', function () {
@@ -1768,7 +1778,8 @@ suite('types', function () {
     });
 
     test('type hook', function () {
-      var c = {};
+      var refs = [];
+      var ts = [];
       var o = {
         type: 'record',
         name: 'Human',
@@ -1777,8 +1788,31 @@ suite('types', function () {
           {name: 'name', type: {type: 'string'}}
         ]
       };
-      fromSchema(o, {typeHook: function (s) { c[this._name] = s; }});
-      assert.strictEqual(c.Human, o);
+      fromSchema(o, {typeHook: hook});
+      assert.equal(ts.length, 1);
+      assert.equal(ts[0].getFullName(), 'Human');
+
+      function hook(schema, opts) {
+        if (~refs.indexOf(schema)) {
+          // Already seen this schema.
+          return;
+        }
+        refs.push(schema);
+
+        var type = fromSchema(schema, opts);
+        if (type instanceof types.RecordType) {
+          ts.push(type);
+        }
+        return type;
+      }
+    });
+
+    test('type hook invalid return value', function () {
+      assert.throws(function () {
+        fromSchema({type: 'int'}, {typeHook: hook});
+      });
+
+      function hook() { return 'int'; }
     });
 
     test('fingerprint', function () {
