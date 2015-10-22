@@ -16,12 +16,16 @@ with open(sys.argv[1]) as reader:
   SCHEMA = records.schema
   RECORDS = list(records)
 
-start = time()
-n = 0
 buf = BytesIO()
+m = 0
+n = 0
+start = time()
 for _ in repeat(None, LOOPS):
   for record in RECORDS:
-    s = dump(buf, record, SCHEMA)
-    n += s[0] + len(s)
+    dump(buf, record, SCHEMA)
+    m += buf.tell()
+    n += 1
     buf.seek(0)
+if m <= 0:
+  raise Exception('no')
 print 1000. * (time() - start) / n

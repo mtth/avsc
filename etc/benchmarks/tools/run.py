@@ -141,7 +141,7 @@ if __name__ == '__main__':
     fnames = ['%s.avsc' % (elem, ) for elem in args['-s'].split(',')]
   else:
     fnames = []
-  commands = args['-c'].split(',') if '-c' in args else None
+  commands = args['-c'].split(',') if args['-c'] else None
   TIMES = Benchmark.run_all(
     libs=set(args['LIB']),
     commands=commands,

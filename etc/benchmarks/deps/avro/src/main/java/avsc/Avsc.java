@@ -106,7 +106,7 @@ public class Avsc {
     long m = 0;
     for (int i = 0; i < records.size(); i++) {
       byte[] data = encode(records.get(i));
-      m += data[0] + data.length;
+      m += 255 + data[0] + data.length;
       n++;
     }
     if (m <= 0) {
