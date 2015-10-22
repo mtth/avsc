@@ -10,6 +10,7 @@ Arguments:
   PATH            Path to JSON file containing timings data.
 
 Options:
+  -h              Show this message and exit.
   -i              Output image.
 
 Example:
@@ -80,12 +81,12 @@ def plot(df, command, schema, libraries=None):
 
 if __name__ == '__main__':
   args = docopt(__doc__)
-  DF = get_df(sys.argv[1])
+  DF = get_df(args['PATH'])
   for name, df in DF.groupby('command'):
     print '%s\n\n%s\n' % (name, get_ops_df(df))
   if args['-i']:
     libraries = [
-      'node-avsc', 'node-json', 'node-etp-avro', 'node-pson', 'node-avro-io'
+      'node-avsc', 'node-json', 'node-pson', 'node-etp-avro', 'node-avro-io'
     ]
     plot(DF, 'decode', 'Coupon.avsc', libraries)
     plt.show()

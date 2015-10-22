@@ -9,8 +9,7 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   order][sort-order], and [schema evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
-+ Compatible with [64 bit integer libraries][custom-long] for full `long`
-  precision.
++ Unopinionated [64 bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
 
 
@@ -18,15 +17,17 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 Representative decoding throughput rates (higher is better):
 
-![Throughput rate chart](etc/benchmarks/charts/coupons-decode-throughput-b219b06.png)
+![Throughput rate chart](etc/benchmarks/charts/coupons-decode-throughput-0b47aef.png)
 
 Libraries compared:
 
 + `node-avsc`, this package.
 + `node-json`, built-in JSON serializer.
 + [`node-pson`](https://www.npmjs.com/package/pson), an alternative to JSON.
-+ [`node-avro-io`](https://www.npmjs.com/package/node-avro-io), popular
-  existing Avro implementation.
++ [`node-etp-avro`](https://www.npmjs.com/package/etp-avro), existing Avro
+  implementation.
++ [`node-avro-io`](https://www.npmjs.com/package/node-avro-io), other popular
+  Avro implementation.
 
 These rates are for decoding a [realistic record schema][coupon-schema],
 modeled after a popular open-source API. Encoding rates are slightly lower but
