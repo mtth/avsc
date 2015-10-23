@@ -5,8 +5,7 @@
 
 var Tap = require('../lib/tap'),
     types = require('../lib/types'),
-    assert = require('assert'),
-    util = require('util');
+    assert = require('assert');
 
 
 var fromSchema = types.Type.fromSchema;
@@ -142,6 +141,10 @@ suite('types', function () {
       assert.throws(function () { type.fromBuffer(buf); });
     });
 
+    test('using missing methods', function () {
+      assert.throws(function () { types.LongType.using(); });
+    });
+
   });
 
   suite('AbstractLongType', function () {
@@ -150,90 +153,37 @@ suite('types', function () {
 
     suite('unpacked', function () {
 
-      // Using inheritance to also test empty options object.
-      function SlowLongType() { types.AbstractLongType.call(this); }
-      util.inherits(SlowLongType, types.AbstractLongType);
-
-      SlowLongType.prototype.read = function (buf) {
-        var neg = buf[7] >> 7;
-        if (neg) { // Negative number.
-          invert(buf);
-        }
-        var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
-        if (neg) {
-          invert(buf);
-          n = -n - 1;
-        }
-        return n;
-      };
-
-      SlowLongType.prototype.write = function (n) {
-        var buf = new Buffer(8);
-        var neg = n < 0;
-        if (neg) {
-          invert(buf);
-          n = -n - 1;
-        }
-        buf.writeInt32LE(n | 0);
-        var h = n / Math.pow(2, 32) | 0;
-        buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
-        if (neg) {
-          invert(buf);
-        }
-        return buf;
-      };
-
-      SlowLongType.prototype.isValid = function (n) {
-        return typeof n == 'number' && n % 1 === 0;
-      };
-
-      SlowLongType.prototype.fromJSON = JSON.parse;
-
-      SlowLongType.prototype.compare = function (n1, n2) {
-        return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-      };
-
-      var slowLongType = new SlowLongType();
-
-      test('encode', function () {
-        [123, -1, 321414, 900719925474090].forEach(function (n) {
-          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
-        });
-      });
-
-      test('decode', function () {
-        [123, -1, 321414, 900719925474090].forEach(function (n) {
-          var buf = fastLongType.toBuffer(n);
-          assert.deepEqual(slowLongType.fromBuffer(buf), n);
-        });
-      });
-
-      test('clone', function () {
-        assert.equal(slowLongType.clone(123), 123);
-        assert.equal(slowLongType.fromString('-1'), -1);
-      });
-
-      test('random', function () {
-        assert(slowLongType.isValid(slowLongType.random()));
-      });
-
-    });
-
-    suite('packed', function () {
-
-      var slowLongType = new types.AbstractLongType({
-        manualMode: true,
-        read: function (buf) {
-          var tap = new Tap(buf);
-          return tap.readLong();
+      var slowLongType = types.LongType.using({
+        fromBuffer: function (buf) {
+          var neg = buf[7] >> 7;
+          if (neg) { // Negative number.
+            invert(buf);
+          }
+          var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
+          if (neg) {
+            invert(buf);
+            n = -n - 1;
+          }
+          return n;
         },
-        write: function (n) {
-          var buf = new Buffer(10);
-          var tap = new Tap(buf);
-          tap.writeLong(n);
-          return buf.slice(0, tap.pos);
+        toBuffer: function (n) {
+          var buf = new Buffer(8);
+          var neg = n < 0;
+          if (neg) {
+            invert(buf);
+            n = -n - 1;
+          }
+          buf.writeInt32LE(n | 0);
+          var h = n / Math.pow(2, 32) | 0;
+          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
+          if (neg) {
+            invert(buf);
+          }
+          return buf;
         },
-        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
+        isValid: function (n) {
+          return typeof n == 'number' && n % 1 === 0;
+        },
         fromJSON: JSON.parse,
         compare: function (n1, n2) {
           return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
@@ -264,9 +214,59 @@ suite('types', function () {
 
     });
 
+    suite('packed', function () {
+
+      var slowLongType = types.LongType.using({
+        fromBuffer: function (buf) {
+          var tap = new Tap(buf);
+          return tap.readLong();
+        },
+        toBuffer: function (n) {
+          var buf = new Buffer(10);
+          var tap = new Tap(buf);
+          tap.writeLong(n);
+          return buf.slice(0, tap.pos);
+        },
+        fromJSON: JSON.parse,
+        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
+        compare: function (n1, n2) {
+          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+        }
+      }, true);
+
+      test('encode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+        });
+      });
+
+      test('decode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          var buf = fastLongType.toBuffer(n);
+          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+        });
+      });
+
+      test('clone', function () {
+        assert.equal(slowLongType.clone(123), 123);
+        assert.equal(slowLongType.fromString('-1'), -1);
+      });
+
+      test('random', function () {
+        assert(slowLongType.isValid(slowLongType.random()));
+      });
+
+    });
+
     test('incomplete buffer', function () {
-      // Check that `read` doesn't get called.
-      var slowLongType = new types.AbstractLongType();
+      // Check that `fromBuffer` doesn't get called.
+      var slowLongType = new types.LongType.using({
+        fromBuffer: function () { throw new Error('no'); },
+        toBuffer: null,
+        fromJSON: null,
+        isValid: null,
+        compare: null
+      });
       var buf = fastLongType.toBuffer(12314);
       assert.deepEqual(
         slowLongType.decode(buf.slice(0, 1)),
