@@ -33,7 +33,7 @@ suite('utils', function () {
     assert.throws(utils.abstractFunction, utils.Error);
   });
 
-  suite('OrderedQueue', function () {
+  test('OrderedQueue', function () {
 
     var seqs = [
       [0],
