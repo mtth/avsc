@@ -2569,8 +2569,103 @@ function hasOwnProperty(obj, prop) {
       generateRandom();
     });
 
+    $('#input').on('mouseenter', 'span', function(event) {
+      var path = $.trim($(this).attr('class')).split(' ');
+      console.log(path);
+      var current = window.instrumented;
+      for(var i =0; i<path.length; i++){
+        var nextKey = path[i];
+        if(current.value[nextKey]) 
+          current = current.value[nextKey];
+        else // The last key can be something like "string", which we don't care about.
+          break;
+      }
+      highlightOutput(current.start, current.end); 
+    });
+
+  function highlightOutput(start, end) {
+    console.log(current.start);
+    console.log(current.end);
+  }
+
   function wrapWordsInSpan(element) {
-    element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+    //element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+    var input = JSON.parse(element.text());
+    var output = wrapNodeInSpan(input, "");
+    element.html(output);
+  }
+
+  function wrapNodeInSpan(node, prefix, indentLevel) {
+    var str = "";
+    if (node instanceof Array) {
+      return writeArray(node, prefix);
+    }
+    str += "{";
+    var commaNeeded = false;
+    $.each(node, function(key, value) {
+      if(commaNeeded) {
+        str += ',';
+      }
+      console.log ("key : " + key + ", value = " + value);
+
+      str += '<span class="' + prefix + ' ' + key + '">';
+      str += '"' + key + '" :';
+      str += '</span>';
+
+      if (!value) 
+        value = 'null';
+      if (isPrimitiveType(value)) {
+        str += writeValue(value, prefix + ' ' + key);
+      } else if (value instanceof Array) {
+        str += writeArray(value, prefix + ' ' + key);
+      } else {
+        str += wrapNodeInSpan(value, prefix + ' ' + key, indentLevel + 1);
+      }
+      commaNeeded = true;
+    });
+    str += "}";
+    return str;
+  }
+  function writeValue(value, prefix, skipQuotation) {
+    var str = "";
+    console.log('found value: ' +  value);
+    str += '<span class="' + prefix + '">';
+
+    if (typeof(value) === 'number' || value === 'null' || skipQuotation)
+      str +=  value;
+    else 
+      str += '"' + value + '"';
+    str += '</span>';
+    return str;
+  }
+
+  function writeArray(array, prefix) {
+    var str = "";
+    if(array.length == 0) {
+      str += '<span class="' + prefix + '">';
+      str += '[]';
+      str += '</span>';
+    } else if (isPrimitiveType(array[0])) {
+        var value = "";
+        for (var i = 0; i<array.length; i++) {
+          if (i > 0) {
+            value += ', ';
+          }
+          value += array[i];
+        }
+      str += '[' + writeValue(value, prefix, true) + ']';
+    } else {
+      for (var i = 0; i<array.length; i++) {
+        if (i > 0 ) str += ', ';
+        str += wrapNodeInSpan(array[i], prefix);
+      }
+    }
+    return str;
+  }
+  function isPrimitiveType(value) {
+    return typeof(value) === 'string' ||
+           typeof(value) === 'number' ||
+           value === 'null';
   }
 
    function validateSchema() {
@@ -2606,10 +2701,11 @@ function hasOwnProperty(obj, prop) {
       if (window.schema) {
         try {
           var input = readInput();
+          window.instrumented = instrumentObject(window.schema, input);
           var output = window.schema.toBuffer(input);
           outputElement.text(bufferToStr(output));
           clearErrors();
-          wrapWordsInSpan(outputElement);
+          //wrapWordsInSpan(outputElement);
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
@@ -2683,6 +2779,8 @@ function hasOwnProperty(obj, prop) {
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
+      console.log("rawInput");
+      console.log(rawInput);
       if(!!window.schema) {
         return window.schema.fromString(rawInput);
       } else {
@@ -2722,6 +2820,61 @@ function hasOwnProperty(obj, prop) {
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
     }
+
+    function instrument(schema) {
+      if (schema instanceof avsc.types.Type) {
+        schema = schema.toString();
+      }
+      var refs = [];
+      return avsc.parse(schema, {typeHook: hook});
+
+      function hook(schema, opts) {
+        if (~refs.indexOf(schema)) {
+          return;
+        }
+        refs.push(schema);
+
+        if (schema.type === 'record') {
+          schema.fields.forEach(function (f) { f['default'] = undefined; });
+        }
+
+        var name = schema.name;
+        if (name) {
+          schema.name = 'r' + Math.random().toString(36).substr(2, 6);
+        }
+        var wrappedSchema = {
+          name: name || 'r' + Math.random().toString(36).substr(2, 6),
+          namespace: schema.namespace,
+          type: 'record',
+          fields: [{name: 'value', type: schema}]
+        };
+        refs.push(wrappedSchema);
+
+        var type = avsc.parse(wrappedSchema, opts);
+        var read = type._read;
+        type._read = function (tap) {
+          var pos = tap.pos;
+          var obj = read.call(type, tap);
+          obj.start = pos;
+          obj.end = tap.pos;
+          return obj;
+        };
+        return type;
+      }
+    }
+
+  /**
+   * Convenience method to instrument a single object.
+   * 
+   * @param type {Type} The type to be instrumented.
+   * @param obj {Object} A valid instance of `type`.
+   * 
+   * Returns an representation of `obj` with start and end markers.
+   * 
+   */
+  function instrumentObject(type, obj) {
+    return instrument(type).fromBuffer(type.toBuffer(obj));
+  }
  });
 })();
 
@@ -2736,17 +2889,15 @@ function hasOwnProperty(obj, prop) {
 'use strict';
 
 /**
- * Shim entry point for browserify.
+ * Shim entry point used when `avsc` is `require`d from browserify.
  *
- * It only exposes the part of the API which can run in the browser.
+ * It doesn't expose any of the filesystem methods and patches a few others.
  *
  */
 
-var types = require('../../lib/types'),
-    Tap = require('../../lib/tap');
+var Tap = require('../../lib/tap'),
+    types = require('../../lib/types');
 
-
-// No filesystem access in the browser.
 
 function parse(schema, opts) {
   var obj;
@@ -2754,7 +2905,7 @@ function parse(schema, opts) {
     try {
       obj = JSON.parse(schema);
     } catch (err) {
-      // Pass. We don't support reading files here.
+      // Pass. No file reading from the browser.
     }
   }
   if (obj === undefined) {
@@ -2763,8 +2914,7 @@ function parse(schema, opts) {
   return types.Type.fromSchema(obj, opts);
 }
 
-
-// No utf8 and binary functions on browserify's `Buffer`, we must use the
+// No utf8 and binary functions on browserify's `Buffer`, we must patch in the
 // generic slice and write equivalents.
 
 Tap.prototype.readString = function () {
@@ -2986,6 +3136,9 @@ module.exports = {
 (function (Buffer){
 /* jshint node: true */
 
+// TODO: Make long comparison impervious to precision loss.
+// TODO: Optimize binary comparison methods.
+
 'use strict';
 
 
@@ -3007,14 +3160,15 @@ function Tap(buf, pos) {
  * Check that the tap is in a valid state.
  *
  * For efficiency reasons, none of the methods below will fail if an overflow
- * occurs (either read or write). For this reason, it is up to the caller to
- * always check that the read or write was valid by calling this method.
+ * occurs (either read, skip, or write). For this reason, it is up to the
+ * caller to always check that the read, skip, or write was valid by calling
+ * this method.
  *
  */
 Tap.prototype.isValid = function () { return this.pos <= this.buf.length; };
 
-// Read, skip, write methods start here.
-
+// Read, skip, write methods.
+//
 // These should fail silently when the buffer overflows. Note this is only
 // required to be true when the functions are decoding valid objects. For
 // example errors will still be thrown if a bad count is read, leading to a
@@ -3026,10 +3180,6 @@ Tap.prototype.readBoolean = function () { return !!this.buf[this.pos++]; };
 Tap.prototype.skipBoolean = function () { this.pos++; };
 
 Tap.prototype.writeBoolean = function (b) { this.buf[this.pos++] = !!b; };
-
-Tap.prototype.compareBoolean = function (tap) {
-  return this.buf[this.pos++] - tap.buf[tap.pos++];
-};
 
 Tap.prototype.readInt = Tap.prototype.readLong = function () {
   var n = 0;
@@ -3065,12 +3215,12 @@ Tap.prototype.skipInt = Tap.prototype.skipLong = function () {
 };
 
 Tap.prototype.writeInt = Tap.prototype.writeLong = function (n) {
-  var m = n >= 0 ? n << 1 : (~n << 1) | 1;
   var buf = this.buf;
-  var f;
+  var f, m;
 
-  if (m > 0) {
-    // No overflow, we can use integer arithmetic.
+  if (n >= -1073741824 && n < 1073741824) {
+    // Won't overflow, we can use integer arithmetic.
+    m = n >= 0 ? n << 1 : (~n << 1) | 1;
     do {
       buf[this.pos] = m & 0x7f;
       m >>= 7;
@@ -3084,12 +3234,6 @@ Tap.prototype.writeInt = Tap.prototype.writeLong = function (n) {
     } while (f >= 1 && (buf[this.pos++] |= 0x80));
   }
   this.pos++;
-};
-
-Tap.prototype.compareInt = Tap.prototype.compareLong = function (tap) {
-  var n1 = this.readLong();
-  var n2 = tap.readLong();
-  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
 };
 
 Tap.prototype.readFloat = function () {
@@ -3114,12 +3258,6 @@ Tap.prototype.writeFloat = function (f) {
   return this.buf.writeFloatLE(f, pos);
 };
 
-Tap.prototype.compareFloat = function (tap) {
-  var n1 = this.readFloat();
-  var n2 = tap.readFloat();
-  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-};
-
 Tap.prototype.readDouble = function () {
   var buf = this.buf;
   var pos = this.pos;
@@ -3140,12 +3278,6 @@ Tap.prototype.writeDouble = function (d) {
     return;
   }
   return this.buf.writeDoubleLE(d, pos);
-};
-
-Tap.prototype.compareDouble = function (tap) {
-  var n1 = this.readDouble();
-  var n2 = tap.readDouble();
-  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
 };
 
 Tap.prototype.readFixed = function (len) {
@@ -3171,12 +3303,6 @@ Tap.prototype.writeFixed = function (buf, len) {
   buf.copy(this.buf, pos, 0, len);
 };
 
-Tap.prototype.compareFixed = function (tap, len) {
-  var b1 = this.buf.slice(this.pos, this.pos + len);
-  var b2 = tap.buf.slice(tap.pos, tap.pos + len);
-  return b1.compare(b2);
-};
-
 Tap.prototype.readBytes = function () {
   return this.readFixed(this.readLong());
 };
@@ -3190,14 +3316,6 @@ Tap.prototype.writeBytes = function (buf) {
   var len = buf.length;
   this.writeLong(len);
   this.writeFixed(buf, len);
-};
-
-Tap.prototype.compareBytes = function (tap) {
-  var l1 = this.buf[this.pos++];
-  var l2 = tap.buf[tap.pos++];
-  var b1 = this.buf.slice(this.pos, this.pos + l1);
-  var b2 = tap.buf.slice(tap.pos, tap.pos + l2);
-  return b1.compare(b2);
 };
 
 Tap.prototype.readString = function () {
@@ -3227,9 +3345,8 @@ Tap.prototype.writeString = function (s) {
   this.buf.utf8Write(s, pos, len);
 };
 
-Tap.prototype.compareString = Tap.prototype.compareBytes;
+// Helper used to speed up writing defaults.
 
-// Used to speed up writing defaults.
 Tap.prototype.writeBinary = function (str, len) {
   var pos = this.pos;
   this.pos += len;
@@ -3239,6 +3356,157 @@ Tap.prototype.writeBinary = function (str, len) {
   this.buf.binaryWrite(str, pos, len);
 };
 
+// Binary comparison methods.
+//
+// These are not guaranteed to consume the objects they are comparing when
+// returning a non-zero result (allowing for performance benefits), so no other
+// operations should be done on either tap after a compare returns a non-zero
+// value. Also, these methods do not have the same silent failure requirement
+// as read, skip, and write since they are assumed to be called on valid
+// buffers.
+
+Tap.prototype.matchBoolean = function (tap) {
+  return this.buf[this.pos++] - tap.buf[tap.pos++];
+};
+
+Tap.prototype.matchInt = Tap.prototype.matchLong = function (tap) {
+  var n1 = this.readLong();
+  var n2 = tap.readLong();
+  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+};
+
+Tap.prototype.matchFloat = function (tap) {
+  var n1 = this.readFloat();
+  var n2 = tap.readFloat();
+  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+};
+
+Tap.prototype.matchDouble = function (tap) {
+  var n1 = this.readDouble();
+  var n2 = tap.readDouble();
+  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+};
+
+Tap.prototype.matchFixed = function (tap, len) {
+  return this.readFixed(len).compare(tap.readFixed(len));
+};
+
+Tap.prototype.matchBytes = Tap.prototype.matchString = function (tap) {
+  var l1 = this.readLong();
+  var p1 = this.pos;
+  this.pos += l1;
+  var l2 = tap.readLong();
+  var p2 = tap.pos;
+  tap.pos += l2;
+  var b1 = this.buf.slice(p1, this.pos);
+  var b2 = tap.buf.slice(p2, tap.pos);
+  return b1.compare(b2);
+};
+
+// Functions for supporting custom long classes.
+//
+// The two following methods allow the long implementations to not have to
+// worry about Avro's zigzag encoding, we directly expose longs as unpacked.
+
+Tap.prototype.unpackLongBytes = function () {
+  var res = new Buffer(8);
+  var n = 0;
+  var i = 0; // Byte index in target buffer.
+  var j = 6; // Bit offset in current target buffer byte.
+  var buf = this.buf;
+  var b, neg;
+
+  b = buf[this.pos++];
+  neg = b & 1;
+  res.fill(0);
+
+  n |= (b & 0x7f) >> 1;
+  while (b & 0x80) {
+    b = buf[this.pos++];
+    n |= (b & 0x7f) << j;
+    j += 7;
+    if (j >= 8) {
+      // Flush byte.
+      j -= 8;
+      res[i++] = n;
+      n >>= 8;
+    }
+  }
+  res[i] = n;
+
+  if (neg) {
+    invert(res, 8);
+  }
+
+  return res;
+};
+
+Tap.prototype.packLongBytes = function (buf) {
+  var neg = (buf[7] & 0x80) >> 7;
+  var res = this.buf;
+  var j = 1;
+  var k = 0;
+  var m = 3;
+  var n;
+
+  if (neg) {
+    invert(buf, 8);
+    n = 1;
+  } else {
+    n = 0;
+  }
+
+  var parts = [
+    buf.readUIntLE(0, 3),
+    buf.readUIntLE(3, 3),
+    buf.readUIntLE(6, 2)
+  ];
+  // Not reading more than 24 bits because we need to be able to combine the
+  // "carry" bits from the previous part and JavaScript only supports bitwise
+  // operations on 32 bit integers.
+  while (m && !parts[--m]) {} // Skip trailing 0s.
+
+  // Leading parts (if any), we never bail early here since we need the
+  // continuation bit to be set.
+  while (k < m) {
+    n |= parts[k++] << j;
+    j += 24;
+    while (j > 7) {
+      res[this.pos++] = (n & 0x7f) | 0x80;
+      n >>= 7;
+      j -= 7;
+    }
+  }
+
+  // Final part, similar to normal packing aside from the initial offset.
+  n |= parts[m] << j;
+  do {
+    res[this.pos] = n & 0x7f;
+    n >>= 7;
+  } while (n && (res[this.pos++] |= 0x80));
+  this.pos++;
+
+  // Restore original buffer (could make this optional?).
+  if (neg) {
+    invert(buf, 8);
+  }
+};
+
+// Helpers.
+
+/**
+ * Invert all bits in a buffer.
+ *
+ * @param buf {Buffer} Non-empty buffer to invert.
+ * @param len {Number} Buffer length (must be positive).
+ *
+ */
+function invert(buf, len) {
+  while (len--) {
+    buf[len] = ~buf[len];
+  }
+}
+
 
 module.exports = Tap;
 
@@ -3247,17 +3515,16 @@ module.exports = Tap;
 (function (Buffer){
 /* jshint node: true */
 
-// TODO: Code-generate `compare` and `clone` record and union methods.
 // TODO: Add logging using `debuglog` to help identify schema parsing errors.
-// TODO: Add schema inference capabilities (as writable stream).
+// TODO: Add schema inference capabilities (as writable stream?).
 // TODO: Look into slow buffers for field defaults.
 // TODO: Use toFastProperties on type reverse indices.
-// TODO: Allow customizing block size when writing arrays and maps.
-// TODO: Allow configuring when to write the size when writing arrays and maps.
-// TODO: Add `$key` property to union constructor prototypes.
+// TODO: Allow configuring when to write the size when writing arrays and maps,
+// and customizing their block size.
 // TODO: Change `wrapUnions` to let type declarations be self-representing.
 // E.g. renaming it to `coerceUnions`, with possible values 0 `DISABLED`, 1
 // `WRAP_FIRST`, 2 `WRAP_ALL`, 3 `UNWRAP`.
+// TODO: Code-generate `compare` and `clone` record and union methods.
 
 'use strict';
 
@@ -3319,27 +3586,6 @@ function Type(registry) {
   registry[name] = this;
 }
 
-/**
- * Returns a copy of the default registry.
- *
- * It contains all the Avro primitive types defined. This function can be used
- * for example to prime a custom registry to pass in to `Type.fromSchema`.
- *
- */
-Type.getDefaultRegistry = function () {
-  var registry = {};
-  var types = Object.keys(TYPES);
-  var i, l, name;
-  for (i = 0, l = types.length; i < l; i++) {
-    name = types[i];
-    if (isPrimitive(name)) {
-      // Only primitives have their names defined.
-      registry[name] = new TYPES[name]();
-    }
-  }
-  return registry;
-};
-
 Type.fromSchema = function (schema, opts) {
   if (schema instanceof Type) {
     return schema;
@@ -3354,14 +3600,28 @@ Type.fromSchema = function (schema, opts) {
     }
     type = opts.registry[schema];
     if (type) {
+      // Type was already defined, return it.
       return type;
+    }
+    if (isPrimitive(schema)) {
+      // Reference to a primitive type. These are also defined names by default
+      // so we create the appropriate type and it to the registry for future
+      // reference.
+      return opts.registry[schema] = Type.fromSchema({type: schema}, opts);
     }
     throw new Error(f('missing name: %s', schema));
   }
 
-  if (schema instanceof Array) {
+  if (opts.typeHook && (type = opts.typeHook(schema, opts))) {
+    if (!(type instanceof Type)) {
+      throw new Error(f('invalid typehook return value: %j', type));
+    }
+    return type;
+  }
+
+  if (schema instanceof Array) { // Union.
     type = new UnionType(schema, opts);
-  } else {
+  } else { // New type definition.
     type = (function (typeName) {
       var Type = TYPES[schema.type];
       if (Type === undefined) {
@@ -3369,9 +3629,6 @@ Type.fromSchema = function (schema, opts) {
       }
       return new Type(schema, opts);
     })(schema.type);
-  }
-  if (opts.typeHook) {
-    opts.typeHook.call(type, schema);
   }
   return type;
 };
@@ -3383,7 +3640,7 @@ Type.prototype.decode = function (buf, pos, resolver) {
   tap.pos = pos | 0;
   var obj = readObj(this, tap, resolver);
   if (!tap.isValid()) {
-    return {offset: -1};
+    return {object: undefined, offset: -1};
   }
   return {object: obj, offset: tap.pos};
 };
@@ -3396,7 +3653,9 @@ Type.prototype.encode = function (obj, buf, pos, noCheck) {
   }
   this._write(tap, obj);
   if (!tap.isValid()) {
-    return -1; // Don't throw as there is no way to predict this.
+    // Don't throw as there is no way to predict this. We also return the
+    // number of missing bytes to ease resizing.
+    return buf.length - tap.pos;
   }
   return tap.pos;
 };
@@ -3530,25 +3789,20 @@ Type.prototype.compare = utils.abstractFunction;
 Type.prototype.isValid = utils.abstractFunction;
 Type.prototype.random = utils.abstractFunction;
 
-
 // Implementations.
 
 /**
  * Base primitive Avro type.
  *
- * Most of the primitive types (all but bytes) share the same cloning and
- * resolution mechanisms, provided by this class. This class also lets us
- * conveniently check whether a type is a primitive using `instanceof`.
+ * Most of the primitive types share the same cloning and resolution
+ * mechanisms, provided by this class. This class also lets us conveniently
+ * check whether a type is a primitive using `instanceof`.
  *
  */
 function PrimitiveType() { Type.call(this); }
 util.inherits(PrimitiveType, Type);
-PrimitiveType.prototype._promotions = [];
 PrimitiveType.prototype._updateResolver = function (resolver, type) {
-  if (
-    type.constructor === this.constructor ||
-    utils.contains(type._promotions, this.constructor)
-  ) {
+  if (type.constructor === this.constructor) {
     resolver._read = this._read;
   }
 };
@@ -3583,12 +3837,9 @@ BooleanType.prototype._read = function (tap) { return tap.readBoolean(); };
 BooleanType.prototype._skip = function (tap) { tap.skipBoolean(); };
 BooleanType.prototype._write = function (tap, o) { tap.writeBoolean(o); };
 BooleanType.prototype._match = function (tap1, tap2) {
-  return tap1.compareBoolean(tap2);
+  return tap1.matchBoolean(tap2);
 };
-BooleanType.prototype.isValid = function (o) {
-  /* jshint -W018 */
-  return o === !!o;
-};
+BooleanType.prototype.isValid = function (o) { return typeof o == 'boolean'; };
 BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
 BooleanType.prototype.toJSON = function () { return 'boolean'; };
 
@@ -3598,57 +3849,145 @@ BooleanType.prototype.toJSON = function () { return 'boolean'; };
  */
 function IntType() { PrimitiveType.call(this); }
 util.inherits(IntType, PrimitiveType);
-IntType.prototype._promotions = [LongType, FloatType, DoubleType];
 IntType.prototype._read = function (tap) { return tap.readInt(); };
 IntType.prototype._skip = function (tap) { tap.skipInt(); };
 IntType.prototype._write = function (tap, o) { tap.writeInt(o); };
 IntType.prototype._match = function (tap1, tap2) {
-  return tap1.compareInt(tap2);
+  return tap1.matchInt(tap2);
 };
 IntType.prototype.isValid = function (o) { return o === (o | 0); };
 IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
 IntType.prototype.toJSON = function () { return 'int'; };
 
 /**
- * Longs
+ * Longs.
  *
- * We can't capture all the range unfortunately (see `isValid`).
+ * We can't capture all the range unfortunately, so the default implementation
+ * plays safe and throws rather than potentially silently change the data.
  *
  */
 function LongType() { PrimitiveType.call(this); }
 util.inherits(LongType, PrimitiveType);
-LongType.prototype._promotions = [FloatType, DoubleType];
-LongType.prototype._read = function (tap) { return tap.readLong(); };
+LongType.prototype._read = function (tap) {
+  var n = tap.readLong();
+  if (!isSafeLong(n)) {
+    throw new Error('potential precision loss');
+  }
+  return n;
+};
 LongType.prototype._skip = function (tap) { tap.skipLong(); };
 LongType.prototype._write = function (tap, o) { tap.writeLong(o); };
 LongType.prototype._match = function (tap1, tap2) {
-  return tap1.compareLong(tap2);
+  return tap1.matchLong(tap2);
+};
+LongType.prototype._updateResolver = function (resolver, type) {
+  if (type instanceof LongType || type instanceof IntType) {
+    resolver._read = type._read;
+  }
 };
 LongType.prototype.isValid = function (o) {
-  return typeof o == 'number' &&
-    o % 1 === 0 &&
-    o <= Number.MAX_SAFE_INTEGER &&
-    o >= Number.MIN_SAFE_INTEGER; // Can'tap capture full range sadly.
+  return typeof o == 'number' && o % 1 === 0 && isSafeLong(o);
 };
 LongType.prototype.random = function () { return RANDOM.nextInt(); };
 LongType.prototype.toJSON = function () { return 'long'; };
+LongType.using = function (methods, noUnpack) {
+  methods = methods || {}; // Will give a more helpful error message.
+  // We map some of the methods to a different name to be able to intercept
+  // their input and output (otherwise we wouldn't be able to perform any
+  // unpacking logic, and the type wouldn't work when nested).
+  var mapping = {
+    toBuffer: '_toBuffer',
+    fromBuffer: '_fromBuffer',
+    fromJSON: '_fromJSON',
+    isValid: 'isValid',
+    compare: 'compare'
+  };
+  var type = new AbstractLongType(noUnpack);
+  Object.keys(mapping).forEach(function (name) {
+    if (methods[name] === undefined) {
+      throw new Error(f('missing method implementation: %s', name));
+    }
+    type[mapping[name]] = methods[name];
+  });
+  return type;
+};
 
 /**
- * Floats
+ * Customizable long.
+ *
+ * This allows support of arbitrarily large long (e.g. larger than
+ * `Number.MAX_SAFE_INTEGER`). It can be used for example via the parsing
+ * registry.
+ *
+ */
+function AbstractLongType(noUnpack) {
+  LongType.call(this);
+  this._noUnpack = !!noUnpack;
+}
+util.inherits(AbstractLongType, LongType);
+
+AbstractLongType.prototype._read = function (tap) {
+  var buf, pos;
+  if (this._noUnpack) {
+    pos = tap.pos;
+    tap.skipLong();
+    buf = tap.buf.slice(pos, tap.pos);
+  } else {
+    buf = tap.unpackLongBytes(tap);
+  }
+  if (tap.isValid()) {
+    return this._fromBuffer(buf);
+  }
+};
+
+AbstractLongType.prototype._write = function (tap, o) {
+  var buf = this._toBuffer(o);
+  if (this._noUnpack) {
+    tap.writeFixed(buf);
+  } else {
+    tap.packLongBytes(buf);
+  }
+};
+
+AbstractLongType.prototype.clone = function (o) {
+  // Slow but guarantees most consistent results. Faster alternatives would
+  // require assumptions on the long class used (e.g. immutability).
+  return this._fromJSON(JSON.parse(JSON.stringify(o)));
+};
+
+AbstractLongType.prototype.random = function () {
+  return this.clone(LongType.prototype.random());
+};
+
+// Methods to be implemented by the user.
+AbstractLongType.prototype._toBuffer = utils.abstractFunction;
+AbstractLongType.prototype._fromBuffer = utils.abstractFunction;
+AbstractLongType.prototype._fromJSON = utils.abstractFunction;
+AbstractLongType.prototype.compare = utils.abstractFunction;
+AbstractLongType.prototype.isValid = utils.abstractFunction;
+
+/**
+ * Floats.
  *
  */
 function FloatType() { PrimitiveType.call(this); }
 util.inherits(FloatType, PrimitiveType);
-FloatType.prototype._promotions = [DoubleType];
 FloatType.prototype._read = function (tap) { return tap.readFloat(); };
 FloatType.prototype._skip = function (tap) { tap.skipFloat(); };
 FloatType.prototype._write = function (tap, o) { tap.writeFloat(o); };
 FloatType.prototype._match = function (tap1, tap2) {
-  return tap1.compareFloat(tap2);
+  return tap1.matchFloat(tap2);
 };
-FloatType.prototype.isValid = function (o) {
-  return typeof o == 'number' && Math.abs(o) < 3.4028234e38;
+FloatType.prototype._updateResolver = function (resolver, type) {
+  if (
+    type instanceof FloatType ||
+    type instanceof LongType ||
+    type instanceof IntType
+  ) {
+    resolver._read = type._read;
+  }
 };
+FloatType.prototype.isValid = function (o) { return typeof o == 'number'; };
 FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
 FloatType.prototype.toJSON = function () { return 'float'; };
 
@@ -3662,9 +4001,19 @@ DoubleType.prototype._read = function (tap) { return tap.readDouble(); };
 DoubleType.prototype._skip = function (tap) { tap.skipDouble(); };
 DoubleType.prototype._write = function (tap, o) { tap.writeDouble(o); };
 DoubleType.prototype._match = function (tap1, tap2) {
-  return tap1.compareDouble(tap2);
+  return tap1.matchDouble(tap2);
 };
-DoubleType.prototype.isValid = function (o) { return typeof o == 'number'; };
+DoubleType.prototype._updateResolver = function (resolver, type) {
+  if (
+    type instanceof DoubleType ||
+    type instanceof FloatType ||
+    type instanceof LongType ||
+    type instanceof IntType
+  ) {
+    resolver._read = type._read;
+  }
+};
+DoubleType.prototype.isValid = FloatType.prototype.isValid;
 DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
 DoubleType.prototype.toJSON = function () { return 'double'; };
 
@@ -3674,12 +4023,16 @@ DoubleType.prototype.toJSON = function () { return 'double'; };
  */
 function StringType() { PrimitiveType.call(this); }
 util.inherits(StringType, PrimitiveType);
-StringType.prototype._promotions = [BytesType];
 StringType.prototype._read = function (tap) { return tap.readString(); };
 StringType.prototype._skip = function (tap) { tap.skipString(); };
 StringType.prototype._write = function (tap, o) { tap.writeString(o); };
 StringType.prototype._match = function (tap1, tap2) {
-  return tap1.compareString(tap2);
+  return tap1.matchString(tap2);
+};
+StringType.prototype._updateResolver = function (resolver, type) {
+  if (type instanceof StringType || type instanceof BytesType) {
+    resolver._read = this._read;
+  }
 };
 StringType.prototype.isValid = function (o) { return typeof o == 'string'; };
 StringType.prototype.random = function () {
@@ -3695,13 +4048,13 @@ StringType.prototype.toJSON = function () { return 'string'; };
  */
 function BytesType() { PrimitiveType.call(this); }
 util.inherits(BytesType, PrimitiveType);
-BytesType.prototype._promotions = [StringType];
 BytesType.prototype._read = function (tap) { return tap.readBytes(); };
 BytesType.prototype._skip = function (tap) { tap.skipBytes(); };
 BytesType.prototype._write = function (tap, o) { tap.writeBytes(o); };
 BytesType.prototype._match = function (tap1, tap2) {
-  return tap1.compareBytes(tap2);
+  return tap1.matchBytes(tap2);
 };
+BytesType.prototype._updateResolver = StringType.prototype._updateResolver;
 BytesType.prototype.clone = function (obj, opts) {
   obj = tryCloneBuffer(obj, opts && opts.coerceBuffers);
   checkIsValid(this, obj);
@@ -3948,7 +4301,7 @@ EnumType.prototype._write = function (tap, s) {
 };
 
 EnumType.prototype._match = function (tap1, tap2) {
-  return tap1.compareLong(tap2);
+  return tap1.matchLong(tap2);
 };
 
 EnumType.prototype.compare = function (obj1, obj2) {
@@ -4021,7 +4374,7 @@ FixedType.prototype._write = function (tap, buf) {
 };
 
 FixedType.prototype._match = function (tap1, tap2) {
-  return tap1.compareFixed(tap2, this._size);
+  return tap1.matchFixed(tap2, this._size);
 };
 
 FixedType.prototype.compare = Buffer.compare;
@@ -4579,7 +4932,7 @@ RecordType.prototype.clone = function (obj, opts) {
   var fields = this._fields.map(function (f) {
     var copy = f._type.clone(obj[f._name], opts);
     if (hook) {
-      copy = hook.call(f, copy, this);
+      copy = hook(copy, f, this);
     }
     return copy;
   }, this);
@@ -4668,7 +5021,7 @@ function Field(schema, opts) {
 
 Field.prototype.getAliases = function () { return this._aliases; };
 
-Field.prototype.getDefault = function () { return; }; // Undefined default.
+Field.prototype.getDefault = function () {}; // Undefined default.
 
 Field.prototype.getName = function () { return this._name; };
 
@@ -4739,7 +5092,7 @@ function getOpts(schema, opts) {
     throw new Error('invalid type: null (did you mean "null"?)');
   }
   opts = opts || {};
-  opts.registry = opts.registry || Type.getDefaultRegistry();
+  opts.registry = opts.registry || {};
   opts.namespace = schema.namespace || opts.namespace;
   return opts;
 }
@@ -4876,6 +5229,22 @@ function tryCloneBuffer(obj, coerce) {
   return obj;
 }
 
+/**
+ * Check whether a long can be represented without precision loss.
+ *
+ * @param n {Number} The number.
+ *
+ * Two things to note:
+ *
+ * + We are not using the `Number` constants for compatibility with older
+ *   browsers.
+ * + We must remove one from each bound because of rounding errors.
+ *
+ */
+function isSafeLong(n) {
+  return n >= -9007199254740990 && n <= 9007199254740990;
+}
+
 
 module.exports = (function () {
   // Export the base type along with all concrete implementations.
@@ -4913,16 +5282,6 @@ function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
  *
  */
 function compare(n1, n2) { return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1); }
-
-/**
- * Contains check.
- *
- * @param arr {Array} Can also be a false-ish value (main use for this
- * function).
- * @param v {Object} Value to check existence for.
- *
- */
-function contains(arr, v) { return arr && ~arr.indexOf(v); }
 
 /**
  * Find index of value in array.
@@ -5144,7 +5503,6 @@ module.exports = {
   abstractFunction: abstractFunction,
   capitalize: capitalize,
   compare: compare,
-  contains: contains,
   toMap: toMap,
   singleIndexOf: singleIndexOf,
   hasDuplicates: hasDuplicates,

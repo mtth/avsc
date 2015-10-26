@@ -59,8 +59,103 @@
       generateRandom();
     });
 
+    $('#input').on('mouseenter', 'span', function(event) {
+      var path = $.trim($(this).attr('class')).split(' ');
+      console.log(path);
+      var current = window.instrumented;
+      for(var i =0; i<path.length; i++){
+        var nextKey = path[i];
+        if(current.value[nextKey]) 
+          current = current.value[nextKey];
+        else // The last key can be something like "string", which we don't care about.
+          break;
+      }
+      highlightOutput(current.start, current.end); 
+    });
+
+  function highlightOutput(start, end) {
+    console.log(current.start);
+    console.log(current.end);
+  }
+
   function wrapWordsInSpan(element) {
-    element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+    //element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+    var input = JSON.parse(element.text());
+    var output = wrapNodeInSpan(input, "");
+    element.html(output);
+  }
+
+  function wrapNodeInSpan(node, prefix, indentLevel) {
+    var str = "";
+    if (node instanceof Array) {
+      return writeArray(node, prefix);
+    }
+    str += "{";
+    var commaNeeded = false;
+    $.each(node, function(key, value) {
+      if(commaNeeded) {
+        str += ',';
+      }
+      console.log ("key : " + key + ", value = " + value);
+
+      str += '<span class="' + prefix + ' ' + key + '">';
+      str += '"' + key + '" :';
+      str += '</span>';
+
+      if (!value) 
+        value = 'null';
+      if (isPrimitiveType(value)) {
+        str += writeValue(value, prefix + ' ' + key);
+      } else if (value instanceof Array) {
+        str += writeArray(value, prefix + ' ' + key);
+      } else {
+        str += wrapNodeInSpan(value, prefix + ' ' + key, indentLevel + 1);
+      }
+      commaNeeded = true;
+    });
+    str += "}";
+    return str;
+  }
+  function writeValue(value, prefix, skipQuotation) {
+    var str = "";
+    console.log('found value: ' +  value);
+    str += '<span class="' + prefix + '">';
+
+    if (typeof(value) === 'number' || value === 'null' || skipQuotation)
+      str +=  value;
+    else 
+      str += '"' + value + '"';
+    str += '</span>';
+    return str;
+  }
+
+  function writeArray(array, prefix) {
+    var str = "";
+    if(array.length == 0) {
+      str += '<span class="' + prefix + '">';
+      str += '[]';
+      str += '</span>';
+    } else if (isPrimitiveType(array[0])) {
+        var value = "";
+        for (var i = 0; i<array.length; i++) {
+          if (i > 0) {
+            value += ', ';
+          }
+          value += array[i];
+        }
+      str += '[' + writeValue(value, prefix, true) + ']';
+    } else {
+      for (var i = 0; i<array.length; i++) {
+        if (i > 0 ) str += ', ';
+        str += wrapNodeInSpan(array[i], prefix);
+      }
+    }
+    return str;
+  }
+  function isPrimitiveType(value) {
+    return typeof(value) === 'string' ||
+           typeof(value) === 'number' ||
+           value === 'null';
   }
 
    function validateSchema() {
@@ -96,10 +191,11 @@
       if (window.schema) {
         try {
           var input = readInput();
+          window.instrumented = instrumentObject(window.schema, input);
           var output = window.schema.toBuffer(input);
           outputElement.text(bufferToStr(output));
           clearErrors();
-          wrapWordsInSpan(outputElement);
+          //wrapWordsInSpan(outputElement);
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
@@ -173,6 +269,8 @@
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
+      console.log("rawInput");
+      console.log(rawInput);
       if(!!window.schema) {
         return window.schema.fromString(rawInput);
       } else {
@@ -212,5 +310,60 @@
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
     }
+
+    function instrument(schema) {
+      if (schema instanceof avsc.types.Type) {
+        schema = schema.toString();
+      }
+      var refs = [];
+      return avsc.parse(schema, {typeHook: hook});
+
+      function hook(schema, opts) {
+        if (~refs.indexOf(schema)) {
+          return;
+        }
+        refs.push(schema);
+
+        if (schema.type === 'record') {
+          schema.fields.forEach(function (f) { f['default'] = undefined; });
+        }
+
+        var name = schema.name;
+        if (name) {
+          schema.name = 'r' + Math.random().toString(36).substr(2, 6);
+        }
+        var wrappedSchema = {
+          name: name || 'r' + Math.random().toString(36).substr(2, 6),
+          namespace: schema.namespace,
+          type: 'record',
+          fields: [{name: 'value', type: schema}]
+        };
+        refs.push(wrappedSchema);
+
+        var type = avsc.parse(wrappedSchema, opts);
+        var read = type._read;
+        type._read = function (tap) {
+          var pos = tap.pos;
+          var obj = read.call(type, tap);
+          obj.start = pos;
+          obj.end = tap.pos;
+          return obj;
+        };
+        return type;
+      }
+    }
+
+  /**
+   * Convenience method to instrument a single object.
+   * 
+   * @param type {Type} The type to be instrumented.
+   * @param obj {Object} A valid instance of `type`.
+   * 
+   * Returns an representation of `obj` with start and end markers.
+   * 
+   */
+  function instrumentObject(type, obj) {
+    return instrument(type).fromBuffer(type.toBuffer(obj));
+  }
  });
 })();
