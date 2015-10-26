@@ -1688,6 +1688,17 @@ suite('types', function () {
       }); });
     });
 
+    test('error type', function () {
+      var t = fromSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var E = t.getRecordConstructor();
+      var err = new E('MyError');
+      assert(err instanceof Error);
+    });
+
   });
 
   suite('fromSchema', function  () {
