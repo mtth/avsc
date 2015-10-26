@@ -43,13 +43,9 @@
     });
 
     $('#input').on('paste keyup', function(event) {
-      setTimeout(function() {
+        setTimeout(function() {
         encode();
       }, 0);
-    }).on('mouseover', function(event) {
-      //$('.highlightable').lettering('words');
-      var $this = $(this);
-      $this.html($this.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
     });
 
     
@@ -57,14 +53,15 @@
       setTimeout(function() {
         decode();
       }, 0);
-    }).on('mouseover', function(event) {
-      var $this = $(this);
-      $this.html($this.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
     });
 
     $('#random').click(function () {   
       generateRandom();
     });
+
+  function wrapWordsInSpan(element) {
+    element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+  }
 
    function validateSchema() {
       window.schema = null;
@@ -87,6 +84,7 @@
           var randomStr = window.schema.toString(random);
           var randomJson = JSON.parse(randomStr);
           inputElement.text(JSON.stringify(randomJson, null, 2));
+          wrapWordsInSpan(inputElement);
           encode(); /* Update encoded string too. */
         } catch(err) {
           toggleError($('#schema-error'), $('#schema-valid'), err);
@@ -101,6 +99,7 @@
           var output = window.schema.toBuffer(input);
           outputElement.text(bufferToStr(output));
           clearErrors();
+          wrapWordsInSpan(outputElement);
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {

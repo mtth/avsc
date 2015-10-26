@@ -3,9 +3,8 @@ body {
   font-family: 'Indie Flower', cursive;
 }
 .highlight {
-    background-color: #FFFF88;
+  background-color: #FFFF88;
 }
-
 .highlightable span:hover {
   background-color: #FFFF88;
   font-weight:bold;
