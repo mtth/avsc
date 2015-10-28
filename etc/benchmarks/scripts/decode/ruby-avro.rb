@@ -24,4 +24,4 @@ buffers.each { |buffer|
   decoder = Avro::IO::BinaryDecoder.new(buffer)
   dr.read(decoder)
 }
-puts (Time.now - t) / n
+puts 1000 * (Time.now - t) / n

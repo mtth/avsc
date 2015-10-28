@@ -18,4 +18,4 @@ records.each { |record|
   dw.write(record, encoder)
   n += 1
 }
-puts (Time.now - t) / n
+puts 1000 * (Time.now - t) / n
