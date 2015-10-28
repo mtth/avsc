@@ -1294,9 +1294,6 @@ suite('types', function () {
       var Person = type.getRecordConstructor();
       assert.deepEqual((new Person(48)).$toBuffer(), new Buffer([96]));
       assert.throws(function () { (new Person()).$toBuffer(); });
-      assert.doesNotThrow(function () {
-        (new Person()).$toBuffer(true);
-      });
     });
 
     test('record compare', function () {
@@ -1777,10 +1774,10 @@ suite('types', function () {
       assert.equal(type.fromBuffer(new Buffer([0, 2]), resolver), 1);
     });
 
-    test('toBuffer strict & not', function () {
+    test('toBuffer', function () {
       var type = fromSchema('int');
       assert.throws(function () { type.toBuffer('abc'); });
-      type.toBuffer('abc', true);
+      assert.doesNotThrow(function () { type.toBuffer(123); });
     });
 
     test('toBuffer and resize', function () {
@@ -2045,11 +2042,10 @@ suite('types', function () {
       assert.equal(n, -2);
     });
 
-    test('invalid no check', function () {
+    test('invalid', function () {
       var t = fromSchema('float');
       var buf = new Buffer(2);
       assert.throws(function () { t.encode('hi', buf, 0); });
-      assert.doesNotThrow(function () { t.encode('hi', buf, 0, true); });
     });
 
   });
