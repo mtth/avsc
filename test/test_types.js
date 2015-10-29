@@ -1114,6 +1114,32 @@ suite('types', function () {
       assert.equal(t.compare([2], [1, 2]), 1);
     });
 
+    test('isValid hook invalid array', function () {
+      var t = fromSchema({type: 'array', items: 'int'});
+      var hookCalled = false;
+      assert(!t.isValid({}, {errorHook: hook}));
+      assert(hookCalled);
+
+      function hook(obj, type, path) {
+        assert.strictEqual(type, t);
+        assert.deepEqual(path, []);
+        hookCalled = true;
+      }
+    });
+
+    test('isValid hook invalid elems', function () {
+      var t = fromSchema({type: 'array', items: 'int'});
+      var paths = [];
+      assert(!t.isValid([0, 3, 'hi', 5, 'hey'], {errorHook: hook}));
+      assert.deepEqual(paths, [['2'], ['4']]);
+
+      function hook(obj, type, path) {
+        assert.strictEqual(type, t.getItemsType());
+        assert.equal(typeof obj, 'string');
+        paths.push(path);
+      }
+    });
+
   });
 
   suite('RecordType', function () {
