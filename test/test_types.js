@@ -212,6 +212,20 @@ suite('types', function () {
         assert(slowLongType.isValid(slowLongType.random()));
       });
 
+      test('isValid hook', function () {
+        var s = 'hi';
+        var errs = [];
+        assert(!slowLongType.isValid(s, {errorHook: hook}));
+        assert.deepEqual(errs, [s]);
+        assert.throws(function () { slowLongType.toBuffer(s); });
+
+        function hook(obj, type, path) {
+          assert.strictEqual(type, slowLongType);
+          assert.equal(path.length, 0);
+          errs.push(obj);
+        }
+      });
+
     });
 
     suite('packed', function () {
@@ -408,7 +422,6 @@ suite('types', function () {
       assert.equal(t.compareBuffers(b1, b3), -1);
     });
 
-
   });
 
   suite('BytesType', function () {
@@ -470,9 +483,9 @@ suite('types', function () {
       },
       {
         name: 'array int',
-        schema: ['null', {type: 'array', items: 'int'}],
-        valid: [null, {array: [1,3]}],
-        invalid: [{array: ['a']}, [4], 2],
+        schema: ['int', {type: 'array', items: 'int'}],
+        valid: [{'int': 1}, {array: [1,3]}],
+        invalid: [null, 2, {array: ['a']}, [4], 2],
         check: assert.deepEqual
       },
       {
@@ -1004,6 +1017,20 @@ suite('types', function () {
       var t = new types.MapType({type: 'map', values: 'bytes'});
       var b1 = t.toBuffer({});
       assert.throws(function () { t.compareBuffers(b1, b1); });
+    });
+
+    test('isValid hook', function () {
+      var t = new types.MapType({type: 'map', values: 'int'});
+      var o = {one: 1, two: 'deux', three: null, four: 4};
+      var errs = {};
+      assert(!t.isValid(o, {errorHook: hook}));
+      assert.deepEqual(errs, {two: 'deux', three: null});
+
+      function hook(obj, type, path) {
+        assert.strictEqual(type, t.getValuesType());
+        assert.equal(path.length, 1);
+        errs[path[0]] = obj;
+      }
     });
 
   });
@@ -1722,6 +1749,38 @@ suite('types', function () {
       assert(err instanceof Error);
     });
 
+    test('isValid hook', function () {
+      var t = fromSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'names', type: {type: 'array', items: 'string'}}
+        ]
+      });
+      var hasErr = false;
+      try {
+        assert(!t.isValid({age: 23, names: ['ann', null]}, {errorHook: hook}));
+      } catch (err) {
+        hasErr = true;
+      }
+      assert(hasErr);
+      hasErr = false;
+      try {
+        // Again to make sure `PATH` was correctly reset.
+        assert(!t.isValid({age: 23, names: ['ann', null]}, {errorHook: hook}));
+      } catch (err) {
+        hasErr = true;
+      }
+      assert(hasErr);
+
+      function hook(obj, type, path) {
+        assert.strictEqual(type, t.getFields()[1].getType().getItemsType());
+        assert.deepEqual(path, ['names', '1']);
+        throw new Error();
+      }
+    });
+
   });
 
   suite('fromSchema', function  () {
@@ -2098,6 +2157,10 @@ function testType(Type, data, invalidSchemas) {
       });
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);
+        assert.throws(function () { type.isValid(v, {errorHook: hook}); });
+        assert.throws(function () { type.toBuffer(v); });
+
+        function hook() { throw new Error(); }
       });
       var n = 50;
       while (n--) {
