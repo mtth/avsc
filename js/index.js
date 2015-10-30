@@ -6,7 +6,6 @@
   var avsc = require('avsc'),
       buffer = require('buffer'),
       $ = require('jquery');
-  require('./lib/jquery-lettering.min.js'); 
   require('jquery-highlight');
   window.avsc = avsc;
   $( function() {
@@ -61,21 +60,38 @@
 
     $('#input').on('mouseenter', 'span', function(event) {
       var path = $.trim($(this).attr('class')).split(' ');
-      console.log(path);
+      console.log("path is: " + path);
       var current = window.instrumented;
-      for(var i =0; i<path.length; i++){
-        var nextKey = path[i];
-        if(current.value[nextKey]) 
-          current = current.value[nextKey];
-        else // The last key can be something like "string", which we don't care about.
-          break;
-      }
-      highlightOutput(current.start, current.end); 
+      if (current) {
+        for(var i =0; i<path.length; i++){
+          var nextKey = path[i];
+          if(current.value) 
+            current = current.value[nextKey];
+          else // The last key can be something like "string", which we don't care about.
+            break;
+        }
+        highlightOutput(current.start, current.end); 
+      } else 
+        console.log("No instrumented type found");
+    }).on('mouseleave', 'span', function(event) {
+      clearHighlights();
     });
 
   function highlightOutput(start, end) {
-    console.log(current.start);
-    console.log(current.end);
+    console.log(start);
+    console.log(end);
+    outputElement.children('span').each(function( index ) {
+      if (index >= start && index <= end) {
+        $(this).addClass("highlight");
+      }
+    });
+  }
+
+  function clearHighlights() {
+    
+    outputElement.children('span').each(function( index ) {
+      $(this).removeClass("highlight");
+    });
   }
 
   function wrapWordsInSpan(element) {
@@ -193,9 +209,8 @@
           var input = readInput();
           window.instrumented = instrumentObject(window.schema, input);
           var output = window.schema.toBuffer(input);
-          outputElement.text(bufferToStr(output));
+          outputElement.html(bufferToStr(output));          
           clearErrors();
-          //wrapWordsInSpan(outputElement);
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
@@ -297,10 +312,12 @@
       var outStr = '';
       var i;
       for (i = 1; i <= size; i++) {
-        outStr +=  buffer.toString('hex', i-1 , i) + ' ';
+        outStr +=  '<span>' + buffer.toString('hex', i-1 , i) + '</span>';
         if (i % 8 == 0 ) {
           outStr += '\n';
-        } 
+        } else {
+          outStr += ' ';
+        }
       }
       return outStr;
     }

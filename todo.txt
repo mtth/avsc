@@ -1,0 +1,3 @@
+Only generate random schema if something has changed. 
+Support Fixed types. 
+
