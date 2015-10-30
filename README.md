@@ -5,8 +5,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 ## Features
 
-+ Full Avro schema support, including recursive schemas, [sort
-  order][sort-order], and [schema evolution][schema-evolution].
++ Full Avro schema support, including recursive schemas, sort order, and [schema
+  evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
 + Unopinionated [64-bit integer compatibility][custom-long].
@@ -104,16 +104,10 @@ var avsc = require('avsc');
   ```
 
 
-## Limitations
-
-+ Protocols aren't yet implemented.
-
-
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
 [custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
-[sort-order]: https://avro.apache.org/docs/current/spec.html#order
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [browserify]: http://browserify.org/
 [coupon-schema]: etc/benchmarks/schemas/Coupon.avsc
