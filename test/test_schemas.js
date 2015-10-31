@@ -286,7 +286,7 @@ suite('types', function () {
       var buf = fastLongType.toBuffer(12314);
       assert.deepEqual(
         slowLongType.decode(buf.slice(0, 1)),
-        {object: undefined, offset: -1}
+        {value: undefined, offset: -1}
       );
     });
 
@@ -2099,14 +2099,14 @@ suite('types', function () {
       var t = createType('long');
       var buf = new Buffer([0, 128, 2, 0]);
       var res = t.decode(buf, 1);
-      assert.deepEqual(res, {object: 128, offset: 3});
+      assert.deepEqual(res, {value: 128, offset: 3});
     });
 
     test('bytes invalid', function () {
       var t = createType('bytes');
       var buf = new Buffer([4, 1]);
       var res = t.decode(buf, 0);
-      assert.deepEqual(res, {object: undefined, offset: -1});
+      assert.deepEqual(res, {value: undefined, offset: -1});
     });
 
   });

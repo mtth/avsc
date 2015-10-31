@@ -118,7 +118,7 @@ suite('utils', function () {
 
   });
 
-  suite('tap', function () {
+  suite('Tap', function () {
 
     var Tap = utils.Tap;
 
