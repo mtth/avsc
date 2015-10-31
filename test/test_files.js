@@ -4,7 +4,7 @@
 
 
 var files = require('../lib/files'),
-    types = require('../lib/types'),
+    schemas = require('../lib/schemas'),
     assert = require('assert'),
     fs = require('fs'),
     path = require('path'),
@@ -15,7 +15,7 @@ var DPATH = path.join(__dirname, 'dat');
 var Header = files.HEADER_TYPE.getRecordConstructor();
 var MAGIC_BYTES = files.MAGIC_BYTES;
 var SYNC = new Buffer('atokensyncheader');
-var fromSchema = types.Type.fromSchema;
+var createType = schemas.createType;
 var streams = files.streams;
 
 
@@ -26,7 +26,7 @@ suite('streams', function () {
     var RawEncoder = streams.RawEncoder;
 
     test('flush once', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var buf;
       var encoder = new RawEncoder(t)
         .on('data', function (chunk) {
@@ -43,7 +43,7 @@ suite('streams', function () {
     });
 
     test('write multiple', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var bufs = [];
       var encoder = new RawEncoder(t, {batchSize: 1})
         .on('data', function (chunk) {
@@ -58,7 +58,7 @@ suite('streams', function () {
     });
 
     test('resize', function (cb) {
-      var t = fromSchema({type: 'fixed', name: 'A', size: 2});
+      var t = createType({type: 'fixed', name: 'A', size: 2});
       var data = new Buffer([48, 18]);
       var buf;
       var encoder = new RawEncoder(t, {batchSize: 1})
@@ -75,7 +75,7 @@ suite('streams', function () {
     });
 
     test('flush when full', function (cb) {
-      var t = fromSchema({type: 'fixed', name: 'A', size: 2});
+      var t = createType({type: 'fixed', name: 'A', size: 2});
       var data = new Buffer([48, 18]);
       var chunks = [];
       var encoder = new RawEncoder(t, {batchSize: 2})
@@ -90,7 +90,7 @@ suite('streams', function () {
     });
 
     test('empty', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var chunks = [];
       var encoder = new RawEncoder(t, {batchSize: 2})
         .on('data', function (chunk) { chunks.push(chunk); })
@@ -110,7 +110,7 @@ suite('streams', function () {
     });
 
     test('invalid object', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var encoder = new RawEncoder(t)
         .on('error', function () { cb(); });
       encoder.write('hi');
@@ -123,7 +123,7 @@ suite('streams', function () {
     var RawDecoder = streams.RawDecoder;
 
     test('single item', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var objs = [];
       var decoder = new RawDecoder(t)
         .on('data', function (obj) { objs.push(obj); })
@@ -139,7 +139,7 @@ suite('streams', function () {
     });
 
     test('decoding', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var objs = [];
       var decoder = new RawDecoder(t)
         .on('data', function (obj) { objs.push(obj); })
@@ -152,7 +152,7 @@ suite('streams', function () {
     });
 
     test('no decoding', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var bufs = [new Buffer([3]), new Buffer([124])];
       var objs = [];
       var decoder = new RawDecoder(t, {decode: false})
@@ -166,7 +166,7 @@ suite('streams', function () {
     });
 
     test('write partial', function (cb) {
-      var t = fromSchema('bytes');
+      var t = createType('bytes');
       var objs = [];
       var decoder = new RawDecoder(t)
         .on('data', function (obj) { objs.push(obj); })
@@ -190,21 +190,21 @@ suite('streams', function () {
     });
 
     test('invalid codec', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var encoder = new BlockEncoder(t, {codec: 'foo'})
         .on('error', function () { cb(); });
       encoder.write(2);
     });
 
     test('invalid object', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var encoder = new BlockEncoder(t)
         .on('error', function () { cb(); });
       encoder.write('hi');
     });
 
     test('empty', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var chunks = [];
       var encoder = new BlockEncoder(t)
         .on('data', function (chunk) { chunks.push(chunk); })
@@ -216,7 +216,7 @@ suite('streams', function () {
     });
 
     test('flush on finish', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var chunks = [];
       var encoder = new BlockEncoder(t, {
         omitHeader: true,
@@ -238,7 +238,7 @@ suite('streams', function () {
 
     test('flush when full', function (cb) {
       var chunks = [];
-      var encoder = new BlockEncoder(fromSchema('int'), {
+      var encoder = new BlockEncoder(createType('int'), {
         omitHeader: true,
         syncMarker: SYNC,
         blockSize: 2
@@ -258,7 +258,7 @@ suite('streams', function () {
     });
 
     test('resize', function (cb) {
-      var t = fromSchema({type: 'fixed', size: 8, name: 'Eight'});
+      var t = createType({type: 'fixed', size: 8, name: 'Eight'});
       var buf = new Buffer('abcdefgh');
       var chunks = [];
       var encoder = new BlockEncoder(t, {
@@ -277,7 +277,7 @@ suite('streams', function () {
     });
 
     test('compression error', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var codecs = {
         invalid: function (data, cb) { cb(new Error('ouch')); }
       };
@@ -365,7 +365,7 @@ suite('streams', function () {
   suite('encode & decode', function () {
 
     test('uncompressed int', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var objs = [];
       var encoder = new streams.BlockEncoder(t);
       var decoder = new streams.BlockDecoder()
@@ -381,7 +381,7 @@ suite('streams', function () {
     });
 
     test('uncompressed int non decoded', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var objs = [];
       var encoder = new streams.BlockEncoder(t);
       var decoder = new streams.BlockDecoder({decode: false})
@@ -395,7 +395,7 @@ suite('streams', function () {
     });
 
     test('deflated records', function (cb) {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -425,7 +425,7 @@ suite('streams', function () {
     });
 
     test('decompression error', function (cb) {
-      var t = fromSchema('int');
+      var t = createType('int');
       var codecs = {
         'null': function (data, cb) { cb(new Error('ouch')); }
       };
@@ -438,7 +438,7 @@ suite('streams', function () {
 
     test('decompression late read', function (cb) {
       var chunks = [];
-      var encoder = new streams.BlockEncoder(fromSchema('int'));
+      var encoder = new streams.BlockEncoder(createType('int'));
       var decoder = new streams.BlockDecoder();
       encoder.pipe(decoder);
       encoder.end(1);
@@ -469,7 +469,7 @@ suite('streams', function () {
   });
 
   test('createFileEncoder', function (cb) {
-    var type = fromSchema({
+    var type = createType({
       type: 'record',
       name: 'Person',
       fields: [
@@ -518,5 +518,5 @@ suite('streams', function () {
 // Helpers.
 
 function loadSchema(path) {
-  return fromSchema(JSON.parse(fs.readFileSync(path)));
+  return createType(JSON.parse(fs.readFileSync(path)));
 }

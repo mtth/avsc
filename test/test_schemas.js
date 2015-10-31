@@ -3,12 +3,14 @@
 'use strict';
 
 
-var Tap = require('../lib/tap'),
-    types = require('../lib/types'),
+var utils = require('../lib/utils'),
+    schemas = require('../lib/schemas'),
     assert = require('assert');
 
 
-var fromSchema = types.Type.fromSchema;
+var Tap = utils.Tap;
+var createType = schemas.createType;
+var types = schemas.types;
 
 
 suite('types', function () {
@@ -53,15 +55,15 @@ suite('types', function () {
 
     test('toBuffer int', function () {
 
-      var type = fromSchema('int');
+      var type = createType('int');
       assert.equal(type.fromBuffer(new Buffer([0x80, 0x01])), 64);
       assert(new Buffer([0]).equals(type.toBuffer(0)));
 
     });
 
     test('resolve int > long', function () {
-      var intType = fromSchema('int');
-      var longType = fromSchema('long');
+      var intType = createType('int');
+      var longType = createType('long');
       var buf = intType.toBuffer(123);
       assert.equal(
         longType.fromBuffer(buf, longType.createResolver(intType)),
@@ -70,8 +72,8 @@ suite('types', function () {
     });
 
     test('resolve int > [null, int]', function () {
-      var wt = fromSchema('int');
-      var rt = fromSchema(['null', 'int']);
+      var wt = createType('int');
+      var rt = createType(['null', 'int']);
       var buf = wt.toBuffer(123);
       assert.deepEqual(
         rt.fromBuffer(buf, rt.createResolver(wt)),
@@ -80,26 +82,26 @@ suite('types', function () {
     });
 
     test('resolve int > float', function () {
-      var wt = fromSchema('int');
-      var rt = fromSchema('float');
+      var wt = createType('int');
+      var rt = createType('float');
       var buf = wt.toBuffer(123);
       assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), 123);
     });
 
     test('resolve int > double', function () {
-      var wt = fromSchema('int');
-      var rt = fromSchema('double');
+      var wt = createType('int');
+      var rt = createType('double');
       var n = Math.pow(2, 30) + 1;
       var buf = wt.toBuffer(n);
       assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), n);
     });
 
     test('toString', function () {
-      assert.equal(fromSchema('int').toString(), '"int"');
+      assert.equal(createType('int').toString(), '"int"');
     });
 
     test('clone', function () {
-      var t = fromSchema('int');
+      var t = createType('int');
       assert.equal(t.clone(123), 123);
       assert.throws(function () { t.clone(''); });
     });
@@ -126,8 +128,8 @@ suite('types', function () {
     });
 
     test('resolve long > float', function () {
-      var t1 = fromSchema('long');
-      var t2 = fromSchema('float');
+      var t1 = createType('long');
+      var t2 = createType('float');
       var n = 9007199254740990; // Number.MAX_SAFE_INTEGER - 1
       var buf = t1.toBuffer(n);
       var f = t2.fromBuffer(buf, t2.createResolver(t1));
@@ -136,7 +138,7 @@ suite('types', function () {
     });
 
     test('precision loss', function () {
-      var type = fromSchema('long');
+      var type = createType('long');
       var buf = new Buffer([0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]);
       assert.throws(function () { type.fromBuffer(buf); });
     });
@@ -302,7 +304,7 @@ suite('types', function () {
     testType(types.StringType, data);
 
     test('fromBuffer string', function () {
-      var type = fromSchema('string');
+      var type = createType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
       assert.equal(type.fromBuffer(buf), s);
@@ -310,14 +312,14 @@ suite('types', function () {
     });
 
     test('toBuffer string', function () {
-      var type = fromSchema('string');
+      var type = createType('string');
       var buf = new Buffer([0x06, 0x68, 0x69, 0x21]);
       assert(buf.equals(type.toBuffer('hi!', 1)));
     });
 
     test('resolve string > bytes', function () {
-      var stringT = fromSchema('string');
-      var bytesT = fromSchema('bytes');
+      var stringT = createType('string');
+      var bytesT = createType('bytes');
       var buf = stringT.toBuffer('\x00\x01');
       assert.deepEqual(
         bytesT.fromBuffer(buf, bytesT.createResolver(stringT)),
@@ -326,7 +328,7 @@ suite('types', function () {
     });
 
     test('encode resize', function () {
-      var t = fromSchema('string');
+      var t = createType('string');
       var s = 'hello';
       var b, pos;
       b = new Buffer(2);
@@ -367,7 +369,7 @@ suite('types', function () {
     testType(types.FloatType, data);
 
     test('compare buffer', function () {
-      var t = fromSchema('float');
+      var t = createType('float');
       var b1 = t.toBuffer(0.5);
       assert.equal(t.compareBuffers(b1, b1), 0);
       var b2 = t.toBuffer(-0.75);
@@ -381,13 +383,13 @@ suite('types', function () {
     });
 
     test('fromString', function () {
-      var t = fromSchema('float');
+      var t = createType('float');
       var f = t.fromString('3.1');
       assert(t.isValid(f));
     });
 
     test('clone from double', function () {
-      var t = fromSchema('float');
+      var t = createType('float');
       var d = 3.1;
       var f;
       f = t.clone(d);
@@ -413,7 +415,7 @@ suite('types', function () {
     });
 
     test('compare buffer', function () {
-      var t = fromSchema('double');
+      var t = createType('double');
       var b1 = t.toBuffer(0.5);
       assert.equal(t.compareBuffers(b1, b1), 0);
       var b2 = t.toBuffer(-0.75);
@@ -436,7 +438,7 @@ suite('types', function () {
     testType(types.BytesType, data);
 
     test('clone', function () {
-      var t = fromSchema('bytes');
+      var t = createType('bytes');
       var s = '\x01\x02';
       var buf = new Buffer(s);
       var clone;
@@ -453,7 +455,7 @@ suite('types', function () {
     });
 
     test('compare', function () {
-      var t = fromSchema('bytes');
+      var t = createType('bytes');
       var b1 = t.toBuffer(new Buffer([0, 2]));
       assert.equal(t.compareBuffers(b1, b1), 0);
       var b2 = t.toBuffer(new Buffer([0, 2, 3]));
@@ -508,8 +510,8 @@ suite('types', function () {
     testType(types.UnionType, data, schemas);
 
     test('getTypes', function () {
-      var t = fromSchema(['null', 'int']);
-      assert.deepEqual(t.getTypes(), [fromSchema('null'), fromSchema('int')]);
+      var t = createType(['null', 'int']);
+      assert.deepEqual(t.getTypes(), [createType('null'), createType('int')]);
     });
 
     test('instanceof Union', function () {
@@ -543,23 +545,23 @@ suite('types', function () {
     });
 
     test('resolve int to [long, int]', function () {
-      var t1 = fromSchema('int');
-      var t2 = fromSchema(['long', 'int']);
+      var t1 = createType('int');
+      var t2 = createType(['long', 'int']);
       var a = t2.createResolver(t1);
       var buf = t1.toBuffer(23);
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
     });
 
     test('resolve null to [null, int]', function () {
-      var t1 = fromSchema('null');
-      var t2 = fromSchema(['null', 'int']);
+      var t1 = createType('null');
+      var t2 = createType(['null', 'int']);
       var a = t2.createResolver(t1);
       assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
     test('resolve [string, int] to [long, string]', function () {
-      var t1 = fromSchema(['string', 'int']);
-      var t2 = fromSchema(['int', 'bytes']);
+      var t1 = createType(['string', 'int']);
+      var t2 = createType(['int', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
       buf = t1.toBuffer({string: 'hi'});
@@ -581,7 +583,7 @@ suite('types', function () {
     });
 
     test('clone and wrap', function () {
-      var t = fromSchema(['string', 'int']);
+      var t = createType(['string', 'int']);
       var s = 'hi!';
       var o = t.clone(s, {wrapUnions: true});
       assert.deepEqual(o, {'string': s});
@@ -592,7 +594,7 @@ suite('types', function () {
     });
 
     test('invalid multiple keys', function () {
-      var t = fromSchema(['null', 'int']);
+      var t = createType(['null', 'int']);
       var o = {'int': 2};
       assert(t.isValid(o));
       o.foo = 3;
@@ -600,13 +602,13 @@ suite('types', function () {
     });
 
     test('clone multiple keys', function () {
-      var t = fromSchema(['null', 'int']);
+      var t = createType(['null', 'int']);
       var o = {'int': 2, foo: 3};
       assert.throws(function () { t.clone(o); });
     });
 
     test('clone unqualified names', function () {
-      var t = fromSchema({
+      var t = createType({
         name: 'Person',
         type: 'record',
         fields: [
@@ -620,7 +622,7 @@ suite('types', function () {
     });
 
     test('clone unqualified names', function () {
-      var t = fromSchema({
+      var t = createType({
         name: 'Person',
         type: 'record',
         fields: [
@@ -634,7 +636,7 @@ suite('types', function () {
     });
 
     test('compare buffers', function () {
-      var t = fromSchema(['null', 'double']);
+      var t = createType(['null', 'double']);
       var b1 = t.toBuffer(null);
       assert.equal(t.compareBuffers(b1, b1), 0);
       var b2 = t.toBuffer({'double': 4});
@@ -646,10 +648,10 @@ suite('types', function () {
 
     test('compare', function () {
       var t;
-      t = fromSchema(['null', 'int']);
+      t = createType(['null', 'int']);
       assert.equal(t.compare(null, {'int': 3}), -1);
       assert.equal(t.compare(null, null), 0);
-      t = fromSchema(['int', 'float']);
+      t = createType(['int', 'float']);
       assert.equal(t.compare({'int': 2}, {'float': 0.5}), -1);
       assert.equal(t.compare({'int': 20}, {'int': 5}), 1);
     });
@@ -683,7 +685,7 @@ suite('types', function () {
     testType(types.EnumType, data, schemas);
 
     test('get full name', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'enum',
         symbols: ['A', 'B'],
         name: 'Letter',
@@ -693,7 +695,7 @@ suite('types', function () {
     });
 
     test('get aliases', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'enum',
         symbols: ['A', 'B'],
         name: 'Letter',
@@ -707,7 +709,7 @@ suite('types', function () {
     });
 
     test('get symbols', function () {
-      var t = fromSchema({type: 'enum', symbols: ['A', 'B'], name: 'Letter'});
+      var t = createType({type: 'enum', symbols: ['A', 'B'], name: 'Letter'});
       var symbols = t.getSymbols();
       assert.deepEqual(symbols, ['A', 'B']);
       symbols.push('Char');
@@ -715,7 +717,7 @@ suite('types', function () {
     });
 
     test('write invalid', function () {
-      var type = fromSchema({type: 'enum', symbols: ['A'], name: 'a'});
+      var type = createType({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
         type.toBuffer('B');
       });
@@ -745,7 +747,7 @@ suite('types', function () {
       t2 = newEnum('Foo', ['bar', 'bax']);
       assert.throws(function () { t1.createResolver(t2); });
       assert.throws(function () {
-        t1.createResolver(fromSchema('int'));
+        t1.createResolver(createType('int'));
       });
       function newEnum(name, symbols, aliases, namespace) {
         var obj = {type: 'enum', name: name, symbols: symbols};
@@ -760,14 +762,14 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
+      var t = createType({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
       assert.equal(t.clone('bar'), 'bar');
       assert.throws(function () { t.clone('BAR'); });
       assert.throws(function () { t.clone(null); });
     });
 
     test('compare buffers', function () {
-      var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
+      var t = createType({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
       var b1 = t.toBuffer('bar');
       var b2 = t.toBuffer('baz');
       assert.equal(t.compareBuffers(b1, b1), 0);
@@ -775,7 +777,7 @@ suite('types', function () {
     });
 
     test('compare', function () {
-      var t = fromSchema({type: 'enum', name: 'Foo', symbols: ['b', 'a']});
+      var t = createType({type: 'enum', name: 'Foo', symbols: ['b', 'a']});
       assert.equal(t.compare('b', 'a'), -1);
       assert.equal(t.compare('a', 'a'), 0);
     });
@@ -805,7 +807,7 @@ suite('types', function () {
     testType(types.FixedType, data, schemas);
 
     test('get full name', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'fixed',
         size: 2,
         name: 'Id',
@@ -815,7 +817,7 @@ suite('types', function () {
     });
 
     test('get aliases', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'fixed',
         size: 3,
         name: 'Id'
@@ -827,7 +829,7 @@ suite('types', function () {
     });
 
     test('get size', function () {
-      var t = fromSchema({type: 'fixed', size: 5, name: 'Id'});
+      var t = createType({type: 'fixed', size: 5, name: 'Id'});
       assert.equal(t.getSize(), 5);
     });
 
@@ -862,13 +864,13 @@ suite('types', function () {
     });
 
     test('toString schema with extra fields', function () {
-      var t = fromSchema({type: 'fixed', name: 'Id', size: 2});
+      var t = createType({type: 'fixed', name: 'Id', size: 2});
       t.one = 1;
       assert.equal(t.toString(), '{"name":"Id","type":"fixed","size":2}');
     });
 
     test('compare buffers', function () {
-      var t = fromSchema({type: 'fixed', name: 'Id', size: 2});
+      var t = createType({type: 'fixed', name: 'Id', size: 2});
       var b1 = new Buffer([1, 2]);
       assert.equal(t.compareBuffers(b1, b1), 0);
       var b2 = new Buffer([2, 2]);
@@ -913,7 +915,7 @@ suite('types', function () {
 
     test('get values type', function () {
       var t = new types.MapType({type: 'map', values: 'int'});
-      assert.deepEqual(t.getValuesType(), fromSchema('int'));
+      assert.deepEqual(t.getValuesType(), createType('int'));
     });
 
     test('write int', function () {
@@ -935,7 +937,7 @@ suite('types', function () {
     });
 
     test('skip', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         name: 'Foo',
         type: 'record',
         fields: [
@@ -943,7 +945,7 @@ suite('types', function () {
           {name: 'val', type: 'int'}
         ]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         name: 'Foo',
         type: 'record',
         fields: [{name: 'val', type: 'int'}]
@@ -981,10 +983,10 @@ suite('types', function () {
     });
 
     test('resolve fixed', function () {
-      var t1 = fromSchema({
+      var t1 = createType({
         type: 'map', values: {name: 'Id', type: 'fixed', size: 2}
       });
-      var t2 = fromSchema({
+      var t2 = createType({
         type: 'map', values: {
           name: 'Id2', aliases: ['Id'], type: 'fixed', size: 2
         }
@@ -1056,7 +1058,7 @@ suite('types', function () {
 
     test('get items type', function () {
       var t = new types.ArrayType({type: 'array', items: 'int'});
-      assert.deepEqual(t.getItemsType(), fromSchema('int'));
+      assert.deepEqual(t.getItemsType(), createType('int'));
     });
 
     test('read with sizes', function () {
@@ -1066,7 +1068,7 @@ suite('types', function () {
     });
 
     test('skip', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         name: 'Foo',
         type: 'record',
         fields: [
@@ -1074,7 +1076,7 @@ suite('types', function () {
           {name: 'val', type: 'int'}
         ]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         name: 'Foo',
         type: 'record',
         fields: [{name: 'val', type: 'int'}]
@@ -1114,7 +1116,7 @@ suite('types', function () {
     });
 
     test('clone coerce buffers', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'array',
         items: {type: 'fixed', name: 'Id', size: 2}
       });
@@ -1125,7 +1127,7 @@ suite('types', function () {
     });
 
     test('compare buffers', function () {
-      var t = fromSchema({type: 'array', items: 'int'});
+      var t = createType({type: 'array', items: 'int'});
       assert.equal(t.compareBuffers(t.toBuffer([]), t.toBuffer([])), 0);
       assert.equal(t.compareBuffers(t.toBuffer([1, 2]), t.toBuffer([])), 1);
       assert.equal(t.compareBuffers(t.toBuffer([1]), t.toBuffer([1, -1])), -1);
@@ -1134,7 +1136,7 @@ suite('types', function () {
     });
 
     test('compare', function () {
-      var t = fromSchema({type: 'array', items: 'int'});
+      var t = createType({type: 'array', items: 'int'});
       assert.equal(t.compare([], []), 0);
       assert.equal(t.compare([], [-1]), -1);
       assert.equal(t.compare([1], [1]), 0);
@@ -1142,7 +1144,7 @@ suite('types', function () {
     });
 
     test('isValid hook invalid array', function () {
-      var t = fromSchema({type: 'array', items: 'int'});
+      var t = createType({type: 'array', items: 'int'});
       var hookCalled = false;
       assert(!t.isValid({}, {errorHook: hook}));
       assert(hookCalled);
@@ -1155,7 +1157,7 @@ suite('types', function () {
     });
 
     test('isValid hook invalid elems', function () {
-      var t = fromSchema({type: 'array', items: 'int'});
+      var t = createType({type: 'array', items: 'int'});
       var paths = [];
       assert(!t.isValid([0, 3, 'hi', 5, 'hey'], {errorHook: hook}));
       assert.deepEqual(paths, [['2'], ['4']]);
@@ -1200,7 +1202,7 @@ suite('types', function () {
 
     test('duplicate field names', function () {
       assert.throws(function () {
-        fromSchema({
+        createType({
           type: 'record',
           name: 'Person',
           fields: [{name: 'age', type: 'int'}, {name: 'age', type: 'float'}]
@@ -1209,7 +1211,7 @@ suite('types', function () {
     });
 
     test('default constructor', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': 25}]
@@ -1220,7 +1222,7 @@ suite('types', function () {
     });
 
     test('default check & write', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1234,7 +1236,7 @@ suite('types', function () {
     test('fixed string default', function () {
       var s = '\x01\x04';
       var b = new Buffer(s);
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Object',
         fields: [
@@ -1252,7 +1254,7 @@ suite('types', function () {
 
     test('fixed buffer default', function () {
       var b = new Buffer([1, 4]);
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Object',
         fields: [
@@ -1268,7 +1270,7 @@ suite('types', function () {
 
     test('fixed buffer invalid default', function () {
       assert.throws(function () {
-        fromSchema({
+        createType({
           type: 'record',
           name: 'Object',
           fields: [
@@ -1284,7 +1286,7 @@ suite('types', function () {
 
     test('union invalid default', function () {
       assert.throws(function () {
-        fromSchema({
+        createType({
           type: 'record',
           name: 'Person',
           fields: [{name: 'name', type: ['null', 'string'], 'default': ''}]
@@ -1294,7 +1296,7 @@ suite('types', function () {
 
     test('record default', function () {
       var d = {street: null, zip: 123};
-      var Person = fromSchema({
+      var Person = createType({
         name: 'Person',
         type: 'record',
         fields: [
@@ -1317,7 +1319,7 @@ suite('types', function () {
     });
 
     test('record keyword field name', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'null', type: 'int'}]
@@ -1327,7 +1329,7 @@ suite('types', function () {
     });
 
     test('record isValid', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -1339,7 +1341,7 @@ suite('types', function () {
     });
 
     test('record toBuffer', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -1350,7 +1352,7 @@ suite('types', function () {
     });
 
     test('record compare', function () {
-      var P = fromSchema({
+      var P = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1366,7 +1368,7 @@ suite('types', function () {
     });
 
     test('Record type', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -1376,7 +1378,7 @@ suite('types', function () {
     });
 
     test('mutable defaults', function () {
-      var Person = fromSchema({
+      var Person = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1395,14 +1397,14 @@ suite('types', function () {
     });
 
     test('resolve alias', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
       var p = v1.random();
       var buf = v1.toBuffer(p);
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Human',
         aliases: ['Person'],
@@ -1410,7 +1412,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       assert.deepEqual(v2.fromBuffer(buf, resolver), p);
-      var v3 = fromSchema({
+      var v3 = createType({
         type: 'record',
         name: 'Human',
         fields: [{name: 'name', type: 'string'}]
@@ -1419,20 +1421,20 @@ suite('types', function () {
     });
 
     test('resolve alias with namespace', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         namespace: 'earth',
         fields: [{name: 'name', type: 'string'}]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Human',
         aliases: ['Person'],
         fields: [{name: 'name', type: 'string'}]
       });
       assert.throws(function () { v2.createResolver(v1); });
-      var v3 = fromSchema({
+      var v3 = createType({
         type: 'record',
         name: 'Human',
         aliases: ['earth.Person'],
@@ -1442,7 +1444,7 @@ suite('types', function () {
     });
 
     test('resolve skip field', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1452,7 +1454,7 @@ suite('types', function () {
       });
       var p = {age: 25, name: 'Ann'};
       var buf = v1.toBuffer(p);
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
@@ -1462,14 +1464,14 @@ suite('types', function () {
     });
 
     test('resolve new field', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
       var p = {name: 'Ann'};
       var buf = v1.toBuffer(p);
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1482,12 +1484,12 @@ suite('types', function () {
     });
 
     test('resolve new field no default', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1499,12 +1501,12 @@ suite('types', function () {
     });
 
     test('resolve from recursive schema', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'friends', type: {type: 'array', items: 'Person'}}]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': -1}]
@@ -1516,12 +1518,12 @@ suite('types', function () {
     });
 
     test('resolve to recursive schema', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int', 'default': -1}]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1539,7 +1541,7 @@ suite('types', function () {
     });
 
     test('resolve from both recursive schema', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1547,7 +1549,7 @@ suite('types', function () {
           {name: 'age', type: 'int'}
         ]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'friends', type: {type: 'array', items: 'Person'}}]
@@ -1559,7 +1561,7 @@ suite('types', function () {
     });
 
     test('resolve multiple matching aliases', function () {
-      var v1 = fromSchema({
+      var v1 = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1567,7 +1569,7 @@ suite('types', function () {
           {name: 'number', type: 'string'}
         ]
       });
-      var v2 = fromSchema({
+      var v2 = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'number', type: 'string', aliases: ['phone']}]
@@ -1576,7 +1578,7 @@ suite('types', function () {
     });
 
     test('toString schema', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         doc: 'Hi!',
@@ -1594,7 +1596,7 @@ suite('types', function () {
     });
 
     test('toString recursive schema', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         namespace: 'earth',
@@ -1609,7 +1611,7 @@ suite('types', function () {
     });
 
     test('toString record', function () {
-      var T = fromSchema({
+      var T = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'pwd', type: 'bytes'}]
@@ -1619,7 +1621,7 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
@@ -1636,7 +1638,7 @@ suite('types', function () {
     });
 
     test('clone field hook', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
@@ -1650,7 +1652,7 @@ suite('types', function () {
     });
 
     test('get full name & aliases', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         namespace: 'a',
@@ -1661,7 +1663,7 @@ suite('types', function () {
     });
 
     test('field getters', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         namespace: 'a',
@@ -1674,13 +1676,13 @@ suite('types', function () {
       assert.deepEqual(fields[0].getAliases(), []);
       assert.deepEqual(fields[1].getAliases(), ['word']);
       assert.equal(fields[1].getName(), 'name'); // Namespaces are ignored.
-      assert.deepEqual(fields[1].getType(), fromSchema('string'));
+      assert.deepEqual(fields[1].getType(), createType('string'));
       fields.push('null');
       assert.equal(t.getFields().length, 2); // No change.
     });
 
     test('field order', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
@@ -1696,7 +1698,7 @@ suite('types', function () {
     });
 
     test('compare buffers default order', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1714,7 +1716,7 @@ suite('types', function () {
     });
 
     test('compare buffers custom order', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1731,7 +1733,7 @@ suite('types', function () {
     });
 
     test('compare buffers invalid order', function () {
-      assert.throws(function () { fromSchema({
+      assert.throws(function () { createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int', order: 'up'}]
@@ -1739,7 +1741,7 @@ suite('types', function () {
     });
 
     test('error type', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'error',
         name: 'Ouch',
         fields: [{name: 'name', type: 'string'}]
@@ -1750,7 +1752,7 @@ suite('types', function () {
     });
 
     test('isValid hook', function () {
-      var t = fromSchema({
+      var t = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -1783,19 +1785,19 @@ suite('types', function () {
 
   });
 
-  suite('fromSchema', function  () {
+  suite('createType', function  () {
 
     test('null type', function () {
-      assert.throws(function () { fromSchema(null); });
+      assert.throws(function () { createType(null); });
     });
 
     test('unknown types', function () {
-      assert.throws(function () { fromSchema('a'); });
-      assert.throws(function () { fromSchema({type: 'b'}); });
+      assert.throws(function () { createType('a'); });
+      assert.throws(function () { createType({type: 'b'}); });
     });
 
     test('namespaced type', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Human',
         namespace: 'earth',
@@ -1824,7 +1826,7 @@ suite('types', function () {
     });
 
     test('wrapped primitive', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'nothing', type: {type: 'null'}}]
@@ -1833,40 +1835,40 @@ suite('types', function () {
     });
 
     test('fromBuffer truncated', function () {
-      var type = fromSchema('int');
+      var type = createType('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([128]));
       });
     });
 
     test('fromBuffer bad resolver', function () {
-      var type = fromSchema('int');
+      var type = createType('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([0]), 123, {});
       });
     });
 
     test('fromBuffer trailing', function () {
-      var type = fromSchema('int');
+      var type = createType('int');
       assert.throws(function () {
         type.fromBuffer(new Buffer([0, 2]));
       });
     });
 
     test('fromBuffer trailing with resolver', function () {
-      var type = fromSchema('int');
-      var resolver = type.createResolver(fromSchema(['int']));
+      var type = createType('int');
+      var resolver = type.createResolver(createType(['int']));
       assert.equal(type.fromBuffer(new Buffer([0, 2]), resolver), 1);
     });
 
     test('toBuffer', function () {
-      var type = fromSchema('int');
+      var type = createType('int');
       assert.throws(function () { type.toBuffer('abc'); });
       assert.doesNotThrow(function () { type.toBuffer(123); });
     });
 
     test('toBuffer and resize', function () {
-      var type = fromSchema('string');
+      var type = createType('string');
       assert.deepEqual(type.toBuffer('\x01', 1), new Buffer([2, 1]));
     });
 
@@ -1881,7 +1883,7 @@ suite('types', function () {
           {name: 'name', type: {type: 'string'}}
         ]
       };
-      fromSchema(o, {typeHook: hook});
+      createType(o, {typeHook: hook});
       assert.equal(ts.length, 1);
       assert.equal(ts[0].getFullName(), 'Human');
 
@@ -1892,7 +1894,7 @@ suite('types', function () {
         }
         refs.push(schema);
 
-        var type = fromSchema(schema, opts);
+        var type = createType(schema, opts);
         if (type instanceof types.RecordType) {
           ts.push(type);
         }
@@ -1902,14 +1904,14 @@ suite('types', function () {
 
     test('type hook invalid return value', function () {
       assert.throws(function () {
-        fromSchema({type: 'int'}, {typeHook: hook});
+        createType({type: 'int'}, {typeHook: hook});
       });
 
       function hook() { return 'int'; }
     });
 
     test('fingerprint', function () {
-      var t = fromSchema('int');
+      var t = createType('int');
       var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
       assert.deepEqual(t.getFingerprint('md5'), buf);
       assert.deepEqual(t.getFingerprint(), buf);
@@ -1932,7 +1934,7 @@ suite('types', function () {
           }
         ]
       };
-      var type = fromSchema(schema);
+      var type = createType(schema);
       assert.deepEqual(JSON.parse(type.toString()), schema);
     });
 
@@ -1941,19 +1943,19 @@ suite('types', function () {
   suite('fromString', function () {
 
     test('int', function () {
-      var t = fromSchema('int');
+      var t = createType('int');
       assert.equal(t.fromString('2'), 2);
       assert.throws(function () { t.fromString('"a"'); });
     });
 
     test('string', function () {
-      var t = fromSchema('string');
+      var t = createType('string');
       assert.equal(t.fromString('"2"'), '2');
       assert.throws(function () { t.fromString('a'); });
     });
 
     test('coerce buffers', function () {
-      var t = fromSchema({
+      var t = createType({
         name: 'Ids',
         type: 'record',
         fields: [{name: 'id1', type: {name: 'Id1', type: 'fixed', size: 2}}]
@@ -1970,28 +1972,28 @@ suite('types', function () {
   suite('resolve', function () {
 
     test('non type', function () {
-      var t = fromSchema({type: 'map', values: 'int'});
+      var t = createType({type: 'map', values: 'int'});
       var obj = {type: 'map', values: 'int'};
       assert.throws(function () { t.createResolver(obj); });
     });
 
     test('union to valid union', function () {
-      var t1 = fromSchema(['int', 'string']);
-      var t2 = fromSchema(['null', 'string', 'long']);
+      var t1 = createType(['int', 'string']);
+      var t2 = createType(['null', 'string', 'long']);
       var resolver = t2.createResolver(t1);
       var buf = t1.toBuffer({'int': 12});
       assert.deepEqual(t2.fromBuffer(buf, resolver), {'long': 12});
     });
 
     test('union to invalid union', function () {
-      var t1 = fromSchema(['int', 'string']);
-      var t2 = fromSchema(['null', 'long']);
+      var t1 = createType(['int', 'string']);
+      var t2 = createType(['null', 'long']);
       assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('union to non union', function () {
-      var t1 = fromSchema(['int', 'long']);
-      var t2 = fromSchema('long');
+      var t1 = createType(['int', 'long']);
+      var t2 = createType('long');
       var resolver = t2.createResolver(t1);
       var buf = t1.toBuffer({'int': 12});
       assert.equal(t2.fromBuffer(buf, resolver), 12);
@@ -2000,8 +2002,8 @@ suite('types', function () {
     });
 
     test('union to invalid non union', function () {
-      var t1 = fromSchema(['int', 'long']);
-      var t2 = fromSchema('int');
+      var t1 = createType(['int', 'long']);
+      var t2 = createType('int');
       assert.throws(function() { t2.createResolver(t1); });
     });
 
@@ -2010,7 +2012,7 @@ suite('types', function () {
   suite('type names', function () {
 
     test('existing', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
@@ -2019,7 +2021,7 @@ suite('types', function () {
     });
 
     test('namespaced', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         fields: [
@@ -2040,7 +2042,7 @@ suite('types', function () {
 
     test('redefining', function () {
       assert.throws(function () {
-        fromSchema({
+        createType({
           type: 'record',
           name: 'Person',
           fields: [
@@ -2059,7 +2061,7 @@ suite('types', function () {
 
     test('missing', function () {
       assert.throws(function () {
-        fromSchema({
+        createType({
           type: 'record',
           name: 'Person',
           fields: [{name: 'so', type: 'Friend'}]
@@ -2069,17 +2071,17 @@ suite('types', function () {
 
     test('redefining primitive', function () {
       assert.throws( // Unqualified.
-        function () { fromSchema({type: 'fixed', name: 'int', size: 2}); }
+        function () { createType({type: 'fixed', name: 'int', size: 2}); }
       );
       assert.throws( // Qualified.
         function () {
-          fromSchema({type: 'fixed', name: 'int', size: 2, namespace: 'a'});
+          createType({type: 'fixed', name: 'int', size: 2, namespace: 'a'});
         }
       );
     });
 
     test('aliases', function () {
-      var type = fromSchema({
+      var type = createType({
         type: 'record',
         name: 'Person',
         namespace: 'a',
@@ -2094,14 +2096,14 @@ suite('types', function () {
   suite('decode', function () {
 
     test('long valid', function () {
-      var t = fromSchema('long');
+      var t = createType('long');
       var buf = new Buffer([0, 128, 2, 0]);
       var res = t.decode(buf, 1);
       assert.deepEqual(res, {object: 128, offset: 3});
     });
 
     test('bytes invalid', function () {
-      var t = fromSchema('bytes');
+      var t = createType('bytes');
       var buf = new Buffer([4, 1]);
       var res = t.decode(buf, 0);
       assert.deepEqual(res, {object: undefined, offset: -1});
@@ -2112,7 +2114,7 @@ suite('types', function () {
   suite('encode', function () {
 
     test('int valid', function () {
-      var t = fromSchema('int');
+      var t = createType('int');
       var buf = new Buffer(2);
       buf.fill(0);
       var n = t.encode(5, buf, 1);
@@ -2121,14 +2123,14 @@ suite('types', function () {
     });
 
     test('string invalid', function () {
-      var t = fromSchema('string');
+      var t = createType('string');
       var buf = new Buffer(1);
       var n = t.encode('\x01\x02', buf, 0);
       assert.equal(n, -2);
     });
 
     test('invalid', function () {
-      var t = fromSchema('float');
+      var t = createType('float');
       var buf = new Buffer(2);
       assert.throws(function () { t.encode('hi', buf, 0); });
     });
@@ -2137,7 +2139,7 @@ suite('types', function () {
 
   test('reset', function () {
     types.Type.__reset(0);
-    var t = fromSchema('string');
+    var t = createType('string');
     var buf = t.toBuffer('\x01');
     assert.deepEqual(buf, new Buffer([2, 1]));
   });
@@ -2198,7 +2200,7 @@ function testType(Type, data, invalidSchemas) {
 }
 
 function getResolver(reader, writer) {
-  return fromSchema(reader).createResolver(fromSchema(writer));
+  return createType(reader).createResolver(createType(writer));
 }
 
 function floatEquals(a, b) {

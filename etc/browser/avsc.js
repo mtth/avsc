@@ -9,8 +9,8 @@
  *
  */
 
-var Tap = require('../../lib/tap'),
-    types = require('../../lib/types');
+var Tap = require('../../lib/utils').Tap,
+    schemas = require('../../lib/schemas');
 
 
 function parse(schema, opts) {
@@ -25,7 +25,7 @@ function parse(schema, opts) {
   if (obj === undefined) {
     obj = schema;
   }
-  return types.Type.fromSchema(obj, opts);
+  return schemas.createType(obj, opts);
 }
 
 // No utf8 and binary functions on browserify's `Buffer`, we must patch in the
@@ -65,5 +65,5 @@ Tap.prototype.writeBinary = function (s, len) {
 
 module.exports = {
   parse: parse,
-  types: types
+  types: schemas.types
 };
