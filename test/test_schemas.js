@@ -863,10 +863,11 @@ suite('types', function () {
       assert.throws(function () { t.clone(new Buffer([2])); });
     });
 
-    test('toString schema with extra fields', function () {
-      var t = createType({type: 'fixed', name: 'Id', size: 2});
+    test('getSchema with extra fields', function () {
+      var t = createType({type: 'fixed', name: 'Id', size: 2, three: 3});
       t.one = 1;
-      assert.equal(t.toString(), '{"name":"Id","type":"fixed","size":2}');
+      assert.equal(t.getSchema(), '{"name":"Id","type":"fixed","size":2}');
+      assert.equal(t.getSchema(true), '"Id"');
     });
 
     test('compare buffers', function () {
@@ -1577,7 +1578,7 @@ suite('types', function () {
       assert.throws(function () { v2.createResolver(v1); });
     });
 
-    test('toString schema', function () {
+    test('getSchema', function () {
       var t = createType({
         type: 'record',
         name: 'Person',
@@ -1590,12 +1591,13 @@ suite('types', function () {
         ]
       });
       assert.equal(
-        t.toString(),
+        t.getSchema(),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}'
       );
+      assert.equal(t.getSchema(true), '"earth.Person"');
     });
 
-    test('toString recursive schema', function () {
+    test('getSchema recursive schema', function () {
       var t = createType({
         type: 'record',
         name: 'Person',
@@ -1605,9 +1607,10 @@ suite('types', function () {
         ]
       });
       assert.equal(
-        t.toString(),
+        t.getSchema(),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"earth.Person"}}]}'
       );
+      assert.equal(t.getSchema(true), '"earth.Person"');
     });
 
     test('toString record', function () {
@@ -1935,7 +1938,7 @@ suite('types', function () {
         ]
       };
       var type = createType(schema);
-      assert.deepEqual(JSON.parse(type.toString()), schema);
+      assert.deepEqual(JSON.parse(type.toString()), 'Human');
     });
 
   });
