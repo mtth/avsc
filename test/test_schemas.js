@@ -221,7 +221,7 @@ suite('types', function () {
         assert.deepEqual(errs, [s]);
         assert.throws(function () { slowLongType.toBuffer(s); });
 
-        function hook(obj, type, path) {
+        function hook(path, obj, type) {
           assert.strictEqual(type, slowLongType);
           assert.equal(path.length, 0);
           errs.push(obj);
@@ -1028,7 +1028,7 @@ suite('types', function () {
       assert(!t.isValid(o, {errorHook: hook}));
       assert.deepEqual(errs, {two: 'deux', three: null});
 
-      function hook(obj, type, path) {
+      function hook(path, obj, type) {
         assert.strictEqual(type, t.getValuesType());
         assert.equal(path.length, 1);
         errs[path[0]] = obj;
@@ -1149,7 +1149,7 @@ suite('types', function () {
       assert(!t.isValid({}, {errorHook: hook}));
       assert(hookCalled);
 
-      function hook(obj, type, path) {
+      function hook(path, obj, type) {
         assert.strictEqual(type, t);
         assert.deepEqual(path, []);
         hookCalled = true;
@@ -1162,7 +1162,7 @@ suite('types', function () {
       assert(!t.isValid([0, 3, 'hi', 5, 'hey'], {errorHook: hook}));
       assert.deepEqual(paths, [['2'], ['4']]);
 
-      function hook(obj, type, path) {
+      function hook(path, obj, type) {
         assert.strictEqual(type, t.getItemsType());
         assert.equal(typeof obj, 'string');
         paths.push(path);
@@ -1644,7 +1644,7 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
       });
       var o = {name: 'Ann', age: 25};
-      var c = t.clone(o, {fieldHook: function (o, f, r) {
+      var c = t.clone(o, {fieldHook: function (f, o, r) {
         assert.strictEqual(r, t);
         return f._type instanceof types.StringType ? o.toUpperCase() : o;
       }});
@@ -1776,7 +1776,7 @@ suite('types', function () {
       }
       assert(hasErr);
 
-      function hook(obj, type, path) {
+      function hook(path, obj, type) {
         assert.strictEqual(type, t.getFields()[1].getType().getItemsType());
         assert.deepEqual(path, ['names', '1']);
         throw new Error();
