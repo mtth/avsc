@@ -701,7 +701,7 @@ suite('types', function () {
         name: 'Letter',
         namespace: 'latin'
       });
-      assert.equal(t.getFullName(), 'latin.Letter');
+      assert.equal(t.getName(), 'latin.Letter');
     });
 
     test('get aliases', function () {
@@ -829,7 +829,7 @@ suite('types', function () {
         name: 'Id',
         namespace: 'id'
       });
-      assert.equal(t.getFullName(), 'id.Id');
+      assert.equal(t.getName(), 'id.Id');
     });
 
     test('get aliases', function () {
@@ -1050,6 +1050,11 @@ suite('types', function () {
         assert.equal(path.length, 1);
         errs[path[0]] = obj;
       }
+    });
+
+    test('getName', function () {
+      var t = new types.MapType({type: 'map', values: 'int'});
+      assert.strictEqual(t.getName(), undefined);
     });
 
   });
@@ -1677,7 +1682,7 @@ suite('types', function () {
         namespace: 'a',
         fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
       });
-      assert.equal(t.getFullName(), 'a.Person');
+      assert.equal(t.getName(), 'a.Person');
       assert.deepEqual(t.getAliases(), []);
     });
 
@@ -1904,7 +1909,7 @@ suite('types', function () {
       };
       createType(o, {typeHook: hook});
       assert.equal(ts.length, 1);
-      assert.equal(ts[0].getFullName(), 'Human');
+      assert.equal(ts[0].getName(), 'Human');
 
       function hook(schema, opts) {
         if (~refs.indexOf(schema)) {
