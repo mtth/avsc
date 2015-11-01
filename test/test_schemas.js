@@ -1988,6 +1988,17 @@ suite('types', function () {
 
   });
 
+  suite('toString', function () {
+
+    test('int', function () {
+      var t = createType('int');
+      assert.equal(t.toString(2), '2');
+      assert.throws(function () { t.toString('a'); });
+      assert.doesNotThrow(function () { t.toString('a', true); });
+    });
+
+  });
+
   suite('resolve', function () {
 
     test('non type', function () {
