@@ -2163,6 +2163,32 @@ suite('types', function () {
     assert.deepEqual(buf, new Buffer([2, 1]));
   });
 
+  suite('inspect', function () {
+
+    test('type', function () {
+      assert.equal(createType('int').inspect(), '<IntType>');
+      assert.equal(
+        createType({type: 'map', values: 'string'}).inspect(),
+        '<MapType {"values":"string"}>'
+      );
+      assert.equal(
+        createType({type: 'fixed', name: 'Id', size: 2}).inspect(),
+        '<FixedType "Id">'
+      );
+    });
+
+    test('field', function () {
+      var type = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      });
+      var field = type.getFields()[0];
+      assert.equal(field.inspect(), '<Field "age">');
+    });
+
+  });
+
 });
 
 function testType(Type, data, invalidSchemas) {
