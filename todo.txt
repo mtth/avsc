@@ -1,3 +1,6 @@
 Only generate random schema if something has changed. 
 Pretty print input 
 call instrument + highlight if manually entering input record.
+Support reverse highlighting.
+Animate the 'valid' icon.
+Align/fix the error message bar.
