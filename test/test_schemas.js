@@ -716,6 +716,12 @@ suite('types', function () {
       assert.equal(t.getSymbols().length, 2);
     });
 
+    test('duplicate symbol', function () {
+      assert.throws(function () {
+        createType({type: 'enum', symbols: ['A', 'B', 'A'], name: 'B'});
+      });
+    });
+
     test('write invalid', function () {
       var type = createType({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
