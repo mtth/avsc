@@ -2598,8 +2598,6 @@ function hasOwnProperty(obj, prop) {
     });
 
   function highlightOutput(start, end) {
-    console.log(start);
-    console.log(end);
     outputElement.children('span').each(function( index ) {
       if (index >= start && index < end) {
         $(this).addClass("highlight");
@@ -2628,7 +2626,9 @@ function hasOwnProperty(obj, prop) {
       return '<span class="' + par + '">' + obj + '</span>';
     }
     if (typeof obj === 'string') {
-      return '<span class="' + par + '">"' + obj + '"</span>';
+      // Calling json.stringify here to handle the fixed types.
+      // I have no idea why just printing them doesn't work.
+      return '<span class="' + par + '">' + JSON.stringify(obj) + '</span>';
     }
     var comma = false;
     if (obj instanceof Array) {
@@ -3548,6 +3548,9 @@ var RANDOM = new utils.Lcg();
 // Encoding tap (shared for performance).
 var TAP = new Tap(new buffer.SlowBuffer(1024));
 
+// Path prefix for validity checks (shared for performance).
+var PATH = [];
+
 // Formatting for error messages.
 var f = util.format;
 
@@ -3593,7 +3596,7 @@ Type.fromSchema = function (schema, opts) {
       // reference.
       return opts.registry[schema] = Type.fromSchema({type: schema}, opts);
     }
-    throw new Error(f('missing name: %s', schema));
+    throw new Error(f('undefined type name: %s', schema));
   }
 
   if (opts.typeHook && (type = opts.typeHook(schema, opts))) {
@@ -3629,12 +3632,9 @@ Type.prototype.decode = function (buf, pos, resolver) {
   return {object: obj, offset: tap.pos};
 };
 
-Type.prototype.encode = function (obj, buf, pos, noCheck) {
+Type.prototype.encode = function (obj, buf, pos) {
   var tap = new Tap(buf);
   tap.pos = pos | 0;
-  if (!noCheck) {
-    checkIsValid(this, obj);
-  }
   this._write(tap, obj);
   if (!tap.isValid()) {
     // Don't throw as there is no way to predict this. We also return the
@@ -3656,10 +3656,7 @@ Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
   return obj;
 };
 
-Type.prototype.toBuffer = function (obj, noCheck) {
-  if (!noCheck) {
-    checkIsValid(this, obj);
-  }
+Type.prototype.toBuffer = function (obj) {
   TAP.pos = 0;
   this._write(TAP, obj);
   if (!TAP.isValid()) {
@@ -3704,6 +3701,16 @@ Type.prototype.toString = function (obj) {
       return value;
     }
   });
+};
+
+Type.prototype.isValid = function (obj, opts) {
+  while (PATH.length) {
+    // In case the previous `isValid` call didn't complete successfully (e.g.
+    // if an exception was thrown, but then caught in client code), `PATH`
+    // might be non-empty, we must manually clear it.
+    PATH.pop();
+  }
+  return this._check(obj, opts && opts.errorHook);
 };
 
 Type.prototype.getFingerprint = function (algorithm) {
@@ -3754,7 +3761,7 @@ Type.prototype.createResolver = function (type, opts) {
   }
 
   if (!resolver._read) {
-    throw new Error(f('incompatible types: %j %j', this, type));
+    throw new Error(f('incompatible types: %s %s', this, type));
   }
   return resolver;
 };
@@ -3763,6 +3770,7 @@ Type.prototype.compareBuffers = function (buf1, buf2) {
   return this._match(new Tap(buf1), new Tap(buf2));
 };
 
+Type.prototype._check = utils.abstractFunction;
 Type.prototype._read = utils.abstractFunction;
 Type.prototype._skip = utils.abstractFunction;
 Type.prototype._write = utils.abstractFunction;
@@ -3770,7 +3778,6 @@ Type.prototype._match = utils.abstractFunction;
 Type.prototype._updateResolver = utils.abstractFunction;
 Type.prototype.clone = utils.abstractFunction;
 Type.prototype.compare = utils.abstractFunction;
-Type.prototype.isValid = utils.abstractFunction;
 Type.prototype.random = utils.abstractFunction;
 
 // Implementations.
@@ -3791,7 +3798,7 @@ PrimitiveType.prototype._updateResolver = function (resolver, type) {
   }
 };
 PrimitiveType.prototype.clone = function (obj) {
-  checkIsValid(this, obj);
+  this._check(obj, throwInvalidError);
   return obj;
 };
 PrimitiveType.prototype.compare = utils.compare;
@@ -3802,12 +3809,22 @@ PrimitiveType.prototype.compare = utils.compare;
  */
 function NullType() { PrimitiveType.call(this); }
 util.inherits(NullType, PrimitiveType);
+NullType.prototype._check = function (obj, cb) {
+  var b = obj === null;
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 NullType.prototype._read = function () { return null; };
 NullType.prototype._skip = function () {};
-NullType.prototype._write = NullType.prototype._skip;
+NullType.prototype._write = function (tap, obj) {
+  if (obj !== null) {
+    throwInvalidError(obj, this);
+  }
+};
 NullType.prototype._match = function () { return 0; };
 NullType.prototype.compare = NullType.prototype._match;
-NullType.prototype.isValid = function (o) { return o === null; };
 NullType.prototype.random = NullType.prototype._read;
 NullType.prototype.toJSON = function () { return 'null'; };
 
@@ -3817,13 +3834,24 @@ NullType.prototype.toJSON = function () { return 'null'; };
  */
 function BooleanType() { PrimitiveType.call(this); }
 util.inherits(BooleanType, PrimitiveType);
+BooleanType.prototype._check = function (obj, cb) {
+  var b = typeof obj == 'boolean';
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 BooleanType.prototype._read = function (tap) { return tap.readBoolean(); };
 BooleanType.prototype._skip = function (tap) { tap.skipBoolean(); };
-BooleanType.prototype._write = function (tap, o) { tap.writeBoolean(o); };
+BooleanType.prototype._write = function (tap, obj) {
+  if (typeof obj != 'boolean') {
+    throwInvalidError(obj, this);
+  }
+  tap.writeBoolean(obj);
+};
 BooleanType.prototype._match = function (tap1, tap2) {
   return tap1.matchBoolean(tap2);
 };
-BooleanType.prototype.isValid = function (o) { return typeof o == 'boolean'; };
 BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
 BooleanType.prototype.toJSON = function () { return 'boolean'; };
 
@@ -3833,13 +3861,24 @@ BooleanType.prototype.toJSON = function () { return 'boolean'; };
  */
 function IntType() { PrimitiveType.call(this); }
 util.inherits(IntType, PrimitiveType);
+IntType.prototype._check = function (obj, cb) {
+  var b = obj === (obj | 0);
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 IntType.prototype._read = function (tap) { return tap.readInt(); };
 IntType.prototype._skip = function (tap) { tap.skipInt(); };
-IntType.prototype._write = function (tap, o) { tap.writeInt(o); };
+IntType.prototype._write = function (tap, obj) {
+  if (obj !== (obj | 0)) {
+    throwInvalidError(obj, this);
+  }
+  tap.writeInt(obj);
+};
 IntType.prototype._match = function (tap1, tap2) {
   return tap1.matchInt(tap2);
 };
-IntType.prototype.isValid = function (o) { return o === (o | 0); };
 IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
 IntType.prototype.toJSON = function () { return 'int'; };
 
@@ -3852,6 +3891,13 @@ IntType.prototype.toJSON = function () { return 'int'; };
  */
 function LongType() { PrimitiveType.call(this); }
 util.inherits(LongType, PrimitiveType);
+LongType.prototype._check = function (obj, cb) {
+  var b = typeof obj == 'number' && obj % 1 === 0 && isSafeLong(obj);
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 LongType.prototype._read = function (tap) {
   var n = tap.readLong();
   if (!isSafeLong(n)) {
@@ -3860,7 +3906,12 @@ LongType.prototype._read = function (tap) {
   return n;
 };
 LongType.prototype._skip = function (tap) { tap.skipLong(); };
-LongType.prototype._write = function (tap, o) { tap.writeLong(o); };
+LongType.prototype._write = function (tap, obj) {
+  if (typeof obj != 'number' || obj % 1 || !isSafeLong(obj)) {
+    throwInvalidError(obj, this);
+  }
+  tap.writeLong(obj);
+};
 LongType.prototype._match = function (tap1, tap2) {
   return tap1.matchLong(tap2);
 };
@@ -3868,9 +3919,6 @@ LongType.prototype._updateResolver = function (resolver, type) {
   if (type instanceof LongType || type instanceof IntType) {
     resolver._read = type._read;
   }
-};
-LongType.prototype.isValid = function (o) {
-  return typeof o == 'number' && o % 1 === 0 && isSafeLong(o);
 };
 LongType.prototype.random = function () { return RANDOM.nextInt(); };
 LongType.prototype.toJSON = function () { return 'long'; };
@@ -3883,7 +3931,7 @@ LongType.using = function (methods, noUnpack) {
     toBuffer: '_toBuffer',
     fromBuffer: '_fromBuffer',
     fromJSON: '_fromJSON',
-    isValid: 'isValid',
+    isValid: '_isValid',
     compare: 'compare'
   };
   var type = new AbstractLongType(noUnpack);
@@ -3910,6 +3958,14 @@ function AbstractLongType(noUnpack) {
 }
 util.inherits(AbstractLongType, LongType);
 
+AbstractLongType.prototype._check = function (obj, cb) {
+  var b = this._isValid(obj);
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
+
 AbstractLongType.prototype._read = function (tap) {
   var buf, pos;
   if (this._noUnpack) {
@@ -3924,8 +3980,11 @@ AbstractLongType.prototype._read = function (tap) {
   }
 };
 
-AbstractLongType.prototype._write = function (tap, o) {
-  var buf = this._toBuffer(o);
+AbstractLongType.prototype._write = function (tap, obj) {
+  if (!this._isValid(obj)) {
+    throwInvalidError(obj, this);
+  }
+  var buf = this._toBuffer(obj);
   if (this._noUnpack) {
     tap.writeFixed(buf);
   } else {
@@ -3933,10 +3992,10 @@ AbstractLongType.prototype._write = function (tap, o) {
   }
 };
 
-AbstractLongType.prototype.clone = function (o) {
+AbstractLongType.prototype.clone = function (obj) {
   // Slow but guarantees most consistent results. Faster alternatives would
   // require assumptions on the long class used (e.g. immutability).
-  return this._fromJSON(JSON.parse(JSON.stringify(o)));
+  return this._fromJSON(JSON.parse(JSON.stringify(obj)));
 };
 
 AbstractLongType.prototype.random = function () {
@@ -3944,11 +4003,11 @@ AbstractLongType.prototype.random = function () {
 };
 
 // Methods to be implemented by the user.
+AbstractLongType.prototype._isValid = utils.abstractFunction;
 AbstractLongType.prototype._toBuffer = utils.abstractFunction;
 AbstractLongType.prototype._fromBuffer = utils.abstractFunction;
 AbstractLongType.prototype._fromJSON = utils.abstractFunction;
 AbstractLongType.prototype.compare = utils.abstractFunction;
-AbstractLongType.prototype.isValid = utils.abstractFunction;
 
 /**
  * Floats.
@@ -3956,9 +4015,21 @@ AbstractLongType.prototype.isValid = utils.abstractFunction;
  */
 function FloatType() { PrimitiveType.call(this); }
 util.inherits(FloatType, PrimitiveType);
+FloatType.prototype._check = function (obj, cb) {
+  var b = typeof obj == 'number';
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 FloatType.prototype._read = function (tap) { return tap.readFloat(); };
 FloatType.prototype._skip = function (tap) { tap.skipFloat(); };
-FloatType.prototype._write = function (tap, o) { tap.writeFloat(o); };
+FloatType.prototype._write = function (tap, obj) {
+  if (typeof obj != 'number') {
+    throwInvalidError(obj, this);
+  }
+  tap.writeFloat(obj);
+};
 FloatType.prototype._match = function (tap1, tap2) {
   return tap1.matchFloat(tap2);
 };
@@ -3971,7 +4042,6 @@ FloatType.prototype._updateResolver = function (resolver, type) {
     resolver._read = type._read;
   }
 };
-FloatType.prototype.isValid = function (o) { return typeof o == 'number'; };
 FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
 FloatType.prototype.toJSON = function () { return 'float'; };
 
@@ -3981,9 +4051,21 @@ FloatType.prototype.toJSON = function () { return 'float'; };
  */
 function DoubleType() { PrimitiveType.call(this); }
 util.inherits(DoubleType, PrimitiveType);
+DoubleType.prototype._check = function (obj, cb) {
+  var b = typeof obj == 'number';
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 DoubleType.prototype._read = function (tap) { return tap.readDouble(); };
 DoubleType.prototype._skip = function (tap) { tap.skipDouble(); };
-DoubleType.prototype._write = function (tap, o) { tap.writeDouble(o); };
+DoubleType.prototype._write = function (tap, obj) {
+  if (typeof obj != 'number') {
+    throwInvalidError(obj, this);
+  }
+  tap.writeDouble(obj);
+};
 DoubleType.prototype._match = function (tap1, tap2) {
   return tap1.matchDouble(tap2);
 };
@@ -3997,7 +4079,6 @@ DoubleType.prototype._updateResolver = function (resolver, type) {
     resolver._read = type._read;
   }
 };
-DoubleType.prototype.isValid = FloatType.prototype.isValid;
 DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
 DoubleType.prototype.toJSON = function () { return 'double'; };
 
@@ -4007,9 +4088,21 @@ DoubleType.prototype.toJSON = function () { return 'double'; };
  */
 function StringType() { PrimitiveType.call(this); }
 util.inherits(StringType, PrimitiveType);
+StringType.prototype._check = function (obj, cb) {
+  var b = typeof obj == 'string';
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 StringType.prototype._read = function (tap) { return tap.readString(); };
 StringType.prototype._skip = function (tap) { tap.skipString(); };
-StringType.prototype._write = function (tap, o) { tap.writeString(o); };
+StringType.prototype._write = function (tap, obj) {
+  if (typeof obj != 'string') {
+    throwInvalidError(obj, this);
+  }
+  tap.writeString(obj);
+};
 StringType.prototype._match = function (tap1, tap2) {
   return tap1.matchString(tap2);
 };
@@ -4018,7 +4111,6 @@ StringType.prototype._updateResolver = function (resolver, type) {
     resolver._read = this._read;
   }
 };
-StringType.prototype.isValid = function (o) { return typeof o == 'string'; };
 StringType.prototype.random = function () {
   return RANDOM.nextString(RANDOM.nextInt(32));
 };
@@ -4032,20 +4124,31 @@ StringType.prototype.toJSON = function () { return 'string'; };
  */
 function BytesType() { PrimitiveType.call(this); }
 util.inherits(BytesType, PrimitiveType);
+BytesType.prototype._check = function (obj, cb) {
+  var b = Buffer.isBuffer(obj);
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
 BytesType.prototype._read = function (tap) { return tap.readBytes(); };
 BytesType.prototype._skip = function (tap) { tap.skipBytes(); };
-BytesType.prototype._write = function (tap, o) { tap.writeBytes(o); };
+BytesType.prototype._write = function (tap, obj) {
+  if (!Buffer.isBuffer(obj)) {
+    throwInvalidError(obj, this);
+  }
+  tap.writeBytes(obj);
+};
 BytesType.prototype._match = function (tap1, tap2) {
   return tap1.matchBytes(tap2);
 };
 BytesType.prototype._updateResolver = StringType.prototype._updateResolver;
 BytesType.prototype.clone = function (obj, opts) {
   obj = tryCloneBuffer(obj, opts && opts.coerceBuffers);
-  checkIsValid(this, obj);
+  this._check(obj, throwInvalidError);
   return obj;
 };
 BytesType.prototype.compare = Buffer.compare;
-BytesType.prototype.isValid = Buffer.isBuffer;
 BytesType.prototype.random = function () {
   return RANDOM.nextBuffer(RANDOM.nextInt(32));
 };
@@ -4065,7 +4168,9 @@ function UnionType(schema, opts) {
 
   opts = getOpts(schema, opts);
   Type.call(this);
-  this._types = schema.map(function (o) { return Type.fromSchema(o, opts); });
+  this._types = schema.map(function (obj) {
+    return Type.fromSchema(obj, opts);
+  });
 
   this._indices = {};
   this._types.forEach(function (type, i) {
@@ -4096,6 +4201,32 @@ function UnionType(schema, opts) {
 }
 util.inherits(UnionType, Type);
 
+UnionType.prototype._check = function (obj, cb) {
+  var b = false;
+  if (obj === null) {
+    // Shortcut type lookup in this case.
+    b = this._indices['null'] !== undefined;
+  } else if (typeof obj == 'object') {
+    var keys = Object.keys(obj);
+    if (keys.length === 1) {
+      // We require a single key here to ensure that writes are correct and
+      // efficient as soon as a record passes this check.
+      var name = keys[0];
+      var index = this._indices[name];
+      if (index !== undefined) {
+        PATH.push(name);
+        b = this._types[index]._check(obj[name], cb);
+        PATH.pop();
+        return b;
+      }
+    }
+  }
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
+
 UnionType.prototype._read = function (tap) {
   var index = tap.readLong();
   var Class = this._constructors[index];
@@ -4113,11 +4244,22 @@ UnionType.prototype._skip = function (tap) {
 };
 
 UnionType.prototype._write = function (tap, obj) {
+  var index, keys, name;
   if (obj === null) {
-    tap.writeLong(this._indices['null']);
+    index = this._indices['null'];
+    if (index === undefined) {
+      throwInvalidError(obj, this);
+    }
+    tap.writeLong(index);
   } else {
-    var name = Object.keys(obj)[0];
-    var index = this._indices[name];
+    keys = Object.keys(obj);
+    if (keys.length === 1) {
+      name = keys[0];
+      index = this._indices[name];
+    }
+    if (index === undefined) {
+      throwInvalidError(obj, this);
+    }
     tap.writeLong(index);
     this._types[index]._write(tap, obj[name]);
   }
@@ -4173,7 +4315,7 @@ UnionType.prototype.clone = function (obj, opts) {
         var name = keys[0];
         var i = this._indices[name];
         if (i === undefined) {
-          // We are a bit more flexible than in `isValid` here since we have
+          // We are a bit more flexible than in `_check` here since we have
           // to deal with other serializers being less strict, so we fall
           // back to looking up unqualified names.
           var j, l, type;
@@ -4191,7 +4333,7 @@ UnionType.prototype.clone = function (obj, opts) {
         }
       }
     }
-    checkIsValid(this, obj); // Will throw an exception.
+    throwInvalidError(obj, this);
   }
 };
 
@@ -4209,28 +4351,6 @@ UnionType.prototype.compare = function (obj1, obj2) {
 };
 
 UnionType.prototype.getTypes = function () { return this._types.slice(); };
-
-UnionType.prototype.isValid = function (obj) {
-  if (obj === null) {
-    // Shortcut type lookup in this case.
-    return this._indices['null'] !== undefined;
-  }
-  if (typeof obj != 'object') {
-    return false;
-  }
-  var keys = Object.keys(obj);
-  if (keys.length !== 1) {
-    // We require a single key here to ensure that writes are correct and
-    // efficient as soon as a record passes this check.
-    return false;
-  }
-  var name = keys[0];
-  var index = this._indices[name];
-  if (index === undefined) {
-    return false;
-  }
-  return this._types[index].isValid(obj[name]);
-};
 
 UnionType.prototype.random = function () {
   var index = RANDOM.nextInt(this._types.length);
@@ -4269,6 +4389,14 @@ function EnumType(schema, opts) {
 }
 util.inherits(EnumType, Type);
 
+EnumType.prototype._check = function (obj, cb) {
+  var b = this._indices[obj] !== undefined;
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
+
 EnumType.prototype._read = function (tap) {
   var index = tap.readLong();
   var symbol = this._symbols[index];
@@ -4281,6 +4409,9 @@ EnumType.prototype._read = function (tap) {
 EnumType.prototype._skip = function (tap) { tap.skipLong(); };
 
 EnumType.prototype._write = function (tap, s) {
+  if (this._indices[s] === undefined) {
+    throwInvalidError(s, this);
+  }
   tap.writeLong(this._indices[s]);
 };
 
@@ -4305,7 +4436,7 @@ EnumType.prototype._updateResolver = function (resolver, type) {
 };
 
 EnumType.prototype.clone = function (obj) {
-  checkIsValid(this, obj);
+  this._check(obj, throwInvalidError);
   return obj;
 };
 
@@ -4314,10 +4445,6 @@ EnumType.prototype.getAliases = function () { return this._aliases; };
 EnumType.prototype.getFullName = function () { return this._name; };
 
 EnumType.prototype.getSymbols = function () { return this._symbols.slice(); };
-
-EnumType.prototype.isValid = function (s) {
-  return typeof s == 'string' && this._indices[s] !== undefined;
-};
 
 EnumType.prototype.random = function () {
   return RANDOM.choice(this._symbols);
@@ -4345,6 +4472,14 @@ function FixedType(schema, opts) {
 }
 util.inherits(FixedType, Type);
 
+FixedType.prototype._check = function (obj, cb) {
+  var b = Buffer.isBuffer(obj) && obj.length === this._size;
+  if (!b && cb) {
+    cb(obj, this, PATH.slice());
+  }
+  return b;
+};
+
 FixedType.prototype._read = function (tap) {
   return tap.readFixed(this._size);
 };
@@ -4354,6 +4489,9 @@ FixedType.prototype._skip = function (tap) {
 };
 
 FixedType.prototype._write = function (tap, buf) {
+  if (!Buffer.isBuffer(buf) || buf.length !== this._size) {
+    throwInvalidError(buf, this);
+  }
   tap.writeFixed(buf, this._size);
 };
 
@@ -4376,7 +4514,7 @@ FixedType.prototype._updateResolver = function (resolver, type) {
 
 FixedType.prototype.clone = function (obj, opts) {
   obj = tryCloneBuffer(obj, opts && opts.coerceBuffers);
-  checkIsValid(this, obj);
+  this._check(obj, throwInvalidError);
   return obj;
 };
 
@@ -4385,10 +4523,6 @@ FixedType.prototype.getAliases = function () { return this._aliases; };
 FixedType.prototype.getFullName = function () { return this._name; };
 
 FixedType.prototype.getSize = function () { return this._size; };
-
-FixedType.prototype.isValid = function (buf) {
-  return Buffer.isBuffer(buf) && buf.length == this._size;
-};
 
 FixedType.prototype.random = function () {
   return RANDOM.nextBuffer(this._size);
@@ -4414,6 +4548,38 @@ function MapType(schema, opts) {
 util.inherits(MapType, Type);
 
 MapType.prototype.getValuesType = function () { return this._values; };
+
+MapType.prototype._check = function (obj, cb) {
+  if (!obj || typeof obj != 'object' || obj instanceof Array) {
+    if (cb) {
+      cb(obj, this, PATH.slice());
+    }
+    return false;
+  }
+
+  var keys = Object.keys(obj);
+  var b = true;
+  var i, l, j, key;
+  if (cb) {
+    // Slow path.
+    j = PATH.length;
+    PATH.push('');
+    for (i = 0, l = keys.length; i < l; i++) {
+      key = PATH[j] = keys[i];
+      if (!this._values._check(obj[key], cb)) {
+        b = false;
+      }
+    }
+    PATH.pop();
+  } else {
+    for (i = 0, l = keys.length; i < l; i++) {
+      if (!this._values._check(obj[keys[i]], cb)) {
+        return false;
+      }
+    }
+  }
+  return b;
+};
 
 MapType.prototype._read = function (tap) {
   var values = this._values;
@@ -4445,6 +4611,10 @@ MapType.prototype._skip = function (tap) {
 };
 
 MapType.prototype._write = function (tap, obj) {
+  if (!obj || typeof obj != 'object' || obj instanceof Array) {
+    throwInvalidError(obj, this);
+  }
+
   var values = this._values;
   var keys = Object.keys(obj);
   var n = keys.length;
@@ -4461,7 +4631,7 @@ MapType.prototype._write = function (tap, obj) {
 };
 
 MapType.prototype._match = function () {
-  throw new Error('map types cannot be compared');
+  throw new Error('maps cannot be compared');
 };
 
 MapType.prototype._updateResolver = function (resolver, type, opts) {
@@ -4483,24 +4653,10 @@ MapType.prototype.clone = function (obj, opts) {
     }
     return copy;
   }
-  checkIsValid(this, obj); // Will throw.
+  throwInvalidError(obj, this);
 };
 
 MapType.prototype.compare = MapType.prototype._match;
-
-MapType.prototype.isValid = function (obj) {
-  if (!obj || typeof obj != 'object' || obj instanceof Array) {
-    return false;
-  }
-  var keys = Object.keys(obj);
-  var i, l;
-  for (i = 0, l = keys.length; i < l; i++) {
-    if (!this._values.isValid(obj[keys[i]])) {
-      return false;
-    }
-  }
-  return true;
-};
 
 MapType.prototype.random = function () {
   var obj = {};
@@ -4530,6 +4686,37 @@ function ArrayType(schema, opts) {
   Type.call(this);
 }
 util.inherits(ArrayType, Type);
+
+ArrayType.prototype._check = function (obj, cb) {
+  if (!(obj instanceof Array)) {
+    if (cb) {
+      cb(obj, this, PATH.slice());
+    }
+    return false;
+  }
+
+  var b = true;
+  var i, l, j;
+  if (cb) {
+    // Slow path.
+    j = PATH.length;
+    PATH.push('');
+    for (i = 0, l = obj.length; i < l; i++) {
+      PATH[j] = '' + i;
+      if (!this._items._check(obj[i], cb)) {
+        b = false;
+      }
+    }
+    PATH.pop();
+  } else {
+    for (i = 0, l = obj.length; i < l; i++) {
+      if (!this._items._check(obj[i], cb)) {
+        return false;
+      }
+    }
+  }
+  return b;
+};
 
 ArrayType.prototype._read = function (tap) {
   var items = this._items;
@@ -4562,6 +4749,10 @@ ArrayType.prototype._skip = function (tap) {
 };
 
 ArrayType.prototype._write = function (tap, arr) {
+  if (!(arr instanceof Array)) {
+    throwInvalidError(arr, this);
+  }
+
   var n = arr.length;
   var i;
   if (n) {
@@ -4604,7 +4795,7 @@ ArrayType.prototype.clone = function (obj, opts) {
     var itemsType = this._items;
     return obj.map(function (elem) { return itemsType.clone(elem, opts); });
   }
-  checkIsValid(this, obj); // Will throw.
+  throwInvalidError(obj, this);
 };
 
 ArrayType.prototype.compare = function (obj1, obj2) {
@@ -4620,14 +4811,6 @@ ArrayType.prototype.compare = function (obj1, obj2) {
 };
 
 ArrayType.prototype.getItemsType = function () { return this._items; };
-
-ArrayType.prototype.isValid = function (obj) {
-  if (!(obj instanceof Array)) {
-    return false;
-  }
-  var itemsType = this._items;
-  return obj.every(function (elem) { return itemsType.isValid(elem); });
-};
 
 ArrayType.prototype.random = function () {
   var arr = [];
@@ -4668,20 +4851,22 @@ function RecordType(schema, opts) {
     return new Field(f, opts);
   });
 
-  this._constructor = this._createConstructor();
+  this._constructor = this._createConstructor(schema.type === 'error');
   this._read = this._createReader();
   this._skip = this._createSkipper();
   this._write = this._createWriter();
-  this.isValid = this._createChecker();
+  this._check = this._createChecker();
 }
 util.inherits(RecordType, Type);
 
-RecordType.prototype._createConstructor = function () {
+RecordType.prototype._createConstructor = function (isError) {
   // jshint -W054
   var outerArgs = [];
   var innerArgs = [];
-  var innerBody = '';
   var ds = []; // Defaults.
+  var innerBody = isError ? '  Error.call(this);\n' : '';
+  // Not calling `Error.captureStackTrace` because this wouldn't be compatible
+  // with browsers other than Chrome.
   var i, l, field, name, getDefault;
   for (i = 0, l = this._fields.length; i < l; i++) {
     field = this._fields[i];
@@ -4709,15 +4894,66 @@ RecordType.prototype._createConstructor = function () {
     $clone: function () { return self.clone(this); },
     $compare: function (obj) { return self.compare(this, obj); },
     $getType: Record.getType,
-    $isValid: function () { return self.isValid(this); },
+    $isValid: function (opts) { return self.isValid(this, opts); },
     $toBuffer: function (noCheck) { return self.toBuffer(this, noCheck); },
     $toString: function () { return self.toString(this); }
   };
   // The names of these properties added to the prototype are prefixed with `$`
   // because it is an invalid property name in Avro but not in JavaScript.
   // (This way we are guaranteed not to be stepped over!)
+  if (isError) {
+    util.inherits(Record, Error);
+    // Not setting the name on the prototype to be consistent with how object
+    // fields are mapped to (only if defined in the schema as a field).
+  }
 
   return Record;
+};
+
+RecordType.prototype._createChecker = function () {
+  // jshint -W054
+  var names = ['t', 'P'];
+  var values = [this, PATH];
+  var body = 'return function check' + unqualify(this._name) + '(obj, cb) {\n';
+  body += '  if (obj === null || typeof obj != \'object\') {\n';
+  body += '    if (cb) { cb(obj, t, P.slice()); }\n';
+  body += '    return false;\n';
+  body += '  }\n';
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    field = this._fields[i];
+    names.push('t' + i);
+    values.push(field._type);
+    if (field.getDefault() !== undefined) {
+      body += '  var v' + i + ' = obj.' + field._name + ';\n';
+    }
+  }
+  body += '  if (cb) {\n';
+  body += '    var b = 1;\n';
+  body += '    var j = P.length;\n';
+  body += '    P.push(\'\');\n';
+  var i, l, field;
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    field = this._fields[i];
+    body += '    P[j] = \'' + field._name + '\';\n';
+    if (field.getDefault() === undefined) {
+      body += '    b &= t' + i + '._check(obj.' + field._name + ', cb);\n';
+    } else {
+      body += '    b &= v' + i + ' === undefined || ';
+      body += 't' + i + '._check(v' + i + ', cb);\n';
+    }
+  }
+  body += '    P.pop();\n';
+  body += '    return !!b;\n';
+  body += '  } else {\n    return (\n      ';
+  body += this._fields.map(function (field, i) {
+    if (field.getDefault() === undefined) {
+      return 't' + i + '._check(obj.' + field._name + ')';
+    } else {
+      return '(v' + i + ' === undefined || t' + i + '._check(v' + i + '))';
+    }
+  }).join(' &&\n      ');
+  body += '\n    );\n  }\n};';
+  return new Function(names.join(), body).apply(undefined, values);
 };
 
 RecordType.prototype._createReader = function () {
@@ -4784,32 +5020,6 @@ RecordType.prototype._createWriter = function () {
   }
   body += '}';
   return new Function(args.join(), body).apply(undefined, values);
-};
-
-RecordType.prototype._createChecker = function () {
-  // jshint -W054
-  var names = [];
-  var values = [];
-  var body = 'return function check' + unqualify(this._name) + '(obj) {\n';
-  body += '  if (typeof obj != \'object\') { return false; }\n';
-  var i, l, field;
-  for (i = 0, l = this._fields.length; i < l; i++) {
-    field = this._fields[i];
-    names.push('t' + i);
-    values.push(field._type);
-    body += '  ';
-    if (field.getDefault() === undefined) {
-      body += 'if (!t' + i + '.isValid(obj.' + field._name + ')) { ';
-      body += 'return false; }\n';
-    } else {
-      body += 'var v' + i + ' = obj.' + field._name + '; ';
-      body += 'if (v' + i + ' !== undefined && ';
-      body += '!t' + i + '.isValid(v' + i + ')) { ';
-      body += 'return false; }\n';
-    }
-  }
-  body += '  return true;\n};';
-  return new Function(names.join(), body).apply(undefined, values);
 };
 
 RecordType.prototype._updateResolver = function (resolver, type, opts) {
@@ -5093,7 +5303,7 @@ function resolveNames(schema, namespace) {
 
   var name = schema.name;
   if (!name) {
-    throw new Error(f('no name in schema: %j', schema));
+    throw new Error(f('missing name in schema: %j', schema));
   }
   return {
     name: qualify(name),
@@ -5107,7 +5317,7 @@ function resolveNames(schema, namespace) {
     var tail = unqualify(name);
     if (isPrimitive(tail)) {
       // Primitive types cannot be defined in any namespace.
-      throw new Error(f('cannot rename: %s', tail));
+      throw new Error(f('cannot rename primitive type: %s', tail));
     }
     return name;
   }
@@ -5150,19 +5360,6 @@ function getAliases(obj) {
 function getTypeName(type) {
   var obj = type.toJSON();
   return typeof obj == 'string' ? obj : obj.type;
-}
-
-/**
- * Check whether an object is valid, and throw otherwise.
- *
- * @param type {Type} The type to try validating to.
- * @param obj {Object} The object to validate.
- *
- */
-function checkIsValid(type, obj) {
-  if (!type.isValid(obj)) {
-    throw new Error(f('invalid %j: %j', type, obj));
-  }
 }
 
 /**
@@ -5227,6 +5424,21 @@ function tryCloneBuffer(obj, coerce) {
  */
 function isSafeLong(n) {
   return n >= -9007199254740990 && n <= 9007199254740990;
+}
+
+/**
+ * Throw a somewhat helpful error on invalid object.
+ *
+ * @param obj {...} The object to reject.
+ * @param type {Type} The type to check against.
+ *
+ * This method is mostly used from `_write` to signal an invalid object for a
+ * given type. Note that this provides less information than calling `isValid`
+ * with a hook since the path is not propagated (for efficiency reasons).
+ *
+ */
+function throwInvalidError(obj, type) {
+  throw new Error(f('invalid %s: %j', type, obj));
 }
 
 

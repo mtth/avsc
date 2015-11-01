@@ -88,8 +88,6 @@
     });
 
   function highlightOutput(start, end) {
-    console.log(start);
-    console.log(end);
     outputElement.children('span').each(function( index ) {
       if (index >= start && index < end) {
         $(this).addClass("highlight");
@@ -118,7 +116,9 @@
       return '<span class="' + par + '">' + obj + '</span>';
     }
     if (typeof obj === 'string') {
-      return '<span class="' + par + '">"' + obj + '"</span>';
+      // Calling json.stringify here to handle the fixed types.
+      // I have no idea why just printing them doesn't work.
+      return '<span class="' + par + '">' + JSON.stringify(obj) + '</span>';
     }
     var comma = false;
     if (obj instanceof Array) {
