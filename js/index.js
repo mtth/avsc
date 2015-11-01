@@ -72,7 +72,13 @@
       if (current) {
         for(var i =0; i<path.length; i++){
           var nextKey = path[i];
-          current = current.value[nextKey];
+          if (nextKey in current.value)
+            current = current.value[nextKey];
+          else 
+            $.each(current.value, function(k,v) {
+              current = v;
+              return false;
+            });
         }
         highlightOutput(current.start, current.end); 
       } else 
