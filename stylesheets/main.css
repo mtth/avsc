@@ -6,10 +6,6 @@ body {
   background-color: #FFFF88;
   font-weight: bold;
 }
-.highlightable span:hover {
-  background-color: #FFFF88;
-  font-weight:bold;
-}
 .container {
   margin: auto;
   font-size: 1em;

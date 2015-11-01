@@ -2568,17 +2568,21 @@ function hasOwnProperty(obj, prop) {
       generateRandom();
     });
 
-    $('#input').on('mouseenter', 'span', function(event) {
-      var path = $.trim($(this).attr('class')).split(' ');
-      console.log("path is: " + path);
+    $('#input').on('mouseenter', 'span', function(event) {       
+      var rawClasses = $(this).attr('class').replace(' highlight', '');            
+      var path = $.trim(rawClasses).split(' ');
+      rawClasses = rawClasses[0] == ' ' ? rawClasses : ' ' + rawClasses;
+      rawClasses = rawClasses.replace(/ /g, ' .');
+      //rawClasses = rawClasses[0] == '.' ? rawClasses : '.' + rawClasses;
+      $(rawClasses).each( function(i) {
+        $(this).addClass('highlight');
+      });
+      
       var current = window.instrumented;
       if (current) {
         for(var i =0; i<path.length; i++){
           var nextKey = path[i];
-          if(current.value) 
-            current = current.value[nextKey];
-          else // The last key can be something like "string", which we don't care about.
-            break;
+          current = current.value[nextKey];
         }
         highlightOutput(current.start, current.end); 
       } else 
@@ -2591,97 +2595,57 @@ function hasOwnProperty(obj, prop) {
     console.log(start);
     console.log(end);
     outputElement.children('span').each(function( index ) {
-      if (index >= start && index <= end) {
+      if (index >= start && index < end) {
         $(this).addClass("highlight");
       }
     });
   }
 
   function clearHighlights() {
-    
-    outputElement.children('span').each(function( index ) {
-      $(this).removeClass("highlight");
-    });
+    $('span').removeClass('highlight');
   }
 
-  function wrapWordsInSpan(element) {
+  function wrapWordsInSpan(inputStr) {
     //element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
-    var input = JSON.parse(element.text());
-    var output = wrapNodeInSpan(input, "");
-    element.html(output);
-  }
+    var input = JSON.parse(inputStr);
+    var stringified = stringify(input, "" ); 
+    inputElement.html(stringified);
+  } 
 
-  function wrapNodeInSpan(node, prefix, indentLevel) {
-    var str = "";
-    if (node instanceof Array) {
-      return writeArray(node, prefix);
+  function stringify(obj, par) {
+
+    var res = '';
+    if ( obj == null ) {
+      return '<span class="' + par + '">null</span>'; 
     }
-    str += "{";
-    var commaNeeded = false;
-    $.each(node, function(key, value) {
-      if(commaNeeded) {
-        str += ',';
-      }
-      console.log ("key : " + key + ", value = " + value);
-
-      str += '<span class="' + prefix + ' ' + key + '">';
-      str += '"' + key + '" :';
-      str += '</span>';
-
-      if (!value) 
-        value = 'null';
-      if (isPrimitiveType(value)) {
-        str += writeValue(value, prefix + ' ' + key);
-      } else if (value instanceof Array) {
-        str += writeArray(value, prefix + ' ' + key);
-      } else {
-        str += wrapNodeInSpan(value, prefix + ' ' + key, indentLevel + 1);
-      }
-      commaNeeded = true;
+    if (typeof obj === 'number' || typeof obj === 'boolean') {
+      return '<span class="' + par + '">' + obj + '</span>';
+    }
+    if (typeof obj === 'string') {
+      return '<span class="' + par + '">"' + obj + '"</span>';
+    }
+    var comma = false;
+    if (obj instanceof Array) {
+      res += '<span class="' + par + '">[';
+      $.each(obj, function(index, value) {
+        if (comma) res += ', ';
+        res += stringify(value, par);
+        comma = true;
+      });
+      res += ']</span>';
+      return res;
+    } 
+    res += '{';
+    comma = false;
+    $.each(obj, function(key, value) {
+      if (comma) res += ', ';
+      res += '<span class="' + par + ' ' + key + '">"' + key + '":' + '</span>';
+      res += '<span class="' + par + ' ' + key + '">' + stringify(value, par + ' ' + key) + '</span>';
+      comma = true;
     });
-    str += "}";
-    return str;
-  }
-  function writeValue(value, prefix, skipQuotation) {
-    var str = "";
-    console.log('found value: ' +  value);
-    str += '<span class="' + prefix + '">';
+    res += '}';
+    return res;
 
-    if (typeof(value) === 'number' || value === 'null' || skipQuotation)
-      str +=  value;
-    else 
-      str += '"' + value + '"';
-    str += '</span>';
-    return str;
-  }
-
-  function writeArray(array, prefix) {
-    var str = "";
-    if(array.length == 0) {
-      str += '<span class="' + prefix + '">';
-      str += '[]';
-      str += '</span>';
-    } else if (isPrimitiveType(array[0])) {
-        var value = "";
-        for (var i = 0; i<array.length; i++) {
-          if (i > 0) {
-            value += ', ';
-          }
-          value += array[i];
-        }
-      str += '[' + writeValue(value, prefix, true) + ']';
-    } else {
-      for (var i = 0; i<array.length; i++) {
-        if (i > 0 ) str += ', ';
-        str += wrapNodeInSpan(array[i], prefix);
-      }
-    }
-    return str;
-  }
-  function isPrimitiveType(value) {
-    return typeof(value) === 'string' ||
-           typeof(value) === 'number' ||
-           value === 'null';
   }
 
    function validateSchema() {
@@ -2703,9 +2667,9 @@ function hasOwnProperty(obj, prop) {
         try{
           var random = window.schema.random();
           var randomStr = window.schema.toString(random);
-          var randomJson = JSON.parse(randomStr);
-          inputElement.text(JSON.stringify(randomJson, null, 2));
-          wrapWordsInSpan(inputElement);
+          //var randomJson = JSON.parse(randomStr);
+          //inputElement.text(JSON.stringify(randomJson, null, 2));
+          wrapWordsInSpan(randomStr);
           encode(); /* Update encoded string too. */
         } catch(err) {
           toggleError($('#schema-error'), $('#schema-valid'), err);

@@ -1,4 +1,6 @@
-me": "Cake",
+{
+  "type": "record",
+  "name": "Cake",
   "fields": [
     {
       "type": {
