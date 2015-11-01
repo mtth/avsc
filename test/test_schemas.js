@@ -2121,6 +2121,21 @@ suite('types', function () {
       assert.deepEqual(type._aliases, ['a.Human', 'b.Being']);
     });
 
+    test('invalid', function () {
+      // Name.
+      assert.throws(function () {
+        createType({type: 'fixed', name: 'ID$', size: 3});
+      });
+      // Namespace.
+      assert.throws(function () {
+        createType({type: 'fixed', name: 'ID', size: 3, namespace: '1a'});
+      });
+      // Qualified.
+      assert.throws(function () {
+        createType({type: 'fixed', name: 'a.2.ID', size: 3});
+      });
+    });
+
   });
 
   suite('decode', function () {
@@ -2167,13 +2182,6 @@ suite('types', function () {
 
   });
 
-  test('reset', function () {
-    types.Type.__reset(0);
-    var t = createType('string');
-    var buf = t.toBuffer('\x01');
-    assert.deepEqual(buf, new Buffer([2, 1]));
-  });
-
   suite('inspect', function () {
 
     test('type', function () {
@@ -2198,6 +2206,13 @@ suite('types', function () {
       assert.equal(field.inspect(), '<Field "age">');
     });
 
+  });
+
+  test('reset', function () {
+    types.Type.__reset(0);
+    var t = createType('string');
+    var buf = t.toBuffer('\x01');
+    assert.deepEqual(buf, new Buffer([2, 1]));
   });
 
 });
