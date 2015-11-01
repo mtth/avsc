@@ -3,6 +3,7 @@
 'use strict';
 
 var protocols = require('../lib/protocols'),
+    schemas = require('../lib/schemas'),
     assert = require('assert');
 
 
@@ -12,7 +13,7 @@ suite('protocols', function () {
 
     test('valid', function () {
       var p = new protocols.Protocol({
-        namespace: 'com.acme',
+        namespace: 'foo',
         protocol: 'HelloWorld',
         types: [
           {
@@ -39,7 +40,8 @@ suite('protocols', function () {
           }
         }
       });
-      assert.equal(p.getName(), 'com.acme.HelloWorld');
+      assert.equal(p.getName(), 'foo.HelloWorld');
+      assert(p.getTypes()['foo.Greeting'] instanceof schemas.types.RecordType);
     });
 
     test('missing messages', function () {
