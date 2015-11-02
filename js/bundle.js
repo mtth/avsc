@@ -2520,12 +2520,13 @@ function hasOwnProperty(obj, prop) {
   window.avsc = avsc;
   $( function() {
     resize();
-    var encodedErrorElement = $('#encoded-error');
-    var decodedErrorElement = $('#decoded-error');
-    var encodedValidElement = $('#output-valid');
-    var decodedValidElement = $('#input-valid');
-    var inputElement = $('#input');
-    var outputElement = $('#output');
+    var savedRange,isInFocus;
+    var encodedErrorElement = $('#encoded-error'),
+        decodedErrorElement = $('#decoded-error'),
+        encodedValidElement = $('#output-valid'),
+        decodedValidElement = $('#input-valid'),
+        inputElement = $('#input'),
+        outputElement = $('#output');
  
     window.onresize = function(event) {
       resize();
@@ -2546,18 +2547,94 @@ function hasOwnProperty(obj, prop) {
     /* Validate schema after each new character. */
     $('#schema').on('keyup', function(e) {
       setTimeout(function(){
-         validateSchema();
-         generateRandom();
+        var oldSchema = window.schema;
+        validateSchema();
+
+        // Only generate a new random input if the schema has changed.
+        if ( !!oldSchema && (oldSchema.toString() != window.schema.toString())) {
+          generateRandom();
+        }
       }, 0);
     });
 
     $('#input').on('paste keyup', function(event) {
-        setTimeout(function() {
+      var rawInput = $.trim($(inputElement).text());
+      if ( !inputElement.data('oldValue') || 
+            inputElement.data('oldValue') != rawInput) {
+        //save it so we can detect changes later.
+        inputElement.data('oldValue', rawInput);
+        //Get current position.
+        var range = window.getSelection().getRangeAt(0);
+        var el = document.getElementById('input');
+        var position = getCharacterOffsetWithin(range, el);
+        // Wrap key values in <span>.
+        setInputText(rawInput);
+        // Set cursor back to `position`
+        setCharacterOffsetWithin(range, el, position);
+        // Update encoded text.
         encode();
-      }, 0);
+
+      }
+    
     });
 
+    /**
+    * When the input text changes, the whole text is replaced with new <span> elements,
+    * and the previous cursor position will be lost. 
+    *
+    * This function will go through all the child elements of `node` and sets the
+    * caret to the `position`th character.
+    */ 
+
+    function setCharacterOffsetWithin(range, node, position) {
+      var treeWalker = document.createTreeWalker(
+          node,
+          NodeFilter.SHOW_TEXT
+      );
+      var charCount = 0, foundRange = false;
+      while (treeWalker.nextNode() && !foundRange) {
+          if (charCount + treeWalker.currentNode.length < position)
+            charCount += treeWalker.currentNode.length;
+          else {
+            var newRange = document.createRange();
+            newRange.setStart(treeWalker.currentNode, position - charCount);
+            newRange.setEnd(treeWalker.currentNode, position - charCount);
+            newRange.collapse(true);
+
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            foundRange = true;
+          }
+      }
+    }
     
+    /**
+    * From: http://jsfiddle.net/timdown/2YcaX/
+    * http://stackoverflow.com/questions/4767848/get-caret-cursor-position-in-contenteditable-area-containing-html-content
+    */
+    function getCharacterOffsetWithin(range, node) {
+      var treeWalker = document.createTreeWalker(
+          node,
+          NodeFilter.SHOW_TEXT,
+          function(node) {
+              var nodeRange = document.createRange();
+              nodeRange.selectNode(node);
+              return nodeRange.compareBoundaryPoints(Range.END_TO_END, range) < 1 ?
+                  NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          },
+          false
+      );
+      var charCount = 0;
+      while (treeWalker.nextNode()) {
+          charCount += treeWalker.currentNode.length;
+      }
+      if (range.startContainer.nodeType == Node.TEXT_NODE) { 
+          charCount += range.startOffset;
+      }
+      return charCount;
+    }
+
     $('#output').on('paste keyup', function(event) {
       setTimeout(function() {
         decode();
@@ -2569,34 +2646,57 @@ function hasOwnProperty(obj, prop) {
     });
 
     $('#input').on('mouseenter', 'span', function(event) {       
-      var rawClasses = $(this).attr('class').replace(' highlight', '');            
-      var path = $.trim(rawClasses).split(' ');
-      rawClasses = rawClasses[0] == ' ' ? rawClasses : ' ' + rawClasses;
-      rawClasses = rawClasses.replace(/ /g, ' .');
-      //rawClasses = rawClasses[0] == '.' ? rawClasses : '.' + rawClasses;
-      $(rawClasses).each( function(i) {
-        $(this).addClass('highlight');
-      });
-      
-      var current = window.instrumented;
-      if (current) {
-        for(var i =0; i<path.length; i++){
-          var nextKey = path[i];
-          if (nextKey in current.value)
-            current = current.value[nextKey];
-          else 
-            $.each(current.value, function(k,v) {
-              current = v;
-              return false;
-            });
-        }
-        highlightOutput(current.start, current.end); 
+
+      if (window.instrumented) {
+        var rawClasses = $(this).attr('class').replace(' highlight', '');
+
+        highlightAllMatching(rawClasses); // If a key is selected, selects its value.
+        var position = findPositionOf(rawClasses);
+        highlightOutput(position.start, position.end); 
       } else 
         console.log("No instrumented type found");
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
     });
 
+
+  /**
+  * find the start and end index of an entry in its encoded representation
+  * using the instrumented type already loaded in window.instrumented.
+  *
+  */
+  function findPositionOf(pathString) {
+    var path = $.trim(pathString).split(' ');
+    var current = window.instrumented;
+    for(var i =0; i<path.length; i++){
+      var nextKey = path[i];
+      if (nextKey in current.value) {
+            current = current.value[nextKey];
+      } else {
+        $.each(current.value, function(k,v) {
+          current = v;
+          return false;
+        });
+      }
+    }
+    return current;
+ }
+
+  /**
+  * Find all spans that have the same class, and highlights them,
+  * so if a key is selected, its value will be also highlighted, and vice versa.  
+  */
+  function highlightAllMatching(classesString) {
+    var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
+    rawClasses = rawClasses.replace(/ /g, ' .');
+    $(rawClasses).each( function(i) {
+      $(this).addClass('highlight');
+    });
+  }
+
+  /**
+  * Highlight the entries between `start` and `end` in the output (encoded) text.
+  */  
   function highlightOutput(start, end) {
     outputElement.children('span').each(function( index ) {
       if (index >= start && index < end) {
@@ -2605,17 +2705,33 @@ function hasOwnProperty(obj, prop) {
     });
   }
 
+
+  /**
+  * Remove `highlight` from all spans. 
+  */
   function clearHighlights() {
     $('span').removeClass('highlight');
   }
 
-  function wrapWordsInSpan(inputStr) {
-    //element.html(element.text().replace(/\b(\w+)\b/g, "<span>$1</span>"));
+  /**
+  * set the input box's text to inputStr, 
+  * where all key, values are wrapped in <span> elements
+  * with the 'path' set as the span class. 
+  */
+  function setInputText(inputStr) {
     var input = JSON.parse(inputStr);
     var stringified = stringify(input, "" ); 
     inputElement.html(stringified);
   } 
 
+  /**
+  * Similar to JSON.stringify, but will wrap each key and value 
+  * with <span> tags. 
+  * Does a DFS over the obj, to propagate the parent keys to each 
+  * child element to be set in the span's class attribute.
+  * @param obj The object to stringify
+  * @param par a string containing all parents seen so far.
+  */
   function stringify(obj, par) {
 
     var res = '';
@@ -2675,14 +2791,19 @@ function hasOwnProperty(obj, prop) {
           var randomStr = window.schema.toString(random);
           //var randomJson = JSON.parse(randomStr);
           //inputElement.text(JSON.stringify(randomJson, null, 2));
-          wrapWordsInSpan(randomStr);
+          setInputText(randomStr);
           encode(); /* Update encoded string too. */
         } catch(err) {
           toggleError($('#schema-error'), $('#schema-valid'), err);
         }
       }
-
     }
+
+    /**
+    * Read the input as text from inputElement.
+    * Instrument it and update window.instrumented.
+    * Encode it and set the outputElement's text to the encoded data
+    */   
     function encode() {
       if (window.schema) {
         try {
@@ -2764,8 +2885,6 @@ function hasOwnProperty(obj, prop) {
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
-      console.log("rawInput");
-      console.log(rawInput);
       if(!!window.schema) {
         return window.schema.fromString(rawInput);
       } else {
