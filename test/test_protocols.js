@@ -45,7 +45,7 @@ suite('protocols', function () {
     });
 
     test('missing messages', function () {
-      assert.throws(function () {
+      assert.doesNotThrow(function () {
         new protocols.Protocol({namespace: 'com.acme', protocol: 'Hello'});
       });
     });
