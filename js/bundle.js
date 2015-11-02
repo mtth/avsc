@@ -2520,13 +2520,16 @@ function hasOwnProperty(obj, prop) {
   window.avsc = avsc;
   $( function() {
     resize();
-    var savedRange,isInFocus;
     var encodedErrorElement = $('#encoded-error'),
         decodedErrorElement = $('#decoded-error'),
         encodedValidElement = $('#output-valid'),
         decodedValidElement = $('#input-valid'),
+        schemaElement = $('#schema'),
         inputElement = $('#input'),
-        outputElement = $('#output');
+        outputElement = $('#output'),
+        schemaTypingTimer,
+        inputTypingTimer,
+        doneTypingInterval = 1000; // wait 1 second before processing user input.
  
     window.onresize = function(event) {
       resize();
@@ -2536,46 +2539,53 @@ function hasOwnProperty(obj, prop) {
      *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
+      clearTimeout(schemaTypingTimer);
+      console.log("paste");
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
       window.document.execCommand('insertText', false, text);
       if(e.target.id === 'schema') {
-        validateSchema();
-        generateRandom();
+        console.log("validate in paste");
+        runOnlyIfContentChanged(schemaElement, function () {
+          validateSchema();
+        });
       }
     });
 
+    
     /* Validate schema after each new character. */
     $('#schema').on('keyup', function(e) {
-      setTimeout(function(){
-        var oldSchema = window.schema;
-        validateSchema();
-
-        // Only generate a new random input if the schema has changed.
-        if ( !!oldSchema && (oldSchema.toString() != window.schema.toString())) {
-          generateRandom();
-        }
-      }, 0);
+      console.log("key up");
+      clearTimeout(schemaTypingTimer);
+      schemaTypingTimer = setTimeout(function () {
+        runOnlyIfContentChanged( schemaElement, function () {
+          console.log("validate in keyup");
+          validateSchema();
+        });
+      }, doneTypingInterval);
+    }).on('keydown', function() {
+      clearTimeout(schemaTypingTimer);
     });
 
     $('#input').on('paste keyup', function(event) {
-      var rawInput = $.trim($(inputElement).text());
-      if ( !inputElement.data('oldValue') || 
-            inputElement.data('oldValue') != rawInput) {
-        //save it so we can detect changes later.
-        inputElement.data('oldValue', rawInput);
-        //Get current position.
-        var range = window.getSelection().getRangeAt(0);
-        var el = document.getElementById('input');
-        var position = getCharacterOffsetWithin(range, el);
-        // Wrap key values in <span>.
-        setInputText(rawInput);
-        // Set cursor back to `position`
-        setCharacterOffsetWithin(range, el, position);
-        // Update encoded text.
-        encode();
 
-      }
-    
+      clearTimeout(inputTypingTimer);
+      inputTypingTimer = setTimeout(function() {
+        runOnlyIfContentChanged( inputElement, function() {
+          //Get current position.
+          var range = window.getSelection().getRangeAt(0);
+          var el = document.getElementById('input');
+          var position = getCharacterOffsetWithin(range, el);
+          // Wrap key values in <span>.
+          var rawInput = $.trim($(inputElement).text());
+          setInputText(rawInput);
+          // Set cursor back to `position`
+          setCharacterOffsetWithin(range, el, position);
+          // Update encoded text.
+          encode();
+        });
+      }, doneTypingInterval);
+    }).on('keydown', function() {
+      clearTimeout(inputTypingTimer);
     });
 
     /**
@@ -2778,10 +2788,10 @@ function hasOwnProperty(obj, prop) {
       try {
         var rawSchema = readSchemaFromInput();
         window.schema = avsc.parse(rawSchema);
+        generateRandom();
         toggleError(error_elem, valid_elem, null);
       } catch (err) {
         toggleError(error_elem, valid_elem, err);
-        clearValidIcons();
       }
     }
     function generateRandom() {
@@ -2857,7 +2867,7 @@ function hasOwnProperty(obj, prop) {
       } else {
         errorElement.addClass('hidden');
         errorElement.text("");
-        valid_element.show('slow');
+        valid_element.show('slow').delay(500).hide('slow');
       }
     }
  
@@ -2925,6 +2935,15 @@ function hasOwnProperty(obj, prop) {
       $('#table').removeClass('hidden');
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
+    }
+
+    function runOnlyIfContentChanged(element, callback) {
+      var newText = $.trim($(element).text());
+      if (!element.data('oldValue') || 
+          element.data('oldValue') != newText) {
+        element.data('oldValue', newText);
+        callback.call();
+      }
     }
 
     function instrument(schema) {
