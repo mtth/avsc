@@ -10,13 +10,29 @@
  *
  * + The validator's `schema` property isn't available.
  * + Error messages might be worded differently.
- * + Namespaced type names are now correctly supported.
+ * + All types are now implemented (e.g. bytes).
+ * + Namespaces are now correctly handled.
+ * + Very large `long`s will not pass validation (safer since they might suffer
+ *   precision loss).
+ * + Extra fields in records are ignored (more efficient and leaves more
+ *   flexibility to clients).
+ *
+ * See `test.js` in this folder for more information.
  *
  */
 
 var protocols = require('../../lib/protocols'),
     schemas = require('../../lib/schemas'),
     util = require('util');
+
+
+var WARNING = 'Validator API is now deprecated in favor of the Type API';
+
+/* jshint -W021 */
+Validator = util.deprecate(Validator, WARNING);
+ProtocolValidator = util.deprecate(ProtocolValidator, WARNING);
+/* jshint +W021 */
+
 
 function Validator(schema, namespace, namedTypes) {
   var opts = {namespace: namespace, registry: namedTypes};
@@ -32,6 +48,7 @@ Validator.validate = function (schema, obj) {
   var validator = new Validator(schema);
   return validator.validate(obj);
 };
+
 
 function ProtocolValidator(protocol) {
   this._protocol = new protocols.Protocol(protocol);
