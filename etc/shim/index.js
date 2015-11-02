@@ -10,7 +10,7 @@
  *
  * + The validator's `schema` property isn't available.
  * + Error messages might be worded differently.
- * + All types are now implemented (e.g. bytes).
+ * + All types are now implemented (e.g. `bytes`).
  * + Namespaces are now correctly handled.
  * + Very large `long`s will not pass validation (safer since they might suffer
  *   precision loss).
