@@ -1807,6 +1807,12 @@ suite('types', function () {
       }
     });
 
+    test('isValid empty record', function () {
+      var t = createType({type: 'record', name: 'Person', fields: []});
+      console.log(t._check.toString());
+      assert(t.isValid({}));
+    });
+
   });
 
   suite('createType', function  () {
