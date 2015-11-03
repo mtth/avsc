@@ -452,6 +452,14 @@ suite('types', function () {
       assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
     });
 
+    test('fromString', function () {
+      var t = fromSchema('bytes');
+      var s = '\x01\x02';
+      var buf = new Buffer(s);
+      var clone = t.fromString(JSON.stringify(s));
+      assert.deepEqual(clone, buf);
+    });
+
     test('compare', function () {
       var t = fromSchema('bytes');
       var b1 = t.toBuffer(new Buffer([0, 2]));
@@ -861,6 +869,14 @@ suite('types', function () {
       assert.throws(function () { t.clone(new Buffer([2])); });
     });
 
+    test('fromString', function () {
+      var t = new types.FixedType({name: 'Id', size: 2});
+      var s = '\x01\x02';
+      var buf = new Buffer(s);
+      var clone = t.fromString(JSON.stringify(s));
+      assert.deepEqual(clone, buf);
+    });
+
     test('toString schema with extra fields', function () {
       var t = fromSchema({type: 'fixed', name: 'Id', size: 2});
       t.one = 1;
@@ -1007,7 +1023,7 @@ suite('types', function () {
 
     test('clone coerce buffers', function () {
       var t = new types.MapType({type: 'map', values: 'bytes'});
-      var o = {one: '\x01'};
+      var o = {one: {type: 'Buffer', data: [1]}};
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, {one: new Buffer([1])});
@@ -1118,7 +1134,7 @@ suite('types', function () {
         type: 'array',
         items: {type: 'fixed', name: 'Id', size: 2}
       });
-      var o = ['\x01\x02'];
+      var o = [{type: 'Buffer', data: [1, 2]}];
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, [new Buffer([1, 2])]);
