@@ -1,0 +1,7 @@
+{
+  "name": "Union",
+  "type": "record",
+  "fields": [
+    {"name": "something", "type": ["null", "int", "string"], "default": null}
+  ]
+}
