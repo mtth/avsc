@@ -1797,6 +1797,34 @@ suite('types', function () {
       }
     });
 
+    test('custom record constructor', function () {
+      var t = new types.RecordType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: 'string'}
+        ]
+      }, undefined, Person);
+      var obj = {age: 23, name: 'bob'};
+      var person;
+      // From buffer.
+      var buf = t.toBuffer(obj);
+      person = t.fromBuffer(buf);
+      assert(person instanceof Person);
+      assert.equal(person.name, 'BOB');
+      // From string.
+      var str = t.toString(obj);
+      person = t.fromString(str);
+      assert(person instanceof Person);
+      assert.equal(person.name, 'BOB');
+
+      function Person(age, name) {
+        this.age = age;
+        this.name = name.toUpperCase();
+      }
+    });
+
   });
 
   suite('fromSchema', function  () {
