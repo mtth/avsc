@@ -1916,24 +1916,25 @@ suite('types', function () {
     });
 
     test('toString default', function () {
-      var schema = {
+      var type = fromSchema({
         type: 'record',
         name: 'Human',
         fields: [
-          {
-            name: 'id1',
-            type: ['string', 'null'],
-            'default': ''
-          },
-          {
-            name: 'id2',
-            type: ['null', 'string'],
-            'default': null
-          }
+          {name: 'id1', type: ['string', 'null'], 'default': ''},
+          {name: 'id2', type: ['null', 'string'], 'default': null}
         ]
-      };
-      var type = fromSchema(schema);
-      assert.deepEqual(JSON.parse(type.toString()), schema);
+      });
+      assert.deepEqual(
+        JSON.parse(type.toString()),
+        {
+          type: 'record',
+          name: 'Human',
+          fields: [
+            {name: 'id1', type: ['string', 'null']}, // Stripped defaults.
+            {name: 'id2', type: ['null', 'string']}
+          ]
+        }
+      );
     });
 
   });
