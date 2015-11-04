@@ -19,7 +19,7 @@
         outputElement = $('#output'),
         schemaTypingTimer,
         inputTypingTimer,
-        doneTypingInterval = 1000; // wait 1 second before processing user input.
+        doneTypingInterval = 500; // wait for some time before processing user input.
  
     window.onresize = function(event) {
       resize();
@@ -72,9 +72,23 @@
       }, doneTypingInterval);
     }).on('keydown', function() {
       clearTimeout(inputTypingTimer);
+    }).on('mouseenter', 'span', function(event) {
+
+      if (window.instrumented) {
+        //var rawClasses = $(this).attr('class').replace(' highlight', '');
+
+        //highlightAllMatching(rawClasses); // If a key is selected, selects its value.
+        $(this).addClass('highlight'); // Will also automatically highlight all nested children.
+        var path = getPath($(this));
+        var position = findPositionOf(path);
+        highlightOutput(position.start, position.end); 
+      } else 
+        console.log("No instrumented type found");
+    }).on('mouseleave', 'span', function(event) {
+      clearHighlights();
     });
 
-    /**
+    /*
     * When the input text changes, the whole text is replaced with new <span> elements,
     * and the previous cursor position will be lost. 
     *
@@ -141,33 +155,41 @@
       generateRandom();
     });
 
-    $('#input').on('mouseenter', 'span', function(event) {       
+  
+    /**
+    * Goes through all parents of an element, and concatenates
+    * their classes to generate the path for the given key.  
+    */
+    function getPath(element) {
+      console.log("finding parents of element with class:" + element.attr('class'));
+      var selfClass = $.trim(element.attr('class').replace('highlight', ''));
+      var parents = element.parents('span').map(function () {
+        // How should we handle if there is a field called highlight?
+        var parentClass = $(this).attr('class').replace('highlight', '');
+        return $.trim(parentClass);
+      }).get();
+      parents.reverse(); /* parents() will go through parents starting from the inner most,
+                            so it needs to be reversed to get the correct path. */
 
-      if (window.instrumented) {
-        var rawClasses = $(this).attr('class').replace(' highlight', '');
-
-        highlightAllMatching(rawClasses); // If a key is selected, selects its value.
-        var position = findPositionOf(rawClasses);
-        highlightOutput(position.start, position.end); 
-      } else 
-        console.log("No instrumented type found");
-    }).on('mouseleave', 'span', function(event) {
-      clearHighlights();
-    });
-
+      parents.push(selfClass); /* The innermost class is not part of the parents. Adding it here. */
+                           
+      console.log("found parents: " + parents);
+      return parents;
+    }
 
   /**
   * find the start and end index of an entry in its encoded representation
   * using the instrumented type already loaded in window.instrumented.
   *
   */
-  function findPositionOf(pathString) {
-    var path = $.trim(pathString).split(' ');
+  function findPositionOf(path) {
+    //var path = $.trim(pathString).split(' ');
+    console.log("finding position for path: " + path);
     var current = window.instrumented;
     for(var i =0; i<path.length; i++){
       var nextKey = path[i];
       if (nextKey in current.value) {
-            current = current.value[nextKey];
+        current = current.value[nextKey];
       } else {
         $.each(current.value, function(k,v) {
           current = v;
@@ -175,6 +197,7 @@
         });
       }
     }
+    console.log("found start: " + current.start + " and end:" + current.end);
     return current;
  }
 
@@ -216,7 +239,7 @@
   */
   function setInputText(inputStr) {
     var input = JSON.parse(inputStr);
-    var stringified = stringify(input, "" ); 
+    var stringified = stringify(input); 
     inputElement.html(stringified);
   } 
 
@@ -228,37 +251,36 @@
   * @param obj The object to stringify
   * @param par a string containing all parents seen so far.
   */
-  function stringify(obj, par) {
+  function stringify(obj) {
 
     var res = '';
     if ( obj == null ) {
-      return '<span class="' + par + '">null</span>'; 
+      return 'null'; 
     }
     if (typeof obj === 'number' || typeof obj === 'boolean') {
-      return '<span class="' + par + '">' + obj + '</span>';
+      return '' + obj;
     }
     if (typeof obj === 'string') {
       // Calling json.stringify here to handle the fixed types.
       // I have no idea why just printing them doesn't work.
-      return '<span class="' + par + '">' + JSON.stringify(obj) + '</span>';
+      return JSON.stringify(obj);
     }
     var comma = false;
     if (obj instanceof Array) {
-      res += '<span class="' + par + '">[';
+      res += '[';
       $.each(obj, function(index, value) {
         if (comma) res += ', ';
-        res += stringify(value, par);
+        res += stringify(value);
         comma = true;
       });
-      res += ']</span>';
+      res += ']';
       return res;
     } 
     res += '{';
     comma = false;
     $.each(obj, function(key, value) {
       if (comma) res += ', ';
-      res += '<span class="' + par + ' ' + key + '">"' + key + '":' + '</span>';
-      res += '<span class="' + par + ' ' + key + '">' + stringify(value, par + ' ' + key) + '</span>';
+      res += '<span class="' + key + '">"' + key + '":' + stringify(value) + '</span>';
       comma = true;
     });
     res += '}';
