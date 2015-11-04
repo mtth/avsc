@@ -447,11 +447,17 @@ suite('types', function () {
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); });
-      clone = t.clone(s, {coerceBuffers: true});
-      assert.deepEqual(clone, buf);
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
+    });
+
+    test('fromString', function () {
+      var t = createType('bytes');
+      var s = '\x01\x02';
+      var buf = new Buffer(s);
+      var clone = t.fromString(JSON.stringify(s));
+      assert.deepEqual(clone, buf);
     });
 
     test('compare', function () {
@@ -871,8 +877,6 @@ suite('types', function () {
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); });
-      clone = t.clone(s, {coerceBuffers: true});
-      assert.deepEqual(clone, buf);
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
@@ -884,6 +888,14 @@ suite('types', function () {
       t.one = 1;
       assert.equal(t.getSchema(), '{"name":"Id","type":"fixed","size":2}');
       assert.equal(t.getSchema(true), '"Id"');
+    });
+
+    test('fromString', function () {
+      var t = new types.FixedType({name: 'Id', size: 2});
+      var s = '\x01\x02';
+      var buf = new Buffer(s);
+      var clone = t.fromString(JSON.stringify(s));
+      assert.deepEqual(clone, buf);
     });
 
     test('compare buffers', function () {
@@ -1026,7 +1038,7 @@ suite('types', function () {
 
     test('clone coerce buffers', function () {
       var t = new types.MapType({type: 'map', values: 'bytes'});
-      var o = {one: '\x01'};
+      var o = {one: {type: 'Buffer', data: [1]}};
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, {one: new Buffer([1])});
@@ -1142,7 +1154,7 @@ suite('types', function () {
         type: 'array',
         items: {type: 'fixed', name: 'Id', size: 2}
       });
-      var o = ['\x01\x02'];
+      var o = [{type: 'Buffer', data: [1, 2]}];
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, [new Buffer([1, 2])]);
@@ -1272,22 +1284,6 @@ suite('types', function () {
       var obj = new (type.getRecordConstructor())();
       assert.deepEqual(obj.id, new Buffer([1, 4]));
       assert.deepEqual(type.toBuffer({}), b);
-    });
-
-    test('fixed buffer default', function () {
-      var b = new Buffer([1, 4]);
-      var type = createType({
-        type: 'record',
-        name: 'Object',
-        fields: [
-          {
-            name: 'id',
-            type: {type: 'fixed', size: 2, name: 'Id'},
-            'default': b
-          }
-        ]
-      });
-      assert.deepEqual(type._fields[0].getDefault(), b);
     });
 
     test('fixed buffer invalid default', function () {
@@ -1713,12 +1709,6 @@ suite('types', function () {
       });
       var field = t.getFields()[0];
       assert.equal(field.getOrder(), 'ascending'); // Default.
-      assert.throws(function () { field.setOrder('none'); });
-      assert.equal(field.getOrder(), 'ascending');
-      field.setOrder('ignore');
-      assert.equal(field.getOrder(), 'ignore');
-      field.setOrder('descending');
-      assert.equal(field.getOrder(), 'descending');
     });
 
     test('compare buffers default order', function () {
@@ -1810,6 +1800,34 @@ suite('types', function () {
     test('isValid empty record', function () {
       var t = createType({type: 'record', name: 'Person', fields: []});
       assert(t.isValid({}));
+    });
+
+    test('custom record constructor', function () {
+      var t = new types.RecordType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: 'string'}
+        ]
+      }, undefined, Person);
+      var obj = {age: 23, name: 'bob'};
+      var person;
+      // From buffer.
+      var buf = t.toBuffer(obj);
+      person = t.fromBuffer(buf);
+      assert(person instanceof Person);
+      assert.equal(person.name, 'BOB');
+      // From string.
+      var str = t.toString(obj);
+      person = t.fromString(str);
+      assert(person instanceof Person);
+      assert.equal(person.name, 'BOB');
+
+      function Person(age, name) {
+        this.age = age;
+        this.name = name.toUpperCase();
+      }
     });
 
   });
@@ -1946,25 +1964,26 @@ suite('types', function () {
       assert.deepEqual(t.getFingerprint(), buf);
     });
 
-    test('toString default', function () {
-      var schema = {
+    test('getSchema default', function () {
+      var type = createType({
         type: 'record',
         name: 'Human',
         fields: [
-          {
-            name: 'id1',
-            type: ['string', 'null'],
-            'default': ''
-          },
-          {
-            name: 'id2',
-            type: ['null', 'string'],
-            'default': null
-          }
+          {name: 'id1', type: ['string', 'null'], 'default': ''},
+          {name: 'id2', type: ['null', 'string'], 'default': null}
         ]
-      };
-      var type = createType(schema);
-      assert.deepEqual(JSON.parse(type.toString()), 'Human');
+      });
+      assert.deepEqual(
+        JSON.parse(type.getSchema()),
+        {
+          type: 'record',
+          name: 'Human',
+          fields: [
+            {name: 'id1', type: ['string', 'null']}, // Stripped defaults.
+            {name: 'id2', type: ['null', 'string']}
+          ]
+        }
+      );
     });
 
   });
@@ -2004,7 +2023,6 @@ suite('types', function () {
       var t = createType('int');
       assert.equal(t.toString(2), '2');
       assert.throws(function () { t.toString('a'); });
-      assert.doesNotThrow(function () { t.toString('a', true); });
     });
 
   });

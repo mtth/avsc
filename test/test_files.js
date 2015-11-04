@@ -17,9 +17,48 @@ var MAGIC_BYTES = files.MAGIC_BYTES;
 var SYNC = new Buffer('atokensyncheader');
 var createType = schemas.createType;
 var streams = files.streams;
+var types = schemas.types;
 
 
-suite('streams', function () {
+suite('files', function () {
+
+  suite('parse', function () {
+
+    var parse = files.parse;
+
+    test('object', function () {
+      var obj = {
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'so', type: 'Person'}]
+      };
+      assert(parse(obj) instanceof types.RecordType);
+    });
+
+    test('schema instance', function () {
+      var type = parse({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'so', type: 'Person'}]
+      });
+      assert.strictEqual(parse(type), type);
+    });
+
+    test('stringified schema', function () {
+      assert(parse('"int"') instanceof types.IntType);
+    });
+
+    test('type name', function () {
+      assert(parse('double') instanceof types.DoubleType);
+    });
+
+    test('file', function () {
+      var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
+      var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
+      assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
+    });
+
+  });
 
   suite('RawEncoder', function () {
 
@@ -105,8 +144,9 @@ suite('streams', function () {
       assert.throws(function () { new RawEncoder(); });
     });
 
-    test('invalid writer type', function () {
-      assert.throws(function () { new RawEncoder('int'); });
+    test('writer type from schema', function () {
+      var encoder = new RawEncoder('int');
+      assert(encoder._type instanceof types.IntType);
     });
 
     test('invalid object', function (cb) {
@@ -284,6 +324,25 @@ suite('streams', function () {
       var encoder = new BlockEncoder(t, {codec: 'invalid', codecs: codecs})
         .on('error', function () { cb(); });
       encoder.end(12);
+    });
+
+    test('write non-canonical schema', function (cb) {
+      var obj = {type: 'fixed', size: 2, name: 'Id', doc: 'An id.'};
+      var id = new Buffer([1, 2]);
+      var ids = [];
+      var encoder = new BlockEncoder(obj);
+      var decoder = new streams.BlockDecoder()
+        .on('metadata', function (type, codec, header) {
+          var schema = JSON.parse(header.meta['avro.schema'].toString());
+          assert.deepEqual(schema, obj); // Check that doc field not stripped.
+        })
+        .on('data', function (id) { ids.push(id); })
+        .on('end', function () {
+          assert.deepEqual(ids, [id]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.end(id);
     });
 
   });
