@@ -1860,11 +1860,21 @@ suite('types', function () {
     });
 
     test('invalid type', function () {
-      var t = createType({
+      var attrs = {
         type: 'int',
         logicalType: 'date'
-      }, {logicalTypes: logicalTypes});
+      };
+      var t;
+      t = createType(attrs); // Missing.
       assert(t instanceof types.IntType);
+      t = createType(attrs, {logicalTypes: logicalTypes}); // Invalid.
+      assert(t instanceof types.IntType);
+      assert.throws(function () {
+        createType(attrs, {
+          logicalTypes: logicalTypes,
+          assertLogicalType: true
+        });
+      });
     });
 
     test('nested types', function () {
