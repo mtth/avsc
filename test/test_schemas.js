@@ -1699,7 +1699,8 @@ suite('types', function () {
         isValid: function (n) {
           return typeof n == 'number' && n % 1 === 0;
         },
-        fromJSON: JSON.parse,
+        fromJSON: function (n) { return n; },
+        toJSON: function (n) { return n; },
         compare: function (n1, n2) {
           return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
         }
@@ -1721,6 +1722,7 @@ suite('types', function () {
       test('clone', function () {
         assert.equal(slowLongType.clone(123), 123);
         assert.equal(slowLongType.fromString('-1'), -1);
+        assert.equal(slowLongType.toString(-1), '-1');
       });
 
       test('random', function () {
@@ -1756,7 +1758,8 @@ suite('types', function () {
           tap.writeLong(n);
           return buf.slice(0, tap.pos);
         },
-        fromJSON: JSON.parse,
+        fromJSON: function (n) { return n; },
+        toJSON: function (n) { return n; },
         isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
         compare: function (n1, n2) {
           return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
@@ -1779,6 +1782,7 @@ suite('types', function () {
       test('clone', function () {
         assert.equal(slowLongType.clone(123), 123);
         assert.equal(slowLongType.fromString('-1'), -1);
+        assert.equal(slowLongType.toString(-1), '-1');
       });
 
       test('random', function () {
@@ -1793,6 +1797,7 @@ suite('types', function () {
         fromBuffer: function () { throw new Error('no'); },
         toBuffer: null,
         fromJSON: null,
+        toJSON: null,
         isValid: null,
         compare: null
       });
