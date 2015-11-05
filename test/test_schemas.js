@@ -5,7 +5,8 @@
 
 var utils = require('../lib/utils'),
     schemas = require('../lib/schemas'),
-    assert = require('assert');
+    assert = require('assert'),
+    util = require('util');
 
 
 var Tap = utils.Tap;
@@ -145,149 +146,6 @@ suite('types', function () {
 
     test('using missing methods', function () {
       assert.throws(function () { types.LongType.using(); });
-    });
-
-  });
-
-  suite('AbstractLongType', function () {
-
-    var fastLongType = new types.LongType();
-
-    suite('unpacked', function () {
-
-      var slowLongType = types.LongType.using({
-        fromBuffer: function (buf) {
-          var neg = buf[7] >> 7;
-          if (neg) { // Negative number.
-            invert(buf);
-          }
-          var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
-          if (neg) {
-            invert(buf);
-            n = -n - 1;
-          }
-          return n;
-        },
-        toBuffer: function (n) {
-          var buf = new Buffer(8);
-          var neg = n < 0;
-          if (neg) {
-            invert(buf);
-            n = -n - 1;
-          }
-          buf.writeInt32LE(n | 0);
-          var h = n / Math.pow(2, 32) | 0;
-          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
-          if (neg) {
-            invert(buf);
-          }
-          return buf;
-        },
-        isValid: function (n) {
-          return typeof n == 'number' && n % 1 === 0;
-        },
-        fromJSON: JSON.parse,
-        compare: function (n1, n2) {
-          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-        }
-      });
-
-      test('encode', function () {
-        [123, -1, 321414, 900719925474090].forEach(function (n) {
-          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
-        });
-      });
-
-      test('decode', function () {
-        [123, -1, 321414, 900719925474090].forEach(function (n) {
-          var buf = fastLongType.toBuffer(n);
-          assert.deepEqual(slowLongType.fromBuffer(buf), n);
-        });
-      });
-
-      test('clone', function () {
-        assert.equal(slowLongType.clone(123), 123);
-        assert.equal(slowLongType.fromString('-1'), -1);
-      });
-
-      test('random', function () {
-        assert(slowLongType.isValid(slowLongType.random()));
-      });
-
-      test('isValid hook', function () {
-        var s = 'hi';
-        var errs = [];
-        assert(!slowLongType.isValid(s, {errorHook: hook}));
-        assert.deepEqual(errs, [s]);
-        assert.throws(function () { slowLongType.toBuffer(s); });
-
-        function hook(path, obj, type) {
-          assert.strictEqual(type, slowLongType);
-          assert.equal(path.length, 0);
-          errs.push(obj);
-        }
-      });
-
-    });
-
-    suite('packed', function () {
-
-      var slowLongType = types.LongType.using({
-        fromBuffer: function (buf) {
-          var tap = new Tap(buf);
-          return tap.readLong();
-        },
-        toBuffer: function (n) {
-          var buf = new Buffer(10);
-          var tap = new Tap(buf);
-          tap.writeLong(n);
-          return buf.slice(0, tap.pos);
-        },
-        fromJSON: JSON.parse,
-        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
-        compare: function (n1, n2) {
-          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-        }
-      }, true);
-
-      test('encode', function () {
-        [123, -1, 321414, 900719925474090].forEach(function (n) {
-          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
-        });
-      });
-
-      test('decode', function () {
-        [123, -1, 321414, 900719925474090].forEach(function (n) {
-          var buf = fastLongType.toBuffer(n);
-          assert.deepEqual(slowLongType.fromBuffer(buf), n);
-        });
-      });
-
-      test('clone', function () {
-        assert.equal(slowLongType.clone(123), 123);
-        assert.equal(slowLongType.fromString('-1'), -1);
-      });
-
-      test('random', function () {
-        assert(slowLongType.isValid(slowLongType.random()));
-      });
-
-    });
-
-    test('incomplete buffer', function () {
-      // Check that `fromBuffer` doesn't get called.
-      var slowLongType = new types.LongType.using({
-        fromBuffer: function () { throw new Error('no'); },
-        toBuffer: null,
-        fromJSON: null,
-        isValid: null,
-        compare: null
-      });
-      var buf = fastLongType.toBuffer(12314);
-      assert.deepEqual(
-        slowLongType.decode(buf.slice(0, 1)),
-        {value: undefined, offset: -1}
-      );
     });
 
   });
@@ -1828,6 +1686,261 @@ suite('types', function () {
         this.age = age;
         this.name = name.toUpperCase();
       }
+    });
+
+  });
+
+  suite('AbstractLongType', function () {
+
+    var fastLongType = new types.LongType();
+
+    suite('unpacked', function () {
+
+      var slowLongType = types.LongType.using({
+        fromBuffer: function (buf) {
+          var neg = buf[7] >> 7;
+          if (neg) { // Negative number.
+            invert(buf);
+          }
+          var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
+          if (neg) {
+            invert(buf);
+            n = -n - 1;
+          }
+          return n;
+        },
+        toBuffer: function (n) {
+          var buf = new Buffer(8);
+          var neg = n < 0;
+          if (neg) {
+            invert(buf);
+            n = -n - 1;
+          }
+          buf.writeInt32LE(n | 0);
+          var h = n / Math.pow(2, 32) | 0;
+          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
+          if (neg) {
+            invert(buf);
+          }
+          return buf;
+        },
+        isValid: function (n) {
+          return typeof n == 'number' && n % 1 === 0;
+        },
+        fromJSON: JSON.parse,
+        compare: function (n1, n2) {
+          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+        }
+      });
+
+      test('encode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+        });
+      });
+
+      test('decode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          var buf = fastLongType.toBuffer(n);
+          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+        });
+      });
+
+      test('clone', function () {
+        assert.equal(slowLongType.clone(123), 123);
+        assert.equal(slowLongType.fromString('-1'), -1);
+      });
+
+      test('random', function () {
+        assert(slowLongType.isValid(slowLongType.random()));
+      });
+
+      test('isValid hook', function () {
+        var s = 'hi';
+        var errs = [];
+        assert(!slowLongType.isValid(s, {errorHook: hook}));
+        assert.deepEqual(errs, [s]);
+        assert.throws(function () { slowLongType.toBuffer(s); });
+
+        function hook(path, obj, type) {
+          assert.strictEqual(type, slowLongType);
+          assert.equal(path.length, 0);
+          errs.push(obj);
+        }
+      });
+
+    });
+
+    suite('packed', function () {
+
+      var slowLongType = types.LongType.using({
+        fromBuffer: function (buf) {
+          var tap = new Tap(buf);
+          return tap.readLong();
+        },
+        toBuffer: function (n) {
+          var buf = new Buffer(10);
+          var tap = new Tap(buf);
+          tap.writeLong(n);
+          return buf.slice(0, tap.pos);
+        },
+        fromJSON: JSON.parse,
+        isValid: function (n) { return typeof n == 'number' && n % 1 === 0; },
+        compare: function (n1, n2) {
+          return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+        }
+      }, true);
+
+      test('encode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+        });
+      });
+
+      test('decode', function () {
+        [123, -1, 321414, 900719925474090].forEach(function (n) {
+          var buf = fastLongType.toBuffer(n);
+          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+        });
+      });
+
+      test('clone', function () {
+        assert.equal(slowLongType.clone(123), 123);
+        assert.equal(slowLongType.fromString('-1'), -1);
+      });
+
+      test('random', function () {
+        assert(slowLongType.isValid(slowLongType.random()));
+      });
+
+    });
+
+    test('incomplete buffer', function () {
+      // Check that `fromBuffer` doesn't get called.
+      var slowLongType = new types.LongType.using({
+        fromBuffer: function () { throw new Error('no'); },
+        toBuffer: null,
+        fromJSON: null,
+        isValid: null,
+        compare: null
+      });
+      var buf = fastLongType.toBuffer(12314);
+      assert.deepEqual(
+        slowLongType.decode(buf.slice(0, 1)),
+        {value: undefined, offset: -1}
+      );
+    });
+
+  });
+
+  suite('LogicalType', function () {
+
+    function DateType(attrs, opts) {
+      types.LogicalType.call(this, attrs, opts, [types.LongType]);
+    }
+    util.inherits(DateType, types.LogicalType);
+
+    DateType.prototype._fromValue = function (val) { return new Date(val); };
+
+    DateType.prototype._toValue = function (date) { return +date; };
+
+    DateType.prototype._resolve = function (type) {
+      if (type instanceof types.StringType) {
+        return function (str) { return new Date(Date.parse(str)); };
+      } else if (type instanceof types.LongType) {
+        return this.fromValue;
+      }
+    };
+
+    function AgeType(attrs, opts) {
+      types.LogicalType.call(this, attrs, opts, [types.IntType]);
+    }
+    util.inherits(AgeType, types.LogicalType);
+
+    AgeType.prototype._fromValue = function (val) {
+      if (val < 0) { throw new Error('invalid age'); }
+      return val;
+    };
+
+    AgeType.prototype._toValue = AgeType.prototype._fromValue;
+
+    var logicalTypes = {age: AgeType, date: DateType};
+
+    test('valid type', function () {
+      var t = createType({
+        type: 'long',
+        logicalType: 'date'
+      }, {logicalTypes: logicalTypes});
+      assert(t instanceof DateType);
+      assert(t.getUnderlyingType() instanceof types.LongType);
+      assert(t.isValid(t.random()));
+      var d = new Date(123);
+      assert.equal(t.toString(d), '123');
+      assert.deepEqual(t.fromString('123'), d);
+      assert.deepEqual(t.clone(d), d);
+      assert.equal(t.compare(d, d), 0);
+    });
+
+    test('invalid type', function () {
+      var t = createType({
+        type: 'int',
+        logicalType: 'date'
+      }, {logicalTypes: logicalTypes});
+      assert(t instanceof types.IntType);
+    });
+
+    test('nested types', function () {
+      var attrs = {
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'age', type: {type: 'int', logicalType: 'age'}},
+          {name: 'time', type: {type: 'long', logicalType: 'date'}}
+        ]
+      };
+      var base = createType(attrs);
+      var derived = createType(attrs, {logicalTypes: logicalTypes});
+      var fields = derived.getFields();
+      assert(fields[0].getType() instanceof AgeType);
+      assert(fields[1].getType() instanceof DateType);
+      var date = new Date(Date.now());
+      var buf = base.toBuffer({age: 12, time: +date});
+      var person = derived.fromBuffer(buf);
+      assert.deepEqual(person.age, 12);
+      assert.deepEqual(person.time, date);
+      assert.throws(function () { derived.toBuffer({age: -1, date: date}); });
+    });
+
+    test('recursive', function () {
+    });
+
+    test('resolve underlying > logical', function () {
+      var t1 = createType({type: 'string'});
+      var t2 = createType({
+        type: 'long',
+        logicalType: 'date'
+      }, {logicalTypes: logicalTypes});
+
+      var d1 = new Date(Date.now());
+      var buf = t1.toBuffer('' + d1);
+      var res = t2.createResolver(t1);
+      assert.throws(function () { t2.createResolver(createType('float')); });
+      var d2 = t2.fromBuffer(buf, res);
+      assert.deepEqual('' + d2, '' + d1); // Rounding error on date objects.
+    });
+
+    test('resolve logical > underlying', function () {
+      var t1 = createType({
+        type: 'long',
+        logicalType: 'date'
+      }, {logicalTypes: logicalTypes});
+      var t2 = createType({type: 'double'}); // Note long > double too.
+
+      var d = new Date(Date.now());
+      var buf = t1.toBuffer(d);
+      var res = t2.createResolver(t1);
+      assert.throws(function () { createType('int').createResolver(t1); });
+      assert.equal(t2.fromBuffer(buf, res), +d);
     });
 
   });
