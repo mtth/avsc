@@ -1856,6 +1856,7 @@ suite('types', function () {
       assert.deepEqual(t.fromString('123'), d);
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
+      assert.equal(t.getSchema(), '"long"');
     });
 
     test('invalid type', function () {
