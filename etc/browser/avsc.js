@@ -10,8 +10,7 @@
  */
 
 var Tap = require('../../lib/utils').Tap,
-    schemas = require('../../lib/schemas'),
-    shim = require('../shim');
+    schemas = require('../../lib/schemas');
 
 
 function parse(schema, opts) {
@@ -66,7 +65,5 @@ Tap.prototype.writeBinary = function (s, len) {
 
 module.exports = {
   parse: parse,
-  types: schemas.types,
-  Validator: shim.Validator,
-  ProtocolValidator: shim.ProtocolValidator
+  types: schemas.types
 };

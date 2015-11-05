@@ -9,7 +9,7 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
-+ Serialization of arbitrary native objects with [logical types][logical-types].
++ Serialization of arbitrary native objects via [logical types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
 
