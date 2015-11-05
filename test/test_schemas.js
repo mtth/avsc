@@ -1660,34 +1660,6 @@ suite('types', function () {
       assert(t.isValid({}));
     });
 
-    test('custom record constructor', function () {
-      var t = new types.RecordType({
-        type: 'record',
-        name: 'Person',
-        fields: [
-          {name: 'age', type: 'int'},
-          {name: 'name', type: 'string'}
-        ]
-      }, undefined, Person);
-      var obj = {age: 23, name: 'bob'};
-      var person;
-      // From buffer.
-      var buf = t.toBuffer(obj);
-      person = t.fromBuffer(buf);
-      assert(person instanceof Person);
-      assert.equal(person.name, 'BOB');
-      // From string.
-      var str = t.toString(obj);
-      person = t.fromString(str);
-      assert(person instanceof Person);
-      assert.equal(person.name, 'BOB');
-
-      function Person(age, name) {
-        this.age = age;
-        this.name = name.toUpperCase();
-      }
-    });
-
   });
 
   suite('AbstractLongType', function () {
@@ -1912,6 +1884,36 @@ suite('types', function () {
     });
 
     test('recursive', function () {
+
+      function Person(friends) { this.friends = friends || []; }
+
+      function PersonType(attrs, opts) {
+        types.LogicalType.call(this, attrs, opts);
+      }
+      util.inherits(PersonType, types.LogicalType);
+
+      PersonType.prototype._fromValue = function (val) {
+        return new Person(val.friends);
+      };
+
+      PersonType.prototype._toValue = function (val) { return val; };
+
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        namespace: 'earth',
+        logicalType: 'person',
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'Person'}},
+        ]
+      }, {logicalTypes: {'person': PersonType}});
+
+      var p1 = new Person([new Person()]);
+      var buf = t.toBuffer(p1);
+      var p2 = t.fromBuffer(buf);
+      assert(p2 instanceof Person);
+      assert(p2.friends[0] instanceof Person);
+      assert.deepEqual(p2, p1);
     });
 
     test('resolve underlying > logical', function () {
