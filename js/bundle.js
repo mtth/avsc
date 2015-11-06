@@ -2582,13 +2582,19 @@ function hasOwnProperty(obj, prop) {
       }, doneTypingInterval);
     }).on('keydown', function() {
       clearTimeout(inputTypingTimer);
-    }).on('mouseenter', 'span', function(event) {
-
+    }).on('mouseover', 'span', function(event) {
       if (window.instrumented) {
-        //var rawClasses = $(this).attr('class').replace(' highlight', '');
+         /* It's important to clear it when the mouse moves from one span to another with the same parent,
+           * to clear out the parent being highlighted. */
+        clearHighlights();
 
-        //highlightAllMatching(rawClasses); // If a key is selected, selects its value.
-        $(this).addClass('highlight'); // Will also automatically highlight all nested children.
+        /*Will also automatically highlight all nested children.*/
+        $(this).addClass('highlight'); 
+
+        /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
+        event.stopPropagation(); 
+
+
         var path = getPath($(this));
         var position = findPositionOf(path);
         highlightOutput(position.start, position.end); 
