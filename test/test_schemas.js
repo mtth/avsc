@@ -446,23 +446,12 @@ suite('types', function () {
       assert.throws(function () { t.clone(undefined); });
     });
 
-    test('copy and wrap first', function () {
-      var t = createType(['string', 'int']);
-      var s = 'hi!';
-      var o = t._copy(s, {wrapUnions: 1});
-      assert.deepEqual(o, {'string': s});
-      assert.throws(function () { t.clone(s); });
-      assert.throws(function () {
-        t.clone(1, {wrapUnions: true});
-      });
-    });
-
-    test('copy and wrap all', function () {
+    test('clone and wrap', function () {
       var t = createType(['string', 'int']);
       var o;
-      o = t._copy('hi', {wrapUnions: 2});
+      o = t.clone('hi', {wrapUnions: true});
       assert.deepEqual(o, {'string': 'hi'});
-      o = t._copy(3, {wrapUnions: 2});
+      o = t.clone(3, {wrapUnions: true});
       assert.deepEqual(o, {'int': 3});
       assert.throws(function () { t.clone(null, {wrapUnions: 2}); });
     });
