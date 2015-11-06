@@ -2540,13 +2540,14 @@ function hasOwnProperty(obj, prop) {
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
       clearTimeout(schemaTypingTimer);
-      var text = (e.originalEvent || e).clipboardData.getData('text/plain');
-      window.document.execCommand('insertText', false, text);
-      if(e.target.id === 'schema') {
-        runOnlyIfContentChanged(schemaElement, function () {
-          validateSchema();
-        });
-      }
+
+        var text = (e.originalEvent || e).clipboardData.getData('text/plain');
+        window.document.execCommand('insertText', false, text);
+        if(e.target.id === 'schema') {
+          runOnlyIfContentChanged(schemaElement, function () {
+            validateSchema();
+          });
+        }
     });
 
     
@@ -2755,7 +2756,7 @@ function hasOwnProperty(obj, prop) {
   */
   function setInputText(inputStr) {
     var input = JSON.parse(inputStr);
-    var stringified = stringify(input); 
+    var stringified = stringify(input, 0); 
     inputElement.html(stringified);
   } 
 
@@ -2767,19 +2768,19 @@ function hasOwnProperty(obj, prop) {
   * @param obj The object to stringify
   * @param par a string containing all parents seen so far.
   */
-  function stringify(obj) {
+  function stringify(obj, depth) {
 
     var res = '';
     if ( obj == null ) {
-      return 'null'; 
+      return 'null';
     }
     if (typeof obj === 'number' || typeof obj === 'boolean') {
-      return '' + obj;
+      return  obj + '';
     }
     if (typeof obj === 'string') {
       // Calling json.stringify here to handle the fixed types.
       // I have no idea why just printing them doesn't work.
-      return JSON.stringify(obj);
+      return JSON.stringify(obj) ;
     }
     var comma = false;
     if (obj instanceof Array) {
@@ -2792,16 +2793,22 @@ function hasOwnProperty(obj, prop) {
       res += ']';
       return res;
     } 
-    res += '{';
+    res += '{<br/>';
     comma = false;
     $.each(obj, function(key, value) {
-      if (comma) res += ', ';
-      res += '<span class="' + key + '">"' + key + '":' + stringify(value) + '</span>';
+      if (comma) res += ',<br/>';
+      res += '<span class="' + key + '">' + indent(depth) + '"' + key + '":' + stringify(value, depth + 1) + '</span>';
       comma = true;
     });
-    res += '}';
+    res += '<br/>' + indent(depth - 1) + '}';
     return res;
 
+  }
+
+  function indent(depth) { 
+    var res = '';
+    for (var i = 0 ; i < 2 * depth; i++) res += ' ';
+    return res;
   }
 
    function validateSchema() {
@@ -2811,6 +2818,7 @@ function hasOwnProperty(obj, prop) {
       var error_elem = $('#schema-error');
       try {
         var rawSchema = readSchemaFromInput();
+        $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
         window.schema = avsc.parse(rawSchema);
         generateRandom();
         toggleError(error_elem, valid_elem, null);
