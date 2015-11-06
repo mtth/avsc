@@ -35,7 +35,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = type.toBuffer(records[i], true);
+    buf = type.toBuffer(records[i]);
     n += buf[0] + buf.length;
   }
   return n;

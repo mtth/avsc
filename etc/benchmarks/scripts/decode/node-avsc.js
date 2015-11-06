@@ -35,7 +35,7 @@ function loop() {
   var n = 0;
   var i, l, record;
   for (i = 0, l = bufs.length; i < l; i++) {
-    record = type.fromBuffer(bufs[i], undefined, true);
+    record = type.fromBuffer(bufs[i]);
     if (record.$ !== null) {
       n++;
     }

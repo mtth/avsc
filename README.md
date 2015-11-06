@@ -9,7 +9,7 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings (varies per schema).
-+ Serialization of arbitrary native objects via [logical types][logical-types].
++ Serialization of arbitrary JavaScript objects via [logical types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
 
@@ -31,9 +31,9 @@ Libraries compared:
   Avro implementation.
 
 These rates are for decoding a [realistic record schema][coupon-schema],
-modeled after a popular open-source API. Encoding rates are slightly lower but
-ratios across libraries are similar. You can find the raw numbers and more
-details on the [benchmarks page][benchmarks].
+modeled after a popular open-source API. Encoding rates are lower but ratios
+across libraries are similar. You can find the raw numbers and more details on
+the [benchmarks page][benchmarks].
 
 
 ## Installation
