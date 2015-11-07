@@ -5,10 +5,10 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 ## Features
 
-+ Full Avro schema support, including recursive schemas, sort order, and [schema
-  evolution][schema-evolution].
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
-  encodings (varies per schema).
+  encodings.
++ Full Avro support, including recursive schemas, sort order, and
+  [evolution][schema-evolution].
 + Serialization of arbitrary JavaScript objects via [logical types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
