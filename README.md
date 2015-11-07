@@ -16,24 +16,21 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 ## Performance
 
-Representative decoding throughput rates (higher is better):
+Representative throughput rates (higher is better):
 
-![Throughput rate chart](etc/benchmarks/charts/coupons-decode-throughput-0b47aef.png)
+![Throughput rates chart](etc/benchmarks/charts/coupons-throughput-2172789.png)
 
 Libraries compared:
 
 + `node-avsc`, this package.
 + `node-json`, built-in JSON serializer.
++ [`node-protobuf`](https://www.npmjs.com/package/protobufjs), Protocol Buffers implementation.
 + [`node-pson`](https://www.npmjs.com/package/pson), an alternative to JSON.
-+ [`node-etp-avro`](https://www.npmjs.com/package/etp-avro), existing Avro
-  implementation.
-+ [`node-avro-io`](https://www.npmjs.com/package/node-avro-io), other popular
-  Avro implementation.
++ [`node-msgpack`](https://www.npmjs.com/package/msgpack-lite), MessagePack implementation.
 
 These rates are for decoding a [realistic record schema][coupon-schema],
-modeled after a popular open-source API. Encoding rates are lower but ratios
-across libraries are similar. You can find the raw numbers and more details on
-the [benchmarks page][benchmarks].
+modeled after a popular open-source API. You can find the raw numbers and more
+details on the [benchmarks page][benchmarks].
 
 
 ## Installation

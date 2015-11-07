@@ -4,14 +4,14 @@
 """Analyze timings data using pandas.
 
 Usage:
-  analyze.py [-i] PATH
+  analyze.py [-c] PATH
 
 Arguments:
   PATH            Path to JSON file containing timings data.
 
 Options:
+  -c              Output chart.
   -h              Show this message and exit.
-  -i              Output image.
 
 Example:
   $ python analyze.py timings.json
@@ -57,7 +57,7 @@ def get_ops_df(df):
   fdf.index.name = 'schema'
   return fdf
 
-def plot(df, command, schema, libraries=None):
+def plot(df, command, schema, libraries=None, axes=None):
   filtered = df[df['schema'] == schema][df['command'] == command]
   grouped = filtered.groupby(['library'])
   rates = grouped['rate'].median()
@@ -66,16 +66,16 @@ def plot(df, command, schema, libraries=None):
   rates = rates.transpose()
   ax = rates.plot(
     kind='bar',
-    # title='Throughput rates for different JavaScript serialization',
     color=['steelblue', 'grey', 'grey', 'grey', 'grey'],
+    ax=axes
   )
-  plt.tick_params(axis='x', which='both', bottom='off', top='off')
-  plt.tick_params(axis='y', which='both', left='off', right='off')
+  ax.tick_params(axis='x', which='both', bottom='off', top='off')
+  ax.tick_params(axis='y', which='both', left='off', right='off')
   ax.spines['top'].set_visible(False)
   ax.spines['right'].set_visible(False)
   ax.yaxis.grid(True)
   ax.set_xticklabels(rates.index, rotation=0)
-  ax.set_xlabel('Library')
+  ax.set_xlabel('')
   ax.set_ylabel('Throughput (records per second)')
   return ax
 
@@ -84,9 +84,11 @@ if __name__ == '__main__':
   DF = get_df(args['PATH'])
   for name, df in DF.groupby('command'):
     print '%s\n\n%s\n' % (name, get_ops_df(df))
-  if args['-i']:
-    libraries = [
-      'node-avsc', 'node-json', 'node-pson', 'node-etp-avro', 'node-avro-io'
-    ]
-    plot(DF, 'decode', 'Coupon.avsc', libraries)
+  if args['-c']:
+    libraries = ['node-avsc', 'node-json', 'node-protobuf', 'node-pson', 'node-msgpack']
+    fig, axes = plt.subplots(nrows=2, ncols=1)
+    ax1 = plot(DF, 'decode', 'Coupon.avsc', libraries=libraries, axes=axes[0])
+    ax1.set_title('Decoding')
+    ax2 = plot(DF, 'encode', 'Coupon.avsc', libraries=libraries, axes=axes[1])
+    ax2.set_title('Encoding')
     plt.show()
