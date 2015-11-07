@@ -24,11 +24,11 @@ Libraries compared:
 
 + `node-avsc`, this package.
 + `node-json`, built-in JSON serializer.
-+ [`node-protobuf`](https://www.npmjs.com/package/protobufjs), Protocol Buffers implementation.
-+ [`node-pson`](https://www.npmjs.com/package/pson), an alternative to JSON.
-+ [`node-msgpack`](https://www.npmjs.com/package/msgpack-lite), MessagePack implementation.
++ [`node-protobuf`](https://www.npmjs.com/package/protobufjs), most popular Protocol Buffers implementation.
++ [`node-pson`](https://www.npmjs.com/package/pson), alternative to JSON.
++ [`node-msgpack`](https://www.npmjs.com/package/msgpack-lite), official MessagePack implementation.
 
-These rates are for decoding a [realistic record schema][coupon-schema],
+These rates are for processing a [realistic record schema][coupon-schema],
 modeled after a popular open-source API. You can find the raw numbers and more
 details on the [benchmarks page][benchmarks].
 
