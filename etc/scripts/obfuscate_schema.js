@@ -5,7 +5,8 @@
 /**
  * Obfuscate a schema.
  *
- * Mangling names of records, fixed, enums, fields, and symbols.
+ * Returns a new (canonical) schema with the names of records, fixed, enums,
+ * fields, and symbols mangled.
  *
  */
 
@@ -34,4 +35,4 @@ var type = avsc.parse(schemaPath, {typeHook: function (schema) {
   }
 }});
 
-console.log(type.toString());
+console.log(type.getSchema());
