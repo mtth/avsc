@@ -2541,13 +2541,13 @@ function hasOwnProperty(obj, prop) {
       e.preventDefault();
       clearTimeout(schemaTypingTimer);
 
-        var text = (e.originalEvent || e).clipboardData.getData('text/plain');
-        window.document.execCommand('insertText', false, text);
-        if(e.target.id === 'schema') {
-          runOnlyIfContentChanged(schemaElement, function () {
-            validateSchema();
-          });
-        }
+      var text = (e.originalEvent || e).clipboardData.getData('text/plain');
+      window.document.execCommand('insertText', false, text);
+      if(e.target.id === 'schema') {
+        runOnlyIfContentChanged(schemaElement, function () {
+          validateSchema();
+        });
+      }
     });
 
     
@@ -2819,6 +2819,7 @@ function hasOwnProperty(obj, prop) {
       try {
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
+        clearTimeout(schemaTypingTimer);
         window.schema = avsc.parse(rawSchema);
         generateRandom();
         toggleError(error_elem, valid_elem, null);
@@ -2970,9 +2971,9 @@ function hasOwnProperty(obj, prop) {
     }
 
     function runOnlyIfContentChanged(element, callback) {
-      var newText = $.trim($(element).text());
+      var newText = $.trim($(element).text()).replace(/\s+/g, '');
       if (!element.data('oldValue') || 
-          element.data('oldValue') != newText) {
+          element.data('oldValue').replace(/\s+/g, '') != newText) {
         element.data('oldValue', newText);
         callback.call();
       }

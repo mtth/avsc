@@ -309,6 +309,7 @@
       try {
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
+        clearTimeout(schemaTypingTimer);
         window.schema = avsc.parse(rawSchema);
         generateRandom();
         toggleError(error_elem, valid_elem, null);
@@ -460,9 +461,9 @@
     }
 
     function runOnlyIfContentChanged(element, callback) {
-      var newText = $.trim($(element).text());
+      var newText = $.trim($(element).text()).replace(/\s+/g, '');
       if (!element.data('oldValue') || 
-          element.data('oldValue') != newText) {
+          element.data('oldValue').replace(/\s+/g, '') != newText) {
         element.data('oldValue', newText);
         callback.call();
       }
