@@ -6,7 +6,6 @@
   var avsc = require('avsc'),
       buffer = require('buffer'),
       $ = require('jquery');
-  require('jquery-highlight');
   window.avsc = avsc;
   $( function() {
     resize();
@@ -81,7 +80,7 @@
         clearHighlights();
 
         /*Will also automatically highlight all nested children.*/
-        $(this).addClass('highlight'); 
+        $(this).addClass('-highlight-'); 
 
         /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
         event.stopPropagation(); 
@@ -169,10 +168,9 @@
     * their classes to generate the path for the given key.  
     */
     function getPath(element) {
-      var selfClass = $.trim(element.attr('class').replace('highlight', ''));
+      var selfClass = $.trim(element.attr('class').replace('-highlight-', ''));
       var parents = element.parents('span').map(function () {
-        // How should we handle if there is a field called highlight? --> todo: maybe replace all highlights with -highligh? 
-        var parentClass = $(this).attr('class').replace('highlight', '');
+        var parentClass = $(this).attr('class').replace('-highlight-', '');
         return $.trim(parentClass);
       }).get();
       parents.reverse(); /* parents() will go through parents starting from the inner most,
@@ -212,7 +210,7 @@
     var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
     rawClasses = rawClasses.replace(/ /g, ' .');
     $(rawClasses).each( function(i) {
-      $(this).addClass('highlight');
+      $(this).addClass('-highlight-');
     });
   }
 
@@ -222,7 +220,7 @@
   function highlightOutput(start, end) {
     outputElement.children('span').each(function( index ) {
       if (index >= start && index < end) {
-        $(this).addClass("highlight");
+        $(this).addClass("-highlight-");
       }
     });
   }
@@ -232,7 +230,7 @@
   * Remove `highlight` from all spans. 
   */
   function clearHighlights() {
-    $('span').removeClass('highlight');
+    $('span').removeClass('-highlight-');
   }
 
   /**
