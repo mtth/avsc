@@ -1,13 +1,14 @@
 {
   "name": "avsc",
-  "version": "2.5.1",
-  "description": "A serialization API to make you smile",
+  "version": "3.0.0",
+  "description": "Blazing fast serialization",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
     "avro",
     "avsc",
     "schema",
     "json",
+    "data",
     "encoding",
     "decoding",
     "serialization"
