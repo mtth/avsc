@@ -1,4 +1,4 @@
-Pretty print input/schema
 Support reverse highlighting.
 Align/fix the error message bar.
-`highlight` can't appear as a key in the schema
+Fix decoding
+colors

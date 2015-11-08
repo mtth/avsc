@@ -2556,7 +2556,7 @@ function hasOwnProperty(obj, prop) {
       clearTimeout(schemaTypingTimer);
       schemaTypingTimer = setTimeout(function () {
         runOnlyIfContentChanged( schemaElement, function () {
-          validateSchema();
+          runPreservingCursorPosition( 'schema', validateSchema);
         });
       }, doneTypingInterval);
     }).on('keydown', function() {
@@ -2568,16 +2568,11 @@ function hasOwnProperty(obj, prop) {
       clearTimeout(inputTypingTimer);
       inputTypingTimer = setTimeout(function() {
         runOnlyIfContentChanged( inputElement, function() {
-          //Get current position.
-          var range = window.getSelection().getRangeAt(0);
-          var el = document.getElementById('input');
-          var position = getCharacterOffsetWithin(range, el);
-          // Wrap key values in <span>.
-          var rawInput = $.trim($(inputElement).text());
-          setInputText(rawInput);
-          // Set cursor back to `position`
-          setCharacterOffsetWithin(range, el, position);
-          // Update encoded text.
+          runPreservingCursorPosition( 'input' , function () {
+            // Wrap key values in <span>.
+            var rawInput = $.trim($(inputElement).text());
+            setInputText(rawInput);
+          });
           encode();
         });
       }, doneTypingInterval);
@@ -2594,7 +2589,6 @@ function hasOwnProperty(obj, prop) {
 
         /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
         event.stopPropagation(); 
-
 
         var path = getPath($(this));
         var position = findPositionOf(path);
@@ -2615,7 +2609,19 @@ function hasOwnProperty(obj, prop) {
       generateRandom();
     });
 
-  
+    
+    /**
+    * Will save cursor position inside element `elemId` before running callback function f,
+    * and restores it after f is finished. 
+    */ 
+    function runPreservingCursorPosition(elementId, f) {
+     //Get current position.
+      var range = window.getSelection().getRangeAt(0);
+      var el = document.getElementById(elementId);
+      var position = getCharacterOffsetWithin(range, el);
+      f();
+      setCharacterOffsetWithin(range, el, position);
+    } 
     /*
     * When the input text changes, the whole text is replaced with new <span> elements,
     * and the previous cursor position will be lost. 
