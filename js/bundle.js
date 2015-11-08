@@ -2756,7 +2756,7 @@ function hasOwnProperty(obj, prop) {
   */
   function setInputText(inputStr) {
     var input = JSON.parse(inputStr);
-    var stringified = stringify(input, 0); 
+    var stringified = stringify(input, 1); 
     inputElement.html(stringified);
   } 
 
@@ -2784,13 +2784,13 @@ function hasOwnProperty(obj, prop) {
     }
     var comma = false;
     if (obj instanceof Array) {
-      res += '[';
+      res += '[<br/>';
       $.each(obj, function(index, value) {
-        if (comma) res += ', ';
-        res += stringify(value);
+        if (comma) res += ',<br/>';
+        res += indent(depth) + stringify(value, depth + 1);
         comma = true;
       });
-      res += ']';
+      res += '<br/>' + indent(depth - 1) + ']';
       return res;
     } 
     res += '{<br/>';
