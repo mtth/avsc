@@ -17,6 +17,7 @@
         schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
+        arrayKeyRegex = /-(\d+)-/g,
         schemaTypingTimer,
         inputTypingTimer,
         doneTypingInterval = 500; // wait for some time before processing user input.
@@ -95,6 +96,17 @@
       clearHighlights();
     });
 
+    $('#output').on('paste keyup', function(event) {
+      setTimeout(function() {
+        decode();
+      }, 0);
+    });
+
+    $('#random').click(function () {   
+      generateRandom();
+    });
+
+  
     /*
     * When the input text changes, the whole text is replaced with new <span> elements,
     * and the previous cursor position will be lost. 
@@ -152,26 +164,14 @@
       return charCount;
     }
 
-    $('#output').on('paste keyup', function(event) {
-      setTimeout(function() {
-        decode();
-      }, 0);
-    });
-
-    $('#random').click(function () {   
-      generateRandom();
-    });
-
-  
     /**
     * Goes through all parents of an element, and concatenates
     * their classes to generate the path for the given key.  
     */
     function getPath(element) {
-      console.log("finding parents of element with class:" + element.attr('class'));
       var selfClass = $.trim(element.attr('class').replace('highlight', ''));
       var parents = element.parents('span').map(function () {
-        // How should we handle if there is a field called highlight?
+        // How should we handle if there is a field called highlight? --> todo: maybe replace all highlights with -highligh? 
         var parentClass = $(this).attr('class').replace('highlight', '');
         return $.trim(parentClass);
       }).get();
@@ -190,11 +190,10 @@
   *
   */
   function findPositionOf(path) {
-    //var path = $.trim(pathString).split(' ');
-    console.log("finding position for path: " + path);
     var current = window.instrumented;
-    for(var i =0; i<path.length; i++){
-      var nextKey = path[i];
+    path.forEach(function(entry) {
+      var arrayKey = arrayKeyRegex.exec(entry);
+      var nextKey = arrayKey ? arrayKey[1] : entry;
       if (nextKey in current.value) {
         current = current.value[nextKey];
       } else {
@@ -203,8 +202,7 @@
           return false;
         });
       }
-    }
-    console.log("found start: " + current.start + " and end:" + current.end);
+    });
     return current;
  }
 
@@ -256,7 +254,7 @@
   * Does a DFS over the obj, to propagate the parent keys to each 
   * child element to be set in the span's class attribute.
   * @param obj The object to stringify
-  * @param par a string containing all parents seen so far.
+  * @param depth Current indention level.
   */
   function stringify(obj, depth) {
 
@@ -277,7 +275,8 @@
       res += '[<br/>';
       $.each(obj, function(index, value) {
         if (comma) res += ',<br/>';
-        res += indent(depth) + stringify(value, depth + 1);
+        // Use '-' as a special character, which can not exist in schema keys but is a valid character for css class.
+        res += '<span class="-' + index +  '-">' + indent(depth) + stringify(value, depth + 1) + '</span>';
         comma = true;
       });
       res += '<br/>' + indent(depth - 1) + ']';
