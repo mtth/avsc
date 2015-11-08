@@ -2689,8 +2689,6 @@ function hasOwnProperty(obj, prop) {
                             so it needs to be reversed to get the correct path. */
 
       parents.push(selfClass); /* The innermost class is not part of the parents. Adding it here. */
-                           
-      console.log("found parents: " + parents);
       return parents;
     }
 
