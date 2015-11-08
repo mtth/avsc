@@ -178,7 +178,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = objs.length; i < l; i++) {
-    buf = objs[i].encode().toArrayBuffer();
+    buf = objs[i].encode().toBuffer();
     n += buf[0] + buf.length;
   }
   return n;

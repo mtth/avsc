@@ -41,7 +41,7 @@ function loop() {
   var n = 0;
   var i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
-    buf = sPair.encode(records[i]);
+    buf = sPair.encode(records[i]).toBuffer();
     n += buf[0] + buf.length;
   }
   return n;

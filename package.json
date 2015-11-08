@@ -26,8 +26,8 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "test": "mocha --ui tdd --no-deprecation",
-    "cover": "istanbul cover _mocha -- --ui tdd"
+    "test": "mocha --ui tdd --reporter dot",
+    "cover": "istanbul cover _mocha -- --ui tdd --reporter dot"
   },
   "devDependencies": {
     "coveralls": "^2.11.4",
