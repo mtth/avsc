@@ -2973,7 +2973,7 @@ function hasOwnProperty(obj, prop) {
     function runOnlyIfContentChanged(element, callback) {
       var newText = $.trim($(element).text()).replace(/\s+/g, '');
       if (!element.data('oldValue') || 
-          element.data('oldValue').replace(/\s+/g, '') != newText) {
+          element.data('oldValue') != newText) {
         element.data('oldValue', newText);
         callback.call();
       }
