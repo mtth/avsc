@@ -17,8 +17,7 @@
         inputElement = $('#input'),
         outputElement = $('#output'),
         arrayKeyRegex = /-(\d+)-/g,
-        schemaTypingTimer,
-        inputTypingTimer,
+        typingTimer,
         doneTypingInterval = 500; // wait for some time before processing user input.
  
     window.onresize = function(event) {
@@ -29,7 +28,7 @@
      *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
-      clearTimeout(schemaTypingTimer);
+      clearTimeout(typingTimer);
 
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
       window.document.execCommand('insertText', false, text);
@@ -43,36 +42,31 @@
     
     /* Validate schema after each new character. */
     $('#schema').on('keyup', function(e) {
-      clearTimeout(schemaTypingTimer);
-      schemaTypingTimer = setTimeout(function () {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function () {
         runOnlyIfContentChanged( schemaElement, function () {
-          validateSchema();
+          runPreservingCursorPosition( 'schema', validateSchema);
         });
       }, doneTypingInterval);
     }).on('keydown', function() {
-      clearTimeout(schemaTypingTimer);
+      clearTimeout(typingTimer);
     });
 
     $('#input').on('paste keyup', function(event) {
 
-      clearTimeout(inputTypingTimer);
-      inputTypingTimer = setTimeout(function() {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
         runOnlyIfContentChanged( inputElement, function() {
-          //Get current position.
-          var range = window.getSelection().getRangeAt(0);
-          var el = document.getElementById('input');
-          var position = getCharacterOffsetWithin(range, el);
-          // Wrap key values in <span>.
-          var rawInput = $.trim($(inputElement).text());
-          setInputText(rawInput);
-          // Set cursor back to `position`
-          setCharacterOffsetWithin(range, el, position);
-          // Update encoded text.
+          runPreservingCursorPosition( 'input' , function () {
+            // Wrap key values in <span>.
+            var rawInput = $.trim($(inputElement).text());
+            setInputText(rawInput);
+          });
           encode();
         });
       }, doneTypingInterval);
     }).on('keydown', function() {
-      clearTimeout(inputTypingTimer);
+      clearTimeout(typingTimer);
     }).on('mouseover', 'span', function(event) {
       if (window.instrumented) {
          /* It's important to clear it when the mouse moves from one span to another with the same parent,
@@ -85,7 +79,6 @@
         /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
         event.stopPropagation(); 
 
-
         var path = getPath($(this));
         var position = findPositionOf(path);
         highlightOutput(position.start, position.end); 
@@ -96,16 +89,31 @@
     });
 
     $('#output').on('paste keyup', function(event) {
-      setTimeout(function() {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
         decode();
-      }, 0);
+      }, doneTypingInterval);
+    }).on('keydown', function(event) {
+      clearTimeout(typingTimer);
     });
 
     $('#random').click(function () {   
       generateRandom();
     });
 
-  
+    
+    /**
+    * Will save cursor position inside element `elemId` before running callback function f,
+    * and restores it after f is finished. 
+    */ 
+    function runPreservingCursorPosition(elementId, f) {
+     //Get current position.
+      var range = window.getSelection().getRangeAt(0);
+      var el = document.getElementById(elementId);
+      var position = getCharacterOffsetWithin(range, el);
+      f();
+      setCharacterOffsetWithin(range, el, position);
+    } 
     /*
     * When the input text changes, the whole text is replaced with new <span> elements,
     * and the previous cursor position will be lost. 
@@ -304,7 +312,7 @@
       try {
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
-        clearTimeout(schemaTypingTimer);
+        clearTimeout(typingTimer);
         window.schema = avsc.parse(rawSchema);
         generateRandom();
         toggleError(error_elem, valid_elem, null);
@@ -317,8 +325,6 @@
         try{
           var random = window.schema.random();
           var randomStr = window.schema.toString(random);
-          //var randomJson = JSON.parse(randomStr);
-          //inputElement.text(JSON.stringify(randomJson, null, 2));
           setInputText(randomStr);
           encode(); /* Update encoded string too. */
         } catch(err) {
@@ -359,8 +365,7 @@
           var input = readBuffer(outputElement);
           var decoded = window.schema.fromBuffer(input);
           var decodedStr = window.schema.toString(decoded);
-          var decodedJson = JSON.parse(decodedStr);
-          $(inputElement).text(JSON.stringify(decodedJson, null, 2));
+          setInputText(decodedStr);
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);

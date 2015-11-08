@@ -2527,8 +2527,7 @@ function hasOwnProperty(obj, prop) {
         inputElement = $('#input'),
         outputElement = $('#output'),
         arrayKeyRegex = /-(\d+)-/g,
-        schemaTypingTimer,
-        inputTypingTimer,
+        typingTimer,
         doneTypingInterval = 500; // wait for some time before processing user input.
  
     window.onresize = function(event) {
@@ -2539,7 +2538,7 @@ function hasOwnProperty(obj, prop) {
      *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
-      clearTimeout(schemaTypingTimer);
+      clearTimeout(typingTimer);
 
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
       window.document.execCommand('insertText', false, text);
@@ -2553,20 +2552,20 @@ function hasOwnProperty(obj, prop) {
     
     /* Validate schema after each new character. */
     $('#schema').on('keyup', function(e) {
-      clearTimeout(schemaTypingTimer);
-      schemaTypingTimer = setTimeout(function () {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function () {
         runOnlyIfContentChanged( schemaElement, function () {
           runPreservingCursorPosition( 'schema', validateSchema);
         });
       }, doneTypingInterval);
     }).on('keydown', function() {
-      clearTimeout(schemaTypingTimer);
+      clearTimeout(typingTimer);
     });
 
     $('#input').on('paste keyup', function(event) {
 
-      clearTimeout(inputTypingTimer);
-      inputTypingTimer = setTimeout(function() {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
         runOnlyIfContentChanged( inputElement, function() {
           runPreservingCursorPosition( 'input' , function () {
             // Wrap key values in <span>.
@@ -2577,7 +2576,7 @@ function hasOwnProperty(obj, prop) {
         });
       }, doneTypingInterval);
     }).on('keydown', function() {
-      clearTimeout(inputTypingTimer);
+      clearTimeout(typingTimer);
     }).on('mouseover', 'span', function(event) {
       if (window.instrumented) {
          /* It's important to clear it when the mouse moves from one span to another with the same parent,
@@ -2820,7 +2819,7 @@ function hasOwnProperty(obj, prop) {
       try {
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
-        clearTimeout(schemaTypingTimer);
+        clearTimeout(typingTimer);
         window.schema = avsc.parse(rawSchema);
         generateRandom();
         toggleError(error_elem, valid_elem, null);
@@ -2833,8 +2832,6 @@ function hasOwnProperty(obj, prop) {
         try{
           var random = window.schema.random();
           var randomStr = window.schema.toString(random);
-          //var randomJson = JSON.parse(randomStr);
-          //inputElement.text(JSON.stringify(randomJson, null, 2));
           setInputText(randomStr);
           encode(); /* Update encoded string too. */
         } catch(err) {
@@ -2875,8 +2872,7 @@ function hasOwnProperty(obj, prop) {
           var input = readBuffer(outputElement);
           var decoded = window.schema.fromBuffer(input);
           var decodedStr = window.schema.toString(decoded);
-          var decodedJson = JSON.parse(decodedStr);
-          $(inputElement).text(JSON.stringify(decodedJson, null, 2));
+          setInputText(decodedStr);
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
