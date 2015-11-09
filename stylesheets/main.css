@@ -6,6 +6,21 @@ body {
   background-color: #FFFF88;
   font-weight: bold;
 }
+.-string- {
+  color: rgb(0, 162, 45);
+}
+
+.-number- {
+  color: #1059BB;
+}
+
+.-boolean- {
+  color: #8608E0;
+}
+
+.-null- {
+  color: #C35806;
+}
 .container {
   margin: auto;
   font-size: 1em;
@@ -28,10 +43,14 @@ body {
   height: 90%;
   font-size: medium;
   font-weight: 200;
-  font-family: "Courier New", Courier, monospace;
+  font-size: small;
+  font-family: 'Open Sans', sans-serif;
   resize: none;
   border: none;
   background-color: white; 
+}
+#output {
+  font-family: 'Roboto Mono', ;
 }
 .narrow {
   width: 10%;

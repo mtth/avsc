@@ -2526,7 +2526,8 @@ function hasOwnProperty(obj, prop) {
         schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
-        arrayKeyRegex = /-(\d+)-/g,
+        arrayKeyPattern = /-(\d+)-/g,
+        reservedKeysPattern = /-[a-z]+-/g,
         typingTimer,
         doneTypingInterval = 500; // wait for some time before processing user input.
  
@@ -2599,13 +2600,25 @@ function hasOwnProperty(obj, prop) {
     });
 
     $('#output').on('paste keyup', function(event) {
-      setTimeout(function() {
-        decode();
-      }, 0);
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
+        runOnlyIfContentChanged(outputElement, function() {
+          runPreservingCursorPosition( 'output', function() {
+            var rawOutput = $.trim($(outputElement).text());
+            setOutputText(rawOutput);
+          });
+          decode();
+        });
+      }, doneTypingInterval);
+    }).on('keydown', function(event) {
+      clearTimeout(typingTimer);
     });
 
     $('#random').click(function () {   
-      generateRandom();
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
+        generateRandom();
+      }, doneTypingInterval);
     });
 
     
@@ -2683,15 +2696,16 @@ function hasOwnProperty(obj, prop) {
     * their classes to generate the path for the given key.  
     */
     function getPath(element) {
-      var selfClass = $.trim(element.attr('class').replace('-highlight-', ''));
+      var selfClass = $.trim(element.attr('class').replace(reservedKeysPattern, ''));
       var parents = element.parents('span').map(function () {
-        var parentClass = $(this).attr('class').replace('-highlight-', '');
+        var parentClass = $(this).attr('class').replace(reservedKeysPattern, '');
         return $.trim(parentClass);
       }).get();
       parents.reverse(); /* parents() will go through parents starting from the inner most,
                             so it needs to be reversed to get the correct path. */
 
-      parents.push(selfClass); /* The innermost class is not part of the parents. Adding it here. */
+      if (selfClass != '' ) 
+        parents.push(selfClass); /* The innermost class is not part of the parents. Adding it here. */
       return parents;
     }
 
@@ -2703,7 +2717,7 @@ function hasOwnProperty(obj, prop) {
   function findPositionOf(path) {
     var current = window.instrumented;
     path.forEach(function(entry) {
-      var arrayKey = arrayKeyRegex.exec(entry);
+      var arrayKey = arrayKeyPattern.exec(entry);
       var nextKey = arrayKey ? arrayKey[1] : entry;
       if (nextKey in current.value) {
         current = current.value[nextKey];
@@ -2757,7 +2771,25 @@ function hasOwnProperty(obj, prop) {
     var input = JSON.parse(inputStr);
     var stringified = stringify(input, 1); 
     inputElement.html(stringified);
-  } 
+  }
+
+  /**
+  * Set the output box's text to outputStr where each byte is wrapped in <span>
+  * elements and each line contains 8 bytes.
+  */ 
+
+  function setOutputText(outputStr) { 
+    var res = '';
+    var str = outputStr.replace(/ /g, '');
+    var i, len;
+    for (i =0, len = str.length; i < len; i += 2){
+      res += createSpan('', str[i] + str[i + 1] + ' ');
+      if ((i+2) % 16 == 0){
+        res += '<br/>';
+      }
+    }
+    outputElement.html(res);
+  }
 
   /**
   * Similar to JSON.stringify, but will wrap each key and value 
@@ -2771,23 +2803,27 @@ function hasOwnProperty(obj, prop) {
 
     var res = '';
     if ( obj == null ) {
-      return 'null';
+      return createSpan('-null-', 'null');
     }
-    if (typeof obj === 'number' || typeof obj === 'boolean') {
-      return  obj + '';
+    if (typeof obj === 'number') {
+      return  createSpan('-number-', obj + '');
+    }
+    if (typeof obj === 'boolean') {
+      return createSpan('-boolean-', obj + '');
     }
     if (typeof obj === 'string') {
       // Calling json.stringify here to handle the fixed types.
       // I have no idea why just printing them doesn't work.
-      return JSON.stringify(obj) ;
+      return createSpan('-string-', JSON.stringify(obj));
     }
     var comma = false;
     if (obj instanceof Array) {
       res += '[<br/>';
       $.each(obj, function(index, value) {
         if (comma) res += ',<br/>';
-        // Use '-' as a special character, which can not exist in schema keys but is a valid character for css class.
-        res += '<span class="-' + index +  '-">' + indent(depth) + stringify(value, depth + 1) + '</span>';
+        // Use '-' as a special character, which can not exist in schema keys 
+        // but is a valid character for css class.
+        res += createSpan('-' + index + '-', indent(depth) + stringify(value, depth + 1));
         comma = true;
       });
       res += '<br/>' + indent(depth - 1) + ']';
@@ -2797,14 +2833,16 @@ function hasOwnProperty(obj, prop) {
     comma = false;
     $.each(obj, function(key, value) {
       if (comma) res += ',<br/>';
-      res += '<span class="' + key + '">' + indent(depth) + '"' + key + '":' + stringify(value, depth + 1) + '</span>';
+      res += createSpan(key, indent(depth) + '"' + key + '":' + stringify(value, depth + 1));
       comma = true;
     });
     res += '<br/>' + indent(depth - 1) + '}';
     return res;
-
   }
 
+  function createSpan(cl, str) {
+    return '<span class="' + cl + '">' + str + '</span>'; 
+  }
   function indent(depth) { 
     var res = '';
     for (var i = 0 ; i < 2 * depth; i++) res += ' ';
@@ -2851,7 +2889,7 @@ function hasOwnProperty(obj, prop) {
           var input = readInput();
           window.instrumented = instrumentObject(window.schema, input);
           var output = window.schema.toBuffer(input);
-          outputElement.html(bufferToStr(output));          
+          setOutputText(output.toString('hex'));
           clearErrors();
           toggleError(decodedErrorElement, decodedValidElement, null);
           toggleError(encodedErrorElement, encodedValidElement, null);
@@ -2946,20 +2984,6 @@ function hasOwnProperty(obj, prop) {
       return Buffer.concat(buffer);
     }
     
-    function bufferToStr(buffer) {
-      var size = buffer.length;
-      var outStr = '';
-      var i;
-      for (i = 1; i <= size; i++) {
-        outStr +=  '<span>' + buffer.toString('hex', i-1 , i) + '</span>';
-        if (i % 8 == 0 ) {
-          outStr += '\n';
-        } else {
-          outStr += ' ';
-        }
-      }
-      return outStr;
-    }
     /* Adjust textbox heights according to current window size */
     function resize() {
       $('#table').removeClass('hidden');
