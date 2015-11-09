@@ -27,7 +27,8 @@
   },
   "scripts": {
     "test": "mocha --ui tdd --reporter dot",
-    "cover": "istanbul cover _mocha -- --ui tdd --reporter dot"
+    "cover": "istanbul cover _mocha -- --ui tdd --reporter dot",
+    "clean": "rm -rf coverage node_modules"
   },
   "devDependencies": {
     "coveralls": "^2.11.4",
