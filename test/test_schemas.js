@@ -2354,6 +2354,13 @@ suite('types', function () {
       assert.equal(field.inspect(), '<Field "age">');
     });
 
+    test('resolver', function () {
+      var t1 = createType('int');
+      var t2 = createType('double');
+      var resolver = t2.createResolver(t1);
+      assert.equal(resolver.inspect(), '<Resolver>');
+    });
+
   });
 
   test('reset', function () {
