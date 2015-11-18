@@ -1,4 +1,8 @@
 /* jshint browser: true, browserify: true */
+var cache = {},
+    guidCounter = 1,
+    dataKey = 'data'  + (new Date).getTime();
+ 
 (function () {
   'use strict';
   global.jQuery = require("jquery")
@@ -8,25 +12,34 @@
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
-    resize();
+
     var encodedErrorElement = $('#encoded-error'),
         decodedErrorElement = $('#decoded-error'),
         encodedValidElement = $('#output-valid'),
         decodedValidElement = $('#input-valid'),
-        schemaElement = $('#schema'),
+        schemaErrorElement = $('#schema-error'),
+        schemaValidElement = $('#schema-valid'),
+        schemaElement = document.getElementById('schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
+        width = 100,
+        body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /-(\d+)-/g,
         reservedKeysPattern = /-[a-z]+-/g,
         typingTimer,
         doneTypingInterval = 500; // wait for some time before processing user input.
- 
+    
+    resize();
     window.onresize = function(event) {
       resize();
     }
+    window.reverseIndexMap = [];  /**
+   
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
-     *copied from: http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
+     * copied from: 
+     * http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
+
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
       clearTimeout(typingTimer);
@@ -34,20 +47,19 @@
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
       window.document.execCommand('insertText', false, text);
       if(e.target.id === 'schema') {
-        runOnlyIfContentChanged(schemaElement, function () {
-          validateSchema();
-        });
+        if(updateContent(schemaElement)) {
+          triggerEvent(body, 'schema-changed');
+          generateRandom();
+        };
       }
     });
 
-    
-    /* Validate schema after each new character. */
-    $('#schema').on('keyup', function(e) {
+    $('#schema').on('keyup', function() {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
-        runOnlyIfContentChanged( schemaElement, function () {
-          runPreservingCursorPosition( 'schema', validateSchema);
-        });
+        if(updateContent(schemaElement)) {
+          triggerEvent(body, 'schema-changed');
+        }
       }, doneTypingInterval);
     }).on('keydown', function() {
       clearTimeout(typingTimer);
@@ -57,14 +69,9 @@
 
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
-        runOnlyIfContentChanged( inputElement, function() {
-          runPreservingCursorPosition( 'input' , function () {
-            // Wrap key values in <span>.
-            var rawInput = $.trim($(inputElement).text());
-            setInputText(rawInput);
-          });
-          encode();
-        });
+        if(updateContent(inputElement)) {
+          triggerEvent(body, 'input-changed');
+        };
       }, doneTypingInterval);
     }).on('keydown', function() {
       clearTimeout(typingTimer);
@@ -92,13 +99,9 @@
     $('#output').on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
-        runOnlyIfContentChanged(outputElement, function() {
-          runPreservingCursorPosition( 'output', function() {
-            var rawOutput = $.trim($(outputElement).text());
-            setOutputText(rawOutput);
-          });
-          decode();
-        });
+        if(updateContent(outputElement)) {
+          triggerEvent(body, 'output-changed');
+        };
       }, doneTypingInterval);
     }).on('keydown', function(event) {
       clearTimeout(typingTimer);
@@ -109,6 +112,65 @@
       typingTimer = setTimeout(function() {
         generateRandom();
       }, doneTypingInterval);
+    });
+
+    addEvent(body, 'schema-changed', function(e) {
+      runPreservingCursorPosition( 'schema', validateSchema);
+    });
+
+    addEvent(body, 'input-changed', function(e) {
+      runPreservingCursorPosition( 'input' , function () {
+        // Wrap key values in <span>.
+        var rawInput = $.trim($(inputElement).text());
+        try {
+          var jsonInput = JSON.parse(rawInput);
+          var invalidPaths = [];
+          var isValid = window.schema.isValid(jsonInput, {errorHook: function (p) {
+            console.log(p);
+            invalidPaths.push(p.join());
+          }});
+          if(!isValid) {
+            triggerEvent(body, 'invalid-input', invalidPaths);
+          }
+          setInputText(rawInput);
+        } catch (err) {
+          triggerEvent(body, 'invalid-input', err);
+        }
+      });
+      encode();
+    });
+
+    addEvent(body, 'output-changed', function(e) {
+      runPreservingCursorPosition( 'output', function() {
+        var rawOutput = $.trim($(outputElement).text());
+        setOutputText(rawOutput);
+      });
+      decode();
+    });
+
+    addEvent(body, 'valid-schema', function(event) {
+      hideError(schemaErrorElement, schemaValidElement);
+    });
+
+    addEvent(body, 'invalid-schema', function (event) {
+      showError(schemaErrorElement, event.msg);
+    });
+
+    addEvent(body, 'valid-input', function (event) { 
+      hideError(decodedErrorElement, decodedValidElement);
+    });
+
+    addEvent(body, 'invalid-input', function(event) {
+      console.log(event.msg);
+      showError(decodedErrorElement, event.msg);
+    });
+
+    addEvent(body, 'valid-output', function (event) { 
+      hideError(encodedErrorElement, encodedValidElement);
+    });
+
+    addEvent(body, 'invalid-output', function(event) {
+      showError(encodedErrorElement, event.msg);
     });
 
     
@@ -221,7 +283,18 @@
     return current;
  }
 
-  /**
+  function computeReverseIndex(current) {
+    if(!current || typeof current != 'object') {
+      return;
+    }
+    $.each(current, function (key, val) {
+      addClassToOutputWithRange(key, val.start, val.end);
+      computeReverseIndex(val.value);    
+    });
+  }
+
+
+  /*
   * Find all spans that have the same class, and highlights them,
   * so if a key is selected, its value will be also highlighted, and vice versa.  
   */
@@ -237,19 +310,35 @@
   * Highlight the entries between `start` and `end` in the output (encoded) text.
   */  
   function highlightOutput(start, end) {
-    outputElement.children('span').each(function( index ) {
+    outputElement.children('div').each(function( index ) {
       if (index >= start && index < end) {
         $(this).addClass("-highlight-");
       }
     });
   }
 
+  function addClassToOutputWithRange(cls, start, end) {
+    outputElement.children('span').each(function( index ) {
+      if (index >= start && index < end) {
+        $(this).addClass(cls);
+      }
+    });
+    for (var i = start; i < end; i++) {
+      if (reverseIndexMap[i]) {
+        reverseIndexMap[i].push(cls);
+      } else {
+        reverseIndexMap[i] = [cls];
+      }
+    }
+  }
+  
 
   /**
   * Remove `highlight` from all spans. 
   */
   function clearHighlights() {
     $('span').removeClass('-highlight-');
+    $('div').removeClass('-highlight-');
   }
 
   /**
@@ -270,15 +359,14 @@
 
   function setOutputText(outputStr) { 
     var res = '';
-    var str = outputStr.replace(/ /g, '');
+    var str = outputStr.replace(/\s+/g, '');
+    console.log(str);
     var i, len;
     for (i =0, len = str.length; i < len; i += 2){
-      res += createSpan('', str[i] + str[i + 1] + ' ');
-      if ((i+2) % 16 == 0){
-        res += '<br/>';
-      }
+      res += '<div style="display:inline-block;">' + str[i] + str[i + 1] + '&nbsp;' + '</div>';
     }
     outputElement.html(res);
+    computeReverseIndex(window.instrumented.value);
   }
 
   /**
@@ -323,7 +411,7 @@
     comma = false;
     $.each(obj, function(key, value) {
       if (comma) res += ',<br/>';
-      res += createSpan(key, indent(depth) + '"' + key + '":' + stringify(value, depth + 1));
+      res += createSpan(key, indent(depth) + '"' + key + '": ' + stringify(value, depth + 1));
       comma = true;
     });
     res += '<br/>' + indent(depth - 1) + '}';
@@ -341,30 +429,21 @@
 
    function validateSchema() {
       window.schema = null;
-      var elem = $('#schema');
-      var valid_elem = $('#schema-valid');
-      var error_elem = $('#schema-error');
       try {
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
-        clearTimeout(typingTimer);
         window.schema = avsc.parse(rawSchema);
-        generateRandom();
-        toggleError(error_elem, valid_elem, null);
+        triggerEvent(body, 'valid-schema');
       } catch (err) {
-        toggleError(error_elem, valid_elem, err);
+        triggerEvent(body, 'invalid-schema', err);
       }
     }
     function generateRandom() {
       if (window.schema) {
-        try{
-          var random = window.schema.random();
-          var randomStr = window.schema.toString(random);
-          setInputText(randomStr);
-          encode(); /* Update encoded string too. */
-        } catch(err) {
-          toggleError($('#schema-error'), $('#schema-valid'), err);
-        }
+        var random = window.schema.random();
+        var randomStr = window.schema.toString(random);
+        setInputText(randomStr);
+        encode(); /* Update encoded string too. */
       }
     }
 
@@ -380,17 +459,9 @@
           window.instrumented = instrumentObject(window.schema, input);
           var output = window.schema.toBuffer(input);
           setOutputText(output.toString('hex'));
-          clearErrors();
-          toggleError(decodedErrorElement, decodedValidElement, null);
-          toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
-          clearErrors();
-          clearValidIcons();
-          toggleError(decodedErrorElement, decodedValidElement, err);
-          clearText(outputElement);
+          triggerEvent(body, 'invalid-input', err);
         }
-      } else {
-        toggleError(decodedErrorElement, decodedValidElement, 'No valid schema found!');
       }
     }
 
@@ -401,45 +472,21 @@
           var decoded = window.schema.fromBuffer(input);
           var decodedStr = window.schema.toString(decoded);
           setInputText(decodedStr);
-          clearErrors();
-          toggleError(decodedErrorElement, decodedValidElement, null);
-          toggleError(encodedErrorElement, encodedValidElement, null);
         }catch(err) {
-          clearErrors();
-          clearValidIcons();
-          toggleError(encodedErrorElement,encodedValidElement, err);
-          clearText(inputElement);
+          triggerEvent(body, 'invalid-output', err);
         }
-      } else {
-        toggleError(encodedErrorElement, encodedValidElement, 'No valid schema found!');
       }
     }
 
-    /* If msg is null, make the valid_element visible, otherwise 
-    show `msg` in errorElement. */
-    function toggleError(errorElement, valid_element, msg) {
-      if(!!msg) {
-        errorElement.removeClass('hidden');
-        errorElement.text(msg);
-        valid_element.addClass('hidden');
-      } else {
-        errorElement.addClass('hidden');
-        errorElement.text("");
-        valid_element.show('slow').delay(500).hide('slow');
-      }
-    }
- 
-    /* Clear any error messages shown in input/output boxes. */
-    function clearErrors() {
-      decodedErrorElement.text('');
-      decodedErrorElement.addClass('hidden');
-      encodedErrorElement.text('');
-      encodedErrorElement.addClass('hidden');
-    }
+    function showError(errorElem, msg) {
+      errorElem.text(msg);
+      errorElem.removeClass('hidden');
+    };
 
-    function clearValidIcons() {
-      decodedValidElement.hide("slow");
-      encodedValidElement.hide("slow");
+    function hideError(errorElem, validElem) {
+      errorElem.text("");
+      errorElem.addClass('hidden');
+      validElem.show('slow').delay(500).hide('slow');
     }
     
     function clearText(element) {
@@ -479,20 +526,29 @@
       $('#table').removeClass('hidden');
       var vph = $(window).height();
       $('.textbox').css({'height': 0.8 *vph});
+      width = outputElement.width();
     }
 
-    function runOnlyIfContentChanged(element, callback) {
+    /**
+     * Will update the old value of the element to the new one, 
+     * and returns true if the content changed. 
+    */
+    function  updateContent(element) {
       var newText = $.trim($(element).text()).replace(/\s+/g, '');
-      if (!element.data('oldValue') || 
-          element.data('oldValue') != newText) {
-        element.data('oldValue', newText);
-        callback.call();
+      if (!element.data) {
+        element.data = {};
       }
+      if (!element.data['oldValue'] || 
+          element.data['oldValue'] != newText) {
+        element.data['oldValue'] =  newText;
+        return true;
+      }
+      return false;
     }
 
     function instrument(schema) {
       if (schema instanceof avsc.types.Type) {
-        schema = schema.toString();
+        schema = schema.getSchema();
       }
       var refs = [];
       return avsc.parse(schema, {typeHook: hook});
@@ -532,17 +588,116 @@
       }
     }
 
-  /**
-   * Convenience method to instrument a single object.
-   * 
-   * @param type {Type} The type to be instrumented.
-   * @param obj {Object} A valid instance of `type`.
-   * 
-   * Returns an representation of `obj` with start and end markers.
-   * 
-   */
-  function instrumentObject(type, obj) {
-    return instrument(type).fromBuffer(type.toBuffer(obj));
-  }
+    /**
+     * Convenience method to instrument a single object.
+     * 
+     * @param type {Type} The type to be instrumented.
+     * @param obj {Object} A valid instance of `type`.
+     * 
+     * Returns an representation of `obj` with start and end markers.
+     * 
+     */
+    function instrumentObject(type, obj) {
+      return instrument(type).fromBuffer(type.toBuffer(obj));
+    }
+
+
  });
 })();
+
+/* Get the associated data of `elem` from the global cache.
+ * (Will create a new entry in cache the first time called for an `elem`.)
+*/
+
+var getData = function (elem) {
+  var guid = elem[dataKey];
+  if (!guid) {
+    guid = guidCounter;
+    elem[dataKey] = guidCounter;
+    guidCounter++;
+    cache[guid] = {};
+  }
+  return cache[guid];
+};
+
+/**
+ *  Remove corresponding data of the given `elem` from cache.
+ */
+var removeData = function(elem) {
+  var guid = elem[dataKey];
+  if (!guid) {
+    return;
+  }
+  delete cache[guid];
+};
+
+/**
+ *  Bind event handlers.
+ */
+
+var addEvent = function (elem, eventType, fn) {
+  var data = getData(elem);
+  // Initialize stuff if it's the first time.
+  if (!data.handlers) {
+    data.handlers = {};
+  }
+  if (!data.handlers[eventType]){
+    data.handlers[eventType] = [];
+  }
+
+  // Using the same global guidCounter because it doesn't really matter.
+  // TODO: why was this needed again? :-/
+  if (!fn.guid) {
+    fn.guid = guidCounter++;
+  }
+
+  // Actually add the function as an event handler.
+  data.handlers[eventType].push(fn);
+
+  // Initialize the dispatcher.
+  if (!data.dispatcher) {
+    data.disabled = false;
+    data.dispatcher = function(event) {
+      if (data.disabled) {
+        return; 
+      }
+
+      var handlers = data.handlers[event.type];
+      if (handlers) {
+        for(var i =0; i < handlers.length; i++ ) {
+          handlers[i].call(elem, event);
+        }
+      }
+    }
+  }
+
+  // Register the dispatcher as the actual event handler.
+  if(data.handlers[eventType].length == 1) {
+   elem.addEventListener(eventType, data.dispatcher, false); 
+  }
+};
+
+/**
+ * TODO: implement tidy up and unbind methods.
+ */
+
+var triggerEvent = function (elem, event, msg) {
+  var parent = elem.parentNode,
+      elemData = getData(elem);
+  if (typeof event === 'string') {
+    event = {
+      type: event,
+      target: elem,
+      msg: msg
+    }
+  }
+  if (elemData.dispatcher) {
+    elemData.dispatcher.call(elem, event);
+  }
+
+  if (parent) {
+    triggerEvent(parent, event)
+  }
+
+  // TODO: probably do sth here if the element doesn't have a parent.
+};

@@ -50,7 +50,7 @@ body {
   background-color: white; 
 }
 #output {
-  font-family: 'Roboto Mono', ;
+  font-family: 'Roboto Mono', sans-serif;
 }
 .narrow {
   width: 10%;
