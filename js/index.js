@@ -33,8 +33,8 @@ var cache = {},
     window.onresize = function(event) {
       resize();
     }
-    window.reverseIndexMap = [];  /**
-   
+    window.reverseIndexMap = [];  
+       
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
      * copied from: 
@@ -120,18 +120,20 @@ var cache = {},
 
     addEvent(body, 'input-changed', function(e) {
       runPreservingCursorPosition( 'input' , function () {
-        // Wrap key values in <span>.
-        var rawInput = $.trim($(inputElement).text());
+        var rawInput = $.trim($(inputElement).text());        
         try {
-          var jsonInput = JSON.parse(rawInput);
+          var inputJson = JSON.parse(rawInput);
+          var inputRecord = window.schema._copy(inputJson, {coerce: 2});
           var invalidPaths = [];
-          var isValid = window.schema.isValid(jsonInput, {errorHook: function (p) {
-            console.log(p);
+          var isValid = window.schema.isValid(inputRecord, {errorHook: function (p) {
             invalidPaths.push(p.join());
           }});
           if(!isValid) {
             triggerEvent(body, 'invalid-input', invalidPaths);
+          } else {
+            triggerEvent(body, 'valid-input');
           }
+          // Wrap key values in <span>.
           setInputText(rawInput);
         } catch (err) {
           triggerEvent(body, 'invalid-input', err);
@@ -161,7 +163,6 @@ var cache = {},
     });
 
     addEvent(body, 'invalid-input', function(event) {
-      console.log(event.msg);
       showError(decodedErrorElement, event.msg);
     });
 
@@ -173,7 +174,6 @@ var cache = {},
       showError(encodedErrorElement, event.msg);
     });
 
-    
     /**
     * Will save cursor position inside element `elemId` before running callback function f,
     * and restores it after f is finished. 
@@ -283,17 +283,6 @@ var cache = {},
     return current;
  }
 
-  function computeReverseIndex(current) {
-    if(!current || typeof current != 'object') {
-      return;
-    }
-    $.each(current, function (key, val) {
-      addClassToOutputWithRange(key, val.start, val.end);
-      computeReverseIndex(val.value);    
-    });
-  }
-
-
   /*
   * Find all spans that have the same class, and highlights them,
   * so if a key is selected, its value will be also highlighted, and vice versa.  
@@ -360,13 +349,11 @@ var cache = {},
   function setOutputText(outputStr) { 
     var res = '';
     var str = outputStr.replace(/\s+/g, '');
-    console.log(str);
     var i, len;
     for (i =0, len = str.length; i < len; i += 2){
       res += '<div style="display:inline-block;">' + str[i] + str[i + 1] + '&nbsp;' + '</div>';
     }
     outputElement.html(res);
-    computeReverseIndex(window.instrumented.value);
   }
 
   /**
@@ -443,7 +430,7 @@ var cache = {},
         var random = window.schema.random();
         var randomStr = window.schema.toString(random);
         setInputText(randomStr);
-        encode(); /* Update encoded string too. */
+        triggerEvent(body, 'input-changed');
       }
     }
 
@@ -459,6 +446,7 @@ var cache = {},
           window.instrumented = instrumentObject(window.schema, input);
           var output = window.schema.toBuffer(input);
           setOutputText(output.toString('hex'));
+          triggerEvent(body, 'valid-output');
         }catch(err) {
           triggerEvent(body, 'invalid-input', err);
         }
@@ -471,6 +459,7 @@ var cache = {},
           var input = readBuffer(outputElement);
           var decoded = window.schema.fromBuffer(input);
           var decodedStr = window.schema.toString(decoded);
+          triggerEvent(body, 'valid-output');
           setInputText(decodedStr);
         }catch(err) {
           triggerEvent(body, 'invalid-output', err);

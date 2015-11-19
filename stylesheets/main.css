@@ -89,20 +89,19 @@ button {
   right: 36px;
   position:absolute;
   margin: 0 auto;
-  width: 10%; 
+  width: 10%;
+  right: 60px;
 }
 .message {
-  padding: 2px;
+  padding: 10px;
   opacity: 0.8;
   font-size: 11px;
-  bottom:5px;
-  left: 22px;
-  width: 90%;
+  width: 87%;
+  bottom: 0;
   height: auto;
   margin: 0 auto;
   position: absolute;
-  font-family: "Courier New", Courier, monospace;
- 
+  font-family: 'Roboto Mono', sans-serif;
 }
 .error {
   background-color: rgba(243, 247, 86, 0.78);
@@ -142,6 +141,7 @@ button {
   -webkit-transform:rotate(-6deg);
   -moz-transform: rotate(-6deg);
   width: 0px;
+  z-index: -9;
 }
 
 .tooltip-label {
