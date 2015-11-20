@@ -1100,6 +1100,7 @@ suite('types', function () {
       var Person = type.getRecordConstructor();
       var p = new Person();
       assert.equal(p.age, 25);
+      assert.strictEqual(p.constructor, Person);
     });
 
     test('default check & write', function () {
