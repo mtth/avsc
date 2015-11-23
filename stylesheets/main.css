@@ -21,21 +21,17 @@ body {
 .-null- {
   color: #C35806;
 }
-.container {
+.-container- {
   margin: auto;
   font-size: 1em;
   background-color: #DEDEDE;
 }
-.valid {
-  background-color: rgba(65, 239, 160, 0.78);
-
-}
-.button-label {
+.-button-label- {
   text-align: center;
   font-size:13px;
 }
 
-.textbox {
+.-textbox- {
   overflow: auto;
   text-align: left;
   padding: 10px;
@@ -52,10 +48,7 @@ body {
 #output {
   font-family: 'Roboto Mono', sans-serif;
 }
-.narrow {
-  width: 10%;
-}
-.wide {
+.-wide- {
   width 28%;
 }
 table {
@@ -71,7 +64,7 @@ table {
 td {
   text-align: center;
 }
-.hidden {
+.-hidden- {
   display: none;
 }
 
@@ -81,7 +74,7 @@ button {
   background-color: #0099cc;
   color: #FFFFFF;
 }
-.label {
+.-label- {
   opacity: 0.8;
   font-size: 19px;
   background-color: white;
@@ -92,7 +85,7 @@ button {
   width: 10%;
   right: 60px;
 }
-.message {
+.-message- {
   padding: 10px;
   opacity: 0.8;
   font-size: 11px;
@@ -103,20 +96,20 @@ button {
   position: absolute;
   font-family: 'Roboto Mono', sans-serif;
 }
-.error {
+.-error- {
   background-color: rgba(243, 247, 86, 0.78);
 }
-.outer {
+.-outer- {
   position: relative;
 }
-.tooltip-wrapper {
+.-tooltip-wrapper- {
   height: 100%;
   position: relative;
   width: 100%;
   top: -30px;
 }
 
-.tooltip-circle{
+.-tooltip-circle-{
   background-color: #169ccc;
   border: 1px solid #999;
   height: 10em;
@@ -131,7 +124,7 @@ button {
   z-index: -10;
 }
 
-.tooltip-triangle {
+.-tooltip-triangle- {
   border-color: transparent transparent #169ccc transparent;
   border-style: solid;
   border-width: 2em;
@@ -144,7 +137,7 @@ button {
   z-index: -9;
 }
 
-.tooltip-label {
+.-tooltip-label- {
   top: -23px;
   left: 2em;
   width: 80%;
@@ -154,10 +147,10 @@ button {
 a {
   text-decoration:none;
 }
-.icon {
+.-icon- {
   margin: 10px auto;
   width: 90%;
 }
-.buttons-row {
+.-buttons-row- {
   height: 10%;
 }

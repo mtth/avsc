@@ -2523,8 +2523,8 @@ var cache = {},
   window.avsc = avsc;
   $( function() {
 
-    var encodedErrorElement = $('#encoded-error'),
-        decodedErrorElement = $('#decoded-error'),
+    var outputErrorElement = $('#encoded-error'),
+        inputErrorElement = $('#decoded-error'),
         encodedValidElement = $('#output-valid'),
         decodedValidElement = $('#input-valid'),
         schemaErrorElement = $('#schema-error'),
@@ -2653,10 +2653,6 @@ var cache = {},
     });
 
     addEvent(body, 'output-changed', function(e) {
-      runPreservingCursorPosition( 'output', function() {
-        var rawOutput = $.trim($(outputElement).text());
-        setOutputText(rawOutput);
-      });
       decode();
     });
 
@@ -2669,19 +2665,19 @@ var cache = {},
     });
 
     addEvent(body, 'valid-input', function (event) { 
-      hideError(decodedErrorElement, decodedValidElement);
+      hideError(inputErrorElement, decodedValidElement);
     });
 
     addEvent(body, 'invalid-input', function(event) {
-      showError(decodedErrorElement, event.msg);
+      showError(inputErrorElement, event.msg);
     });
 
     addEvent(body, 'valid-output', function (event) { 
-      hideError(encodedErrorElement, encodedValidElement);
+      hideError(outputErrorElement, encodedValidElement);
     });
 
     addEvent(body, 'invalid-output', function(event) {
-      showError(encodedErrorElement, event.msg);
+      showError(outputErrorElement, event.msg);
     });
 
     /**
@@ -2979,12 +2975,12 @@ var cache = {},
 
     function showError(errorElem, msg) {
       errorElem.text(msg);
-      errorElem.removeClass('hidden');
+      errorElem.removeClass('-hidden-');
     };
 
     function hideError(errorElem, validElem) {
       errorElem.text("");
-      errorElem.addClass('hidden');
+      errorElem.addClass('-hidden-');
       validElem.show('slow').delay(500).hide('slow');
     }
     
@@ -3022,9 +3018,9 @@ var cache = {},
     
     /* Adjust textbox heights according to current window size */
     function resize() {
-      $('#table').removeClass('hidden');
+      $('#table').removeClass('-hidden-');
       var vph = $(window).height();
-      $('.textbox').css({'height': 0.8 *vph});
+      $('.-textbox-').css({'height': 0.8 *vph});
       width = outputElement.width();
     }
 
