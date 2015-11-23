@@ -2874,18 +2874,18 @@ var cache = {},
 
     var res = '';
     if ( obj == null ) {
-      return createSpan('-null-', 'null');
+      return createDiv('-null-', 'null');
     }
     if (typeof obj === 'number') {
-      return  createSpan('-number-', obj + '');
+      return  createDiv('-number-', obj + '');
     }
     if (typeof obj === 'boolean') {
-      return createSpan('-boolean-', obj + '');
+      return createDiv('-boolean-', obj + '');
     }
     if (typeof obj === 'string') {
       // Calling json.stringify here to handle the fixed types.
       // I have no idea why just printing them doesn't work.
-      return createSpan('-string-', JSON.stringify(obj));
+      return createDiv('-string-', JSON.stringify(obj));
     }
     var comma = false;
     if (obj instanceof Array) {
@@ -2913,6 +2913,10 @@ var cache = {},
 
   function createSpan(cl, str) {
     return '<span class="' + cl + '">' + str + '</span>'; 
+  }
+
+  function createDiv(cl, str) {
+    return '<div class="-inline- ' + cl + '">' + str + '</div>';
   }
   function indent(depth) { 
     var res = '';

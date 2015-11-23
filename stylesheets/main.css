@@ -154,3 +154,7 @@ a {
 .-buttons-row- {
   height: 10%;
 }
+
+.-inline- {
+  display: inline-block;
+}
