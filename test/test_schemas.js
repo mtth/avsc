@@ -41,6 +41,12 @@ suite('types', function () {
       assert.equal(t.compareBuffers(bt, bt), 0);
     });
 
+    test('get name', function () {
+      var t = new types.BooleanType();
+      assert.strictEqual(t.getName(), undefined);
+      assert.equal(t.getName(true), 'boolean');
+    });
+
   });
 
   suite('IntType', function () {
@@ -1443,6 +1449,22 @@ suite('types', function () {
       assert.throws(function () { v2.createResolver(v1); });
     });
 
+    test('getName', function () {
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        doc: 'Hi!',
+        namespace: 'earth',
+        aliases: ['Human'],
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'string'}},
+          {name: 'age', aliases: ['years'], type: {type: 'int'}}
+        ]
+      });
+      assert.strictEqual(t.getName(), 'earth.Person');
+      assert.equal(t.getName(true), 'record');
+    });
+
     test('getSchema', function () {
       var t = createType({
         type: 'record',
@@ -1951,6 +1973,122 @@ suite('types', function () {
       assert.equal(t2.fromBuffer(buf, res), +d);
     });
 
+    suite('union logical types', function () {
+      // Unions are slightly tricky to override with logical types since their
+      // schemas aren't represented as objects.
+
+      var schema = [
+        'null',
+        {
+          name: 'Person',
+          type: 'record',
+          fields: [
+            {name: 'name', type: 'string'},
+            {name: 'age', type: ['null', 'int'], 'default': null}
+          ]
+        }
+      ];
+
+      function createUnionTypeHook(Type) {
+        var visited = [];
+        return function(attrs, opts) {
+          if (attrs instanceof Array && !~visited.indexOf(attrs)) {
+            visited.push(attrs);
+            return new Type(attrs, opts);
+          }
+        };
+      }
+
+      test('unwrapped', function () {
+
+        /**
+        * A generic union type which exposes its values directly.
+        *
+        * This implementation is pretty minimal, we could optimize it by caching
+        * the underlying union's type names for example.
+        *
+        */
+        function UnwrappedUnionType(attrs, opts) {
+          types.LogicalType.call(this, attrs, opts);
+        }
+        util.inherits(UnwrappedUnionType, types.LogicalType);
+
+        UnwrappedUnionType.prototype._fromValue = function (val) {
+          return val === null ? null : val[Object.keys(val)[0]];
+        };
+
+        UnwrappedUnionType.prototype._toValue = function (any) {
+          return this.getUnderlyingType().clone(any, {wrapUnions: true});
+        };
+
+        var t1 = createType(
+          schema,
+          {typeHook: createUnionTypeHook(UnwrappedUnionType)}
+        );
+        var obj = {name: 'Ann', age: 23};
+        assert(t1.isValid(obj));
+        var buf = t1.toBuffer(obj);
+        var t2 = createType(schema);
+        assert.deepEqual(
+          t2.fromBuffer(buf),
+          {Person: {name: 'Ann', age: {'int': 23}}}
+        );
+
+      });
+
+      test('optional', function () {
+
+        /**
+        * A basic optional type.
+        *
+        * It assumes an underlying union of the form `["null", ???]`.
+        *
+        * Enhancements include:
+        *
+        * + Performing a check in the constructor on the underlying type (i.e.
+        *   union with the correct form).
+        * + Code-generating the conversion methods (especially a constructor
+        *   for `_toValue`).
+        *
+        */
+        function OptionalType(attrs, opts) {
+          types.LogicalType.call(this, attrs, opts);
+          var type = this.getUnderlyingType().getTypes()[1];
+          this._name = type.getName() || type.getName(true);
+        }
+        util.inherits(OptionalType, types.LogicalType);
+
+        OptionalType.prototype._fromValue = function (val) {
+          return val === null ? null : val[this._name];
+        };
+
+        OptionalType.prototype._toValue = function (any) {
+          if (any === null) {
+            return null;
+          }
+
+          var obj = {};
+          obj[this._name] = any;
+          return obj;
+        };
+
+        var t1 = createType(
+          schema,
+          {typeHook: createUnionTypeHook(OptionalType)}
+        );
+        var obj = {name: 'Ann', age: 23};
+        assert(t1.isValid(obj));
+        var buf = t1.toBuffer(obj);
+        var t2 = createType(schema);
+        assert.deepEqual(
+          t2.fromBuffer(buf),
+          {Person: {name: 'Ann', age: {'int': 23}}}
+        );
+
+      });
+
+    });
+
   });
 
   suite('createType', function  () {
@@ -2188,7 +2326,7 @@ suite('types', function () {
 
   });
 
-  suite('type names', function () {
+  suite('type references', function () {
 
     test('existing', function () {
       var type = createType({
