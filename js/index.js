@@ -87,13 +87,14 @@ var cache = {},
         /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
         event.stopPropagation(); 
 
-        var path = getPath($(this));
+        var path = getPathFromParents($(this));
         var position = findPositionOf(path);
         highlightOutput(position.start, position.end); 
       } else 
         console.log("No instrumented type found");
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
+      $(this).addClass('-highlight-'); 
     });
 
     $('#output').on('paste keyup', function(event) {
@@ -103,6 +104,21 @@ var cache = {},
           triggerEvent(body, 'output-changed');
         };
       }, doneTypingInterval);
+    }).on('mouseover', 'div', function(event) {
+      if (window.reverseIndexMap) {
+        clearHighlights();
+        $(this).addClass('-highlight-');
+        event.stopPropagation();
+        var path = getPathFromClasses($(this));
+        console.log(path);
+        var selector = '.' + path.join('.');
+        console.log("selector:" + selector);
+
+        $(outputElement).children(selector).addClass('-highlight-');
+        $(inputElement).find(selector).addClass('-highlight-');
+      }
+    }).on('mouseleave', 'div', function (event) { 
+      clearHighlights(); 
     }).on('keydown', function(event) {
       clearTimeout(typingTimer);
     });
@@ -170,6 +186,7 @@ var cache = {},
       showError(outputErrorElement, event.msg);
     });
 
+    
     /**
     * Will save cursor position inside element `elemId` before running callback function f,
     * and restores it after f is finished. 
@@ -243,7 +260,7 @@ var cache = {},
     * Goes through all parents of an element, and concatenates
     * their classes to generate the path for the given key.  
     */
-    function getPath(element) {
+    function getPathFromParents(element) {
       var selfClass = $.trim(element.attr('class').replace(reservedKeysPattern, ''));
       var parents = element.parents('span').map(function () {
         var parentClass = $(this).attr('class').replace(reservedKeysPattern, '');
@@ -255,6 +272,10 @@ var cache = {},
       if (selfClass != '' ) 
         parents.push(selfClass); /* The innermost class is not part of the parents. Adding it here. */
       return parents;
+    }
+
+    function getPathFromClasses(element) {
+      return $.trim(element.attr('class').replace(reservedKeysPattern, '')).split(' ');
     }
 
   /**
@@ -347,7 +368,7 @@ var cache = {},
     var str = outputStr.replace(/\s+/g, '');
     var i, len;
     for (i =0, len = str.length; i < len; i += 2){
-      res += '<div style="display:inline-block;">' + str[i] + str[i + 1] + '&nbsp;' + '</div>';
+      res += createDiv(window.reverseIndexMap[i/2], str[i] + str[i + 1] + '&nbsp;');
     }
     outputElement.html(res);
   }
@@ -414,6 +435,15 @@ var cache = {},
     return res;
   }
 
+  function containsAllElements(first, second) {
+    second.forEach(function (key) {
+      if (first.indexOf(key) == -1){
+        return false;
+      }
+    });
+    return true;
+  }
+
    function validateSchema() {
       window.schema = null;
       try {
@@ -444,6 +474,7 @@ var cache = {},
         try {
           var input = readInput();
           window.instrumented = instrumentObject(window.schema, input);
+          window.reverseIndexMap = computeReverseIndex(window.instrumented);
           var output = window.schema.toBuffer(input);
           setOutputText(output.toString('hex'));
           triggerEvent(body, 'valid-output');
@@ -590,6 +621,36 @@ var cache = {},
       return instrument(type).fromBuffer(type.toBuffer(obj));
     }
 
+    function computeReverseIndex(obj) {
+      if (!obj) {
+        return;
+      }
+      // initialize an array with all empty elements;
+      var size = obj.end;
+      var res = Array.apply(null, Array(size))
+                     .map(String.prototype.valueOf,"");
+      assignLabels('', obj, res);
+      return res;
+    }
+
+    function assignLabels(key, node, res) {
+      if (node.hasOwnProperty('start') && node.hasOwnProperty('end')) {
+        appendLabel(node.start, node.end, key, res);
+      }
+      var valueNode = node.value;
+      if (valueNode) {
+        for (var child in valueNode) {
+          if (valueNode.hasOwnProperty(child)) {
+            assignLabels(child, valueNode[child], res);
+          }
+        }
+      }
+    }
+
+    function appendLabel(start, end, label, arr) {
+      for (var i = start; i < end; i++)
+        arr[i] += ' ' + label;
+    }
 
  });
 })();
