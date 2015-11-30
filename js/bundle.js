@@ -2592,7 +2592,7 @@ var cache = {},
         clearHighlights();
 
         /*Will also automatically highlight all nested children.*/
-        $(this).addClass('-highlight-'); 
+        highlight($(this)); 
 
         /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
         event.stopPropagation(); 
@@ -2604,7 +2604,7 @@ var cache = {},
         console.log("No instrumented type found");
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
-      $(this).addClass('-highlight-'); 
+      highlight($(this)); 
     });
 
     $('#output').on('paste keyup', function(event) {
@@ -2617,15 +2617,23 @@ var cache = {},
     }).on('mouseover', 'div', function(event) {
       if (window.reverseIndexMap) {
         clearHighlights();
-        $(this).addClass('-highlight-');
         event.stopPropagation();
+        
         var path = getPathFromClasses($(this));
-        console.log(path);
-        var selector = '.' + path.join('.');
-        console.log("selector:" + selector);
+        //TODO: why should these two be differnet? 
+        var outputSelector = '.' + path.join('.');
+        var inputSelector = '.' + path.join(' .');
+        var inputCandidates = $(inputElement).find(inputSelector);
+        
+        // TODO: well... here comes the hack... 
+        if(inputCandidates.length == 0) {
+          path.pop();
+          inputSelector = '.' + path.join(' .');
+          inputCandidates = $(inputElement).find(inputSelector);
+        }
 
-        $(outputElement).children(selector).addClass('-highlight-');
-        $(inputElement).find(selector).addClass('-highlight-');
+        highlight($(outputElement).children(outputSelector));
+        highlight(inputCandidates);
       }
     }).on('mouseleave', 'div', function (event) { 
       clearHighlights(); 
@@ -2818,7 +2826,7 @@ var cache = {},
     var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
     rawClasses = rawClasses.replace(/ /g, ' .');
     $(rawClasses).each( function(i) {
-      $(this).addClass('-highlight-');
+      highlight($(this));
     });
   }
 
@@ -2828,9 +2836,14 @@ var cache = {},
   function highlightOutput(start, end) {
     outputElement.children('div').each(function( index ) {
       if (index >= start && index < end) {
-        $(this).addClass("-highlight-");
+        highlight($(this));
       }
     });
+  }
+
+  /* Add -highlight- to the element class */
+  function highlight(element) {
+    element.addClass('-highlight-');
   }
 
   function addClassToOutputWithRange(cls, start, end) {
@@ -2915,7 +2928,7 @@ var cache = {},
         if (comma) res += ',<br/>';
         // Use '-' as a special character, which can not exist in schema keys 
         // but is a valid character for css class.
-        res += createSpan('-' + index + '-', indent(depth) + stringify(value, depth + 1));
+        res += createSpan(index , indent(depth) + stringify(value, depth + 1));
         comma = true;
       });
       res += '<br/>' + indent(depth - 1) + ']';
@@ -3131,6 +3144,11 @@ var cache = {},
       return instrument(type).fromBuffer(type.toBuffer(obj));
     }
 
+    /**
+     * Creates an array of size buffer.length, 
+     * where each index will contain a string representing
+     * the path in the input record corresponding to this byte.
+     */
     function computeReverseIndex(obj) {
       if (!obj) {
         return;
