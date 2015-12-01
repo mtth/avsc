@@ -2604,7 +2604,6 @@ var cache = {},
         console.log("No instrumented type found");
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
-      highlight($(this)); 
     });
 
     $('#output').on('paste keyup', function(event) {
@@ -2796,178 +2795,169 @@ var cache = {},
       return $.trim(element.attr('class').replace(reservedKeysPattern, '')).split(' ');
     }
 
-  /**
-  * find the start and end index of an entry in its encoded representation
-  * using the instrumented type already loaded in window.instrumented.
-  *
-  */
-  function findPositionOf(path) {
-    var current = window.instrumented;
-    path.forEach(function(entry) {
-      var arrayKey = arrayKeyPattern.exec(entry);
-      var nextKey = arrayKey ? arrayKey[1] : entry;
-      if (nextKey in current.value) {
-        current = current.value[nextKey];
-      } else {
-        $.each(current.value, function(k,v) {
-          current = v;
-          return false;
-        });
-      }
-    });
-    return current;
- }
+    /**
+    * find the start and end index of an entry in its encoded representation
+    * using the instrumented type already loaded in window.instrumented.
+    *
+    */
+    function findPositionOf(path) {
+      var current = window.instrumented;
+      path.forEach(function(entry) {
+        var arrayKey = arrayKeyPattern.exec(entry);
+        var nextKey = arrayKey ? arrayKey[1] : entry;
+        if (nextKey in current.value) {
+          current = current.value[nextKey];
+        } else {
+          $.each(current.value, function(k,v) {
+            current = v;
+            return false;
+          });
+        }
+      });
+      return current;
+    }
 
-  /*
-  * Find all spans that have the same class, and highlights them,
-  * so if a key is selected, its value will be also highlighted, and vice versa.  
-  */
-  function highlightAllMatching(classesString) {
-    var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
-    rawClasses = rawClasses.replace(/ /g, ' .');
-    $(rawClasses).each( function(i) {
-      highlight($(this));
-    });
-  }
-
-  /**
-  * Highlight the entries between `start` and `end` in the output (encoded) text.
-  */  
-  function highlightOutput(start, end) {
-    outputElement.children('div').each(function( index ) {
-      if (index >= start && index < end) {
+    /*
+    * Find all spans that have the same class, and highlights them,
+    * so if a key is selected, its value will be also highlighted, and vice versa.  
+    */
+    function highlightAllMatching(classesString) {
+      var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
+      rawClasses = rawClasses.replace(/ /g, ' .');
+      $(rawClasses).each( function(i) {
         highlight($(this));
+      });
+    }
+
+    /**
+    * Highlight the entries between `start` and `end` in the output (encoded) text.
+    */  
+    function highlightOutput(start, end) {
+      outputElement.children('div').each(function( index ) {
+        if (index >= start && index < end) {
+          highlight($(this));
+        }
+      });
+    }
+
+    /* Add -highlight- to the element class */
+    function highlight(element) {
+      element.addClass('-highlight-');
+    }
+
+    function addClassToOutputWithRange(cls, start, end) {
+      outputElement.children('span').each(function( index ) {
+        if (index >= start && index < end) {
+          $(this).addClass(cls);
+        }
+      });
+      for (var i = start; i < end; i++) {
+        if (reverseIndexMap[i]) {
+          reverseIndexMap[i].push(cls);
+        } else {
+          reverseIndexMap[i] = [cls];
+        }
       }
-    });
-  }
+    }
+    
 
-  /* Add -highlight- to the element class */
-  function highlight(element) {
-    element.addClass('-highlight-');
-  }
+    /**
+    * Remove `highlight` from all spans. 
+    */
+    function clearHighlights() {
+      $('span').removeClass('-highlight-');
+      $('div').removeClass('-highlight-');
+    }
 
-  function addClassToOutputWithRange(cls, start, end) {
-    outputElement.children('span').each(function( index ) {
-      if (index >= start && index < end) {
-        $(this).addClass(cls);
+    /**
+    * set the input box's text to inputStr, 
+    * where all key, values are wrapped in <span> elements
+    * with the 'path' set as the span class. 
+    */
+    function setInputText(inputStr) {
+      var input = JSON.parse(inputStr);
+      var stringified = stringify(input, 1); 
+      inputElement.html(stringified);
+    }
+
+    /**
+    * Set the output box's text to outputStr where each byte is wrapped in <span>
+    * elements and each line contains 8 bytes.
+    */ 
+
+    function setOutputText(outputStr) { 
+      var res = '';
+      var str = outputStr.replace(/\s+/g, '');
+      var i, len;
+      for (i =0, len = str.length; i < len; i += 2){
+        res += createDiv(window.reverseIndexMap[i/2], str[i] + str[i + 1] + '&nbsp;');
       }
-    });
-    for (var i = start; i < end; i++) {
-      if (reverseIndexMap[i]) {
-        reverseIndexMap[i].push(cls);
-      } else {
-        reverseIndexMap[i] = [cls];
+      outputElement.html(res);
+    }
+
+    /**
+    * Similar to JSON.stringify, but will wrap each key and value 
+    * with <span> tags. 
+    * Does a DFS over the obj, to propagate the parent keys to each 
+    * child element to be set in the span's class attribute.
+    * @param obj The object to stringify
+    * @param depth Current indention level.
+    */
+    function stringify(obj, depth) {
+
+      var res = '';
+      if ( obj == null ) {
+        return createDiv('-null-', 'null');
       }
-    }
-  }
-  
-
-  /**
-  * Remove `highlight` from all spans. 
-  */
-  function clearHighlights() {
-    $('span').removeClass('-highlight-');
-    $('div').removeClass('-highlight-');
-  }
-
-  /**
-  * set the input box's text to inputStr, 
-  * where all key, values are wrapped in <span> elements
-  * with the 'path' set as the span class. 
-  */
-  function setInputText(inputStr) {
-    var input = JSON.parse(inputStr);
-    var stringified = stringify(input, 1); 
-    inputElement.html(stringified);
-  }
-
-  /**
-  * Set the output box's text to outputStr where each byte is wrapped in <span>
-  * elements and each line contains 8 bytes.
-  */ 
-
-  function setOutputText(outputStr) { 
-    var res = '';
-    var str = outputStr.replace(/\s+/g, '');
-    var i, len;
-    for (i =0, len = str.length; i < len; i += 2){
-      res += createDiv(window.reverseIndexMap[i/2], str[i] + str[i + 1] + '&nbsp;');
-    }
-    outputElement.html(res);
-  }
-
-  /**
-  * Similar to JSON.stringify, but will wrap each key and value 
-  * with <span> tags. 
-  * Does a DFS over the obj, to propagate the parent keys to each 
-  * child element to be set in the span's class attribute.
-  * @param obj The object to stringify
-  * @param depth Current indention level.
-  */
-  function stringify(obj, depth) {
-
-    var res = '';
-    if ( obj == null ) {
-      return createDiv('-null-', 'null');
-    }
-    if (typeof obj === 'number') {
-      return  createDiv('-number-', obj + '');
-    }
-    if (typeof obj === 'boolean') {
-      return createDiv('-boolean-', obj + '');
-    }
-    if (typeof obj === 'string') {
-      // Calling json.stringify here to handle the fixed types.
-      // I have no idea why just printing them doesn't work.
-      return createDiv('-string-', JSON.stringify(obj));
-    }
-    var comma = false;
-    if (obj instanceof Array) {
-      res += '[<br/>';
-      $.each(obj, function(index, value) {
+      if (typeof obj === 'number') {
+        return  createDiv('-number-', obj + '');
+      }
+      if (typeof obj === 'boolean') {
+        return createDiv('-boolean-', obj + '');
+      }
+      if (typeof obj === 'string') {
+        // Calling json.stringify here to handle the fixed types.
+        // I have no idea why just printing them doesn't work.
+        return createDiv('-string-', JSON.stringify(obj));
+      }
+      var comma = false;
+      if (obj instanceof Array) {
+        res += '[<br/>';
+        $.each(obj, function(index, value) {
+          if (comma) res += ',<br/>';
+          // Use '-' as a special character, which can not exist in schema keys 
+          // but is a valid character for css class.
+          res += createSpan(index , indent(depth) + stringify(value, depth + 1));
+          comma = true;
+        });
+        res += '<br/>' + indent(depth - 1) + ']';
+        return res;
+      } 
+      res += '{<br/>';
+      comma = false;
+      $.each(obj, function(key, value) {
         if (comma) res += ',<br/>';
-        // Use '-' as a special character, which can not exist in schema keys 
-        // but is a valid character for css class.
-        res += createSpan(index , indent(depth) + stringify(value, depth + 1));
+        res += createSpan(key, indent(depth) + '"' + key + '": ' + stringify(value, depth + 1));
         comma = true;
       });
-      res += '<br/>' + indent(depth - 1) + ']';
+      res += '<br/>' + indent(depth - 1) + '}';
       return res;
-    } 
-    res += '{<br/>';
-    comma = false;
-    $.each(obj, function(key, value) {
-      if (comma) res += ',<br/>';
-      res += createSpan(key, indent(depth) + '"' + key + '": ' + stringify(value, depth + 1));
-      comma = true;
-    });
-    res += '<br/>' + indent(depth - 1) + '}';
-    return res;
-  }
+    }
 
-  function createSpan(cl, str) {
-    return '<span class="' + cl + '">' + str + '</span>'; 
-  }
+    function createSpan(cl, str) {
+      return '<span class="' + cl + '">' + str + '</span>'; 
+    }
 
-  function createDiv(cl, str) {
-    return '<div class="-inline- ' + cl + '">' + str + '</div>';
-  }
-  function indent(depth) { 
-    var res = '';
-    for (var i = 0 ; i < 2 * depth; i++) res += ' ';
-    return res;
-  }
+    function createDiv(cl, str) {
+      return '<div class="-inline- ' + cl + '">' + str + '</div>';
+    }
+    function indent(depth) { 
+      var res = '';
+      for (var i = 0 ; i < 2 * depth; i++) res += ' ';
+      return res;
+    }
 
-  function containsAllElements(first, second) {
-    second.forEach(function (key) {
-      if (first.indexOf(key) == -1){
-        return false;
-      }
-    });
-    return true;
-  }
-
-   function validateSchema() {
+    function validateSchema() {
       window.schema = null;
       try {
         var rawSchema = readSchemaFromInput();

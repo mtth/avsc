@@ -94,7 +94,6 @@ var cache = {},
         console.log("No instrumented type found");
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
-      highlight($(this)); 
     });
 
     $('#output').on('paste keyup', function(event) {
