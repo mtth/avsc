@@ -2537,6 +2537,7 @@ var cache = {},
         arrayKeyPattern = /-(\d+)-/g,
         reservedKeysPattern = /-[a-z]+-/g,
         typingTimer,
+        eventObj = Event,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     resize();
@@ -2558,7 +2559,7 @@ var cache = {},
       window.document.execCommand('insertText', false, text);
       if(e.target.id === 'schema') {
         if(updateContent(schemaElement)) {
-          triggerEvent(body, 'schema-changed');
+          eventObj.trigger('schema-changed');
           generateRandom();
         };
       }
@@ -2568,7 +2569,7 @@ var cache = {},
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
-          triggerEvent(body, 'schema-changed');
+          eventObj.trigger('schema-changed');
         }
       }, doneTypingInterval);
     }).on('keydown', function() {
@@ -2580,7 +2581,7 @@ var cache = {},
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
-          triggerEvent(body, 'input-changed');
+          eventObj.trigger('input-changed');
         };
       }, doneTypingInterval);
     }).on('keydown', function() {
@@ -2610,7 +2611,7 @@ var cache = {},
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(outputElement)) {
-          triggerEvent(body, 'output-changed');
+          eventObj.trigger('output-changed');
         };
       }, doneTypingInterval);
     }).on('mouseover', 'div', function(event) {
@@ -2647,11 +2648,11 @@ var cache = {},
       }, doneTypingInterval);
     });
 
-    addEvent(body, 'schema-changed', function(e) {
+    eventObj.on('schema-changed', function() {
       runPreservingCursorPosition( 'schema', validateSchema);
     });
 
-    addEvent(body, 'input-changed', function(e) {
+    eventObj.on('input-changed', function() {
       runPreservingCursorPosition( 'input' , function () {
         var rawInput = $.trim($(inputElement).text());        
         try {
@@ -2662,45 +2663,45 @@ var cache = {},
             invalidPaths.push(p.join());
           }});
           if(!isValid) {
-            triggerEvent(body, 'invalid-input', invalidPaths);
+            eventObj.trigger('invalid-input', invalidPaths);
           } else {
-            triggerEvent(body, 'valid-input');
+            eventObj.trigger('valid-input');
           }
           // Wrap key values in <span>.
           setInputText(rawInput);
         } catch (err) {
-          triggerEvent(body, 'invalid-input', err);
+          eventObj.trigger('invalid-input', err);
         }
       });
       encode();
     });
 
-    addEvent(body, 'output-changed', function(e) {
+    eventObj.on('output-changed', function() {
       decode();
     });
 
-    addEvent(body, 'valid-schema', function(event) {
+    eventObj.on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
     });
 
-    addEvent(body, 'invalid-schema', function (event) {
-      showError(schemaErrorElement, event.msg);
+    eventObj.on('invalid-schema', function (message) {
+      showError(schemaErrorElement, message);
     });
 
-    addEvent(body, 'valid-input', function (event) { 
+    eventObj.on('valid-input', function () { 
       hideError(inputErrorElement, decodedValidElement);
     });
 
-    addEvent(body, 'invalid-input', function(event) {
-      showError(inputErrorElement, event.msg);
+    eventObj.on('invalid-input', function(message) {
+      showError(inputErrorElement, message);
     });
 
-    addEvent(body, 'valid-output', function (event) { 
+    eventObj.on('valid-output', function () { 
       hideError(outputErrorElement, encodedValidElement);
     });
 
-    addEvent(body, 'invalid-output', function(event) {
-      showError(outputErrorElement, event.msg);
+    eventObj.on('invalid-output', function(message) {
+      showError(outputErrorElement, message);
     });
 
     
@@ -2963,9 +2964,9 @@ var cache = {},
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
         window.schema = avsc.parse(rawSchema);
-        triggerEvent(body, 'valid-schema');
+        eventObj.trigger('valid-schema');
       } catch (err) {
-        triggerEvent(body, 'invalid-schema', err);
+        eventObj.trigger('invalid-schema', err);
       }
     }
     function generateRandom() {
@@ -2973,7 +2974,7 @@ var cache = {},
         var random = window.schema.random();
         var randomStr = window.schema.toString(random);
         setInputText(randomStr);
-        triggerEvent(body, 'input-changed');
+        eventObj.trigger('input-changed');
       }
     }
 
@@ -2990,9 +2991,9 @@ var cache = {},
           window.reverseIndexMap = computeReverseIndex(window.instrumented);
           var output = window.schema.toBuffer(input);
           setOutputText(output.toString('hex'));
-          triggerEvent(body, 'valid-output');
+          eventObj.trigger('valid-output');
         }catch(err) {
-          triggerEvent(body, 'invalid-input', err);
+          eventObj.trigger('invalid-input', err);
         }
       }
     }
@@ -3003,10 +3004,10 @@ var cache = {},
           var input = readBuffer(outputElement);
           var decoded = window.schema.fromBuffer(input);
           var decodedStr = window.schema.toString(decoded);
-          triggerEvent(body, 'valid-output');
+          eventObj.trigger('valid-output');
           setInputText(decodedStr);
         }catch(err) {
-          triggerEvent(body, 'invalid-output', err);
+          eventObj.trigger('invalid-output', err);
         }
       }
     }
@@ -3177,98 +3178,21 @@ var cache = {},
  * (Will create a new entry in cache the first time called for an `elem`.)
 */
 
-var getData = function (elem) {
-  var guid = elem[dataKey];
-  if (!guid) {
-    guid = guidCounter;
-    elem[dataKey] = guidCounter;
-    guidCounter++;
-    cache[guid] = {};
-  }
-  return cache[guid];
-};
-
-/**
- *  Remove corresponding data of the given `elem` from cache.
- */
-var removeData = function(elem) {
-  var guid = elem[dataKey];
-  if (!guid) {
-    return;
-  }
-  delete cache[guid];
-};
-
-/**
- *  Bind event handlers.
- */
-
-var addEvent = function (elem, eventType, fn) {
-  var data = getData(elem);
-  // Initialize stuff if it's the first time.
-  if (!data.handlers) {
-    data.handlers = {};
-  }
-  if (!data.handlers[eventType]){
-    data.handlers[eventType] = [];
-  }
-
-  // Using the same global guidCounter because it doesn't really matter.
-  // TODO: why was this needed again? :-/
-  if (!fn.guid) {
-    fn.guid = guidCounter++;
-  }
-
-  // Actually add the function as an event handler.
-  data.handlers[eventType].push(fn);
-
-  // Initialize the dispatcher.
-  if (!data.dispatcher) {
-    data.disabled = false;
-    data.dispatcher = function(event) {
-      if (data.disabled) {
-        return; 
-      }
-
-      var handlers = data.handlers[event.type];
-      if (handlers) {
-        for(var i =0; i < handlers.length; i++ ) {
-          handlers[i].call(elem, event);
-        }
-      }
+var Event = {
+  on: function(event, callback) {
+    this.hasOwnProperty('events') || (this.events = {});
+    this.events.hasOwnProperty(event) || (this.events[event] = []);
+    this.events[event].push(callback);
+  },
+  trigger: function(event) {
+    var tail = Array.prototype.slice.call(arguments, 1),
+        callbacks = this.events[event];
+    for (var i = 0, l = callbacks.length; i < l ; i++) {
+      callbacks[i].apply(this, tail); // To pass parameters to calback not as an array, but as individual function arguments.  
     }
   }
-
-  // Register the dispatcher as the actual event handler.
-  if(data.handlers[eventType].length == 1) {
-   elem.addEventListener(eventType, data.dispatcher, false); 
-  }
 };
 
-/**
- * TODO: implement tidy up and unbind methods.
- */
-
-var triggerEvent = function (elem, event, msg) {
-  var parent = elem.parentNode,
-      elemData = getData(elem);
-  if (typeof event === 'string') {
-    event = {
-      type: event,
-      target: elem,
-      msg: msg
-    }
-  }
-  if (elemData.dispatcher) {
-    elemData.dispatcher.call(elem, event);
-  }
-
-  if (parent) {
-    triggerEvent(parent, event)
-  }
-
-  // TODO: probably do sth here if the element doesn't have a parent.
-};
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
 },{"avsc":10,"buffer":1,"jquery":15,"jquery-ui":14}],10:[function(require,module,exports){
