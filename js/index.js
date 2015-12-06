@@ -24,7 +24,7 @@ var cache = {},
         outputElement = $('#output'),
         width = 100,
         body = document.getElementsByTagName('body')[0],
-        arrayKeyPattern = /-(\d+)-/g,
+        arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
         typingTimer,
         eventObj = Event,
@@ -295,14 +295,9 @@ var cache = {},
       var current = window.instrumented;
       path.forEach(function(entry) {
         var arrayKey = arrayKeyPattern.exec(entry);
-        var nextKey = arrayKey ? arrayKey[1] : entry;
+        var nextKey = arrayKey ? arrayKey[1] : entry + '_'; // getting the first captured group from regex result if a match was found.
         if (nextKey in current.value) {
           current = current.value[nextKey];
-        } else {
-          $.each(current.value, function(k,v) {
-            current = v;
-            return false;
-          });
         }
       });
       return current;
@@ -584,15 +579,18 @@ var cache = {},
         refs.push(schema);
 
         if (schema.type === 'record') {
-          schema.fields.forEach(function (f) { f['default'] = undefined; });
+          schema.fields.forEach(function (f) { 
+            f['default'] = undefined;
+            f['name'] = f['name'] == undefined ? undefined : f['name'] + '_';
+          });
         }
 
-        var name = schema.name;
+        var name = schema.name || schema.type;
         if (name) {
           schema.name = 'r' + Math.random().toString(36).substr(2, 6);
         }
         var wrappedSchema = {
-          name: name || 'r' + Math.random().toString(36).substr(2, 6),
+          name: name == undefined ? 'r' + Math.random().toString(36).substr(2, 6) : name + '_',
           namespace: schema.namespace,
           type: 'record',
           fields: [{name: 'value', type: schema}]
@@ -657,8 +655,12 @@ var cache = {},
     }
 
     function appendLabel(start, end, label, arr) {
-      for (var i = start; i < end; i++)
-        arr[i] += ' ' + label;
+      var length = label.length;
+      if (label[length - 1] == '_')
+        label = label.substr(0, length - 1);  
+      for (var i = start; i < end; i++) {
+        arr[i] += ' ' + label; 
+      }
     }
 
  });
