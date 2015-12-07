@@ -30,11 +30,68 @@ var cache = {},
         eventObj = Event,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
-    resize();
     window.onresize = function(event) {
       resize();
     }
     window.reverseIndexMap = [];  
+
+    eventObj.on('schema-changed', function() {
+      runPreservingCursorPosition( 'schema', validateSchema);
+    });
+
+    eventObj.on('input-changed', function() {
+      runPreservingCursorPosition( 'input' , function () {
+        var rawInput = $.trim($(inputElement).text());        
+        try {
+          var inputJson = JSON.parse(rawInput);
+          var inputRecord = window.schema._copy(inputJson, {coerce: 2});
+          var invalidPaths = [];
+          var isValid = window.schema.isValid(inputRecord, {errorHook: function (p) {
+            invalidPaths.push(p.join());
+          }});
+          if(!isValid) {
+            eventObj.trigger('invalid-input', invalidPaths);
+          } else {
+            eventObj.trigger('valid-input');
+          }
+          // Wrap key values in <span>.
+          setInputText(rawInput);
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
+      });
+      encode();
+    });
+
+    eventObj.on('output-changed', function() {
+      decode();
+    });
+
+    eventObj.on('valid-schema', function() {
+      hideError(schemaErrorElement, schemaValidElement);
+    });
+
+    eventObj.on('invalid-schema', function (message) {
+      showError(schemaErrorElement, message);
+    });
+
+    eventObj.on('valid-input', function () { 
+      hideError(inputErrorElement, decodedValidElement);
+    });
+
+    eventObj.on('invalid-input', function(message) {
+      showError(inputErrorElement, message);
+    });
+
+    eventObj.on('valid-output', function () { 
+      hideError(outputErrorElement, encodedValidElement);
+    });
+
+    eventObj.on('invalid-output', function(message) {
+      showError(outputErrorElement, message);
+    });
+
+
        
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
@@ -43,8 +100,7 @@ var cache = {},
 
     $('[contenteditable]').on('paste',function(e) {
       e.preventDefault();
-      clearTimeout(typingTimer);
-
+      //TODO: Find out why sometimes it triggers 'input-changed' twice.
       var text = (e.originalEvent || e).clipboardData.getData('text/plain');
       window.document.execCommand('insertText', false, text);
       if(e.target.id === 'schema') {
@@ -67,7 +123,6 @@ var cache = {},
     });
 
     $('#input').on('paste keyup', function(event) {
-
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
@@ -138,62 +193,16 @@ var cache = {},
       }, doneTypingInterval);
     });
 
-    eventObj.on('schema-changed', function() {
-      runPreservingCursorPosition( 'schema', validateSchema);
-    });
+    function populateSchema() {
+      var s = location.search.split('schema=')[1];
+      if (s) { 
+        s = decodeURIComponent(s);
+        $(schemaElement).text(s);
+        updateContent(schemaElement);
+        eventObj.trigger('schema-changed');
+      }
 
-    eventObj.on('input-changed', function() {
-      runPreservingCursorPosition( 'input' , function () {
-        var rawInput = $.trim($(inputElement).text());        
-        try {
-          var inputJson = JSON.parse(rawInput);
-          var inputRecord = window.schema._copy(inputJson, {coerce: 2});
-          var invalidPaths = [];
-          var isValid = window.schema.isValid(inputRecord, {errorHook: function (p) {
-            invalidPaths.push(p.join());
-          }});
-          if(!isValid) {
-            eventObj.trigger('invalid-input', invalidPaths);
-          } else {
-            eventObj.trigger('valid-input');
-          }
-          // Wrap key values in <span>.
-          setInputText(rawInput);
-        } catch (err) {
-          eventObj.trigger('invalid-input', err);
-        }
-      });
-      encode();
-    });
-
-    eventObj.on('output-changed', function() {
-      decode();
-    });
-
-    eventObj.on('valid-schema', function() {
-      hideError(schemaErrorElement, schemaValidElement);
-    });
-
-    eventObj.on('invalid-schema', function (message) {
-      showError(schemaErrorElement, message);
-    });
-
-    eventObj.on('valid-input', function () { 
-      hideError(inputErrorElement, decodedValidElement);
-    });
-
-    eventObj.on('invalid-input', function(message) {
-      showError(inputErrorElement, message);
-    });
-
-    eventObj.on('valid-output', function () { 
-      hideError(outputErrorElement, encodedValidElement);
-    });
-
-    eventObj.on('invalid-output', function(message) {
-      showError(outputErrorElement, message);
-    });
-
+    }
     
     /**
     * Will save cursor position inside element `elemId` before running callback function f,
@@ -201,11 +210,16 @@ var cache = {},
     */ 
     function runPreservingCursorPosition(elementId, f) {
      //Get current position.
-      var range = window.getSelection().getRangeAt(0);
-      var el = document.getElementById(elementId);
-      var position = getCharacterOffsetWithin(range, el);
-      f();
-      setCharacterOffsetWithin(range, el, position);
+      if (window.getSelection().rangeCount) {
+
+        var range = window.getSelection().getRangeAt(0);
+        var el = document.getElementById(elementId);
+        var position = getCharacterOffsetWithin(range, el);
+        f();
+        setCharacterOffsetWithin(range, el, position);
+      } else {
+        f();
+      }
     } 
     /*
     * When the input text changes, the whole text is replaced with new <span> elements,
@@ -662,6 +676,10 @@ var cache = {},
         arr[i] += ' ' + label; 
       }
     }
+
+    resize();
+    populateSchema();
+
 
  });
 })();
