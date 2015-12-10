@@ -108,7 +108,7 @@ suite('protocols', function () {
 
   suite('transports', function () {
 
-    suite('StreamTransport', function () {
+    suite('Shared', function () {
 
       test('read', function (done) {
         var bufs = [
@@ -127,7 +127,7 @@ suite('protocols', function () {
         });
         var writable = new stream.Writable();
         var messages = [];
-        var tm = new transports.StreamTransport(readable, writable);
+        var tm = new transports.Shared(readable, writable);
         tm.on('data', function (buf) { messages.push(buf); })
           .on('end', function () {
             assert.deepEqual(messages, [
@@ -148,7 +148,7 @@ suite('protocols', function () {
             cb();
           }
         });
-        var tm = new transports.StreamTransport(readable, writable);
+        var tm = new transports.Shared(readable, writable);
         tm.write({data: new Buffer([0, 1])});
         tm.write({data: new Buffer([3])});
         tm.end();
@@ -168,39 +168,13 @@ suite('protocols', function () {
           });
       });
 
-      test('end', function (done) {
-        var bufs = [];
-        var nReads = 0;
-        var readable = new stream.Readable({read: function () { nReads++; }});
-        var writable = new stream.Writable({
-          write: function (chunk, encoding, cb) {
-            bufs.push(chunk);
-            cb();
-          }
-        });
-        var tm = new transports.StreamTransport(readable, writable, {end: true});
-        tm.write({data: new Buffer([0, 1])});
-        writable
-          .on('finish', function () {
-            assert.equal(nReads, 1);
-            assert.deepEqual(
-              Buffer.concat(bufs),
-              Buffer.concat([
-                new Buffer([0, 1]),
-                new Buffer([])
-              ].map(frame))
-            );
-            done();
-          });
-      });
-
     });
 
-    suite('CallbackTransport', function () {
+    suite('Outbound', function () {
 
       test('roundtrip', function (done) {
         var objs = [];
-        var ct = new transports.CallbackTransport(function (cb) {
+        var ct = new transports.Outbound(function (cb) {
           // Similar-ish to what an echo `http.request` would do.
           var bufs = [];
           return new stream.Writable({
@@ -239,9 +213,7 @@ suite('protocols', function () {
 
   });
 
-  suite('Emitter', function () {
-
-    var Emitter = protocols.Emitter;
+  suite('Client Server', function () {
 
     var protocol = new Protocol({
       protocol: 'Test',
@@ -250,6 +222,10 @@ suite('protocols', function () {
           request: [{name: 'number', type: 'int'}],
           response: 'string',
           errors: ['int']
+        },
+        m2: {
+          request: [{name: 'number', type: 'int'}],
+          response: 'int'
         }
       }
     });
@@ -257,18 +233,17 @@ suite('protocols', function () {
     test('client server', function (done) {
       var pt1 = new stream.PassThrough();
       var pt2 = new stream.PassThrough();
-      var client = new Emitter(protocol, {mode: 'client'});
-      client.setTransport(new transports.StreamTransport(pt1, pt2));
-      var server = new Emitter(protocol, {mode: 'server'});
-      server.setTransport(new transports.StreamTransport(pt2, pt1));
-      server.onMessage('m1', function (params, cb) {
-        var n = params.number;
-        if (n % 2) {
-          cb({'int': n});
-        } else {
-          cb(null, 'ok');
-        }
-      });
+      var client = protocol.createClient({readable: pt1, writable: pt2});
+      protocol.createServer()
+        .addTransport({readable: pt2, writable: pt1})
+        .onMessage('m1', function (params, cb) {
+          var n = params.number;
+          if (n % 2) {
+            cb({'int': n});
+          } else {
+            cb(null, 'ok');
+          }
+        });
       client.emitMessage('m1', {number: 2}, function (err, res) {
         assert.strictEqual(err, null);
         assert.equal(res, 'ok');
@@ -279,6 +254,41 @@ suite('protocols', function () {
       });
     });
 
+    test('parallel client server', function (done) {
+      var pt1 = new stream.PassThrough();
+      var pt2 = new stream.PassThrough();
+      var client = protocol.createClient({readable: pt1, writable: pt2});
+      protocol.createServer()
+        .addTransport({readable: pt2, writable: pt1})
+        .onMessage('m2', function (params, cb) {
+          var num = params.number; // Longer timeout for first messages.
+          setTimeout(function () { cb(null, num); }, num);
+        });
+
+      var numbers = irange(500);
+      var n = 0;
+      numbers.forEach(emit);
+
+      function emit(num) {
+        client.emitMessage('m2', {number: num}, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, num);
+          if (++n === numbers.length) {
+            done();
+          }
+        });
+      }
+    });
+
   });
 
 });
+
+// Inverted range.
+function irange(n) {
+  var arr = [];
+  while (n) {
+    arr.push(n--);
+  }
+  return arr;
+}
