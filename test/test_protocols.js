@@ -4,7 +4,8 @@
 
 var protocols = require('../lib/protocols'),
     assert = require('assert'),
-    stream = require('stream');
+    stream = require('stream'),
+    util = require('util');
 
 var Protocol = protocols.Protocol;
 
@@ -118,25 +119,15 @@ suite('protocols', function () {
         new Buffer([])
       ];
       var messages = [];
-      var n = 0;
-      var readable = new stream.Readable({
-        read: function () {
-          var buf = parts[n++];
-          this.push(buf ? frame(buf) : null);
-        }
-      });
-      var writable = new stream.Writable({
-        write: function (buf, encoding, cb) {
-          messages.push(buf);
-          cb();
-        }
-      }).on('finish', function () {
-        assert.deepEqual(
-          messages,
-          [new Buffer([0, 1, 2]), new Buffer([3, 4, 5])]
-        );
-        done();
-      });
+      var readable = createReadableStream(parts, true);
+      var writable = createWritableStream(messages)
+        .on('finish', function () {
+          assert.deepEqual(
+            messages,
+            [new Buffer([0, 1, 2]), new Buffer([3, 4, 5])]
+          );
+          done();
+        });
       readable.pipe(new MessageDecoder()).pipe(writable);
     });
 
@@ -148,19 +139,8 @@ suite('protocols', function () {
         new Buffer([3])
       ];
       var messages = [];
-      var n = 0;
-      var readable = new stream.Readable({
-        read: function () {
-          var buf = parts[n++];
-          this.push(buf ? frame(buf) : null);
-        }
-      });
-      var writable = new stream.Writable({
-        write: function (buf, encoding, cb) {
-          messages.push(buf);
-          cb();
-        }
-      });
+      var readable = createReadableStream(parts, true);
+      var writable = createWritableStream(messages);
       readable
         .pipe(new MessageDecoder())
         .on('error', function () {
@@ -182,18 +162,8 @@ suite('protocols', function () {
         new Buffer([2])
       ];
       var frames = [];
-      var n = 0;
-      var readable = new stream.Readable({
-        read: function () {
-          this.push(messages[n++] || null);
-        }
-      });
-      var writable = new stream.Writable({
-        write: function (buf, encoding, cb) {
-          frames.push(buf);
-          cb();
-        }
-      });
+      var readable = createReadableStream(messages);
+      var writable = createWritableStream(frames);
       readable
         .pipe(new MessageEncoder())
         .pipe(writable)
@@ -297,4 +267,35 @@ function irange(n) {
     arr.push(n--);
   }
   return arr;
+}
+
+// Simplified constructor API isn't available in node <= 1.0.
+
+function createReadableStream(bufs, isFramed) {
+  var n = 0;
+  function Stream() {
+    stream.Readable.call(this);
+  }
+  util.inherits(Stream, stream.Readable);
+  Stream.prototype._read = function () {
+    var buf = bufs[n++];
+    if (!buf) {
+      this.push(null);
+    } else {
+      this.push(isFramed ? frame(buf) : buf);
+    }
+  };
+  return new Stream();
+}
+
+function createWritableStream(bufs) {
+  function Stream() {
+    stream.Writable.call(this);
+  }
+  util.inherits(Stream, stream.Writable);
+  Stream.prototype._write = function (buf, encoding, cb) {
+    bufs.push(buf);
+    cb();
+  };
+  return new Stream();
 }
