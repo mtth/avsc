@@ -7,7 +7,6 @@ var protocols = require('../lib/protocols'),
     stream = require('stream');
 
 var Protocol = protocols.Protocol;
-var transports = protocols.transports;
 
 suite('protocols', function () {
 
@@ -106,110 +105,109 @@ suite('protocols', function () {
 
   });
 
-  suite('transports', function () {
+  suite('MessageDecoder', function () {
 
-    suite('Shared', function () {
+    var MessageDecoder = protocols.streams.MessageDecoder;
 
-      test('read', function (done) {
-        var bufs = [
-          new Buffer([0, 1]),
-          new Buffer([2]),
-          new Buffer([]),
-          new Buffer([3, 4, 5]),
-          new Buffer([])
-        ];
-        var n = 0;
-        var readable = new stream.Readable({
-          read: function () {
-            var buf = bufs[n++];
-            this.push(buf ? frame(buf) : null);
-          }
-        });
-        var writable = new stream.Writable();
-        var messages = [];
-        var tm = new transports.Shared(readable, writable);
-        tm.on('data', function (buf) { messages.push(buf); })
-          .on('end', function () {
-            assert.deepEqual(messages, [
-              {data: new Buffer([0, 1, 2]), hint: 0},
-              {data: new Buffer([3, 4, 5]), hint: 0}
-            ]);
-            done();
-          });
+    test('ok', function (done) {
+      var parts = [
+        new Buffer([0, 1]),
+        new Buffer([2]),
+        new Buffer([]),
+        new Buffer([3, 4, 5]),
+        new Buffer([])
+      ];
+      var messages = [];
+      var n = 0;
+      var readable = new stream.Readable({
+        read: function () {
+          var buf = parts[n++];
+          this.push(buf ? frame(buf) : null);
+        }
       });
-
-      test('write', function (done) {
-        var bufs = [];
-        var nReads = 0;
-        var readable = new stream.Readable({read: function () { nReads++; }});
-        var writable = new stream.Writable({
-          write: function (chunk, encoding, cb) {
-            bufs.push(chunk);
-            cb();
-          }
-        });
-        var tm = new transports.Shared(readable, writable);
-        tm.write({data: new Buffer([0, 1])});
-        tm.write({data: new Buffer([3])});
-        tm.end();
-        writable
-          .on('finish', function () {
-            assert.equal(nReads, 1);
-            assert.deepEqual(
-              Buffer.concat(bufs),
-              Buffer.concat([
-                new Buffer([0, 1]),
-                new Buffer([]),
-                new Buffer([3]),
-                new Buffer([]),
-              ].map(frame))
-            );
-            done();
-          });
+      var writable = new stream.Writable({
+        write: function (buf, encoding, cb) {
+          messages.push(buf);
+          cb();
+        }
+      }).on('finish', function () {
+        assert.deepEqual(
+          messages,
+          [new Buffer([0, 1, 2]), new Buffer([3, 4, 5])]
+        );
+        done();
       });
-
+      readable.pipe(new MessageDecoder()).pipe(writable);
     });
 
-    suite('Outbound', function () {
-
-      test('roundtrip', function (done) {
-        var objs = [];
-        var ct = new transports.Outbound(function (cb) {
-          // Similar-ish to what an echo `http.request` would do.
-          var bufs = [];
-          return new stream.Writable({
-              write: function (chunk, encoding, cb) {
-                bufs.push(chunk);
-                cb();
-              }
-            }).on('finish', function () {
-              var n = 0;
-              cb(new stream.Readable({
-                read: function () { this.push(bufs[n++] || null); }
-              }));
-            });
-        }).on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
-            assert.deepEqual(objs, [
-              {data: new Buffer([0, 1, 2]), hint: 1},
-              {data: new Buffer([3, 4]), hint: 5}
-            ]);
-            done();
-          });
-
-        ct.write({data: new Buffer([0, 1, 2]), hint: 1});
-        ct.write({data: new Buffer([3, 4]), hint: 5});
-        ct.end();
+    test('trailing data', function (done) {
+      var parts = [
+        new Buffer([0, 1]),
+        new Buffer([2]),
+        new Buffer([]),
+        new Buffer([3])
+      ];
+      var messages = [];
+      var n = 0;
+      var readable = new stream.Readable({
+        read: function () {
+          var buf = parts[n++];
+          this.push(buf ? frame(buf) : null);
+        }
       });
-
+      var writable = new stream.Writable({
+        write: function (buf, encoding, cb) {
+          messages.push(buf);
+          cb();
+        }
+      });
+      readable
+        .pipe(new MessageDecoder())
+        .on('error', function () {
+          assert.deepEqual(messages, [new Buffer([0, 1, 2])]);
+          done();
+        })
+        .pipe(writable);
     });
 
-    function frame(buf) {
-      var framed = new Buffer(buf.length + 4);
-      framed.writeInt32BE(buf.length);
-      buf.copy(framed, 4);
-      return framed;
-    }
+  });
+
+  suite('MessageEncoder', function () {
+
+    var MessageEncoder = protocols.streams.MessageEncoder;
+
+    test('ok', function (done) {
+      var messages = [
+        new Buffer([0, 1]),
+        new Buffer([2])
+      ];
+      var frames = [];
+      var n = 0;
+      var readable = new stream.Readable({
+        read: function () {
+          this.push(messages[n++] || null);
+        }
+      });
+      var writable = new stream.Writable({
+        write: function (buf, encoding, cb) {
+          frames.push(buf);
+          cb();
+        }
+      });
+      readable
+        .pipe(new MessageEncoder())
+        .pipe(writable)
+        .on('finish', function () {
+          assert.deepEqual(
+            frames,
+            [
+              new Buffer([0, 0, 0, 2, 0, 1, 0, 0, 0, 0]),
+              new Buffer([0, 0, 0, 1, 2, 0, 0, 0, 0])
+            ]
+          );
+          done();
+        });
+    });
 
   });
 
@@ -283,6 +281,14 @@ suite('protocols', function () {
   });
 
 });
+
+// Message framing.
+function frame(buf) {
+  var framed = new Buffer(buf.length + 4);
+  framed.writeInt32BE(buf.length);
+  buf.copy(framed, 4);
+  return framed;
+}
 
 // Inverted range.
 function irange(n) {
