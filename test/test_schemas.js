@@ -1908,7 +1908,17 @@ suite('types', function () {
       var person = derived.fromBuffer(buf);
       assert.deepEqual(person.age, 12);
       assert.deepEqual(person.time, date);
-      assert.throws(function () { derived.toBuffer({age: -1, date: date}); });
+
+      var invalid = {age: -1, time: date};
+      assert.throws(function () { derived.toBuffer(invalid); });
+      var hasError = false;
+      derived.isValid(invalid, {errorHook: function (path, any, type) {
+        hasError = true;
+        assert.deepEqual(path, ['age']);
+        assert.equal(any, -1);
+        assert(type instanceof AgeType);
+      }});
+      assert(hasError);
     });
 
     test('recursive', function () {
@@ -1973,9 +1983,39 @@ suite('types', function () {
       assert.equal(t2.fromBuffer(buf, res), +d);
     });
 
+    test('even integer', function () {
+      function EvenIntType(attrs, opts) {
+        types.LogicalType.call(this, attrs, opts, [types.IntType]);
+      }
+      util.inherits(EvenIntType, types.LogicalType);
+      EvenIntType.prototype._fromValue = function (val) {
+        this._assertValid(val);
+        return val;
+      };
+      EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
+      EvenIntType.prototype._assertValid = function (any) {
+        if (any !== (any | 0) || any % 2) {
+          throw new Error('invalid');
+        }
+      };
+
+      var opts = {logicalTypes: {'even-integer': EvenIntType}};
+      var t = createType({type: 'int', logicalType: 'even-integer'}, opts);
+      assert(t.isValid(2));
+      assert(!t.isValid(3));
+      assert(!t.isValid('abc'));
+      assert.equal(t.fromBuffer(new Buffer([4])), 2);
+      assert.equal(t.clone(4), 4);
+      assert.equal(t.fromString('6'), 6);
+      assert.throws(function () { t.clone(3); });
+      assert.throws(function () { t.fromString('5'); });
+      assert.throws(function () { t.toBuffer(3); });
+      assert.throws(function () { t.fromBuffer(new Buffer([2])); });
+    });
+
+    // Unions are slightly tricky to override with logical types since their
+    // schemas aren't represented as objects.
     suite('union logical types', function () {
-      // Unions are slightly tricky to override with logical types since their
-      // schemas aren't represented as objects.
 
       var schema = [
         'null',
@@ -2086,36 +2126,6 @@ suite('types', function () {
 
       });
 
-    });
-
-    test('even integer', function () {
-      function EvenIntType(attrs, opts) {
-        types.LogicalType.call(this, attrs, opts, [types.IntType]);
-      }
-      util.inherits(EvenIntType, types.LogicalType);
-      EvenIntType.prototype._fromValue = function (val) {
-        this._assertValid(val);
-        return val;
-      };
-      EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
-      EvenIntType.prototype._assertValid = function (any) {
-        if (any !== (any | 0) || any % 2) {
-          throw new Error('invalid');
-        }
-      };
-
-      var opts = {logicalTypes: {'even-integer': EvenIntType}};
-      var t = createType({type: 'int', logicalType: 'even-integer'}, opts);
-      assert(t.isValid(2));
-      assert(!t.isValid(3));
-      assert(!t.isValid('abc'));
-      assert.equal(t.fromBuffer(new Buffer([4])), 2);
-      assert.equal(t.clone(4), 4);
-      assert.equal(t.fromString('6'), 6);
-      assert.throws(function () { t.clone(3); });
-      assert.throws(function () { t.fromString('5'); });
-      assert.throws(function () { t.toBuffer(3); });
-      assert.throws(function () { t.fromBuffer(new Buffer([2])); });
     });
 
   });
