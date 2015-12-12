@@ -225,16 +225,16 @@ suite('protocols', function () {
     test('parallel client server', function (done) {
       var pt1 = new stream.PassThrough();
       var pt2 = new stream.PassThrough();
-      var client = protocol.createClient({readable: pt1, writable: pt2});
       protocol.createServer()
         .addTransport({readable: pt2, writable: pt1})
         .onMessage('m2', function (params, cb) {
           var num = params.number; // Longer timeout for first messages.
-          setTimeout(function () { cb(null, num); }, num);
+          setTimeout(function () { cb(null, num); }, 10 * num);
         });
 
-      var numbers = irange(500);
+      var numbers = irange(10);
       var n = 0;
+      var client = protocol.createClient({readable: pt1, writable: pt2});
       numbers.forEach(emit);
 
       function emit(num) {
