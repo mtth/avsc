@@ -183,7 +183,7 @@ suite('protocols', function () {
 
   suite('Client Server', function () {
 
-    var protocol = new Protocol({
+    var ptcl = new Protocol({
       protocol: 'Test',
       messages: {
         m1: {
@@ -198,13 +198,9 @@ suite('protocols', function () {
       }
     });
 
-    test('client server', function (done) {
-      var pt1 = new stream.PassThrough();
-      var pt2 = new stream.PassThrough();
-      var client = protocol.createClient({readable: pt1, writable: pt2});
-      protocol.createServer()
-        .addTransport({readable: pt2, writable: pt1})
-        .onMessage('m1', function (params, cb) {
+    test('client server same protocol', function (done) {
+      setupClientServer(ptcl, ptcl, function (client, server) {
+        server.onMessage('m1', function (params, cb) {
           var n = params.number;
           if (n % 2) {
             cb({'int': n});
@@ -212,40 +208,77 @@ suite('protocols', function () {
             cb(null, 'ok');
           }
         });
-      client.emitMessage('m1', {number: 2}, function (err, res) {
-        assert.strictEqual(err, null);
-        assert.equal(res, 'ok');
-        client.emitMessage('m1', {number: 3}, function (err) {
-          assert.deepEqual(err, {'int': 3});
-          done();
+        client.emitMessage('m1', {number: 2}, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, 'ok');
+          client.emitMessage('m1', {number: 3}, function (err) {
+            assert.deepEqual(err, {'int': 3});
+            done();
+          });
         });
       });
     });
 
-    test('parallel client server', function (done) {
-      var pt1 = new stream.PassThrough();
-      var pt2 = new stream.PassThrough();
-      protocol.createServer()
-        .addTransport({readable: pt2, writable: pt1})
-        .onMessage('m2', function (params, cb) {
+    test('parallel client server same protocol', function (done) {
+      setupClientServer(ptcl, ptcl, function (client, server) {
+        server.onMessage('m2', function (params, cb) {
           var num = params.number; // Longer timeout for first messages.
           setTimeout(function () { cb(null, num); }, 10 * num);
         });
 
-      var numbers = irange(10);
-      var n = 0;
-      var client = protocol.createClient({readable: pt1, writable: pt2});
-      numbers.forEach(emit);
+        var numbers = irange(10);
+        var n = 0;
+        numbers.forEach(emit);
 
-      function emit(num) {
-        client.emitMessage('m2', {number: num}, function (err, res) {
-          assert.strictEqual(err, null);
-          assert.equal(res, num);
-          if (++n === numbers.length) {
-            done();
+        function emit(num) {
+          client.emitMessage('m2', {number: num}, function (err, res) {
+            assert.strictEqual(err, null);
+            assert.equal(res, num);
+            if (++n === numbers.length) {
+              done();
+            }
+          });
+        }
+      });
+    });
+
+    test('client server compatible protocols', function (done) {
+      var clientPtcl = new Protocol({
+        protocol: 'clientProtocol',
+        messages: {
+          age: {
+            request: [{name: 'name', type: 'string'}],
+            response: 'long'
           }
+        }
+      });
+      var serverPtcl = new Protocol({
+        protocol: 'serverProtocol',
+        messages: {
+          age: {
+            request: [
+              {name: 'name', type: 'string'},
+              {name: 'address', type: ['null', 'string'], 'default': null}
+            ],
+            response: 'int'
+          },
+          id: {
+            request: [{name: 'name', type: 'string'}],
+            response: 'long'
+          }
+        }
+      });
+      setupClientServer(clientPtcl, serverPtcl, function (client, server) {
+        server.onMessage('age', function (params, cb) {
+          assert.equal(params.name, 'Ann');
+          cb(null, 23);
         });
-      }
+        client.emitMessage('age', {name: 'Ann'}, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, 23);
+          done();
+        });
+      });
     });
 
   });
@@ -267,6 +300,15 @@ function irange(n) {
     arr.push(n--);
   }
   return arr;
+}
+
+function setupClientServer(clientPtcl, serverPtcl, cb) {
+  var pt1 = new stream.PassThrough();
+  var pt2 = new stream.PassThrough();
+  var client = clientPtcl.createClient({readable: pt1, writable: pt2});
+  var server = serverPtcl.createServer()
+    .addTransport({readable: pt2, writable: pt1});
+  cb(client, server);
 }
 
 // Simplified constructor API isn't available in node <= 1.0.
