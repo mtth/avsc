@@ -165,7 +165,7 @@ suite('protocols', function () {
       var readable = createReadableStream(messages);
       var writable = createWritableStream(frames);
       readable
-        .pipe(new MessageEncoder())
+        .pipe(new MessageEncoder(64))
         .pipe(writable)
         .on('finish', function () {
           assert.deepEqual(
