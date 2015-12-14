@@ -1,6 +1,5 @@
 body {
   background-color: #DEDEDE;
-  font-family: 'Indie Flower', cursive;
 }
 .-highlight- {
   background-color: #FFFF88;
@@ -157,4 +156,44 @@ a {
 
 .-inline- {
   display: inline-block;
+}
+.-narrow- {
+  width: 100%;
+  left: -50%;
+  position: relative;
+}
+.-center- {
+  left: 50%;
+  position: absolute;
+}
+select {
+  font-size: small;
+  border: 1px solid #79B6CC;
+  border-radius: 10px;
+  color: black;
+  padding: 12px;
+  -webkit-appearance: none;
+  background-color: #79B6CC;
+}
+select:active {
+  border: 1px solid #000;
+}
+#zozo {
+  margin: 20px;
+}
+.-placeholder- {
+  color: #867E7E;
+  font-size: medium;
+  font-weight: 200;
+}
+
+#schema-column {
+}
+
+#help-column {
+  font-family: 'Josefin Sans', sans-serif;
+}
+.-footnote- {
+  font-size: small;
+  bottom:0;
 }

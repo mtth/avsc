@@ -7,52 +7,50 @@ html(lang='en')
     title Avsc
     link(rel='stylesheet', href='../stylesheets/main.css', type='text/css')
     
-    link(href='https://fonts.googleapis.com/css?family=Indie+Flower|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
+    link(href='https://fonts.googleapis.com/css?family=Indie+Flower|Josefin+Sans|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
     script(src='../js/bundle.js' async)
   
   body
     div.-container-
-      table#table.-hidden-
-        tr
-          td.-wide-
-            div.-outer-
-              div
-                pre(contentEditable='true')#schema.-textbox-.-highlightable-
-              div.-label-
-                img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
-
-              div#schema-error.-message-.-hidden-.-error-
-          td.-wide-
-            div.-outer-
-              div
-                pre(contentEditable='true')#input.-textbox-.-highlightable-
-              div.-label-
-                img#input-valid(src='../assets/valid.png').-icon-.-hidden-
-              div#decoded-error.-message-.-hidden-.-error-
-          td.-wide-
-            div.-outer-
-              div 
-                div
-                  div(contentEditable='true')#output.-textbox-.-highlightable- 
-              div.-label-
-                img#output-valid(src='../assets/valid.png').-icon-.-hidden-
-              div#encoded-error.-message-.-hidden-.-error-
-        tr.-buttons-row-
-          td.-wide-
-            div.-tooltip-wrapper-
-              div.-tooltip-circle-
-              div.-tooltip-triangle-
-              div.-tooltip-label-
+    table#table.-hidden-
+      tr
+        td#schema-column
+          div.-outer-
+            div
+              pre(contentEditable='true')#schema.-textbox-.-highlightable-.-placeholder- 
                 |Enter your schema here
-          td.-wide-
-            div.-tooltip-wrapper-
-              div.-tooltip-circle-
-              div.-tooltip-triangle-
-              div.-tooltip-label-
-                a#random(href="#") Enter your input record... Or click here to generate a random one.
-          td.-wide-
-            div.-tooltip-wrapper-
-              div.-tooltip-circle-
-              div.-tooltip-triangle-
-              div.-tooltip-label-
-                |Encoded record
+            div.-label-
+              img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
+            div#schema-error.-message-.-hidden-.-error-
+        td#help-column
+          div
+            P
+              |Some very useful information about Avro schemas here, with a beautiful logo
+            P
+              |Not sure where to start? Select from one of these templates! 
+            div
+              select#schema-template
+                option(value="")
+                  |--
+                option(value="Cake")
+                  |Cake
+                option(value="Enum")
+                  |Enum
+                option(value="ArrayString")
+                  |ArrayString
+            
+        td#input-container.-wide-.-hidden-
+          div.-outer-
+            div
+              pre(contentEditable='true')#input.-textbox-.-highlightable-
+            div.-label-
+              img#input-valid(src='../assets/valid.png').-icon-.-hidden-
+            div#decoded-error.-message-.-hidden-.-error-
+        td#output-container.-wide-.-hidden-
+          div.-outer-
+            div 
+              div
+                div(contentEditable='true')#output.-textbox-.-highlightable- 
+            div.-label-
+              img#output-valid(src='../assets/valid.png').-icon-.-hidden-
+            div#encoded-error.-message-.-hidden-.-error-

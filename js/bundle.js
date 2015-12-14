@@ -2529,6 +2529,7 @@ var cache = {},
         decodedValidElement = $('#input-valid'),
         schemaErrorElement = $('#schema-error'),
         schemaValidElement = $('#schema-valid'),
+        schemaSelect = $('#schema-template'),
         schemaElement = document.getElementById('schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
@@ -2554,9 +2555,9 @@ var cache = {},
         var rawInput = $.trim($(inputElement).text());        
         try {
           var inputJson = JSON.parse(rawInput);
-          var inputRecord = window.schema._copy(inputJson, {coerce: 2});
+          var inputRecord = window.type._copy(inputJson, {coerce: 2});
           var invalidPaths = [];
-          var isValid = window.schema.isValid(inputRecord, {errorHook: function (p) {
+          var isValid = window.type.isValid(inputRecord, {errorHook: function (p) {
             invalidPaths.push(p.join());
           }});
           if(!isValid) {
@@ -2601,7 +2602,22 @@ var cache = {},
       showError(outputErrorElement, message);
     });
 
+    eventObj.on('update-layout', function() {
+      if (window.type) {
+        $('#help-column').addClass('-hidden-'); 
+        $('#input-container').removeClass('-hidden-');
+        $('#output-container').removeClass('-hidden-');
+      }
+    });
 
+    schemaSelect.on('change', function() {
+      var rawSchema = loadTemplate(this.value);
+      var s = location.search.split('schema=')[1];
+      s = s != undefined ? decodeURIComponent(s) : undefined;
+      if (!s || s != rawSchema) {
+        location.href = updateQueryStringParameter(location.href, 'schema', rawSchema);
+      }
+    });
        
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
@@ -2622,6 +2638,7 @@ var cache = {},
     });
 
     $('#schema').on('keyup', function() {
+
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
@@ -2630,6 +2647,15 @@ var cache = {},
       }, doneTypingInterval);
     }).on('keydown', function() {
       clearTimeout(typingTimer);
+    }).on('click', function(event) {
+      if($(this).hasClass('-placeholder-')) {
+        $(this).text('');
+        $(this).removeClass('-placeholder-');
+      }
+    }).bind('DOMSubtreeModified', function() {
+      if($(this).hasClass('-placeholder-')) {
+        $(this).removeClass('-placeholder-');
+      }
     });
 
     $('#input').on('paste keyup', function(event) {
@@ -2705,13 +2731,12 @@ var cache = {},
 
     function populateSchema() {
       var s = location.search.split('schema=')[1];
-      if (s) { 
+      if(s) {
         s = decodeURIComponent(s);
         $(schemaElement).text(s);
-        updateContent(schemaElement);
         eventObj.trigger('schema-changed');
+        generateRandom();
       }
-
     }
     
     /**
@@ -2968,20 +2993,21 @@ var cache = {},
     }
 
     function validateSchema() {
-      window.schema = null;
+      window.type = null;
       try {
         var rawSchema = readSchemaFromInput();
         $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
-        window.schema = avsc.parse(rawSchema);
+        window.type = avsc.parse(rawSchema);
         eventObj.trigger('valid-schema');
+        eventObj.trigger('update-layout');
       } catch (err) {
         eventObj.trigger('invalid-schema', err);
       }
     }
     function generateRandom() {
-      if (window.schema) {
-        var random = window.schema.random();
-        var randomStr = window.schema.toString(random);
+      if (window.type) {
+        var random = window.type.random();
+        var randomStr = window.type.toString(random);
         setInputText(randomStr);
         eventObj.trigger('input-changed');
       }
@@ -2993,12 +3019,12 @@ var cache = {},
     * Encode it and set the outputElement's text to the encoded data
     */   
     function encode() {
-      if (window.schema) {
+      if (window.type) {
         try {
           var input = readInput();
-          window.instrumented = instrumentObject(window.schema, input);
+          window.instrumented = instrumentObject(window.type, input);
           window.reverseIndexMap = computeReverseIndex(window.instrumented);
-          var output = window.schema.toBuffer(input);
+          var output = window.type.toBuffer(input);
           setOutputText(output.toString('hex'));
           eventObj.trigger('valid-output');
         }catch(err) {
@@ -3008,11 +3034,11 @@ var cache = {},
     }
 
     function decode() {
-      if (window.schema) {
+      if (window.type) {
         try {
           var input = readBuffer(outputElement);
-          var decoded = window.schema.fromBuffer(input);
-          var decodedStr = window.schema.toString(decoded);
+          var decoded = window.type.fromBuffer(input);
+          var decodedStr = window.type.toString(decoded);
           eventObj.trigger('valid-output');
           setInputText(decodedStr);
         }catch(err) {
@@ -3043,8 +3069,8 @@ var cache = {},
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
-      if(!!window.schema) {
-        return window.schema.fromString(rawInput);
+      if(!!window.type) {
+        return window.type.fromString(rawInput);
       } else {
         return JSON.parse(rawInput);
       }
@@ -3068,7 +3094,10 @@ var cache = {},
     function resize() {
       $('#table').removeClass('-hidden-');
       var vph = $(window).height();
-      $('.-textbox-').css({'height': 0.8 *vph});
+      var vpw = $(window).width() * 0.3;
+      $('.-textbox-').css({'height': 0.8 * vph});
+      $('.-message-').css({'width': vpw});
+      $('.-textbox-').css({'width': vpw});
       width = outputElement.width();
     }
 
@@ -3187,10 +3216,26 @@ var cache = {},
       }
     }
 
+    function loadTemplate(name) { 
+      if (name != '')
+        return '{ "name": "' + name + '", "type": "record", "fields": [ { "name": "value", "type": { "name": "Gender", "type": "enum", "symbols": ["FEMALE", "MALE"]}}]}';
+      return ""; 
+    }
+
+    /**
+    * http://stackoverflow.com/a/6021027/2070194
+    */
+    function updateQueryStringParameter(uri, key, value) {
+      var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+      var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+      if (uri.match(re)) {
+        return uri.replace(re, '$1' + key + "=" + value + '$2');
+      } else {
+        return uri + separator + key + "=" + value;
+      }
+    }
     resize();
     populateSchema();
-
-
  });
 })();
 
