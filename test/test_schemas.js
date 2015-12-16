@@ -1500,6 +1500,22 @@ suite('types', function () {
       assert.equal(t.getSchema(true), '"earth.Person"');
     });
 
+    test('fromString', function () {
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: 'string', 'default': 'UNKNOWN'}
+        ]
+      });
+      assert.deepEqual(
+        t.fromString('{"age": 23}'),
+        {age: 23, name: 'UNKNOWN'}
+      );
+      assert.throws(function () { t.fromString('{}'); });
+    });
+
     test('toString record', function () {
       var T = createType({
         type: 'record',
@@ -1525,6 +1541,31 @@ suite('types', function () {
       assert.equal(o.age, 25);
       assert.strictEqual(c.$getType(), t);
       assert.deepEqual(c.$clone(), c);
+    });
+
+    test('clone field default', function () {
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'id', type: 'int'},
+          {name: 'name', type: 'string', 'default': 'UNKNOWN'},
+          {name: 'age', type: ['null', 'int'], 'default': null},
+        ]
+      });
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann'}),
+        {id: 1, name: 'Ann', age: null}
+      );
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann', age: {'int': 21}}),
+        {id: 1, name: 'Ann', age: {'int': 21}}
+      );
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann', age: 21}, {wrapUnions: true}),
+        {id: 1, name: 'Ann', age: {'int': 21}}
+      );
+      assert.throws(function () { t.clone({}); });
     });
 
     test('clone field hook', function () {
