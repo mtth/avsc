@@ -306,8 +306,8 @@ function setupClientServer(clientPtcl, serverPtcl, cb) {
   var pt1 = new stream.PassThrough();
   var pt2 = new stream.PassThrough();
   var client = clientPtcl.createClient({readable: pt1, writable: pt2});
-  var server = serverPtcl.createServer()
-    .addTransport({readable: pt2, writable: pt1});
+  var server = serverPtcl.createServer();
+  server.createChannel({readable: pt2, writable: pt1});
   cb(client, server);
 }
 
