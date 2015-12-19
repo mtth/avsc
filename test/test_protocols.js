@@ -208,14 +208,15 @@ suite('protocols', function () {
             cb(null, 'ok');
           }
         });
-        client.emitMessage('m1', {number: 2}, function (err, res) {
-          assert.strictEqual(err, null);
-          assert.equal(res, 'ok');
-          client.emitMessage('m1', {number: 3}, function (err) {
-            assert.deepEqual(err, {'int': 3});
-            done();
+        client
+          .emitMessage('m1', {number: 2}, function (err, res) {
+            assert.strictEqual(err, null);
+            assert.equal(res, 'ok');
+            client.emitMessage('m1', {number: 3}, function (err) {
+              assert.deepEqual(err, {'int': 3});
+              done();
+            });
           });
-        });
       });
     });
 
@@ -268,17 +269,55 @@ suite('protocols', function () {
           }
         }
       });
-      setupClientServer(clientPtcl, serverPtcl, function (client, server) {
-        server.onMessage('age', function (params, cb) {
-          assert.equal(params.name, 'Ann');
-          cb(null, 23);
-        });
-        client.emitMessage('age', {name: 'Ann'}, function (err, res) {
-          assert.strictEqual(err, null);
-          assert.equal(res, 23);
-          done();
-        });
+      setupClientServer(
+        clientPtcl,
+        serverPtcl,
+        function (client, server) {
+          server.onMessage('age', function (params, cb) {
+            assert.equal(params.name, 'Ann');
+            cb(null, 23);
+          });
+          client
+            .emitMessage('age', {name: 'Ann'}, function (err, res) {
+              assert.strictEqual(err, null);
+              assert.equal(res, 23);
+              done();
+            });
+        }
+      );
+    });
+
+    test('client server incompatible protocols', function (done) {
+      var clientPtcl = new Protocol({
+        protocol: 'clientProtocol',
+        messages: {
+          age: {request: [{name: 'name', type: 'string'}], response: 'long'}
+        }
       });
+      var serverPtcl = new Protocol({
+        protocol: 'serverProtocol',
+        messages: {
+          age: {request: [{name: 'name', type: 'int'}], response: 'long'}
+        }
+      });
+      setupClientServer(
+        clientPtcl,
+        serverPtcl,
+        function (client, server) {
+          server.onMessage('age', function (params, cb) {
+            assert.equal(params.name, 'Ann');
+            cb(null, 23);
+          });
+          client
+            .on('error', function (err) {
+              assert(err !== null);
+              done();
+            })
+            .emitMessage('age', {name: 'Ann'}, function () {
+              assert(false);
+            });
+        }
+      );
     });
 
   });
@@ -307,8 +346,8 @@ function setupClientServer(clientPtcl, serverPtcl, cb) {
   var pt2 = new stream.PassThrough();
   var client = clientPtcl.createClient({readable: pt1, writable: pt2});
   var server = serverPtcl.createServer();
-  server.createChannel({readable: pt2, writable: pt1});
-  cb(client, server);
+  var channel = server.createChannel({readable: pt2, writable: pt1});
+  cb(client, server, channel);
 }
 
 // Simplified constructor API isn't available in node <= 1.0.
