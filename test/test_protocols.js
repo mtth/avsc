@@ -7,7 +7,11 @@ var protocols = require('../lib/protocols'),
     stream = require('stream'),
     util = require('util');
 
+var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
+var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
+var MessageEncoder = protocols.streams.MessageEncoder;
 var Protocol = protocols.Protocol;
+
 
 suite('protocols', function () {
 
@@ -72,13 +76,29 @@ suite('protocols', function () {
       });
     });
 
+    test('inspect', function () {
+      var p = new protocols.Protocol({
+        namespace: 'hello',
+        protocol: 'World',
+      });
+      assert.equal(p.inspect(), '<Protocol "hello.World">');
+    });
+
   });
 
   suite('Message', function () {
 
+    test('empty errors', function () {
+      var m = new protocols.Message('Hi', {
+        request: [{name: 'greeting', type: 'string'}],
+        response: 'int'
+      });
+      assert.deepEqual(m.errorType.toString(), '["string"]');
+    });
+
     test('missing response', function () {
       assert.throws(function () {
-        new protocols.Message({
+        new protocols.Message('Hi', {
           request: [{name: 'greeting', type: 'string'}]
         });
       });
@@ -87,7 +107,7 @@ suite('protocols', function () {
     test('invalid one-way', function () {
       // Non-null response.
       assert.throws(function () {
-        new protocols.Message({
+        new protocols.Message('Hi', {
           request: [{name: 'greeting', type: 'string'}],
           response: 'string',
           'one-way': true
@@ -95,7 +115,7 @@ suite('protocols', function () {
       });
       // Non-empty errors.
       assert.throws(function () {
-        new protocols.Message({
+        new protocols.Message('Hi', {
           request: [{name: 'greeting', type: 'string'}],
           response: 'null',
           errors: ['int'],
@@ -119,8 +139,8 @@ suite('protocols', function () {
         new Buffer([])
       ];
       var messages = [];
-      var readable = createReadableStream(parts, true);
-      var writable = createWritableStream(messages)
+      var readable = createReadableStream(parts.map(frame), true);
+      var writable = createWritableStream(messages, true)
         .on('finish', function () {
           assert.deepEqual(
             messages,
@@ -139,8 +159,8 @@ suite('protocols', function () {
         new Buffer([3])
       ];
       var messages = [];
-      var readable = createReadableStream(parts, true);
-      var writable = createWritableStream(messages);
+      var readable = createReadableStream(parts.map(frame), true);
+      var writable = createWritableStream(messages, true);
       readable
         .pipe(new MessageDecoder())
         .on('error', function () {
@@ -154,7 +174,9 @@ suite('protocols', function () {
 
   suite('MessageEncoder', function () {
 
-    var MessageEncoder = protocols.streams.MessageEncoder;
+    test('invalid frame size', function () {
+      assert.throws(function () { new MessageEncoder(); });
+    });
 
     test('ok', function (done) {
       var messages = [
@@ -162,8 +184,8 @@ suite('protocols', function () {
         new Buffer([2])
       ];
       var frames = [];
-      var readable = createReadableStream(messages);
-      var writable = createWritableStream(frames);
+      var readable = createReadableStream(messages, true);
+      var writable = createWritableStream(frames, true);
       readable
         .pipe(new MessageEncoder(64))
         .pipe(writable)
@@ -178,6 +200,193 @@ suite('protocols', function () {
           done();
         });
     });
+
+    test('all zeros', function (done) {
+      var messages = [new Buffer([0, 0, 0, 0])];
+      var frames = [];
+      var readable = createReadableStream(messages, true);
+      var writable = createWritableStream(frames, true);
+      readable
+        .pipe(new MessageEncoder(64))
+        .pipe(writable)
+        .on('finish', function () {
+          assert.deepEqual(
+            frames,
+            [new Buffer([0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0])]
+          );
+          done();
+        });
+    });
+
+    test('short frame size', function (done) {
+      var messages = [
+        new Buffer([0, 1, 2]),
+        new Buffer([2])
+      ];
+      var frames = [];
+      var readable = createReadableStream(messages, true);
+      var writable = createWritableStream(frames, true);
+      readable
+        .pipe(new MessageEncoder(2))
+        .pipe(writable)
+        .on('finish', function () {
+          assert.deepEqual(
+            frames,
+            [
+              new Buffer([0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 2, 0, 0, 0, 0]),
+              new Buffer([0, 0, 0, 1, 2, 0, 0, 0, 0])
+            ]
+          );
+          done();
+        });
+    });
+
+  });
+
+  suite('StatefulClient', function () {
+
+    var StatefulClient = protocols.clients.StatefulClient;
+
+    test('ok handshake', function (done) {
+      var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
+      var bufs = [];
+      var ptcl = createNumberProtocol();
+      var client = new StatefulClient(
+        ptcl,
+        createReadableStream([buf]),
+        createWritableStream(bufs)
+      );
+      var handshake = false;
+      client
+        .on('handshake', function (req, res) {
+          handshake = true;
+          assert(res.match === 'BOTH');
+          assert.deepEqual(
+            Buffer.concat(bufs),
+            HANDSHAKE_REQUEST_TYPE.toBuffer({
+              clientHash: ptcl.getHash(),
+              serverHash: ptcl.getHash()
+            })
+          );
+          this.destroy();
+        })
+        .on('eot', function () {
+          assert(handshake);
+          done();
+        });
+    });
+
+    test('invalid handshake', function (done) {
+      var ptcl = createNumberProtocol();
+      // Pretend the hash was different.
+      var hash = new Buffer(16);
+      var resBufs = [
+        {
+          match: 'NONE',
+          serverHash: {'org.apache.avro.ipc.MD5': hash},
+          serverProtocol: {string: ptcl.toString()},
+        },
+        {match: 'BOTH'}
+      ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
+      var reqBufs = [];
+      var client = new StatefulClient(
+        ptcl,
+        createReadableStream(resBufs),
+        createWritableStream(reqBufs)
+      );
+      var handshakes = 0;
+      client
+        .on('handshake', function (req, res) {
+          if (handshakes++) {
+            assert(res.match === 'BOTH');
+            this.destroy();
+          } else {
+            assert(res.match === 'NONE');
+          }
+        })
+        .on('eot', function () {
+          assert.equal(handshakes, 2);
+          done();
+        });
+    });
+
+    test('incompatible protocol', function (done) {
+      var ptcl = createNumberProtocol();
+      // Pretend the hash was different.
+      var hash = new Buffer(16);
+      var resBufs = [
+        {
+          match: 'NONE',
+          serverHash: {'org.apache.avro.ipc.MD5': hash},
+          serverProtocol: {string: ptcl.toString()},
+        },
+        {
+          match: 'NONE',
+          serverHash: {'org.apache.avro.ipc.MD5': hash},
+          serverProtocol: {string: ptcl.toString()},
+          meta: {map: {error: new Buffer('abcd')}}
+        }
+      ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
+      var client = new StatefulClient(
+        ptcl,
+        createReadableStream(resBufs),
+        createWritableStream([])
+      );
+      var error = false;
+      client
+        .on('error', function (err) {
+          error = true;
+          assert.equal(err.message, 'abcd');
+          this.destroy();
+        })
+        .on('eot', function () {
+          assert(error);
+          done();
+        });
+    });
+
+    test('ended readable', function (done) {
+      var ptcl = createNumberProtocol();
+      var bufs = [];
+      var client = new StatefulClient(
+        ptcl,
+        createReadableStream([]),
+        createWritableStream([])
+      );
+      client
+        .on('eot', function () {
+          assert.equal(bufs.length, 0); // No handshake was sent.
+          done();
+        });
+    });
+
+    test('interrupted', function (done) {
+      var ptcl = createNumberProtocol();
+      var encoder = new MessageEncoder(64);
+      var interrupted = 0;
+      var client = new StatefulClient(
+        ptcl,
+        encoder,
+        createWritableStream([])
+      ).on('eot', function () {
+        assert.equal(interrupted, 2);
+        done();
+      });
+
+      encoder.write(HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'}));
+      client.emitMessage('parse', {string: '123'}, cb);
+      client.emitMessage('parse', {string: '123'}, cb);
+      encoder.end();
+
+      function cb(err) {
+        assert.deepEqual(err, {string: 'interrupted'});
+        interrupted++;
+      }
+    });
+
+  });
+
+  suite('StatefulChannel', function () {
 
   });
 
@@ -341,6 +550,23 @@ function irange(n) {
   return arr;
 }
 
+// A few simple protocols shared below.
+function createNumberProtocol() {
+  return new Protocol({
+    protocol: 'Number',
+    messages: {
+      parse: {
+        request: [{name: 'string', type: 'string'}],
+        response: 'int'
+      },
+      add: {
+        request: [{name: 'numbers', type: {type: 'array', items: 'int'}}],
+        response: 'int'
+      }
+    }
+  });
+}
+
 function setupClientServer(clientPtcl, serverPtcl, cb) {
   var pt1 = new stream.PassThrough();
   var pt2 = new stream.PassThrough();
@@ -352,24 +578,22 @@ function setupClientServer(clientPtcl, serverPtcl, cb) {
 
 // Simplified constructor API isn't available in node <= 1.0.
 
-function createReadableStream(bufs, isFramed) {
+function createReadableStream(bufs, noFrame) {
   var n = 0;
   function Stream() {
     stream.Readable.call(this);
   }
   util.inherits(Stream, stream.Readable);
   Stream.prototype._read = function () {
-    var buf = bufs[n++];
-    if (!buf) {
-      this.push(null);
-    } else {
-      this.push(isFramed ? frame(buf) : buf);
-    }
+    this.push(bufs[n++] || null);
   };
-  return new Stream();
+  var readable = new Stream();
+  return noFrame ?
+    readable :
+    readable.pipe(new protocols.streams.MessageEncoder(64));
 }
 
-function createWritableStream(bufs) {
+function createWritableStream(bufs, noUnframe) {
   function Stream() {
     stream.Writable.call(this);
   }
@@ -378,5 +602,12 @@ function createWritableStream(bufs) {
     bufs.push(buf);
     cb();
   };
-  return new Stream();
+  var writable = new Stream();
+  if (noUnframe) {
+    return writable;
+  } else {
+    var decoder = new protocols.streams.MessageDecoder();
+    decoder.pipe(writable);
+    return decoder;
+  }
 }
