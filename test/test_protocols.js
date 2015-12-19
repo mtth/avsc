@@ -9,8 +9,11 @@ var protocols = require('../lib/protocols'),
 
 var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
 var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
+// var MessageDecoder = protocols.streams.MessageDecoder;
 var MessageEncoder = protocols.streams.MessageEncoder;
 var Protocol = protocols.Protocol;
+// var channels = protocols.channels;
+var clients = protocols.clients;
 
 
 suite('protocols', function () {
@@ -82,6 +85,19 @@ suite('protocols', function () {
         protocol: 'World',
       });
       assert.equal(p.inspect(), '<Protocol "hello.World">');
+    });
+
+    test('createClient', function () {
+      var p = new protocols.Protocol({protocol: 'Hi'});
+      var d = createDuplexStream();
+      var e = createDuplexStream();
+      var c;
+      c = p.createClient({readable: e, writable: d});
+      assert(c instanceof clients.StatefulClient);
+      c = p.createClient(e);
+      assert(c instanceof clients.StatefulClient);
+      c = p.createClient(function (cb) { cb(e); return d; });
+      assert(c instanceof clients.StatelessClient);
     });
 
   });
@@ -312,8 +328,7 @@ suite('protocols', function () {
 
     test('incompatible protocol', function (done) {
       var ptcl = createNumberProtocol();
-      // Pretend the hash was different.
-      var hash = new Buffer(16);
+      var hash = new Buffer(16); // Pretend the hash was different.
       var resBufs = [
         {
           match: 'NONE',
@@ -337,7 +352,50 @@ suite('protocols', function () {
         .on('error', function (err) {
           error = true;
           assert.equal(err.message, 'abcd');
-          this.destroy();
+        })
+        .on('eot', function () {
+          assert(error);
+          done();
+        });
+    });
+
+    test('handshake error', function (done) {
+      var resBufs = [
+        new Buffer([4, 0, 0]), // Invalid handshakes.
+        new Buffer([4, 0, 0])
+      ];
+      var client = new StatefulClient(
+        createNumberProtocol(),
+        createReadableStream(resBufs),
+        createWritableStream([])
+      );
+      var error = false;
+      client
+        .on('error', function (err) {
+          error = true;
+          assert.equal(err.message, 'handshake error');
+        })
+        .on('eot', function () {
+          assert(error);
+          done();
+        });
+    });
+
+    test('orphan response', function (done) {
+      var resBufs = [
+        new Buffer([0, 0, 0]), // OK handshake.
+        new Buffer([1, 2, 3])
+      ];
+      var client = new StatefulClient(
+        createNumberProtocol(),
+        createReadableStream(resBufs),
+        createWritableStream([])
+      );
+      var error = false;
+      client
+        .on('error', function (err) {
+          error = true;
+          assert.equal(err.message, 'orphan response');
         })
         .on('eot', function () {
           assert(error);
@@ -610,4 +668,16 @@ function createWritableStream(bufs, noUnframe) {
     decoder.pipe(writable);
     return decoder;
   }
+}
+
+// Black hole stream (ends when finished).
+function createDuplexStream() {
+  function Stream() {
+    stream.Duplex.call(this);
+    this.on('finish', function () { this.push(null); });
+  }
+  util.inherits(Stream, stream.Duplex);
+  Stream.prototype._read = function () {};
+  Stream.prototype._write = function (buf, encoding, cb) { cb(); };
+  return new Stream();
 }
