@@ -280,8 +280,8 @@ suite('protocols', function () {
           assert.deepEqual(
             Buffer.concat(bufs),
             HANDSHAKE_REQUEST_TYPE.toBuffer({
-              clientHash: ptcl.getHash(),
-              serverHash: ptcl.getHash()
+              clientHash: ptcl._getHash(),
+              serverHash: ptcl._getHash()
             })
           );
           this.destroy();
