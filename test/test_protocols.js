@@ -20,7 +20,7 @@ suite('protocols', function () {
 
   suite('Protocol', function () {
 
-    test('valid', function () {
+    test('get name and types', function () {
       var p = new protocols.Protocol({
         namespace: 'foo',
         protocol: 'HelloWorld',
@@ -50,6 +50,8 @@ suite('protocols', function () {
         }
       });
       assert.equal(p.getName(), 'foo.HelloWorld');
+      assert.equal(p.getType('foo.Greeting').getName(true), 'record');
+      p.clearCache();
     });
 
     test('missing messages', function () {
@@ -98,6 +100,10 @@ suite('protocols', function () {
       assert(c instanceof clients.StatefulClient);
       c = p.createClient(function (cb) { cb(e); return d; });
       assert(c instanceof clients.StatelessClient);
+      c = p.createClient(e, foo);
+      assert.equal(c.listeners('eot').length, 1);
+
+      function foo() {}
     });
 
   });
@@ -280,8 +286,8 @@ suite('protocols', function () {
           assert.deepEqual(
             Buffer.concat(bufs),
             HANDSHAKE_REQUEST_TYPE.toBuffer({
-              clientHash: ptcl._getHash(),
-              serverHash: ptcl._getHash()
+              clientHash: new Buffer(ptcl._hashString, 'binary'),
+              serverHash: new Buffer(ptcl._hashString, 'binary')
             })
           );
           this.destroy();
