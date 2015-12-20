@@ -10,23 +10,9 @@
  */
 
 var Tap = require('../../lib/utils').Tap,
+    files = require('../../lib/files'),
+    protocols = require('../../lib/protocols'),
     schemas = require('../../lib/schemas');
-
-
-function parse(schema, opts) {
-  var obj;
-  if (typeof schema == 'string') {
-    try {
-      obj = JSON.parse(schema);
-    } catch (err) {
-      // Pass. No file reading from the browser.
-    }
-  }
-  if (obj === undefined) {
-    obj = schema;
-  }
-  return schemas.createType(obj, opts);
-}
 
 // No utf8 and binary functions on browserify's `Buffer`, we must patch in the
 // generic slice and write equivalents.
@@ -64,6 +50,10 @@ Tap.prototype.writeBinary = function (s, len) {
 
 
 module.exports = {
-  parse: parse,
+  LogicalType: schemas.LogicalType,
+  Protocol: protocols.Protocol,
+  Type: schemas.Type,
+  parse: files.parse,
+  streams: files.streams,
   types: schemas.types
 };

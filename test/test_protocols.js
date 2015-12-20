@@ -450,7 +450,8 @@ suite('protocols', function () {
 
   });
 
-  suite('StatefulChannel', function () {
+  suite('StatelessClient', function () {
+
 
   });
 

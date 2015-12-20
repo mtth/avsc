@@ -4,6 +4,7 @@
 
 
 var files = require('../lib/files'),
+    protocols = require('../lib/protocols'),
     schemas = require('../lib/schemas'),
     assert = require('assert'),
     fs = require('fs'),
@@ -26,7 +27,7 @@ suite('files', function () {
 
     var parse = files.parse;
 
-    test('object', function () {
+    test('type object', function () {
       var obj = {
         type: 'record',
         name: 'Person',
@@ -35,7 +36,12 @@ suite('files', function () {
       assert(parse(obj) instanceof types.RecordType);
     });
 
-    test('schema instance', function () {
+    test('protocol object', function () {
+      var obj = {protocol: 'Foo'};
+      assert(parse(obj) instanceof protocols.Protocol);
+    });
+
+    test('type instance', function () {
       var type = parse({
         type: 'record',
         name: 'Person',
@@ -44,7 +50,7 @@ suite('files', function () {
       assert.strictEqual(parse(type), type);
     });
 
-    test('stringified schema', function () {
+    test('stringified type schema', function () {
       assert(parse('"int"') instanceof types.IntType);
     });
 
@@ -52,7 +58,7 @@ suite('files', function () {
       assert(parse('double') instanceof types.DoubleType);
     });
 
-    test('file', function () {
+    test('type schema file', function () {
       var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
       var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
       assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));

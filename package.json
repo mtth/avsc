@@ -20,7 +20,8 @@
   "main": "./lib",
   "browser": {
     "./lib": "./etc/browser/avsc.js",
-    "crypto": "./etc/browser/crypto.js"
+    "crypto": "./etc/browser/crypto.js",
+    "fs": "./etc/browser/fs.js"
   },
   "engines": {
     "node": ">=0.11"
