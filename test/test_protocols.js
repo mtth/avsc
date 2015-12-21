@@ -192,6 +192,13 @@ suite('protocols', function () {
         .pipe(writable);
     });
 
+    test('empty', function (done) {
+      var readable = createReadableStream([], true);
+      readable
+        .pipe(new MessageDecoder(true))
+        .on('error', function () { done(); });
+    });
+
   });
 
   suite('MessageEncoder', function () {
