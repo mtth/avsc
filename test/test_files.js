@@ -453,6 +453,26 @@ suite('files', function () {
       encoder.end(48);
     });
 
+    test('uncompressed int after delay', function (cb) {
+      var t = createType('int');
+      var objs = [];
+      var encoder = new streams.BlockEncoder(t);
+      var decoder = new streams.BlockDecoder();
+      encoder.pipe(decoder);
+      encoder.write(12);
+      encoder.write(23);
+      encoder.end(48);
+
+      setTimeout(function () {
+        decoder
+          .on('data', function (obj) { objs.push(obj); })
+          .on('end', function () {
+            assert.deepEqual(objs, [12, 23, 48]);
+            cb();
+          });
+      }, 100);
+    });
+
     test('deflated records', function (cb) {
       var t = createType({
         type: 'record',
