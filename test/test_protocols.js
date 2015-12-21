@@ -10,8 +10,8 @@ var protocols = require('../lib/protocols'),
 var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
 var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
 // var MessageDecoder = protocols.streams.MessageDecoder;
+var createProtocol = protocols.createProtocol;
 var MessageEncoder = protocols.streams.MessageEncoder;
-var Protocol = protocols.Protocol;
 // var channels = protocols.channels;
 var clients = protocols.clients;
 
@@ -21,7 +21,7 @@ suite('protocols', function () {
   suite('Protocol', function () {
 
     test('get name and types', function () {
-      var p = new protocols.Protocol({
+      var p = createProtocol({
         namespace: 'foo',
         protocol: 'HelloWorld',
         types: [
@@ -56,19 +56,19 @@ suite('protocols', function () {
 
     test('missing messages', function () {
       assert.doesNotThrow(function () {
-        new protocols.Protocol({namespace: 'com.acme', protocol: 'Hello'});
+        createProtocol({namespace: 'com.acme', protocol: 'Hello'});
       });
     });
 
     test('missing name', function () {
       assert.throws(function () {
-        new protocols.Protocol({namespace: 'com.acme', messages: {}});
+        createProtocol({namespace: 'com.acme', messages: {}});
       });
     });
 
     test('missing type', function () {
       assert.throws(function () {
-        new protocols.Protocol({
+        createProtocol({
           namespace: 'com.acme',
           protocol: 'HelloWorld',
           messages: {
@@ -82,7 +82,7 @@ suite('protocols', function () {
     });
 
     test('inspect', function () {
-      var p = new protocols.Protocol({
+      var p = createProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -90,7 +90,7 @@ suite('protocols', function () {
     });
 
     test('createClient', function () {
-      var p = new protocols.Protocol({protocol: 'Hi'});
+      var p = createProtocol({protocol: 'Hi'});
       var d = createDuplexStream();
       var e = createDuplexStream();
       var c;
@@ -464,7 +464,7 @@ suite('protocols', function () {
 
   suite('Client Server', function () {
 
-    var ptcl = new Protocol({
+    var ptcl = createProtocol({
       protocol: 'Test',
       messages: {
         m1: {
@@ -480,8 +480,8 @@ suite('protocols', function () {
     });
 
     test('client server same protocol', function (done) {
-      setupClientServer(ptcl, ptcl, function (client, server) {
-        server.onMessage('m1', function (params, cb) {
+      setupClientServer(ptcl, ptcl, function (client) {
+        ptcl.onMessage('m1', function (params, cb) {
           var n = params.number;
           if (n % 2) {
             cb({'int': n});
@@ -502,8 +502,8 @@ suite('protocols', function () {
     });
 
     test('parallel client server same protocol', function (done) {
-      setupClientServer(ptcl, ptcl, function (client, server) {
-        server.onMessage('m2', function (params, cb) {
+      setupClientServer(ptcl, ptcl, function (client) {
+        ptcl.onMessage('m2', function (params, cb) {
           var num = params.number; // Longer timeout for first messages.
           setTimeout(function () { cb(null, num); }, 10 * num);
         });
@@ -525,7 +525,7 @@ suite('protocols', function () {
     });
 
     test('client server compatible protocols', function (done) {
-      var clientPtcl = new Protocol({
+      var clientPtcl = createProtocol({
         protocol: 'clientProtocol',
         messages: {
           age: {
@@ -534,7 +534,7 @@ suite('protocols', function () {
           }
         }
       });
-      var serverPtcl = new Protocol({
+      var serverPtcl = createProtocol({
         protocol: 'serverProtocol',
         messages: {
           age: {
@@ -553,8 +553,8 @@ suite('protocols', function () {
       setupClientServer(
         clientPtcl,
         serverPtcl,
-        function (client, server) {
-          server.onMessage('age', function (params, cb) {
+        function (client) {
+          serverPtcl.onMessage('age', function (params, cb) {
             assert.equal(params.name, 'Ann');
             cb(null, 23);
           });
@@ -569,13 +569,13 @@ suite('protocols', function () {
     });
 
     test('client server incompatible protocols', function (done) {
-      var clientPtcl = new Protocol({
+      var clientPtcl = createProtocol({
         protocol: 'clientProtocol',
         messages: {
           age: {request: [{name: 'name', type: 'string'}], response: 'long'}
         }
       });
-      var serverPtcl = new Protocol({
+      var serverPtcl = createProtocol({
         protocol: 'serverProtocol',
         messages: {
           age: {request: [{name: 'name', type: 'int'}], response: 'long'}
@@ -584,8 +584,8 @@ suite('protocols', function () {
       setupClientServer(
         clientPtcl,
         serverPtcl,
-        function (client, server) {
-          server.onMessage('age', function (params, cb) {
+        function (client) {
+          serverPtcl.onMessage('age', function (params, cb) {
             assert.equal(params.name, 'Ann');
             cb(null, 23);
           });
@@ -624,7 +624,7 @@ function irange(n) {
 
 // A few simple protocols shared below.
 function createNumberProtocol() {
-  return new Protocol({
+  return createProtocol({
     protocol: 'Number',
     messages: {
       parse: {
@@ -643,9 +643,8 @@ function setupClientServer(clientPtcl, serverPtcl, cb) {
   var pt1 = new stream.PassThrough();
   var pt2 = new stream.PassThrough();
   var client = clientPtcl.createClient({readable: pt1, writable: pt2});
-  var server = serverPtcl.createServer();
-  var channel = server.createChannel({readable: pt2, writable: pt1});
-  cb(client, server, channel);
+  var channel = serverPtcl.createChannel({readable: pt2, writable: pt1});
+  cb(client, channel);
 }
 
 // Simplified constructor API isn't available in node <= 1.0.
