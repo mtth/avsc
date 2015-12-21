@@ -54,6 +54,26 @@
             "name": "how"
           },
           {
+            "type": {
+              "type": "fixed",
+              "name": "Waist",
+              "size": 16
+            },
+            "name": "waist"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              {
+                "type": "fixed",
+                "name": "fixed_16",
+                "size": 16
+              }
+            ],
+            "name": "belt"
+          },
+          {
             "default": null,
             "type": [
               "null",
@@ -133,8 +153,15 @@
                   {
                     "type": "string",
                     "name": "data"
+                  },
+                  {
+                    "type": {
+                      "type": "fixed",
+                      "name": "UUID",
+                      "size": 16
+                    },
+                    "name": "almond"
                   }
-                  
                 ],
                 "type": "record",
                 "name": "Plate"
@@ -153,8 +180,15 @@
                   {
                     "type": "string",
                     "name": "light"
+                  },
+                  {
+                    "type": {
+                      "type": "fixed",
+                      "name": "Powder",
+                      "size": 16
+                    },
+                    "name": "powder"
                   }
-                  
                 ]
               }
             ],

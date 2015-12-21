@@ -6,22 +6,32 @@ html(lang='en')
     meta(name='viewport', content='width=device-width')
     title Avsc
     link(rel='stylesheet', href='../stylesheets/main.css', type='text/css')
-    
-    link(href='https://fonts.googleapis.com/css?family=Indie+Flower|Josefin+Sans|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
+    link(href='https://fonts.googleapis.com/css?family=Josefin+Sans|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
     script(src='../js/bundle.js' async)
   
   body
-    div.-container-
+    div.-header-
+      div#header-image
+        ul
+          li
+            a(href="#") Reset
+          li
+            a(href="#") FAQ
     table#table.-hidden-
       tr
-        td#schema-column
+        td.-container-
           div.-outer-
             div
               pre(contentEditable='true')#schema.-textbox-.-highlightable-.-placeholder- 
                 |Enter your schema here
             div.-label-
               img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
-            div#schema-error.-message-.-hidden-.-error-
+
+            div.-footer-
+              div#schema-error.-message-.-hidden-.-error-
+              div.-message-
+                |Schema
+ 
         td#help-column
           div
             P
@@ -39,18 +49,26 @@ html(lang='en')
                 option(value="ArrayString")
                   |ArrayString
             
-        td#input-container.-wide-.-hidden-
+        td.-container-.-hidden-
           div.-outer-
             div
               pre(contentEditable='true')#input.-textbox-.-highlightable-
             div.-label-
               img#input-valid(src='../assets/valid.png').-icon-.-hidden-
-            div#decoded-error.-message-.-hidden-.-error-
-        td#output-container.-wide-.-hidden-
+            div.-footer-
+              div#decoded-error.-message-.-hidden-.-error-
+              div.-message-
+                |Input Record
+
+        td.-container-.-hidden-
           div.-outer-
             div 
               div
                 div(contentEditable='true')#output.-textbox-.-highlightable- 
             div.-label-
               img#output-valid(src='../assets/valid.png').-icon-.-hidden-
-            div#encoded-error.-message-.-hidden-.-error-
+            div.-footer-
+              div#encoded-error.-message-.-hidden-.-error-
+              div.-message-
+                |Encoded Record
+

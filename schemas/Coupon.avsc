@@ -1,0 +1,78 @@
+{
+  "type": "record",
+  "name": "Coupon",
+  "doc": "Inspired by the Stripe API.",
+  "fields": [
+    {
+      "name": "id",
+      "type": "string"
+    },
+    {
+      "name": "object",
+      "type": "string"
+    },
+    {
+      "name": "livemode",
+      "type": "boolean"
+    },
+    {
+      "name": "created",
+      "type": "long"
+    },
+    {
+      "name": "duration",
+      "type": {
+        "name": "Duration",
+        "type": "enum",
+        "symbols": [
+          "FOREVER",
+          "ONCE",
+          "REPEATING"
+        ]
+      }
+    },
+    {
+      "name": "metadata",
+      "type": "bytes"
+    },
+    {
+      "name": "times_redeemed",
+      "type": "int"
+    },
+    {
+      "name": "valid",
+      "type": "boolean"
+    },
+    {
+      "name": "amount_off",
+      "type": "int"
+    },
+    {
+      "name": "currency",
+      "type": {
+        "name": "Currency",
+        "type": "enum",
+        "symbols": [
+          "DOLLAR",
+          "EURO"
+        ]
+      }
+    },
+    {
+      "name": "duration_in_months",
+      "type": "int"
+    },
+    {
+      "name": "max_redemptions",
+      "type": "int"
+    },
+    {
+      "name": "percent_off",
+      "type": "int"
+    },
+    {
+      "name": "redeem_by",
+      "type": "long"
+    }
+  ]
+}

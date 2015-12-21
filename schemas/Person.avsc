@@ -1,0 +1,19 @@
+{
+  "name": "Person",
+  "type": "record",
+  "fields": [
+    {"name": "age", "type": ["null", "int"], "default": null},
+    {
+      "name": "gender",
+      "type": {"name": "Gender", "type": "enum", "symbols": ["FEMALE", "MALE"]}
+    },
+    {
+      "name": "address",
+      "type": {
+        "name": "Address",
+        "type": "record",
+        "fields": [{"name": "zipcode", "type": "int"}]
+      }
+    }
+  ]
+}

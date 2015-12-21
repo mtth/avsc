@@ -2533,7 +2533,6 @@ var cache = {},
         schemaElement = document.getElementById('schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
-        width = 100,
         body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
@@ -2605,19 +2604,32 @@ var cache = {},
     eventObj.on('update-layout', function() {
       if (window.type) {
         $('#help-column').addClass('-hidden-'); 
-        $('#input-container').removeClass('-hidden-');
-        $('#output-container').removeClass('-hidden-');
+        $('.-container-').each(function (i, element) {
+          console.log(i);
+          $(element).removeClass('-hidden-');
+        });
+      }
+    });
+
+    eventObj.on('schema-loaded', function(rawSchema) {
+      console.log("schema-loaded" + rawSchema);
+      var s = location.search.split('schema=')[1];
+      s = s != undefined ? decodeURIComponent(s) : undefined;
+      if (!s || s != rawSchema) {
+        var state = { 'some_id' : 1};
+        var newUrl = updateQueryStringParameter(location.href, 'schema', rawSchema);
+        // Use this so that it doesn't reload the page, but that also means that you need to manually
+        // load the schema from url
+        window.history.pushState(state, 'AVSC', newUrl);
+        populateSchema();
+        eventObj.trigger('update-layout');
       }
     });
 
     schemaSelect.on('change', function() {
-      var rawSchema = loadTemplate(this.value);
-      var s = location.search.split('schema=')[1];
-      s = s != undefined ? decodeURIComponent(s) : undefined;
-      if (!s || s != rawSchema) {
-        location.href = updateQueryStringParameter(location.href, 'schema', rawSchema);
-      }
+      loadTemplate(this.value);
     });
+
        
     /* When pasting something into an editable div, it 
      * pastes all the html styles with it too, which need to be cleaned up.
@@ -3094,11 +3106,7 @@ var cache = {},
     function resize() {
       $('#table').removeClass('-hidden-');
       var vph = $(window).height();
-      var vpw = $(window).width() * 0.3;
       $('.-textbox-').css({'height': 0.8 * vph});
-      $('.-message-').css({'width': vpw});
-      $('.-textbox-').css({'width': vpw});
-      width = outputElement.width();
     }
 
     /**
@@ -3217,9 +3225,17 @@ var cache = {},
     }
 
     function loadTemplate(name) { 
-      if (name != '')
-        return '{ "name": "' + name + '", "type": "record", "fields": [ { "name": "value", "type": { "name": "Gender", "type": "enum", "symbols": ["FEMALE", "MALE"]}}]}';
-      return ""; 
+      if (name != '') {
+        var p = '../schemas/' + name + '.avsc';
+        console.log(p);
+        $.ajax({
+            url: p,
+            success: function(data){
+            console.log('loaded file: ' + data);
+            eventObj.trigger('schema-loaded', data);
+          }
+        });
+      }
     }
 
     /**
