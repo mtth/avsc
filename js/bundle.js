@@ -2605,14 +2605,12 @@ var cache = {},
       if (window.type) {
         $('#help-column').addClass('-hidden-'); 
         $('.-container-').each(function (i, element) {
-          console.log(i);
           $(element).removeClass('-hidden-');
         });
       }
     });
 
     eventObj.on('schema-loaded', function(rawSchema) {
-      console.log("schema-loaded" + rawSchema);
       var s = location.search.split('schema=')[1];
       s = s != undefined ? decodeURIComponent(s) : undefined;
       if (!s || s != rawSchema) {
@@ -3227,11 +3225,9 @@ var cache = {},
     function loadTemplate(name) { 
       if (name != '') {
         var p = '../schemas/' + name + '.avsc';
-        console.log(p);
         $.ajax({
             url: p,
             success: function(data){
-            console.log('loaded file: ' + data);
             eventObj.trigger('schema-loaded', data);
           }
         });
