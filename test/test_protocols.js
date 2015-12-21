@@ -51,7 +51,6 @@ suite('protocols', function () {
       });
       assert.equal(p.getName(), 'foo.HelloWorld');
       assert.equal(p.getType('foo.Greeting').getName(true), 'record');
-      p.clearCache();
     });
 
     test('missing messages', function () {
