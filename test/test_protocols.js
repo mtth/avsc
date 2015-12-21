@@ -12,8 +12,8 @@ var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
 // var MessageDecoder = protocols.streams.MessageDecoder;
 var createProtocol = protocols.createProtocol;
 var MessageEncoder = protocols.streams.MessageEncoder;
-// var channels = protocols.channels;
-var clients = protocols.clients;
+// var listeners = protocols.listeners;
+var emitters = protocols.emitters;
 
 
 suite('protocols', function () {
@@ -89,18 +89,18 @@ suite('protocols', function () {
       assert.equal(p.inspect(), '<Protocol "hello.World">');
     });
 
-    test('createClient', function () {
+    test('createEmitter', function () {
       var p = createProtocol({protocol: 'Hi'});
       var d = createDuplexStream();
       var e = createDuplexStream();
       var c;
-      c = p.createClient({readable: e, writable: d});
-      assert(c instanceof clients.StatefulClient);
-      c = p.createClient(e);
-      assert(c instanceof clients.StatefulClient);
-      c = p.createClient(function (cb) { cb(e); return d; });
-      assert(c instanceof clients.StatelessClient);
-      c = p.createClient(e, foo);
+      c = p.createEmitter({readable: e, writable: d});
+      assert(c instanceof emitters.StatefulEmitter);
+      c = p.createEmitter(e);
+      assert(c instanceof emitters.StatefulEmitter);
+      c = p.createEmitter(function (cb) { cb(e); return d; });
+      assert(c instanceof emitters.StatelessEmitter);
+      c = p.createEmitter(e, foo);
       assert.equal(c.listeners('eot').length, 1);
 
       function foo() {}
@@ -272,28 +272,28 @@ suite('protocols', function () {
 
   });
 
-  suite('StatefulClient', function () {
+  suite('StatefulEmitter', function () {
 
-    var StatefulClient = protocols.clients.StatefulClient;
+    var StatefulEmitter = protocols.emitters.StatefulEmitter;
 
     test('ok handshake', function (done) {
       var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
       var bufs = [];
       var ptcl = createNumberProtocol();
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         ptcl,
         createReadableStream([buf]),
         createWritableStream(bufs)
       );
       var handshake = false;
-      client
+      emitter
         .on('handshake', function (req, res) {
           handshake = true;
           assert(res.match === 'BOTH');
           assert.deepEqual(
             Buffer.concat(bufs),
             HANDSHAKE_REQUEST_TYPE.toBuffer({
-              clientHash: new Buffer(ptcl._hashString, 'binary'),
+              emitterHash: new Buffer(ptcl._hashString, 'binary'),
               serverHash: new Buffer(ptcl._hashString, 'binary')
             })
           );
@@ -318,13 +318,13 @@ suite('protocols', function () {
         {match: 'BOTH'}
       ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
       var reqBufs = [];
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         ptcl,
         createReadableStream(resBufs),
         createWritableStream(reqBufs)
       );
       var handshakes = 0;
-      client
+      emitter
         .on('handshake', function (req, res) {
           if (handshakes++) {
             assert(res.match === 'BOTH');
@@ -355,13 +355,13 @@ suite('protocols', function () {
           meta: {map: {error: new Buffer('abcd')}}
         }
       ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         ptcl,
         createReadableStream(resBufs),
         createWritableStream([])
       );
       var error = false;
-      client
+      emitter
         .on('error', function (err) {
           error = true;
           assert.equal(err.message, 'abcd');
@@ -377,13 +377,13 @@ suite('protocols', function () {
         new Buffer([4, 0, 0]), // Invalid handshakes.
         new Buffer([4, 0, 0])
       ];
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         createNumberProtocol(),
         createReadableStream(resBufs),
         createWritableStream([])
       );
       var error = false;
-      client
+      emitter
         .on('error', function (err) {
           error = true;
           assert.equal(err.message, 'handshake error');
@@ -399,13 +399,13 @@ suite('protocols', function () {
         new Buffer([0, 0, 0]), // OK handshake.
         new Buffer([1, 2, 3])
       ];
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         createNumberProtocol(),
         createReadableStream(resBufs),
         createWritableStream([])
       );
       var error = false;
-      client
+      emitter
         .on('error', function (err) {
           error = true;
           assert.equal(err.message, 'orphan response');
@@ -419,12 +419,12 @@ suite('protocols', function () {
     test('ended readable', function (done) {
       var ptcl = createNumberProtocol();
       var bufs = [];
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         ptcl,
         createReadableStream([]),
         createWritableStream([])
       );
-      client
+      emitter
         .on('eot', function () {
           assert.equal(bufs.length, 0); // No handshake was sent.
           done();
@@ -435,7 +435,7 @@ suite('protocols', function () {
       var ptcl = createNumberProtocol();
       var encoder = new MessageEncoder(64);
       var interrupted = 0;
-      var client = new StatefulClient(
+      var emitter = new StatefulEmitter(
         ptcl,
         encoder,
         createWritableStream([])
@@ -445,8 +445,8 @@ suite('protocols', function () {
       });
 
       encoder.write(HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'}));
-      client.emitMessage('parse', {string: '123'}, cb);
-      client.emitMessage('parse', {string: '123'}, cb);
+      emitter.emitMessage('parse', {string: '123'}, cb);
+      emitter.emitMessage('parse', {string: '123'}, cb);
       encoder.end();
 
       function cb(err) {
@@ -457,12 +457,12 @@ suite('protocols', function () {
 
   });
 
-  suite('StatelessClient', function () {
+  suite('StatelessEmitter', function () {
 
 
   });
 
-  suite('Client Server', function () {
+  suite('Emitter Server', function () {
 
     var ptcl = createProtocol({
       protocol: 'Test',
@@ -479,8 +479,8 @@ suite('protocols', function () {
       }
     });
 
-    test('client server same protocol', function (done) {
-      setupClientServer(ptcl, ptcl, function (client) {
+    test('emitter server same protocol', function (done) {
+      setupEmitterListener(ptcl, ptcl, function (emitter) {
         ptcl.onMessage('m1', function (params, cb) {
           var n = params.number;
           if (n % 2) {
@@ -489,11 +489,11 @@ suite('protocols', function () {
             cb(null, 'ok');
           }
         });
-        client
+        emitter
           .emitMessage('m1', {number: 2}, function (err, res) {
             assert.strictEqual(err, null);
             assert.equal(res, 'ok');
-            client.emitMessage('m1', {number: 3}, function (err) {
+            emitter.emitMessage('m1', {number: 3}, function (err) {
               assert.deepEqual(err, {'int': 3});
               done();
             });
@@ -501,8 +501,8 @@ suite('protocols', function () {
       });
     });
 
-    test('parallel client server same protocol', function (done) {
-      setupClientServer(ptcl, ptcl, function (client) {
+    test('parallel emitter server same protocol', function (done) {
+      setupEmitterListener(ptcl, ptcl, function (emitter) {
         ptcl.onMessage('m2', function (params, cb) {
           var num = params.number; // Longer timeout for first messages.
           setTimeout(function () { cb(null, num); }, 10 * num);
@@ -513,7 +513,7 @@ suite('protocols', function () {
         numbers.forEach(emit);
 
         function emit(num) {
-          client.emitMessage('m2', {number: num}, function (err, res) {
+          emitter.emitMessage('m2', {number: num}, function (err, res) {
             assert.strictEqual(err, null);
             assert.equal(res, num);
             if (++n === numbers.length) {
@@ -524,9 +524,9 @@ suite('protocols', function () {
       });
     });
 
-    test('client server compatible protocols', function (done) {
-      var clientPtcl = createProtocol({
-        protocol: 'clientProtocol',
+    test('emitter server compatible protocols', function (done) {
+      var emitterPtcl = createProtocol({
+        protocol: 'emitterProtocol',
         messages: {
           age: {
             request: [{name: 'name', type: 'string'}],
@@ -534,7 +534,7 @@ suite('protocols', function () {
           }
         }
       });
-      var serverPtcl = createProtocol({
+      var listenerPtcl = createProtocol({
         protocol: 'serverProtocol',
         messages: {
           age: {
@@ -550,15 +550,15 @@ suite('protocols', function () {
           }
         }
       });
-      setupClientServer(
-        clientPtcl,
-        serverPtcl,
-        function (client) {
-          serverPtcl.onMessage('age', function (params, cb) {
+      setupEmitterListener(
+        emitterPtcl,
+        listenerPtcl,
+        function (emitter) {
+          listenerPtcl.onMessage('age', function (params, cb) {
             assert.equal(params.name, 'Ann');
             cb(null, 23);
           });
-          client
+          emitter
             .emitMessage('age', {name: 'Ann'}, function (err, res) {
               assert.strictEqual(err, null);
               assert.equal(res, 23);
@@ -568,28 +568,28 @@ suite('protocols', function () {
       );
     });
 
-    test('client server incompatible protocols', function (done) {
-      var clientPtcl = createProtocol({
-        protocol: 'clientProtocol',
+    test('emitter server incompatible protocols', function (done) {
+      var emitterPtcl = createProtocol({
+        protocol: 'emitterProtocol',
         messages: {
           age: {request: [{name: 'name', type: 'string'}], response: 'long'}
         }
       });
-      var serverPtcl = createProtocol({
+      var listenerPtcl = createProtocol({
         protocol: 'serverProtocol',
         messages: {
           age: {request: [{name: 'name', type: 'int'}], response: 'long'}
         }
       });
-      setupClientServer(
-        clientPtcl,
-        serverPtcl,
-        function (client) {
-          serverPtcl.onMessage('age', function (params, cb) {
+      setupEmitterListener(
+        emitterPtcl,
+        listenerPtcl,
+        function (emitter) {
+          listenerPtcl.onMessage('age', function (params, cb) {
             assert.equal(params.name, 'Ann');
             cb(null, 23);
           });
-          client
+          emitter
             .on('error', function (err) {
               assert(err !== null);
               done();
@@ -639,12 +639,12 @@ function createNumberProtocol() {
   });
 }
 
-function setupClientServer(clientPtcl, serverPtcl, cb) {
+function setupEmitterListener(emitterPtcl, listenerPtcl, cb) {
   var pt1 = new stream.PassThrough();
   var pt2 = new stream.PassThrough();
-  var client = clientPtcl.createClient({readable: pt1, writable: pt2});
-  var channel = serverPtcl.createChannel({readable: pt2, writable: pt1});
-  cb(client, channel);
+  var emitter = emitterPtcl.createEmitter({readable: pt1, writable: pt2});
+  var listener = listenerPtcl.createListener({readable: pt2, writable: pt1});
+  cb(emitter, listener);
 }
 
 // Simplified constructor API isn't available in node <= 1.0.
