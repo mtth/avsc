@@ -219,6 +219,20 @@ suite('files', function () {
       process.nextTick(function () { decoder.end(new Buffer([6])); });
     });
 
+    test('read before write', function (cb) {
+      var t = createType('int');
+      var objs = [];
+      var decoder = new RawDecoder(t)
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, [1]);
+          cb();
+        });
+      setTimeout(function () {
+        decoder.end(new Buffer([2]));
+      }, 50);
+    });
+
   });
 
   suite('BlockEncoder', function () {
