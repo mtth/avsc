@@ -14,7 +14,7 @@ html(lang='en')
       div#header-image
         ul
           li
-            a(href="#") Reset
+            a#reset(href="") Reset
           li
             a(href="#") FAQ
     table#table.-hidden-
@@ -35,15 +35,25 @@ html(lang='en')
         td#help-column
           div
             P
-              |Some very useful information about Avro schemas here, with a beautiful logo
-            P
-              |Not sure where to start? Select from one of these templates! 
+              |Not sure where to start? Enter your avro schema or select from one of these templates! 
             div
               select#schema-template
                 option(value="")
                   |--
                 option(value="Cake")
                   |Cake
+                option(value="Coupon")
+                  |Coupon
+                option(value="Human")
+                  |Human
+                option(value="Person")
+                  |Person
+                option(value="Bytes")
+                  |Bytes
+                option(value="String")
+                  |String
+                option(value="Long")
+                  |Long
                 option(value="Enum")
                   |Enum
                 option(value="ArrayString")

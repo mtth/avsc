@@ -103,8 +103,8 @@ a {
   top:10px;
   position:absolute;
   width: 10%;
-  right: 84px;
-margin: 10px auto;
+  right: 18px;
+  margin: 10px auto;
 }
 .-buttons-row- {
   height: 10%;
@@ -145,6 +145,7 @@ select:active {
 
 #help-column {
   font-family: 'Josefin Sans', sans-serif;
+  padding: 200px;
 }
 
 #header-image {

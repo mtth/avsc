@@ -100,6 +100,14 @@ var cache = {},
       }
     });
 
+    eventObj.on('reset-layout', function() {
+      $('#help-column').removeClass('-hidden-'); 
+      $('.-container-').each(function (i, element) {
+        $(element).addClass('-hidden-');
+      });
+      $(schemaElement).text("");
+    });
+
     eventObj.on('schema-loaded', function(rawSchema) {
       var s = location.search.split('schema=')[1];
       s = s != undefined ? decodeURIComponent(s) : undefined;
@@ -227,6 +235,15 @@ var cache = {},
       typingTimer = setTimeout(function() {
         generateRandom();
       }, doneTypingInterval);
+    });
+
+    $("#reset").click(function() {
+      var state = { 'some_id' : 1};
+      var newUrl = updateQueryStringParameter(location.href, 'schema', '');
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState(state, 'AVSC', newUrl);
+      eventObj.trigger('reset-layout');
     });
 
     function populateSchema() {
@@ -594,7 +611,7 @@ var cache = {},
     function resize() {
       $('#table').removeClass('-hidden-');
       var vph = $(window).height();
-      $('.-textbox-').css({'height': 0.8 * vph});
+      $('.-textbox-').css({'height': 0.85 * vph});
     }
 
     /**
