@@ -2201,6 +2201,27 @@ suite('types', function () {
       assert.equal(type._fields[1]._type._name, 'all.Alien');
     });
 
+    test('namespace scope', function () {
+      var type = createType({
+        type: 'record',
+        name: 'Human',
+        namespace: 'earth',
+        fields: [
+          {
+            name: 'id1',
+            type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
+          },
+          {
+            name: 'id2',
+            type: {type: 'fixed', name: 'Id', size: 4}
+          }
+        ]
+      });
+      assert.equal(type._name, 'earth.Human');
+      assert.equal(type._fields[0]._type._name, 'all.Id');
+      assert.equal(type._fields[1]._type._name, 'earth.Id');
+    });
+
     test('wrapped primitive', function () {
       var type = createType({
         type: 'record',
