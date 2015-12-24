@@ -9,11 +9,7 @@ var protocols = require('../lib/protocols'),
 
 var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
 var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
-// var MessageDecoder = protocols.streams.MessageDecoder;
 var createProtocol = protocols.createProtocol;
-var MessageEncoder = protocols.streams.MessageEncoder;
-// var listeners = protocols.listeners;
-var emitters = protocols.emitters;
 
 
 suite('protocols', function () {
@@ -53,10 +49,11 @@ suite('protocols', function () {
       assert.equal(p.getType('foo.Greeting').getName(true), 'record');
     });
 
-    test('missing messages', function () {
-      assert.doesNotThrow(function () {
-        createProtocol({namespace: 'com.acme', protocol: 'Hello'});
-      });
+    test('missing message', function () {
+      var ptcl = createProtocol({namespace: 'com.acme', protocol: 'Hello'});
+      assert.throws(function () {
+        ptcl.onMessage('add', function () {});
+      }, /unknown/);
     });
 
     test('missing name', function () {
@@ -80,29 +77,19 @@ suite('protocols', function () {
       });
     });
 
+    test('subprotocol', function () {
+      var ptcl = createProtocol({namespace: 'com.acme', protocol: 'Hello'});
+      var subptcl = ptcl.subprotocol();
+      assert.strictEqual(subptcl._emitterResolvers, ptcl._emitterResolvers);
+      assert.strictEqual(subptcl._listenerResolvers, ptcl._listenerResolvers);
+    });
+
     test('inspect', function () {
       var p = createProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
       assert.equal(p.inspect(), '<Protocol "hello.World">');
-    });
-
-    test('createEmitter', function () {
-      var p = createProtocol({protocol: 'Hi'});
-      var d = createDuplexStream();
-      var e = createDuplexStream();
-      var c;
-      c = p.createEmitter({readable: e, writable: d});
-      assert(c instanceof emitters.StatefulEmitter);
-      c = p.createEmitter(e);
-      assert(c instanceof emitters.StatefulEmitter);
-      c = p.createEmitter(function (cb) { cb(e); return d; });
-      assert(c instanceof emitters.StatelessEmitter);
-      c = p.createEmitter(e, foo);
-      assert.equal(c.listeners('eot').length, 1);
-
-      function foo() {}
     });
 
   });
@@ -202,6 +189,8 @@ suite('protocols', function () {
 
   suite('MessageEncoder', function () {
 
+    var MessageEncoder = protocols.streams.MessageEncoder;
+
     test('invalid frame size', function () {
       assert.throws(function () { new MessageEncoder(); });
     });
@@ -271,259 +260,242 @@ suite('protocols', function () {
 
   });
 
-  suite('StatefulEmitter', function () {
+  suite('stateful', function () {
 
-    var StatefulEmitter = protocols.emitters.StatefulEmitter;
+    suite('Emitter', function () {
 
-    test('ok handshake', function (done) {
-      var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
-      var bufs = [];
-      var ptcl = createNumberProtocol();
-      var emitter = new StatefulEmitter(
-        ptcl,
-        createReadableStream([buf]),
-        createWritableStream(bufs)
-      );
-      var handshake = false;
-      emitter
-        .on('handshake', function (req, res) {
-          handshake = true;
-          assert(res.match === 'BOTH');
-          assert.deepEqual(
-            Buffer.concat(bufs),
-            HANDSHAKE_REQUEST_TYPE.toBuffer({
-              emitterHash: new Buffer(ptcl._hashString, 'binary'),
-              serverHash: new Buffer(ptcl._hashString, 'binary')
-            })
-          );
-          this.destroy();
-        })
-        .on('eot', function () {
-          assert(handshake);
-          done();
-        });
-    });
+      // These tests manually generate expected requests and responses (as
+      // opposed to using a matching listener for other tests below).
 
-    test('invalid handshake', function (done) {
-      var ptcl = createNumberProtocol();
-      // Pretend the hash was different.
-      var hash = new Buffer(16);
-      var resBufs = [
-        {
-          match: 'NONE',
-          serverHash: {'org.apache.avro.ipc.MD5': hash},
-          serverProtocol: {string: ptcl.toString()},
-        },
-        {match: 'BOTH'}
-      ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
-      var reqBufs = [];
-      var emitter = new StatefulEmitter(
-        ptcl,
-        createReadableStream(resBufs),
-        createWritableStream(reqBufs)
-      );
-      var handshakes = 0;
-      emitter
-        .on('handshake', function (req, res) {
-          if (handshakes++) {
+      test('ok handshake', function (done) {
+        var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
+        var bufs = [];
+        var ptcl = createProtocol({protocol: 'Empty'});
+        var emitter = ptcl.createEmitter(createTransport([buf], bufs));
+        var handshake = false;
+        emitter
+          .on('handshake', function (req, res) {
+            handshake = true;
             assert(res.match === 'BOTH');
+            assert.deepEqual(
+              Buffer.concat(bufs),
+              HANDSHAKE_REQUEST_TYPE.toBuffer({
+                emitterHash: new Buffer(ptcl._hashString, 'binary'),
+                serverHash: new Buffer(ptcl._hashString, 'binary')
+              })
+            );
             this.destroy();
-          } else {
-            assert(res.match === 'NONE');
-          }
-        })
-        .on('eot', function () {
-          assert.equal(handshakes, 2);
-          done();
-        });
-    });
-
-    test('incompatible protocol', function (done) {
-      var ptcl = createNumberProtocol();
-      var hash = new Buffer(16); // Pretend the hash was different.
-      var resBufs = [
-        {
-          match: 'NONE',
-          serverHash: {'org.apache.avro.ipc.MD5': hash},
-          serverProtocol: {string: ptcl.toString()},
-        },
-        {
-          match: 'NONE',
-          serverHash: {'org.apache.avro.ipc.MD5': hash},
-          serverProtocol: {string: ptcl.toString()},
-          meta: {map: {error: new Buffer('abcd')}}
-        }
-      ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
-      var emitter = new StatefulEmitter(
-        ptcl,
-        createReadableStream(resBufs),
-        createWritableStream([])
-      );
-      var error = false;
-      emitter
-        .on('error', function (err) {
-          error = true;
-          assert.equal(err.message, 'abcd');
-        })
-        .on('eot', function () {
-          assert(error);
-          done();
-        });
-    });
-
-    test('handshake error', function (done) {
-      var resBufs = [
-        new Buffer([4, 0, 0]), // Invalid handshakes.
-        new Buffer([4, 0, 0])
-      ];
-      var emitter = new StatefulEmitter(
-        createNumberProtocol(),
-        createReadableStream(resBufs),
-        createWritableStream([])
-      );
-      var error = false;
-      emitter
-        .on('error', function (err) {
-          error = true;
-          assert.equal(err.message, 'handshake error');
-        })
-        .on('eot', function () {
-          assert(error);
-          done();
-        });
-    });
-
-    test('orphan response', function (done) {
-      var resBufs = [
-        new Buffer([0, 0, 0]), // OK handshake.
-        new Buffer([1, 2, 3])
-      ];
-      var emitter = new StatefulEmitter(
-        createNumberProtocol(),
-        createReadableStream(resBufs),
-        createWritableStream([])
-      );
-      var error = false;
-      emitter
-        .on('error', function (err) {
-          error = true;
-          assert.equal(err.message, 'orphan response');
-        })
-        .on('eot', function () {
-          assert(error);
-          done();
-        });
-    });
-
-    test('ended readable', function (done) {
-      var ptcl = createNumberProtocol();
-      var bufs = [];
-      var emitter = new StatefulEmitter(
-        ptcl,
-        createReadableStream([]),
-        createWritableStream([])
-      );
-      emitter
-        .on('eot', function () {
-          assert.equal(bufs.length, 0); // No handshake was sent.
-          done();
-        });
-    });
-
-    test('interrupted', function (done) {
-      var ptcl = createNumberProtocol();
-      var encoder = new MessageEncoder(64);
-      var interrupted = 0;
-      var emitter = new StatefulEmitter(
-        ptcl,
-        encoder,
-        createWritableStream([])
-      ).on('eot', function () {
-        assert.equal(interrupted, 2);
-        done();
+          })
+          .on('eot', function () {
+            assert(handshake);
+            done();
+          });
       });
 
-      encoder.write(HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'}));
-      emitter.emitMessage('parse', {string: '123'}, cb);
-      emitter.emitMessage('parse', {string: '123'}, cb);
-      encoder.end();
+      test('no server match handshake', function (done) {
+        var ptcl = createProtocol({protocol: 'Empty'});
+        var resBufs = [
+          {
+            match: 'NONE',
+            serverHash: {'org.apache.avro.ipc.MD5': new Buffer(16)},
+            serverProtocol: {string: ptcl.toString()},
+          },
+          {match: 'BOTH'}
+        ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
+        var reqBufs = [];
+        var emitter = ptcl.createEmitter(createTransport(resBufs, reqBufs));
+        var handshakes = 0;
+        emitter
+          .on('handshake', function (req, res) {
+            if (handshakes++) {
+              assert(res.match === 'BOTH');
+              this.destroy();
+            } else {
+              assert(res.match === 'NONE');
+            }
+          })
+          .on('eot', function () {
+            assert.equal(handshakes, 2);
+            done();
+          });
+      });
 
-      function cb(err) {
-        assert.deepEqual(err, {string: 'interrupted'});
-        interrupted++;
-      }
-    });
+      test('incompatible protocol', function (done) {
+        var ptcl = createProtocol({protocol: 'Empty'});
+        var hash = new Buffer(16); // Pretend the hash was different.
+        var resBufs = [
+          {
+            match: 'NONE',
+            serverHash: {'org.apache.avro.ipc.MD5': hash},
+            serverProtocol: {string: ptcl.toString()},
+          },
+          {
+            match: 'NONE',
+            serverHash: {'org.apache.avro.ipc.MD5': hash},
+            serverProtocol: {string: ptcl.toString()},
+            meta: {map: {error: new Buffer('abcd')}}
+          }
+        ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
+        var emitter = ptcl.createEmitter(createTransport(resBufs, []));
+        var error = false;
+        emitter
+          .on('error', function (err) {
+            error = true;
+            assert.equal(err.message, 'abcd');
+          })
+          .on('eot', function () {
+            assert(error);
+            done();
+          });
+      });
 
-  });
+      test('handshake error', function (done) {
+        var resBufs = [
+          new Buffer([4, 0, 0]), // Invalid handshakes.
+          new Buffer([4, 0, 0])
+        ];
+        var ptcl = createProtocol({protocol: 'Empty'});
+        var emitter = ptcl.createEmitter(createTransport(resBufs, []));
+        var error = false;
+        emitter
+          .on('error', function (err) {
+            error = true;
+            assert.equal(err.message, 'handshake error');
+          })
+          .on('eot', function () {
+            assert(error);
+            done();
+          });
+      });
 
-  suite('StatelessEmitter', function () {
+      test('orphan response', function (done) {
+        var resBufs = [
+          new Buffer([0, 0, 0]), // OK handshake.
+          new Buffer([1, 2, 3])
+        ];
+        var ptcl = createProtocol({protocol: 'Empty'});
+        var emitter = ptcl.createEmitter(createTransport(resBufs, []));
+        var error = false;
+        emitter
+          .on('error', function (err) {
+            error = true;
+            assert.equal(err.message, 'orphan response');
+          })
+          .on('eot', function () {
+            assert(error);
+            done();
+          });
+      });
 
+      test('ended readable', function (done) {
+        var bufs = [];
+        var ptcl = createProtocol({protocol: 'Empty'});
+        var emitter = ptcl.createEmitter(createTransport([], bufs));
+        emitter
+          .on('eot', function () {
+            assert.equal(bufs.length, 1); // A single handshake was sent.
+            done();
+          });
+      });
 
-  });
-
-  suite('Emitter Server', function () {
-
-    var ptcl = createProtocol({
-      protocol: 'Test',
-      messages: {
-        m1: {
-          request: [{name: 'number', type: 'int'}],
-          response: 'string',
-          errors: ['int']
-        },
-        m2: {
-          request: [{name: 'number', type: 'int'}],
-          response: 'int'
-        }
-      }
-    });
-
-    test('emitter server same protocol', function (done) {
-      setupEmitterListener(ptcl, ptcl, function (emitter) {
-        ptcl.onMessage('m1', function (params, cb) {
-          var n = params.number;
-          if (n % 2) {
-            cb({'int': n});
-          } else {
-            cb(null, 'ok');
+      test('interrupted', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Empty',
+          messages: {
+            id: {request: [{name: 'id', type: 'int'}], response: 'int'}
           }
         });
+        var resBufs = [
+          new Buffer([0, 0, 0]), // OK handshake.
+        ];
+        var interrupted = 0;
+        var transport = createTransport(resBufs, []);
+        var emitter = ptcl.createEmitter(transport)
+          .on('eot', function () {
+            assert.equal(interrupted, 2);
+            done();
+          });
+
+        emitter.emitMessage('id', {id: 123}, cb);
+        emitter.emitMessage('id', {id: 123}, cb);
+
+        function cb(err) {
+          assert.deepEqual(err, {string: 'interrupted'});
+          interrupted++;
+        }
+      });
+
+    });
+
+    test('same protocol', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Math',
+        messages: {
+          negate: {
+            request: [{name: 'n', type: 'int'}],
+            response: 'int'
+          }
+        }
+      });
+      statefulSetup(ptcl, ptcl, function (emitter) {
+        ptcl.onMessage('negate', function (req, cb) { cb(null, -req.n); });
         emitter
-          .emitMessage('m1', {number: 2}, function (err, res) {
+          .on('eot', done)
+          .emitMessage('negate', {n: 20}, function (err, res) {
             assert.strictEqual(err, null);
-            assert.equal(res, 'ok');
-            emitter.emitMessage('m1', {number: 3}, function (err) {
-              assert.deepEqual(err, {'int': 3});
-              done();
+            assert.equal(res, -20);
+            emitter.emitMessage('negate', {n: 'hi'}, function (err) {
+              assert(/invalid "int"/.test(err.string));
+              emitter.destroy();
             });
           });
       });
     });
 
-    test('parallel emitter server same protocol', function (done) {
-      setupEmitterListener(ptcl, ptcl, function (emitter) {
-        ptcl.onMessage('m2', function (params, cb) {
-          var num = params.number; // Longer timeout for first messages.
-          setTimeout(function () { cb(null, num); }, 10 * num);
-        });
-
-        var numbers = irange(10);
-        var n = 0;
-        numbers.forEach(emit);
-
-        function emit(num) {
-          emitter.emitMessage('m2', {number: num}, function (err, res) {
-            assert.strictEqual(err, null);
-            assert.equal(res, num);
-            if (++n === numbers.length) {
-              done();
-            }
-          });
+    test('async', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Delay',
+        messages: {
+          wait: {
+            request: [
+              {name: 'ms', type: 'float'},
+              {name: 'id', type: 'string'}
+            ],
+            response: 'string'
+          }
         }
+      }).onMessage('wait', function (req, cb) {
+        var delay = req.ms;
+        if (delay < 0) {
+          cb(new Error('delay must be non-negative'));
+          return;
+        }
+        setTimeout(function () { cb(null, req.id); }, delay);
+      });
+      var ids = [];
+      statefulSetup(ptcl, ptcl, function (emt) {
+        emt.on('eot', function (pending) {
+          assert.equal(pending, 0);
+          assert.deepEqual(ids, [null, 'b', 'a']);
+          done();
+        });
+        emt.emitMessage('wait', {ms: 100, id: 'a'}, function (err, res) {
+          assert.strictEqual(err, null);
+          ids.push(res);
+        });
+        emt.emitMessage('wait', {ms: 10, id: 'b'}, function (err, res) {
+          assert.strictEqual(err, null);
+          ids.push(res);
+          emt.destroy();
+        });
+        emt.emitMessage('wait', {ms: -100, id: 'c'}, function (err, res) {
+          assert(/non-negative/.test(err.string));
+          ids.push(res);
+        });
       });
     });
 
-    test('emitter server compatible protocols', function (done) {
+    test('compatible protocols', function (done) {
       var emitterPtcl = createProtocol({
         protocol: 'emitterProtocol',
         messages: {
@@ -549,7 +521,7 @@ suite('protocols', function () {
           }
         }
       });
-      setupEmitterListener(
+      statefulSetup(
         emitterPtcl,
         listenerPtcl,
         function (emitter) {
@@ -567,7 +539,7 @@ suite('protocols', function () {
       );
     });
 
-    test('emitter server incompatible protocols', function (done) {
+    test('incompatible protocols', function (done) {
       var emitterPtcl = createProtocol({
         protocol: 'emitterProtocol',
         messages: {
@@ -580,7 +552,7 @@ suite('protocols', function () {
           age: {request: [{name: 'name', type: 'int'}], response: 'long'}
         }
       });
-      setupEmitterListener(
+      statefulSetup(
         emitterPtcl,
         listenerPtcl,
         function (emitter) {
@@ -600,9 +572,20 @@ suite('protocols', function () {
       );
     });
 
+    function statefulSetup(emitterPtcl, listenerPtcl, cb) {
+      var pt1 = new stream.PassThrough();
+      var pt2 = new stream.PassThrough();
+      cb(
+        emitterPtcl.createEmitter({readable: pt1, writable: pt2}),
+        listenerPtcl.createListener({readable: pt2, writable: pt1})
+      );
+    }
+
   });
 
 });
+
+// Helpers.
 
 // Message framing.
 function frame(buf) {
@@ -612,84 +595,62 @@ function frame(buf) {
   return framed;
 }
 
-// Inverted range.
-function irange(n) {
-  var arr = [];
-  while (n) {
-    arr.push(n--);
-  }
-  return arr;
+function createReadableTransport(bufs, frameSize) {
+  return createReadableStream(bufs)
+    .pipe(new protocols.streams.MessageEncoder(frameSize || 64));
 }
 
-// A few simple protocols shared below.
-function createNumberProtocol() {
-  return createProtocol({
-    protocol: 'Number',
-    messages: {
-      parse: {
-        request: [{name: 'string', type: 'string'}],
-        response: 'int'
-      },
-      add: {
-        request: [{name: 'numbers', type: {type: 'array', items: 'int'}}],
-        response: 'int'
-      }
-    }
-  });
+function createWritableTransport(bufs) {
+  var decoder = new protocols.streams.MessageDecoder();
+  decoder.pipe(createWritableStream(bufs));
+  return decoder;
 }
 
-function setupEmitterListener(emitterPtcl, listenerPtcl, cb) {
-  var pt1 = new stream.PassThrough();
-  var pt2 = new stream.PassThrough();
-  var emitter = emitterPtcl.createEmitter({readable: pt1, writable: pt2});
-  var listener = listenerPtcl.createListener({readable: pt2, writable: pt1});
-  cb(emitter, listener);
+function createTransport(readBufs, writeBufs) {
+  return toDuplex(
+    createReadableTransport(readBufs),
+    createWritableTransport(writeBufs)
+  );
 }
 
-// Simplified constructor API isn't available in node <= 1.0.
+// Simplified stream constructor API isn't available in earlier node versions.
 
-function createReadableStream(bufs, noFrame) {
+function createReadableStream(bufs) {
   var n = 0;
-  function Stream() {
-    stream.Readable.call(this);
-  }
+  function Stream() { stream.Readable.call(this); }
   util.inherits(Stream, stream.Readable);
   Stream.prototype._read = function () {
     this.push(bufs[n++] || null);
   };
   var readable = new Stream();
-  return noFrame ?
-    readable :
-    readable.pipe(new protocols.streams.MessageEncoder(64));
+  return readable;
 }
 
-function createWritableStream(bufs, noUnframe) {
-  function Stream() {
-    stream.Writable.call(this);
-  }
+function createWritableStream(bufs) {
+  function Stream() { stream.Writable.call(this); }
   util.inherits(Stream, stream.Writable);
   Stream.prototype._write = function (buf, encoding, cb) {
     bufs.push(buf);
     cb();
   };
-  var writable = new Stream();
-  if (noUnframe) {
-    return writable;
-  } else {
-    var decoder = new protocols.streams.MessageDecoder();
-    decoder.pipe(writable);
-    return decoder;
-  }
+  return new Stream();
 }
 
-// Black hole stream (ends when finished).
-function createDuplexStream() {
+// Combine two (binary) streams into a single duplex one. This is very basic
+// and doesn't handle a lot of cases (e.g. where `_read` doesn't return
+// something).
+function toDuplex(readable, writable) {
   function Stream() {
     stream.Duplex.call(this);
-    this.on('finish', function () { this.push(null); });
+    this.on('finish', function () { writable.end(); });
   }
   util.inherits(Stream, stream.Duplex);
-  Stream.prototype._read = function () {};
-  Stream.prototype._write = function (buf, encoding, cb) { cb(); };
+  Stream.prototype._read = function () {
+    this.push(readable.read());
+  };
+  Stream.prototype._write = function (buf, encoding, cb) {
+    writable.write(buf);
+    cb();
+  };
   return new Stream();
 }
