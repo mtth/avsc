@@ -410,11 +410,10 @@ suite('protocols', function () {
         ];
         var interrupted = 0;
         var transport = createTransport(resBufs, []);
-        var emitter = ptcl.createEmitter(transport)
-          .on('eot', function () {
-            assert.equal(interrupted, 2);
-            done();
-          });
+        var emitter = ptcl.createEmitter(transport, function () {
+          assert.equal(interrupted, 2);
+          done();
+        });
 
         emitter.emitMessage('id', {id: 123}, cb);
         emitter.emitMessage('id', {id: 123}, cb);
@@ -579,6 +578,82 @@ suite('protocols', function () {
         emitterPtcl.createEmitter({readable: pt1, writable: pt2}),
         listenerPtcl.createListener({readable: pt2, writable: pt1})
       );
+    }
+
+  });
+
+  suite('stateless', function () {
+
+    test('same protocol', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Echo',
+        messages: {
+          echo: {
+            request: [{name: 'id', type: 'string'}],
+            response: 'string'
+          }
+        }
+      }).onMessage('echo', function (req, cb) {
+          cb(null, req.id);
+        });
+      statelessSetup(ptcl, ptcl, function (emitter) {
+        emitter.emitMessage('echo', {id: 'hello'}, function (err, res) {
+          assert.equal(res, 'hello');
+          done();
+        });
+      });
+    });
+
+    test('destroy noWait', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Delay',
+        messages: {
+          wait: {
+            request: [{name: 'ms', type: 'int'}],
+            response: 'string'
+          }
+        }
+      }).onMessage('wait', function (req, cb) {
+          setTimeout(function () { cb(null, 'ok'); }, req.ms);
+        });
+      var interrupted = 0;
+      var eoted = false;
+      statelessSetup(ptcl, ptcl, function (emitter) {
+        emitter.on('eot', function (pending) {
+          eoted = true;
+          assert.equal(pending, 2);
+          assert.equal(interrupted, 2);
+          done();
+        });
+        emitter.emitMessage('wait', {ms: 75}, interruptedCb);
+        emitter.emitMessage('wait', {ms: 50}, interruptedCb);
+        emitter.emitMessage('wait', {ms: 10}, function (err, res) {
+          assert.equal(res, 'ok');
+          emitter.destroy(true);
+        });
+
+        function interruptedCb(err) {
+          assert(/interrupted/.test(err.string));
+          interrupted++;
+        }
+      });
+    });
+
+    function statelessSetup(emitterPtcl, listenerPtcl, cb) {
+      cb(emitterPtcl.createEmitter(writableFactory));
+
+      function writableFactory(emitterCb) {
+        var reqPt = new stream.PassThrough()
+          .on('finish', function () {
+            listenerPtcl.createListener(function (listenerCb) {
+              var resPt = new stream.PassThrough()
+                .on('finish', function () { emitterCb(resPt); });
+              listenerCb(resPt);
+              return reqPt;
+            });
+          });
+        return reqPt;
+      }
     }
 
   });
