@@ -52,7 +52,7 @@ suite('protocols', function () {
     test('missing message', function () {
       var ptcl = createProtocol({namespace: 'com.acme', protocol: 'Hello'});
       assert.throws(function () {
-        ptcl.onMessage('add', function () {});
+        ptcl.on('add', function () {});
       }, /unknown/);
     });
 
@@ -271,25 +271,24 @@ suite('protocols', function () {
         var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
         var bufs = [];
         var ptcl = createProtocol({protocol: 'Empty'});
-        var emitter = ptcl.createEmitter(createTransport([buf], bufs));
         var handshake = false;
-        emitter
+        ptcl.createEmitter(createTransport([buf], bufs))
           .on('handshake', function (req, res) {
-            handshake = true;
-            assert(res.match === 'BOTH');
-            assert.deepEqual(
-              Buffer.concat(bufs),
-              HANDSHAKE_REQUEST_TYPE.toBuffer({
-                emitterHash: new Buffer(ptcl._hashString, 'binary'),
-                serverHash: new Buffer(ptcl._hashString, 'binary')
-              })
-            );
-            this.destroy();
-          })
-          .on('eot', function () {
-            assert(handshake);
-            done();
-          });
+              handshake = true;
+              assert(res.match === 'BOTH');
+              assert.deepEqual(
+                Buffer.concat(bufs),
+                HANDSHAKE_REQUEST_TYPE.toBuffer({
+                  emitterHash: new Buffer(ptcl._hashString, 'binary'),
+                  serverHash: new Buffer(ptcl._hashString, 'binary')
+                })
+              );
+              this.destroy();
+            })
+            .on('eot', function () {
+              assert(handshake);
+              done();
+            });
       });
 
       test('no server match handshake', function (done) {
@@ -303,9 +302,8 @@ suite('protocols', function () {
           {match: 'BOTH'}
         ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
         var reqBufs = [];
-        var emitter = ptcl.createEmitter(createTransport(resBufs, reqBufs));
         var handshakes = 0;
-        emitter
+        ptcl.createEmitter(createTransport(resBufs, reqBufs))
           .on('handshake', function (req, res) {
             if (handshakes++) {
               assert(res.match === 'BOTH');
@@ -336,9 +334,8 @@ suite('protocols', function () {
             meta: {map: {error: new Buffer('abcd')}}
           }
         ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
-        var emitter = ptcl.createEmitter(createTransport(resBufs, []));
         var error = false;
-        emitter
+        ptcl.createEmitter(createTransport(resBufs, []))
           .on('error', function (err) {
             error = true;
             assert.equal(err.message, 'abcd');
@@ -355,9 +352,8 @@ suite('protocols', function () {
           new Buffer([4, 0, 0])
         ];
         var ptcl = createProtocol({protocol: 'Empty'});
-        var emitter = ptcl.createEmitter(createTransport(resBufs, []));
         var error = false;
-        emitter
+        ptcl.createEmitter(createTransport(resBufs, []))
           .on('error', function (err) {
             error = true;
             assert.equal(err.message, 'handshake error');
@@ -374,9 +370,8 @@ suite('protocols', function () {
           new Buffer([1, 2, 3])
         ];
         var ptcl = createProtocol({protocol: 'Empty'});
-        var emitter = ptcl.createEmitter(createTransport(resBufs, []));
         var error = false;
-        emitter
+        ptcl.createEmitter(createTransport(resBufs, []))
           .on('error', function (err) {
             error = true;
             assert.equal(err.message, 'orphan response');
@@ -390,8 +385,7 @@ suite('protocols', function () {
       test('ended readable', function (done) {
         var bufs = [];
         var ptcl = createProtocol({protocol: 'Empty'});
-        var emitter = ptcl.createEmitter(createTransport([], bufs));
-        emitter
+        ptcl.createEmitter(createTransport([], bufs))
           .on('eot', function () {
             assert.equal(bufs.length, 1); // A single handshake was sent.
             done();
@@ -410,13 +404,13 @@ suite('protocols', function () {
         ];
         var interrupted = 0;
         var transport = createTransport(resBufs, []);
-        var emitter = ptcl.createEmitter(transport, function () {
+        var ee = ptcl.createEmitter(transport, function () {
           assert.equal(interrupted, 2);
           done();
         });
 
-        emitter.emitMessage('id', {id: 123}, cb);
-        emitter.emitMessage('id', {id: 123}, cb);
+        ptcl.emit('id', {id: 123}, ee, cb);
+        ptcl.emit('id', {id: 123}, ee, cb);
 
         function cb(err) {
           assert.deepEqual(err, {string: 'interrupted'});
@@ -436,18 +430,17 @@ suite('protocols', function () {
           }
         }
       });
-      statefulSetup(ptcl, ptcl, function (emitter) {
-        ptcl.onMessage('negate', function (req, cb) { cb(null, -req.n); });
-        emitter
-          .on('eot', done)
-          .emitMessage('negate', {n: 20}, function (err, res) {
-            assert.strictEqual(err, null);
-            assert.equal(res, -20);
-            emitter.emitMessage('negate', {n: 'hi'}, function (err) {
-              assert(/invalid "int"/.test(err.string));
-              emitter.destroy();
-            });
+      statefulSetup(ptcl, ptcl, function (ee) {
+        ee.on('eot', done);
+        ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
+        ptcl.emit('negate', {n: 20}, ee, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, -20);
+          this.emit('negate', {n: 'hi'}, ee, function (err) {
+            assert(/invalid "int"/.test(err.string));
+            ee.destroy();
           });
+        });
       });
     });
 
@@ -463,7 +456,7 @@ suite('protocols', function () {
             response: 'string'
           }
         }
-      }).onMessage('wait', function (req, cb) {
+      }).on('wait', function (req, ee, cb) {
         var delay = req.ms;
         if (delay < 0) {
           cb(new Error('delay must be non-negative'));
@@ -472,22 +465,22 @@ suite('protocols', function () {
         setTimeout(function () { cb(null, req.id); }, delay);
       });
       var ids = [];
-      statefulSetup(ptcl, ptcl, function (emt) {
-        emt.on('eot', function (pending) {
+      statefulSetup(ptcl, ptcl, function (ee) {
+        ee.on('eot', function (pending) {
           assert.equal(pending, 0);
           assert.deepEqual(ids, [null, 'b', 'a']);
           done();
         });
-        emt.emitMessage('wait', {ms: 100, id: 'a'}, function (err, res) {
+        ptcl.emit('wait', {ms: 100, id: 'a'}, ee, function (err, res) {
           assert.strictEqual(err, null);
           ids.push(res);
         });
-        emt.emitMessage('wait', {ms: 10, id: 'b'}, function (err, res) {
+        ptcl.emit('wait', {ms: 10, id: 'b'}, ee, function (err, res) {
           assert.strictEqual(err, null);
           ids.push(res);
-          emt.destroy();
+          ee.destroy();
         });
-        emt.emitMessage('wait', {ms: -100, id: 'c'}, function (err, res) {
+        ptcl.emit('wait', {ms: -100, id: 'c'}, ee, function (err, res) {
           assert(/non-negative/.test(err.string));
           ids.push(res);
         });
@@ -523,17 +516,16 @@ suite('protocols', function () {
       statefulSetup(
         emitterPtcl,
         listenerPtcl,
-        function (emitter) {
-          listenerPtcl.onMessage('age', function (params, cb) {
-            assert.equal(params.name, 'Ann');
+        function (ee) {
+          listenerPtcl.on('age', function (req, ee, cb) {
+            assert.equal(req.name, 'Ann');
             cb(null, 23);
           });
-          emitter
-            .emitMessage('age', {name: 'Ann'}, function (err, res) {
-              assert.strictEqual(err, null);
-              assert.equal(res, 23);
-              done();
-            });
+          emitterPtcl.emit('age', {name: 'Ann'}, ee, function (err, res) {
+            assert.strictEqual(err, null);
+            assert.equal(res, 23);
+            done();
+          });
         }
       );
     });
@@ -554,19 +546,18 @@ suite('protocols', function () {
       statefulSetup(
         emitterPtcl,
         listenerPtcl,
-        function (emitter) {
-          listenerPtcl.onMessage('age', function (params, cb) {
-            assert.equal(params.name, 'Ann');
+        function (ee) {
+          listenerPtcl.on('age', function (req, ee, cb) {
+            assert.equal(req.name, 'Ann');
             cb(null, 23);
           });
-          emitter
-            .on('error', function (err) {
-              assert(err !== null);
-              done();
-            })
-            .emitMessage('age', {name: 'Ann'}, function () {
-              assert(false);
-            });
+          ee.on('error', function (err) {
+            assert(err !== null);
+            done();
+          });
+          emitterPtcl.emit('age', {name: 'Ann'}, ee, function () {
+            assert(false);
+          });
         }
       );
     });
@@ -593,12 +584,30 @@ suite('protocols', function () {
             response: 'string'
           }
         }
-      }).onMessage('echo', function (req, cb) {
+      }).on('echo', function (req, ee, cb) {
           cb(null, req.id);
         });
-      statelessSetup(ptcl, ptcl, function (emitter) {
-        emitter.emitMessage('echo', {id: 'hello'}, function (err, res) {
+      statelessSetup(ptcl, ptcl, function (ee) {
+        ptcl.emit('echo', {id: 'hello'}, ee, function (err, res) {
           assert.equal(res, 'hello');
+          done();
+        });
+      });
+    });
+
+    test('unknown message', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Echo',
+        messages: {
+          echo: {
+            request: [{name: 'id', type: 'string'}],
+            response: 'string'
+          }
+        }
+      });
+      statelessSetup(ptcl, ptcl, function (ee) {
+        ptcl.emit('echo', {id: ''}, ee, function (err) {
+          assert(/unsupported/.test(err.string));
           done();
         });
       });
@@ -613,23 +622,23 @@ suite('protocols', function () {
             response: 'string'
           }
         }
-      }).onMessage('wait', function (req, cb) {
+      }).on('wait', function (req, ee, cb) {
           setTimeout(function () { cb(null, 'ok'); }, req.ms);
         });
       var interrupted = 0;
       var eoted = false;
-      statelessSetup(ptcl, ptcl, function (emitter) {
-        emitter.on('eot', function (pending) {
+      statelessSetup(ptcl, ptcl, function (ee) {
+        ee.on('eot', function (pending) {
           eoted = true;
           assert.equal(pending, 2);
           assert.equal(interrupted, 2);
           done();
         });
-        emitter.emitMessage('wait', {ms: 75}, interruptedCb);
-        emitter.emitMessage('wait', {ms: 50}, interruptedCb);
-        emitter.emitMessage('wait', {ms: 10}, function (err, res) {
+        ptcl.emit('wait', {ms: 75}, ee, interruptedCb);
+        ptcl.emit('wait', {ms: 50}, ee, interruptedCb);
+        ptcl.emit('wait', {ms: 10}, ee, function (err, res) {
           assert.equal(res, 'ok');
-          emitter.destroy(true);
+          ee.destroy(true);
         });
 
         function interruptedCb(err) {
