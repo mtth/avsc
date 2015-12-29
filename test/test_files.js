@@ -4,7 +4,7 @@
 
 
 var files = require('../lib/files'),
-    protocols = require('../lib/protocols'),
+    messages = require('../lib/messages'),
     schemas = require('../lib/schemas'),
     assert = require('assert'),
     fs = require('fs'),
@@ -38,7 +38,7 @@ suite('files', function () {
 
     test('protocol object', function () {
       var obj = {protocol: 'Foo'};
-      assert(parse(obj) instanceof protocols.Protocol);
+      assert(parse(obj) instanceof messages.Protocol);
     });
 
     test('type instance', function () {

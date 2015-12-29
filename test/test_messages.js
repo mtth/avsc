@@ -2,17 +2,17 @@
 
 'use strict';
 
-var protocols = require('../lib/protocols'),
+var messages = require('../lib/messages'),
     assert = require('assert'),
     stream = require('stream'),
     util = require('util');
 
-var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
-var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
-var createProtocol = protocols.createProtocol;
+var HANDSHAKE_REQUEST_TYPE = messages.HANDSHAKE_REQUEST_TYPE;
+var HANDSHAKE_RESPONSE_TYPE = messages.HANDSHAKE_RESPONSE_TYPE;
+var createProtocol = messages.createProtocol;
 
 
-suite('protocols', function () {
+suite('messages', function () {
 
   suite('Protocol', function () {
 
@@ -132,8 +132,10 @@ suite('protocols', function () {
 
   suite('Message', function () {
 
+    var Message = messages.Message;
+
     test('empty errors', function () {
-      var m = new protocols.Message('Hi', {
+      var m = new Message('Hi', {
         request: [{name: 'greeting', type: 'string'}],
         response: 'int'
       });
@@ -142,7 +144,7 @@ suite('protocols', function () {
 
     test('missing response', function () {
       assert.throws(function () {
-        new protocols.Message('Hi', {
+        new Message('Hi', {
           request: [{name: 'greeting', type: 'string'}]
         });
       });
@@ -151,7 +153,7 @@ suite('protocols', function () {
     test('invalid one-way', function () {
       // Non-null response.
       assert.throws(function () {
-        new protocols.Message('Hi', {
+        new Message('Hi', {
           request: [{name: 'greeting', type: 'string'}],
           response: 'string',
           'one-way': true
@@ -159,7 +161,7 @@ suite('protocols', function () {
       });
       // Non-empty errors.
       assert.throws(function () {
-        new protocols.Message('Hi', {
+        new Message('Hi', {
           request: [{name: 'greeting', type: 'string'}],
           response: 'null',
           errors: ['int'],
@@ -172,7 +174,7 @@ suite('protocols', function () {
 
   suite('MessageDecoder', function () {
 
-    var MessageDecoder = protocols.streams.MessageDecoder;
+    var MessageDecoder = messages.streams.MessageDecoder;
 
     test('ok', function (done) {
       var parts = [
@@ -225,7 +227,7 @@ suite('protocols', function () {
 
   suite('MessageEncoder', function () {
 
-    var MessageEncoder = protocols.streams.MessageEncoder;
+    var MessageEncoder = messages.streams.MessageEncoder;
 
     test('invalid frame size', function () {
       assert.throws(function () { new MessageEncoder(); });
@@ -646,6 +648,16 @@ suite('protocols', function () {
       });
 
       test('unknown message', function (done) {
+        var ptcl = createProtocol({protocol: 'Empty'});
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.emit('echo', {}, ee, function (err) {
+            assert(/unknown/.test(err.string));
+            done();
+          });
+        });
+      });
+
+      test('unsupported message', function (done) {
         var ptcl = createProtocol({
           protocol: 'Echo',
           messages: {
@@ -698,6 +710,30 @@ suite('protocols', function () {
         });
       });
 
+      test('destroy', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'int'
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
+          ptcl.emit('negate', {n: 20}, ee, function (err, res) {
+            assert.strictEqual(err, null);
+            assert.equal(res, -20);
+            ee.destroy();
+            this.emit('negate', {n: 'hi'}, ee, function (err) {
+              assert(/destroyed/.test(err.string));
+              done();
+            });
+          });
+        });
+      });
+
     }
 
   });
@@ -716,11 +752,11 @@ function frame(buf) {
 
 function createReadableTransport(bufs, frameSize) {
   return createReadableStream(bufs)
-    .pipe(new protocols.streams.MessageEncoder(frameSize || 64));
+    .pipe(new messages.streams.MessageEncoder(frameSize || 64));
 }
 
 function createWritableTransport(bufs) {
-  var decoder = new protocols.streams.MessageDecoder();
+  var decoder = new messages.streams.MessageDecoder();
   decoder.pipe(createWritableStream(bufs));
   return decoder;
 }

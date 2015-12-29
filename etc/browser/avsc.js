@@ -11,7 +11,7 @@
 
 var Tap = require('../../lib/utils').Tap,
     files = require('../../lib/files'),
-    protocols = require('../../lib/protocols'),
+    messages = require('../../lib/messages'),
     schemas = require('../../lib/schemas');
 
 // No utf8 and binary functions on browserify's `Buffer`, we must patch in the
@@ -51,7 +51,7 @@ Tap.prototype.writeBinary = function (s, len) {
 
 module.exports = {
   LogicalType: schemas.LogicalType,
-  Protocol: protocols.Protocol,
+  Protocol: messages.Protocol,
   Type: schemas.Type,
   parse: files.parse,
   streams: files.streams,

@@ -3,7 +3,7 @@
 'use strict';
 
 /**
- * Shim to give a more explicit error message when parsing files.
+ * Shim to give a more explicit error message when parsing schemas from files.
  *
  */
 
