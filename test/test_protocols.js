@@ -77,11 +77,47 @@ suite('protocols', function () {
       });
     });
 
+    test('get messages', function () {
+      var ptcl;
+      ptcl = createProtocol({protocol: 'Empty'});
+      assert.deepEqual(ptcl.getMessages(), {});
+      ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {
+            request: [],
+            response: 'string'
+          }
+        }
+      });
+      var messages = ptcl.getMessages();
+      assert.equal(Object.keys(messages).length, 1);
+      assert(messages.ping !== undefined);
+    });
+
+    test('create listener', function (done) {
+      var ptcl = createProtocol({protocol: 'Empty'});
+      var transport = new stream.PassThrough();
+      var ee = ptcl.createListener(transport, function (pending) {
+        assert.equal(pending, 0);
+        done();
+      });
+      ee.destroy();
+    });
+
     test('subprotocol', function () {
       var ptcl = createProtocol({namespace: 'com.acme', protocol: 'Hello'});
       var subptcl = ptcl.subprotocol();
       assert.strictEqual(subptcl._emitterResolvers, ptcl._emitterResolvers);
       assert.strictEqual(subptcl._listenerResolvers, ptcl._listenerResolvers);
+    });
+
+    test('invalid emitter', function (done) {
+      var ptcl = createProtocol({protocol: 'Empty'});
+      ptcl.emit('hi', {}, null, function (err) {
+        assert(/invalid emitter/.test(err.string));
+        done();
+      });
     });
 
     test('inspect', function () {
@@ -260,7 +296,6 @@ suite('protocols', function () {
 
   });
 
-
   suite('StatefulEmitter', function () {
 
     // These tests manually generate expected requests and responses (as
@@ -283,11 +318,11 @@ suite('protocols', function () {
               })
             );
             this.destroy();
-          })
-          .on('eot', function () {
-            assert(handshake);
-            done();
-          });
+        })
+        .on('eot', function () {
+          assert(handshake);
+          done();
+        });
     });
 
     test('no server match handshake', function (done) {
@@ -415,6 +450,23 @@ suite('protocols', function () {
         assert.deepEqual(err, {string: 'interrupted'});
         interrupted++;
       }
+    });
+
+    test('missing message', function (done) {
+      var ptcl1 = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'string'}
+        }
+      });
+      var ptcl2 = createProtocol({protocol: 'Empty'});
+      var transports = createPassthroughTransports();
+      ptcl2.createListener(transports[1]);
+      ptcl1.createEmitter(transports[0])
+        .on('error', function (err) {
+          assert(/missing server message: ping/.test(err.message));
+          done();
+        });
     });
 
   });
@@ -678,6 +730,12 @@ function createTransport(readBufs, writeBufs) {
     createReadableTransport(readBufs),
     createWritableTransport(writeBufs)
   );
+}
+
+function createPassthroughTransports() {
+  var pt1 = stream.PassThrough();
+  var pt2 = stream.PassThrough();
+  return [{readable: pt1, writable: pt2}, {readable: pt2, writable: pt1}];
 }
 
 // Simplified stream constructor API isn't available in earlier node versions.
