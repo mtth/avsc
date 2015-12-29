@@ -300,9 +300,6 @@ suite('messages', function () {
 
   suite('StatefulEmitter', function () {
 
-    // These tests manually generate expected requests and responses (as
-    // opposed to using a matching listener for other tests below).
-
     test('ok handshake', function (done) {
       var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
       var bufs = [];
@@ -401,16 +398,17 @@ suite('messages', function () {
     });
 
     test('orphan response', function (done) {
+      var ptcl = createProtocol({protocol: 'Empty'});
+      var idType = messages.IdType.createMetadataType();
       var resBufs = [
         new Buffer([0, 0, 0]), // OK handshake.
-        new Buffer([1, 2, 3])
+        idType.toBuffer(23)
       ];
-      var ptcl = createProtocol({protocol: 'Empty'});
       var error = false;
       ptcl.createEmitter(createTransport(resBufs, []))
         .on('error', function (err) {
           error = true;
-          assert.equal(err.message, 'orphan response');
+          assert(/orphan response:/.test(err.message));
         })
         .on('eot', function () {
           assert(error);
@@ -469,6 +467,108 @@ suite('messages', function () {
           assert(/missing server message: ping/.test(err.message));
           done();
         });
+    });
+
+    test('trailing data', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'string'}
+        }
+      });
+      var transports = createPassthroughTransports();
+      ptcl.createEmitter(transports[0])
+        .on('error', function (err) {
+          assert(/trailing data/.test(err.message));
+          done();
+        });
+      transports[0].readable.end(new Buffer([2, 3]));
+    });
+
+    test('invalid metadata', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'string'}
+        }
+      });
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[1]);
+      ptcl.createEmitter(transports[0])
+        .on('error', function (err) {
+          assert(/invalid metadata:/.test(err.message));
+          done();
+        })
+        .on('handshake', function () {
+          transports[0].readable.write(frame(new Buffer([2, 3])));
+          transports[0].readable.write(frame(new Buffer(0)));
+        });
+    });
+
+    test('invalid response', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'string'}
+        }
+      });
+      var transports = createPassthroughTransports();
+      var ml = ptcl.createListener(transports[1]);
+      var me = ptcl.createEmitter(transports[0])
+        .on('handshake', function () {
+          ml.destroy();
+
+          ptcl.emit('ping', {}, me, function (err) {
+            assert(/invalid response:/.test(err.string));
+            done();
+          });
+
+          var idType = messages.IdType.createMetadataType();
+          var bufs = [
+              idType.toBuffer(1), // Metadata.
+              new Buffer([3]) // Invalid response.
+          ];
+          transports[0].readable.write(frame(Buffer.concat(bufs)));
+          transports[0].readable.write(frame(new Buffer(0)));
+        });
+    });
+
+    test('one way', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {
+          beat: {request: [], response: 'null', 'one-way': true}
+        }
+      });
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[1]);
+      var ee = ptcl.createEmitter(transports[0]);
+      ptcl.on('beat', function () { done(); });
+      ptcl.emit('beat', {}, ee);
+    });
+
+  });
+
+  suite('StatelessEmitter', function () {
+
+    test('interrupted before response data', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var readable = stream.PassThrough()
+        .on('end', done);
+      var writable = createWritableStream([]);
+      var ee = ptcl.createEmitter(function (cb) {
+        cb(readable);
+        return writable;
+      });
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert(/interrupted/.test(err.string));
+        readable.write(frame(new Buffer(2)));
+        readable.end(frame(new Buffer(0)));
+      });
+      ee.destroy(true);
     });
 
   });
