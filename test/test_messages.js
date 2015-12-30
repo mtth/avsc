@@ -3,6 +3,7 @@
 'use strict';
 
 var messages = require('../lib/messages'),
+    utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
     util = require('util');
@@ -663,6 +664,65 @@ suite('messages', function () {
           var msg = res.meta.map.error.toString();
           assert(/missing server message/.test(msg));
           done();
+        });
+    });
+
+    test('invalid metadata', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
+      });
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[1])
+        .on('error', function (err) {
+          assert(/invalid metadata/.test(err.message));
+          done();
+        });
+      ptcl.createEmitter(transports[0])
+        .on('handshake', function () {
+          // Handshake is complete now.
+          var writable = transports[0].writable;
+          writable.write(frame(new Buffer([0]))); // Empty metadata.
+          writable.write(frame(new Buffer(0)));
+        });
+    });
+
+    test('unknown message', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
+      });
+      var transports = createPassthroughTransports();
+      var ee = ptcl.createListener(transports[1])
+        .on('eot', function () {
+          transports[1].writable.end();
+        });
+      ptcl.createEmitter(transports[0])
+        .on('handshake', function () {
+          // Handshake is complete now.
+          this.destroy();
+          var idType = ee._idType;
+          var bufs = [];
+          transports[0].readable
+            .pipe(new messages.streams.MessageDecoder())
+            .on('data', function (buf) { bufs.push(buf); })
+            .on('end', function () {
+              assert.equal(bufs.length, 1);
+              var tap = new utils.Tap(bufs[0]);
+              idType._read(tap);
+              assert(tap.buf[tap.pos++]); // Error byte.
+              tap.pos++; // Union marker.
+              assert(/unknown message/.test(tap.readString()));
+              done();
+            });
+          [
+            idType.toBuffer(-1),
+            new Buffer([4, 104, 105]), // `hi` message.
+            new Buffer(0) // End of frame.
+          ].forEach(function (buf) {
+            transports[0].writable.write(frame(buf));
+          });
+          transports[0].writable.end();
         });
     });
 
