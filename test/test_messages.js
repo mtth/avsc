@@ -557,16 +557,22 @@ suite('messages', function () {
     });
 
     test('one way', function (done) {
+      var beats = 0;
       var ptcl = createProtocol({
         protocol: 'Heartbeat',
         messages: {
           beat: {request: [], response: 'null', 'one-way': true}
         }
+      }).on('beat', function (req, ee, cb) {
+        assert.strictEqual(cb, undefined);
+        if (++beats === 2) {
+          done();
+        }
       });
       var transports = createPassthroughTransports();
       ptcl.createListener(transports[1]);
       var ee = ptcl.createEmitter(transports[0]);
-      ptcl.on('beat', function () { done(); });
+      ptcl.emit('beat', {}, ee);
       ptcl.emit('beat', {}, ee);
     });
 
@@ -593,6 +599,10 @@ suite('messages', function () {
       });
       ee.destroy(true);
     });
+
+  });
+
+  suite('StatefulListener', function () {
 
   });
 
@@ -677,6 +687,113 @@ suite('messages', function () {
             this.emit('negate', {n: 'hi'}, ee, function (err) {
               assert(/invalid "int"/.test(err.string));
               ee.destroy();
+            });
+          });
+        });
+      });
+
+      test('invalid request', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'int'
+            }
+          }
+        }).on('negate', function () { assert(false); });
+        setupFn(ptcl, ptcl, function (ee) {
+          ee.on('eot', done);
+          ptcl.emit('negate', {n: 'a'}, ee, function (err) {
+            assert(/invalid "int"/.test(err.string), null);
+            ee.destroy();
+          });
+        });
+      });
+
+      test('error response', function (done) {
+        var msg = 'must be non-negative';
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            sqrt: {
+              request: [{name: 'n', type: 'float'}],
+              response: 'float'
+            }
+          }
+        }).on('sqrt', function (req, ee, cb) {
+          var n = req.n;
+          if (n < 0) {
+            cb({string: msg});
+          } else {
+            cb(null, Math.sqrt(n));
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
+            assert(Math.abs(res - 10) < 1e-5);
+            ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
+              assert.equal(err.string, msg);
+              done();
+            });
+          });
+        });
+      });
+
+      test('invalid response', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            sqrt: {
+              request: [{name: 'n', type: 'float'}],
+              response: 'float'
+            }
+          }
+        }).on('sqrt', function (req, ee, cb) {
+          var n = req.n;
+          if (n < 0) {
+            cb(null, 'complex'); // Invalid response.
+          } else {
+            cb(null, Math.sqrt(n));
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
+            // The server error message is propagated to the client.
+            assert(/invalid "float"/.test(err.string));
+            ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
+              // And the server doesn't die (we can make a new request).
+              assert(Math.abs(res - 10) < 1e-5);
+              done();
+            });
+          });
+        });
+      });
+
+      test('invalid error', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            sqrt: {
+              request: [{name: 'n', type: 'float'}],
+              response: 'float'
+            }
+          }
+        }).on('sqrt', function (req, ee, cb) {
+          var n = req.n;
+          if (n < 0) {
+            cb('complex'); // Invalid error.
+          } else {
+            cb(null, Math.sqrt(n));
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
+            assert(/invalid \["string"\]/.test(err.string));
+            ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
+              // The server still doesn't die (we can make a new request).
+              assert(Math.abs(res - 10) < 1e-5);
+              done();
             });
           });
         });
@@ -869,7 +986,7 @@ suite('messages', function () {
         });
       });
 
-      test('destroy noWait', function (done) {
+      test('destroy emitter noWait', function (done) {
         var ptcl = createProtocol({
           protocol: 'Delay',
           messages: {
@@ -904,7 +1021,7 @@ suite('messages', function () {
         });
       });
 
-      test('destroy', function (done) {
+      test('destroy emitter', function (done) {
         var ptcl = createProtocol({
           protocol: 'Math',
           messages: {
