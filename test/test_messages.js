@@ -312,7 +312,7 @@ suite('messages', function () {
             assert.deepEqual(
               Buffer.concat(bufs),
               HANDSHAKE_REQUEST_TYPE.toBuffer({
-                emitterHash: new Buffer(ptcl._hashString, 'binary'),
+                clientHash: new Buffer(ptcl._hashString, 'binary'),
                 serverHash: new Buffer(ptcl._hashString, 'binary')
               })
             );
@@ -603,6 +603,68 @@ suite('messages', function () {
   });
 
   suite('StatefulListener', function () {
+
+    test('end readable', function (done) {
+      var ptcl = createProtocol({protocol: 'Empty'});
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[0])
+        .on('eot', function (pending) {
+          assert.equal(pending, 0);
+          done();
+        });
+      transports[0].readable.end();
+    });
+
+    test('finish writable', function (done) {
+      var ptcl = createProtocol({protocol: 'Empty'});
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[0])
+        .on('eot', function (pending) {
+          assert.equal(pending, 0);
+          done();
+        });
+      transports[0].writable.end();
+    });
+
+    test('invalid handshake', function (done) {
+      var ptcl = createProtocol({protocol: 'Empty'});
+      var transport = createTransport(
+        [new Buffer([4])], // Invalid handshake.
+        []
+      );
+      ptcl.createListener(transport)
+        .on('handshake', function (req, res) {
+          assert(!req.$isValid());
+          assert.equal(res.match, 'NONE');
+          done();
+        });
+    });
+
+    test('missing server message', function (done) {
+      var ptcl1 = createProtocol({protocol: 'Empty'});
+      var ptcl2 = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
+      });
+      var hash = new Buffer(ptcl2._hashString, 'binary');
+      var req = {
+        clientHash: hash,
+        clientProtocol: {string: ptcl2.toString()},
+        serverHash: hash
+      };
+      var transport = createTransport(
+        [HANDSHAKE_REQUEST_TYPE.toBuffer(req)],
+        []
+      );
+      ptcl1.createListener(transport)
+        .on('handshake', function (req, res) {
+          assert(req.$isValid());
+          assert.equal(res.match, 'NONE');
+          var msg = res.meta.map.error.toString();
+          assert(/missing server message/.test(msg));
+          done();
+        });
+    });
 
   });
 
