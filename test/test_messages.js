@@ -452,7 +452,30 @@ suite('messages', function () {
       }
     });
 
-    test('missing message', function (done) {
+    test('missing client message', function (done) {
+      var ptcl1 = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'string'}
+        }
+      });
+      var ptcl2 = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'string'},
+          pong: {request: [], response: 'string'}
+        }
+      }).on('ping', function (req, ee, cb) { cb(null, 'ok'); });
+      var transports = createPassthroughTransports();
+      ptcl2.createListener(transports[1]);
+      var ee = ptcl1.createEmitter(transports[0]);
+      ptcl1.emit('ping', {}, ee, function (err, res) {
+        assert.equal(res, 'ok');
+        done();
+      });
+    });
+
+    test('missing server message', function (done) {
       var ptcl1 = createProtocol({
         protocol: 'Ping',
         messages: {
@@ -552,6 +575,30 @@ suite('messages', function () {
   suite('StatelessEmitter', function () {
 
     test('interrupted before response data', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var readable = stream.PassThrough()
+        .on('end', done);
+      var writable = createWritableStream([]);
+      var ee = ptcl.createEmitter(function (cb) {
+        cb(readable);
+        return writable;
+      });
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert(/interrupted/.test(err.string));
+        readable.write(frame(new Buffer(2)));
+        readable.end(frame(new Buffer(0)));
+      });
+      ee.destroy(true);
+    });
+
+  });
+
+  suite('StatelessListener', function () {
+
+    test('unknown message', function (done) {
       var ptcl = createProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
@@ -716,6 +763,53 @@ suite('messages', function () {
               assert.strictEqual(err, null);
               assert.equal(res, 23);
               done();
+            });
+          }
+        );
+      });
+
+      test('cached compatible protocols', function (done) {
+        var ptcl1 = createProtocol({
+          protocol: 'emitterProtocol',
+          messages: {
+            age: {
+              request: [{name: 'name', type: 'string'}],
+              response: 'long'
+            }
+          }
+        });
+        var ptcl2 = createProtocol({
+          protocol: 'serverProtocol',
+          messages: {
+            age: {
+              request: [
+                {name: 'name', type: 'string'},
+                {name: 'address', type: ['null', 'string'], 'default': null}
+              ],
+              response: 'int'
+            },
+            id: {
+              request: [{name: 'name', type: 'string'}],
+              response: 'long'
+            }
+          }
+        }).on('age', function (req, ee, cb) { cb(null, 48); });
+        setupFn(
+          ptcl1,
+          ptcl2,
+          function (ee1) {
+            ptcl1.emit('age', {name: 'Ann'}, ee1, function (err, res) {
+              assert.equal(res, 48);
+              setupFn(
+                ptcl1,
+                ptcl2,
+                function (ee2) { // ee2 has the server's protocol.
+                  ptcl1.emit('age', {name: 'Bob'}, ee2, function (err, res) {
+                    assert.equal(res, 48);
+                    done();
+                  });
+                }
+              );
             });
           }
         );
