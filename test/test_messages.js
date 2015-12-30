@@ -782,7 +782,7 @@ suite('messages', function () {
         }).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n < 0) {
-            cb('complex'); // Invalid error.
+            cb({error: 'complex'}); // Invalid error.
           } else {
             cb(null, Math.sqrt(n));
           }
