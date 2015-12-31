@@ -726,6 +726,47 @@ suite('messages', function () {
         });
     });
 
+    test('invalid request', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
+      });
+      var transports = createPassthroughTransports();
+      // TODO: Attempt modifying message on the fly on the transport (by adding
+      // a data handler before the pipe).
+      var ee = ptcl.createListener(transports[1])
+        .on('eot', function () {
+          transports[1].writable.end();
+        });
+      ptcl.createEmitter(transports[0])
+        .on('handshake', function () {
+          // Handshake is complete now.
+          this.destroy();
+          var idType = ee._idType;
+          var bufs = [];
+          transports[0].readable
+            .pipe(new messages.streams.MessageDecoder())
+            .on('data', function (buf) { bufs.push(buf); })
+            .on('end', function () {
+              assert.equal(bufs.length, 1);
+              var tap = new utils.Tap(bufs[0]);
+              idType._read(tap);
+              assert(tap.buf[tap.pos++]); // Error byte.
+              tap.pos++; // Union marker.
+              assert(/unknown message/.test(tap.readString()));
+              done();
+            });
+          [
+            idType.toBuffer(-1),
+            new Buffer([4, 104, 105]), // `hi` message.
+            new Buffer(0) // End of frame.
+          ].forEach(function (buf) {
+            transports[0].writable.write(frame(buf));
+          });
+          transports[0].writable.end();
+        });
+    });
+
   });
 
   suite('StatelessListener', function () {
