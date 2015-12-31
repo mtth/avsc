@@ -729,15 +729,14 @@ suite('messages', function () {
     test('invalid request', function (done) {
       var ptcl = createProtocol({
         protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
+        messages: {beat: {
+          request: [{name: 'id', type: 'string'}],
+          response: 'boolean'
+        }}
       });
       var transports = createPassthroughTransports();
-      // TODO: Attempt modifying message on the fly on the transport (by adding
-      // a data handler before the pipe).
       var ee = ptcl.createListener(transports[1])
-        .on('eot', function () {
-          transports[1].writable.end();
-        });
+        .on('eot', function () { transports[1].writable.end(); });
       ptcl.createEmitter(transports[0])
         .on('handshake', function () {
           // Handshake is complete now.
@@ -751,14 +750,15 @@ suite('messages', function () {
               assert.equal(bufs.length, 1);
               var tap = new utils.Tap(bufs[0]);
               idType._read(tap);
-              assert(tap.buf[tap.pos++]); // Error byte.
-              tap.pos++; // Union marker.
-              assert(/unknown message/.test(tap.readString()));
+              assert.equal(tap.buf[tap.pos++], 1); // Error byte.
+              assert.equal(tap.buf[tap.pos++], 0); // Union marker.
+              assert(/invalid request/.test(tap.readString()));
               done();
             });
           [
             idType.toBuffer(-1),
-            new Buffer([4, 104, 105]), // `hi` message.
+            new Buffer([8, 98, 101, 97, 116]), // `beat` message.
+            new Buffer([8]), // Invalid Avro string encoding.
             new Buffer(0) // End of frame.
           ].forEach(function (buf) {
             transports[0].writable.write(frame(buf));
@@ -767,28 +767,91 @@ suite('messages', function () {
         });
     });
 
+    test('destroy', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
+      }).on('beat', function (req, ee, cb) {
+        ee.destroy();
+        setTimeout(function () { cb(null, true); }, 10);
+      });
+      var transports = createPassthroughTransports();
+      var responded = false;
+      ptcl.createListener(transports[1])
+        .on('eot', function () {
+          assert(responded); // Works because the transport is sync.
+          done();
+        });
+      ptcl.emit('beat', {}, ptcl.createEmitter(transports[0]), function () {
+        responded = true;
+      });
+    });
+
   });
 
   suite('StatelessListener', function () {
 
     test('unknown message', function (done) {
       var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {ping: {request: [], response: 'boolean'}}
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
       });
-      var readable = stream.PassThrough()
-        .on('end', done);
-      var writable = createWritableStream([]);
+      var readable = new stream.PassThrough();
+      var writable = new stream.PassThrough();
+      var ee = ptcl.createListener(function (cb) {
+        cb(writable);
+        return readable;
+      });
+      var bufs = [];
+      writable.pipe(new messages.streams.MessageDecoder())
+        .on('data', function (buf) { bufs.push(buf); })
+        .on('end', function () {
+          assert.equal(bufs.length, 1);
+          var tap = new utils.Tap(bufs[0]);
+          tap.pos = 4; // Skip handshake response.
+          ee._idType._read(tap); // Skip metadata.
+          assert.equal(tap.buf[tap.pos++], 1); // Error.
+          assert.equal(tap.buf[tap.pos++], 0); // Union flag.
+          assert(/unknown message/.test(tap.readString()));
+          done();
+        });
+      var hash = new Buffer(ptcl._hashString, 'binary');
+      var req = {
+        clientHash: hash,
+        clientProtocol: null,
+        serverHash: hash
+      };
+      var encoder = new messages.streams.MessageEncoder(64);
+      encoder.pipe(readable);
+      encoder.end(Buffer.concat([
+        HANDSHAKE_REQUEST_TYPE.toBuffer(req),
+        new Buffer([0]), // Empty metadata.
+        new Buffer([4, 104, 105]) // `id` message.
+      ]));
+    });
+
+    test('late writable', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'boolean'}}
+      }).on('beat', function (req, ee, cb) {
+        cb(null, true);
+      });
+      var readable = new stream.PassThrough();
+      var writable = new stream.PassThrough();
+      ptcl.createListener(function (cb) {
+        setTimeout(function () { cb(readable); }, 10);
+        return writable;
+      });
       var ee = ptcl.createEmitter(function (cb) {
         cb(readable);
         return writable;
       });
-      ptcl.emit('ping', {}, ee, function (err) {
-        assert(/interrupted/.test(err.string));
-        readable.write(frame(new Buffer(2)));
-        readable.end(frame(new Buffer(0)));
+      ptcl.emit('beat', {}, ee, function (err, res) {
+        assert.strictEqual(err, null);
+        assert.equal(res, true);
+        done();
       });
-      ee.destroy(true);
     });
 
   });
