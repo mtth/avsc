@@ -1500,6 +1500,22 @@ suite('types', function () {
       assert.equal(t.getSchema(true), '"earth.Person"');
     });
 
+    test('fromString', function () {
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: 'string', 'default': 'UNKNOWN'}
+        ]
+      });
+      assert.deepEqual(
+        t.fromString('{"age": 23}'),
+        {age: 23, name: 'UNKNOWN'}
+      );
+      assert.throws(function () { t.fromString('{}'); });
+    });
+
     test('toString record', function () {
       var T = createType({
         type: 'record',
@@ -1525,6 +1541,31 @@ suite('types', function () {
       assert.equal(o.age, 25);
       assert.strictEqual(c.$getType(), t);
       assert.deepEqual(c.$clone(), c);
+    });
+
+    test('clone field default', function () {
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'id', type: 'int'},
+          {name: 'name', type: 'string', 'default': 'UNKNOWN'},
+          {name: 'age', type: ['null', 'int'], 'default': null},
+        ]
+      });
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann'}),
+        {id: 1, name: 'Ann', age: null}
+      );
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann', age: {'int': 21}}),
+        {id: 1, name: 'Ann', age: {'int': 21}}
+      );
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann', age: 21}, {wrapUnions: true}),
+        {id: 1, name: 'Ann', age: {'int': 21}}
+      );
+      assert.throws(function () { t.clone({}); });
     });
 
     test('clone field hook', function () {
@@ -2170,6 +2211,27 @@ suite('types', function () {
       assert.equal(type._fields[1]._type._name, 'all.Alien');
     });
 
+    test('namespace scope', function () {
+      var type = createType({
+        type: 'record',
+        name: 'Human',
+        namespace: 'earth',
+        fields: [
+          {
+            name: 'id1',
+            type: {type: 'fixed', name: 'Id', size: 2, namespace: 'all'}
+          },
+          {
+            name: 'id2',
+            type: {type: 'fixed', name: 'Id', size: 4}
+          }
+        ]
+      });
+      assert.equal(type._name, 'earth.Human');
+      assert.equal(type._fields[0]._type._name, 'all.Id');
+      assert.equal(type._fields[1]._type._name, 'earth.Id');
+    });
+
     test('wrapped primitive', function () {
       var type = createType({
         type: 'record',
@@ -2366,6 +2428,10 @@ suite('types', function () {
   });
 
   suite('type references', function () {
+
+    test('null', function () {
+      assert.throws(function () { createType(null); }, /did you mean/);
+    });
 
     test('existing', function () {
       var type = createType({

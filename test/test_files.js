@@ -225,6 +225,20 @@ suite('files', function () {
       process.nextTick(function () { decoder.end(new Buffer([6])); });
     });
 
+    test('read before write', function (cb) {
+      var t = createType('int');
+      var objs = [];
+      var decoder = new RawDecoder(t)
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, [1]);
+          cb();
+        });
+      setTimeout(function () {
+        decoder.end(new Buffer([2]));
+      }, 50);
+    });
+
   });
 
   suite('BlockEncoder', function () {
@@ -457,6 +471,26 @@ suite('files', function () {
         });
       encoder.pipe(decoder);
       encoder.end(48);
+    });
+
+    test('uncompressed int after delay', function (cb) {
+      var t = createType('int');
+      var objs = [];
+      var encoder = new streams.BlockEncoder(t);
+      var decoder = new streams.BlockDecoder();
+      encoder.pipe(decoder);
+      encoder.write(12);
+      encoder.write(23);
+      encoder.end(48);
+
+      setTimeout(function () {
+        decoder
+          .on('data', function (obj) { objs.push(obj); })
+          .on('end', function () {
+            assert.deepEqual(objs, [12, 23, 48]);
+            cb();
+          });
+      }, 100);
     });
 
     test('deflated records', function (cb) {

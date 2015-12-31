@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "description": "Blazingly fast serialization",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -11,7 +11,9 @@
     "data",
     "encoding",
     "decoding",
-    "serialization"
+    "serialization",
+    "rpc",
+    "ipc"
   ],
   "files": [
     "lib",
