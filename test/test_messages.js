@@ -908,6 +908,7 @@ suite('messages', function () {
           ee.on('eot', done);
           ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
           ptcl.emit('negate', {n: 20}, ee, function (err, res) {
+            assert.equal(this, ptcl);
             assert.strictEqual(err, null);
             assert.equal(res, -20);
             this.emit('negate', {n: 'hi'}, ee, function (err) {
@@ -959,6 +960,7 @@ suite('messages', function () {
           ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
             assert(Math.abs(res - 10) < 1e-5);
             ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
+              assert.equal(this, ptcl);
               assert.equal(err.string, msg);
               done();
             });
