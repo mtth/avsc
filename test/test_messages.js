@@ -1277,6 +1277,12 @@ suite('messages', function () {
 
   });
 
+  test('throw error', function () {
+    // Most useful test in all this file!
+    assert.doesNotThrow(function () { messages.throwError(null); });
+    assert.throws(function () { messages.throwError(new Error('hi')); });
+  });
+
 });
 
 // Helpers.
