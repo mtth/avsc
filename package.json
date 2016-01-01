@@ -31,8 +31,8 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "test": "mocha --ui tdd --reporter dot",
-    "cover": "istanbul cover _mocha -- --ui tdd --reporter dot",
+    "test": "mocha",
+    "cover": "istanbul cover _mocha",
     "clean": "rm -rf coverage node_modules"
   },
   "devDependencies": {

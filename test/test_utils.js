@@ -260,12 +260,12 @@ suite('utils', function () {
         l = 18932;
         t.writeLong(l);
         t.pos = 0;
-        assert.deepEqual(t.unpackLongBytes().readInt32LE(), l);
+        assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
         t.pos = 0;
         l = -3210984;
         t.writeLong(l);
         t.pos = 0;
-        assert.deepEqual(t.unpackLongBytes().readInt32LE(), l);
+        assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
       });
 
       test('pack single byte', function () {

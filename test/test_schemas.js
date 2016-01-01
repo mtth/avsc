@@ -1727,7 +1727,7 @@ suite('types', function () {
           if (neg) { // Negative number.
             invert(buf);
           }
-          var n = buf.readInt32LE() + Math.pow(2, 32) * buf.readInt32LE(4);
+          var n = buf.readInt32LE(0) + Math.pow(2, 32) * buf.readInt32LE(4);
           if (neg) {
             invert(buf);
             n = -n - 1;

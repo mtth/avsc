@@ -7,11 +7,9 @@
  *
  */
 
-function unsupported() {
-  throw new Error('parsing schema files is not supported in the browser');
-}
-
 
 module.exports = {
-  readFileSync: unsupported
+  readFileSync: function () {
+    throw new Error('parsing schema files is not supported in the browser');
+  }
 };

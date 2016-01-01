@@ -14,39 +14,45 @@ var Tap = require('../../lib/utils').Tap,
     messages = require('../../lib/messages'),
     schemas = require('../../lib/schemas');
 
-// No utf8 and binary functions on browserify's `Buffer`, we must patch in the
-// generic slice and write equivalents.
+/* istanbul ignore next */
+if (process.browser) {
+  // No utf8 and binary functions on browserify's `Buffer`, we must patch in
+  // the generic slice and write equivalents. We guard this by a check (true
+  // when run from a browserify `require`), since this module is always
+  // required by tests (see `test/mocha.opts`).
 
-Tap.prototype.readString = function () {
-  var len = this.readLong();
-  var pos = this.pos;
-  var buf = this.buf;
-  this.pos += len;
-  if (this.pos > buf.length) {
-    return;
-  }
-  return this.buf.slice(pos, pos + len).toString();
-};
+  Tap.prototype.readString = function () {
+    var len = this.readLong();
+    var pos = this.pos;
+    var buf = this.buf;
+    this.pos += len;
+    if (this.pos > buf.length) {
+      return;
+    }
+    return this.buf.slice(pos, pos + len).toString();
+  };
 
-Tap.prototype.writeString = function (s) {
-  var len = Buffer.byteLength(s);
-  this.writeLong(len);
-  var pos = this.pos;
-  this.pos += len;
-  if (this.pos > this.buf.length) {
-    return;
-  }
-  this.buf.write(s, pos);
-};
+  Tap.prototype.writeString = function (s) {
+    var len = Buffer.byteLength(s);
+    this.writeLong(len);
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
+      return;
+    }
+    this.buf.write(s, pos);
+  };
 
-Tap.prototype.writeBinary = function (s, len) {
-  var pos = this.pos;
-  this.pos += len;
-  if (this.pos > this.buf.length) {
-    return;
-  }
-  this.buf.write(s, pos, len, 'binary');
-};
+  Tap.prototype.writeBinary = function (s, len) {
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
+      return;
+    }
+    this.buf.write(s, pos, len, 'binary');
+  };
+
+}
 
 
 module.exports = {

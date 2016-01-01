@@ -8,8 +8,7 @@ var files = require('../lib/files'),
     schemas = require('../lib/schemas'),
     assert = require('assert'),
     fs = require('fs'),
-    path = require('path'),
-    tmp = require('tmp');
+    path = require('path');
 
 
 var DPATH = path.join(__dirname, 'dat');
@@ -58,11 +57,15 @@ suite('files', function () {
       assert(parse('double') instanceof types.DoubleType);
     });
 
-    test('type schema file', function () {
-      var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
-      var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
-      assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
-    });
+    if (!process.browser) {
+
+      test('type schema file', function () {
+        var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
+        var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
+        assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
+      });
+
+    }
 
   });
 
@@ -550,67 +553,73 @@ suite('files', function () {
 
   });
 
-  test('createFileDecoder', function (cb) {
-    var n = 0;
-    var type = loadSchema(path.join(DPATH, 'Person.avsc'));
-    files.createFileDecoder(path.join(DPATH, 'person-10.avro'))
-      .on('metadata', function (writerType) {
-        assert.equal(writerType.toString(), type.toString());
-      })
-      .on('data', function (obj) {
-        n++;
-        assert(type.isValid(obj));
-      })
-      .on('end', function () {
-        assert.equal(n, 10);
-        cb();
-      });
-  });
+  if (!process.browser) {
 
-  test('createFileEncoder', function (cb) {
-    var type = createType({
-      type: 'record',
-      name: 'Person',
-      fields: [
-        {name: 'name', type: 'string'},
-        {name: 'age', type: 'int'}
-      ]
-    });
-    var path = tmp.fileSync().name;
-    var encoder = files.createFileEncoder(path, type);
-    encoder.write({name: 'Ann', age: 32});
-    encoder.end({name: 'Bob', age: 33});
-    var n = 0;
-    encoder.on('finish', function () {
-      files.createFileDecoder(path)
+    var tmp = require('tmp');
+
+    test('createFileDecoder', function (cb) {
+      var n = 0;
+      var type = loadSchema(path.join(DPATH, 'Person.avsc'));
+      files.createFileDecoder(path.join(DPATH, 'person-10.avro'))
+        .on('metadata', function (writerType) {
+          assert.equal(writerType.toString(), type.toString());
+        })
         .on('data', function (obj) {
           n++;
           assert(type.isValid(obj));
         })
         .on('end', function () {
-          assert.equal(n, 2);
+          assert.equal(n, 10);
           cb();
         });
     });
-  });
 
-  test('extractFileHeader', function () {
-    var header;
-    var fpath = path.join(DPATH, 'person-10.avro');
-    header = files.extractFileHeader(fpath);
-    assert(header !== null);
-    assert.equal(typeof header.meta['avro.schema'], 'object');
-    header = files.extractFileHeader(fpath, {decode: false});
-    assert(Buffer.isBuffer(header.meta['avro.schema']));
-    header = files.extractFileHeader(fpath, {size: 2});
-    assert.equal(typeof header.meta['avro.schema'], 'object');
-    header = files.extractFileHeader(path.join(DPATH, 'person-10.avro.raw'));
-    assert(header === null);
-    header = files.extractFileHeader(
-      path.join(DPATH, 'person-10.no-codec.avro')
-    );
-    assert(header !== null);
-  });
+    test('createFileEncoder', function (cb) {
+      var type = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'age', type: 'int'}
+        ]
+      });
+      var path = tmp.fileSync().name;
+      var encoder = files.createFileEncoder(path, type);
+      encoder.write({name: 'Ann', age: 32});
+      encoder.end({name: 'Bob', age: 33});
+      var n = 0;
+      encoder.on('finish', function () {
+        files.createFileDecoder(path)
+          .on('data', function (obj) {
+            n++;
+            assert(type.isValid(obj));
+          })
+          .on('end', function () {
+            assert.equal(n, 2);
+            cb();
+          });
+      });
+    });
+
+    test('extractFileHeader', function () {
+      var header;
+      var fpath = path.join(DPATH, 'person-10.avro');
+      header = files.extractFileHeader(fpath);
+      assert(header !== null);
+      assert.equal(typeof header.meta['avro.schema'], 'object');
+      header = files.extractFileHeader(fpath, {decode: false});
+      assert(Buffer.isBuffer(header.meta['avro.schema']));
+      header = files.extractFileHeader(fpath, {size: 2});
+      assert.equal(typeof header.meta['avro.schema'], 'object');
+      header = files.extractFileHeader(path.join(DPATH, 'person-10.avro.raw'));
+      assert(header === null);
+      header = files.extractFileHeader(
+        path.join(DPATH, 'person-10.no-codec.avro')
+      );
+      assert(header !== null);
+    });
+
+  }
 
 });
 

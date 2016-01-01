@@ -905,7 +905,7 @@ suite('messages', function () {
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
-          ee.on('eot', done);
+          ee.on('eot', function () { done(); });
           ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
           ptcl.emit('negate', {n: 20}, ee, function (err, res) {
             assert.equal(this, ptcl);
@@ -930,7 +930,7 @@ suite('messages', function () {
           }
         }).on('negate', function () { assert(false); });
         setupFn(ptcl, ptcl, function (ee) {
-          ee.on('eot', done);
+          ee.on('eot', function () { done(); });
           ptcl.emit('negate', {n: 'a'}, ee, function (err) {
             assert(/invalid "int"/.test(err.string), null);
             ee.destroy();
