@@ -7,8 +7,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
 
 + [Fast!](#performance) Typically twice as fast as JSON with much smaller
   encodings.
-+ Full Avro support, including recursive schemas, sort order, and
-  [evolution][schema-evolution].
++ Full Avro support, including [schema evolution][schema-evolution] and
+  [protocols][rpc].
 + Serialization of arbitrary JavaScript objects via [logical types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
@@ -58,10 +58,9 @@ Inside a node.js module, or using browserify:
 var avsc = require('avsc');
 ```
 
-+ Encode and decode objects:
++ Encode and decode values:
 
   ```javascript
-  // We can declare a schema inline:
   var type = avsc.parse({
     name: 'Pet',
     type: 'record',
@@ -70,35 +69,35 @@ var avsc = require('avsc');
       {name: 'name', type: 'string'}
     ]
   });
-  var pet = {kind: 'CAT', name: 'Albert'};
-  var buf = type.toBuffer(pet); // Serialized object.
-  var obj = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
+  var buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
+  var val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
   ```
 
-+ Generate random instances of a schema:
++ Check whether a value fits a given schema:
 
   ```javascript
-  // We can also parse a JSON-stringified schema:
-  var type = avsc.parse('{"type": "fixed", "name": "Id", "size": 4}');
-  var id = type.random(); // E.g. Buffer([48, 152, 2, 123])
-  ```
-
-+ Check whether an object fits a given schema:
-
-  ```javascript
-  // Or we can specify a path to a schema file (not in the browser):
   var type = avsc.parse('./Person.avsc');
   var person = {name: 'Bob', address: {city: 'Cambridge', zip: '02139'}};
   var status = type.isValid(person); // Boolean status.
   ```
 
-+ Get a [readable stream][readable-stream] of decoded records from an Avro
-  container file (not in the browser):
++ Get a [readable stream][readable-stream] of decoded values from an Avro
+  container file:
 
   ```javascript
-  avsc.createFileDecoder('./records.avro')
+  avsc.createFileDecoder('./values.avro')
     .on('metadata', function (type) { /* `type` is the writer's type. */ })
-    .on('data', function (record) { /* Do something with the record. */ });
+    .on('data', function (val) { /* Do something with the decoded value. */ });
+  ```
+
++ Respond to [remote procedure calls][rpc] over TCP:
+
+  ```javascript
+  var protocol = avsc.parse('./Ping.avpr')
+    .on('ping', function (req, ee, cb) { cb(null, 'pong'); });
+  require('net').createServer()
+    .on('connection', function (con) { protocol.createListener(con); })
+    .listen(8000);
   ```
 
 
@@ -110,3 +109,4 @@ var avsc = require('avsc');
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [browserify]: http://browserify.org/
 [coupon-schema]: etc/benchmarks/schemas/Coupon.avsc
+[rpc]: https://github.com/mtth/avsc/wiki#and-rpc
