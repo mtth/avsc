@@ -1278,9 +1278,18 @@ suite('messages', function () {
   });
 
   test('throw error', function () {
-    // Most useful test in all this file!
-    assert.doesNotThrow(function () { messages.throwError(null); });
-    assert.throws(function () { messages.throwError(new Error('hi')); });
+    assert(!tryCatch(null));
+    assert.equal(tryCatch(new Error('hi')), 'hi');
+    assert.equal(tryCatch('hi'), 'hi');
+    assert.equal(tryCatch({string: 'hi'}), 'hi');
+
+    function tryCatch(err) {
+      try {
+        messages.throwError(err);
+      } catch (err_) {
+        return err_.message;
+      }
+    }
   });
 
 });
