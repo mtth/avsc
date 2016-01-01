@@ -1,0 +1,15 @@
+ui: mocha-tdd
+browsers:
+  - name: chrome
+    version: latest
+  - name: firefox
+    version: latest
+  - name: safari
+    version: latest
+  - name: ie
+    version: latest
+  - name: opera
+    version: latest
+browserify:
+  - add:
+      - etc/browser/_shims.js

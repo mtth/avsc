@@ -3,8 +3,8 @@
 'use strict';
 
 
-var utils = require('../lib/utils'),
-    schemas = require('../lib/schemas'),
+var schemas = require('../lib/schemas'),
+    utils = require('../lib/utils'),
     assert = require('assert'),
     util = require('util');
 

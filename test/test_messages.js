@@ -8,6 +8,7 @@ var messages = require('../lib/messages'),
     stream = require('stream'),
     util = require('util');
 
+
 var HANDSHAKE_REQUEST_TYPE = messages.HANDSHAKE_REQUEST_TYPE;
 var HANDSHAKE_RESPONSE_TYPE = messages.HANDSHAKE_RESPONSE_TYPE;
 var createProtocol = messages.createProtocol;

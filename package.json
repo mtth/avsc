@@ -24,8 +24,7 @@
   "main": "./lib",
   "browser": {
     "./lib": "./etc/browser/avsc.js",
-    "crypto": "./etc/browser/crypto.js",
-    "fs": "./etc/browser/fs.js"
+    "crypto": "./etc/browser/_crypto.js"
   },
   "engines": {
     "node": ">=0.11"

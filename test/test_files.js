@@ -8,7 +8,8 @@ var files = require('../lib/files'),
     schemas = require('../lib/schemas'),
     assert = require('assert'),
     fs = require('fs'),
-    path = require('path');
+    path = require('path'),
+    tmp = require('tmp');
 
 
 var DPATH = path.join(__dirname, 'dat');
@@ -57,15 +58,11 @@ suite('files', function () {
       assert(parse('double') instanceof types.DoubleType);
     });
 
-    if (!process.browser) {
-
-      test('type schema file', function () {
-        var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
-        var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
-        assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
-      });
-
-    }
+    test('type schema file', function () {
+      var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
+      var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
+      assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
+    });
 
   });
 
@@ -553,53 +550,49 @@ suite('files', function () {
 
   });
 
-  if (!process.browser) {
+  test('createFileDecoder', function (cb) {
+    var n = 0;
+    var type = loadSchema(path.join(DPATH, 'Person.avsc'));
+    files.createFileDecoder(path.join(DPATH, 'person-10.avro'))
+      .on('metadata', function (writerType) {
+        assert.equal(writerType.toString(), type.toString());
+      })
+      .on('data', function (obj) {
+        n++;
+        assert(type.isValid(obj));
+      })
+      .on('end', function () {
+        assert.equal(n, 10);
+        cb();
+      });
+  });
 
-    var tmp = require('tmp');
-
-    test('createFileDecoder', function (cb) {
-      var n = 0;
-      var type = loadSchema(path.join(DPATH, 'Person.avsc'));
-      files.createFileDecoder(path.join(DPATH, 'person-10.avro'))
-        .on('metadata', function (writerType) {
-          assert.equal(writerType.toString(), type.toString());
-        })
+  test('createFileEncoder', function (cb) {
+    var type = createType({
+      type: 'record',
+      name: 'Person',
+      fields: [
+        {name: 'name', type: 'string'},
+        {name: 'age', type: 'int'}
+      ]
+    });
+    var path = tmp.fileSync().name;
+    var encoder = files.createFileEncoder(path, type);
+    encoder.write({name: 'Ann', age: 32});
+    encoder.end({name: 'Bob', age: 33});
+    var n = 0;
+    encoder.on('finish', function () {
+      files.createFileDecoder(path)
         .on('data', function (obj) {
           n++;
           assert(type.isValid(obj));
         })
         .on('end', function () {
-          assert.equal(n, 10);
+          assert.equal(n, 2);
           cb();
         });
     });
-
-    test('createFileEncoder', function (cb) {
-      var type = createType({
-        type: 'record',
-        name: 'Person',
-        fields: [
-          {name: 'name', type: 'string'},
-          {name: 'age', type: 'int'}
-        ]
-      });
-      var path = tmp.fileSync().name;
-      var encoder = files.createFileEncoder(path, type);
-      encoder.write({name: 'Ann', age: 32});
-      encoder.end({name: 'Bob', age: 33});
-      var n = 0;
-      encoder.on('finish', function () {
-        files.createFileDecoder(path)
-          .on('data', function (obj) {
-            n++;
-            assert(type.isValid(obj));
-          })
-          .on('end', function () {
-            assert.equal(n, 2);
-            cb();
-          });
-      });
-    });
+  });
 
     test('extractFileHeader', function () {
       var header;
@@ -618,8 +611,6 @@ suite('files', function () {
       );
       assert(header !== null);
     });
-
-  }
 
 });
 

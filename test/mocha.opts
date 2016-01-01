@@ -1,3 +1,2 @@
 --ui tdd
 --reporter dot
---require ./etc/browser/avsc
