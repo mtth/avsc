@@ -2,14 +2,22 @@ language: node_js
 node_js:
   - node
   - iojs
-  - "4"
-  - "3"
-  - "2"
-  - "1.8"
-  - "1.0"
-  - "0.12"
-  - "0.11"
+  - '4'
+  - '3'
+  - '2'
+  - '1.8'
+  - '1.0'
+  - '0.12'
+  - '0.11'
 script:
   - npm run cover
 after_script:
   - cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js
+deploy:
+  provider: npm
+  email: monsch@alum.mit.edu
+  api_key:
+    secure: e8RPZexsWnXMe7SYLJEfESwsEs0dF9DakZ1XKe+I2VO3nBX8ap3DVdzG+fh5oucJq+jwMV2WIJAGVlC01bJEnzrzkofKyFSqwcdA1uf+Z38CkoTH2QSWRLN6SFvcEUxBb0uMaRz86SZUZREX2PAyk8cjgdjiPgliUJIKT/0XoJYs+OGtDC21Ltwq/jADaMnueAoD0r75P25nNoTna9qt0snEMcA4xGSnh74Id+wya+56pHV07SgiYF9c4R6962Ua7g3tMjQY13OFjpOUKjMXzQxmm3S0wY/4HX+vU3i6GPLxGOVz2pA5dTFyTR0naVs9U46icO6rpoQ90eKhfIG0e0M1IofGvUwGmgST7GaXpBHzilmrEm79DbTTgsqFsVcdFRxgQD4mX6vA0BpEv4nQga431VNI+qKrkMsvtISSioNMPwl/F4J/U65TgWAFYpj4ICFu9AYCaLkSce2o3fYKfoiaA2bayzYuiv27zK+l1x4OfOZIN7B+1DzWnerFM0KOgqW2t5m/tAvUF4U4lV7HZgQrPOTTd+qPMJbCbWFb3JBSZJelag5mbpXtMVTeEVQ8aC2kmmSDnw5jWMJdEToDSr9Ohls5kBZrm9/YG2NAP6s1u+tW68FZuso0zzc33t24rH/XuTjShf6BWQRXXlNH1sp7/GwQRcnSwLW3X+wOl8s=
+  on:
+    tags: true
+    repo: mtth/avsc

@@ -4,16 +4,18 @@
   "description": "Blazingly fast serialization",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
+    "avpr",
     "avro",
     "avsc",
-    "schema",
-    "json",
     "data",
-    "encoding",
     "decoding",
-    "serialization",
+    "encoding",
+    "ipc",
+    "json",
+    "protocol",
     "rpc",
-    "ipc"
+    "schema",
+    "serialization"
   ],
   "files": [
     "lib",

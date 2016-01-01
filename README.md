@@ -1,6 +1,7 @@
 # Avsc [![NPM version](https://img.shields.io/npm/v/avsc.svg)](https://www.npmjs.com/package/avsc) [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc) [![Coverage status](https://coveralls.io/repos/mtth/avsc/badge.svg?branch=master&service=github)](https://coveralls.io/github/mtth/avsc?branch=master)
 
-Pure JavaScript implementation of the [Avro specification](https://avro.apache.org/docs/current/spec.html).
+Pure JavaScript implementation of the [Avro
+specification](https://avro.apache.org/docs/current/spec.html).
 
 
 ## Features
@@ -9,7 +10,8 @@ Pure JavaScript implementation of the [Avro specification](https://avro.apache.o
   encodings.
 + Full Avro support, including [schema evolution][schema-evolution] and
   [protocols][rpc].
-+ Serialization of arbitrary JavaScript objects via [logical types][logical-types].
++ Serialization of arbitrary JavaScript objects via [logical
+  types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
 
@@ -24,9 +26,11 @@ Libraries compared:
 
 + `node-avsc`, this package.
 + `node-json`, built-in JSON serializer.
-+ [`node-protobuf`](https://www.npmjs.com/package/protobufjs), most popular Protocol Buffers implementation.
++ [`node-protobuf`](https://www.npmjs.com/package/protobufjs), most popular
+  Protocol Buffers implementation.
 + [`node-pson`](https://www.npmjs.com/package/pson), alternative to JSON.
-+ [`node-msgpack`](https://www.npmjs.com/package/msgpack-lite), official MessagePack implementation.
++ [`node-msgpack`](https://www.npmjs.com/package/msgpack-lite), official
+  MessagePack implementation.
 
 These rates are for processing a [realistic record schema][coupon-schema],
 modeled after a popular open-source API. You can find the raw numbers and more
@@ -90,11 +94,12 @@ var avsc = require('avsc');
     .on('data', function (val) { /* Do something with the decoded value. */ });
   ```
 
-+ Respond to [remote procedure calls][rpc] over TCP:
++ Respond to remote procedure calls over TCP:
 
   ```javascript
   var protocol = avsc.parse('./Ping.avpr')
     .on('ping', function (req, ee, cb) { cb(null, 'pong'); });
+
   require('net').createServer()
     .on('connection', function (con) { protocol.createListener(con); })
     .listen(8000);
