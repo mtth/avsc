@@ -5,10 +5,7 @@
 /**
  * Optional entry point for browser builds.
  *
- * This can be used to produce a lighter bundle (~60% smaller: 49k -> 20k
- * compressed and 169k -> 69k uncompressed) when protocols aren't needed.
- *
- * To use it: `require('avsc/etc/browser/avsc-no-protocols.js')`.
+ * To use it: `require('avsc/etc/browser/avsc-types.js')`.
  *
  */
 
@@ -22,8 +19,8 @@ function parse(schema, opts) {
 
 
 module.exports = {
-  LogicalType: schemas.LogicalType,
-  Type: schemas.Type,
+  LogicalType: types.LogicalType,
+  Type: types.Type,
   parse: parse,
   types: types.builtins
 };

@@ -3,9 +3,9 @@
 'use strict';
 
 /**
- * Shim entry point used when `avsc` is `require`d from browserify.
+ * Optional entry point for browser builds.
  *
- * It doesn't expose any of the filesystem methods and patches a few others.
+ * To use it: `require('avsc/etc/browser/avsc-protocols.js')`.
  *
  */
 
@@ -23,9 +23,9 @@ function parse(schema, opts) {
 
 
 module.exports = {
-  LogicalType: schemas.LogicalType,
+  LogicalType: types.LogicalType,
   Protocol: messages.Protocol,
-  Type: schemas.Type,
+  Type: types.Type,
   parse: parse,
   types: types.builtins
 };

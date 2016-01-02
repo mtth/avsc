@@ -23,6 +23,7 @@
   ],
   "main": "./lib",
   "browser": {
+    "./lib": "./etc/browser/avsc.js",
     "./lib/schemas": "./etc/browser/lib/schemas.js",
     "crypto": "./etc/browser/lib/crypto.js"
   },
@@ -33,7 +34,7 @@
     "test": "mocha",
     "cover": "istanbul cover _mocha",
     "clean": "rm -rf coverage node_modules",
-    "zuul": "zuul --no-coverage -- test/test_messages.js test/test_schemas.js test/test_utils.js"
+    "zuul": "zuul --no-coverage -- test/*.js"
   },
   "devDependencies": {
     "coveralls": "^2.11.4",
