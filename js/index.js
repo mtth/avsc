@@ -238,12 +238,13 @@ var cache = {},
     });
 
     $("#reset").click(function() {
-      var state = { 'some_id' : 1};
+      var state = {};
       var newUrl = updateQueryStringParameter(location.href, 'schema', '');
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
       window.history.pushState(state, 'AVSC', newUrl);
       eventObj.trigger('reset-layout');
+      return false;
     });
 
     function populateSchema() {
@@ -767,6 +768,7 @@ var Event = {
     this.hasOwnProperty('events') || (this.events = {});
     this.events.hasOwnProperty(event) || (this.events[event] = []);
     this.events[event].push(callback);
+    return this;
   },
   trigger: function(event) {
     var tail = Array.prototype.slice.call(arguments, 1),

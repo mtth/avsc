@@ -122,21 +122,6 @@ a {
   left: 50%;
   position: absolute;
 }
-select {
-  font-size: small;
-  border: 1px solid #79B6CC;
-  border-radius: 10px;
-  color: black;
-  padding: 12px;
-  -webkit-appearance: none;
-  background-color: #79B6CC;
-}
-select:active {
-  border: 1px solid #000;
-}
-#zozo {
-  margin: 20px;
-}
 .-placeholder- {
   color: #867E7E;
   font-size: medium;
@@ -158,6 +143,8 @@ select:active {
   width: 100%;
   position: fixed;
   top:0;
+  left: 0;
+  right: 0;
   height: 40px; 
 }
 
@@ -177,13 +164,55 @@ li a {
   display: block;
   color: white;
   text-align: center;
-  padding: 5px 20px 3px 20px;
+  padding: 5px 20px 8px 20px;
   text-decoration: none;
 }
 
 /* Change the link color to #111 (black) on hover */
 li a:hover {
-  border-bottom-color: #31CBFB;
+  border-bottom-color: rgba(255, 246, 136, 0.84);
   border-bottom-width: thick;
   border-bottom-style: solid;
 }
+
+/* Custom styles for select */
+
+.-styled-select- {
+  background: url(http://i62.tinypic.com/15xvbd5.png) no-repeat 96% 0;
+  -webkit-appearance: none;
+  height: 29px;
+  overflow: hidden;
+  width: 240px;
+  padding-left: 10px;
+}
+
+.-styled-select- select {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  height: 29px;
+  padding: 5px; 
+  width: 268px;
+}
+
+.-semi-square- {
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  border-radius: 5px;
+}
+
+/* -------------------- Colors: Background */
+.slate   { background-color: #ddd; }
+.green   { background-color: #779126; }
+.-blue-    { background-color: #3b8ec2; }
+.yellow  { background-color: #eec111; }
+.black   { background-color: #000; }
+
+/* -------------------- Colors: Text */
+.slate select   { color: #000; }
+.green select   { color: #fff; }
+.blue select    { color: #fff; }
+.yellow select  { color: #000; }
+.black select   { color: #fff; }
+
+

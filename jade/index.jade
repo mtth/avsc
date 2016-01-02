@@ -14,7 +14,7 @@ html(lang='en')
       div#header-image
         ul
           li
-            a#reset(href="") Reset
+            a#reset(href="#") Reset
           li
             a(href="#") FAQ
     table#table.-hidden-
@@ -22,8 +22,7 @@ html(lang='en')
         td.-container-
           div.-outer-
             div
-              pre(contentEditable='true')#schema.-textbox-.-highlightable-.-placeholder- 
-                |Enter your schema here
+              pre(contentEditable='true')#schema.-textbox-.-highlightable-
             div.-label-
               img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
 
@@ -37,7 +36,7 @@ html(lang='en')
             P
               |Not sure where to start? Enter your avro schema or select from one of these templates! 
             div
-              select#schema-template
+              select.-styled-select-.-blue-.-semi-square-#schema-template
                 option(value="")
                   |--
                 option(value="Cake")
@@ -58,7 +57,7 @@ html(lang='en')
                   |Enum
                 option(value="ArrayString")
                   |ArrayString
-            
+          
         td.-container-.-hidden-
           div.-outer-
             div
