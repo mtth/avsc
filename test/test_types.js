@@ -3,15 +3,15 @@
 'use strict';
 
 
-var schemas = require('../lib/schemas'),
+var types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
     util = require('util');
 
 
 var Tap = utils.Tap;
-var createType = schemas.createType;
-var types = schemas.types;
+var createType = types.createType;
+var builtins = types.builtins;
 
 
 suite('types', function () {
@@ -25,15 +25,15 @@ suite('types', function () {
       }
     ];
 
-    testType(types.BooleanType, data);
+    testType(builtins.BooleanType, data);
 
     test('to JSON', function () {
-      var t = new types.BooleanType();
+      var t = new builtins.BooleanType();
       assert.equal(t.toJSON(), 'boolean');
     });
 
     test('compare buffers', function () {
-      var t = new types.BooleanType();
+      var t = new builtins.BooleanType();
       var bt = t.toBuffer(true);
       var bf = t.toBuffer(false);
       assert.equal(t.compareBuffers(bt, bf), 1);
@@ -42,7 +42,7 @@ suite('types', function () {
     });
 
     test('get name', function () {
-      var t = new types.BooleanType();
+      var t = new builtins.BooleanType();
       assert.strictEqual(t.getName(), undefined);
       assert.equal(t.getName(true), 'boolean');
     });
@@ -58,7 +58,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.IntType, data);
+    testType(builtins.IntType, data);
 
     test('toBuffer int', function () {
 
@@ -128,7 +128,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.LongType, data);
+    testType(builtins.LongType, data);
 
     test('resolve invalid', function () {
       assert.throws(function () { getResolver('long', 'double'); });
@@ -151,7 +151,7 @@ suite('types', function () {
     });
 
     test('using missing methods', function () {
-      assert.throws(function () { types.LongType.using(); });
+      assert.throws(function () { builtins.LongType.using(); });
     });
 
   });
@@ -165,7 +165,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.StringType, data);
+    testType(builtins.StringType, data);
 
     test('fromBuffer string', function () {
       var type = createType('string');
@@ -216,7 +216,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.NullType, data);
+    testType(builtins.NullType, data);
 
   });
 
@@ -230,7 +230,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.FloatType, data);
+    testType(builtins.FloatType, data);
 
     test('compare buffer', function () {
       var t = createType('float');
@@ -272,7 +272,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.DoubleType, data);
+    testType(builtins.DoubleType, data);
 
     test('resolver string > double', function () {
       assert.throws(function () { getResolver('double', 'string'); });
@@ -299,7 +299,7 @@ suite('types', function () {
       }
     ];
 
-    testType(types.BytesType, data);
+    testType(builtins.BytesType, data);
 
     test('clone', function () {
       var t = createType('bytes');
@@ -377,7 +377,7 @@ suite('types', function () {
       ['null', ['int', 'string']]
     ];
 
-    testType(types.UnionType, data, schemas);
+    testType(builtins.UnionType, data, schemas);
 
     test('getTypes', function () {
       var t = createType(['null', 'int']);
@@ -385,32 +385,32 @@ suite('types', function () {
     });
 
     test('instanceof Union', function () {
-      var type = new types.UnionType(['null', 'int']);
-      assert(type instanceof types.UnionType);
+      var type = new builtins.UnionType(['null', 'int']);
+      assert(type instanceof builtins.UnionType);
     });
 
     test('missing name write', function () {
-      var type = new types.UnionType(['null', 'int']);
+      var type = new builtins.UnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer({b: 'a'});
       });
     });
 
     test('read invalid index', function () {
-      var type = new types.UnionType(['null', 'int']);
+      var type = new builtins.UnionType(['null', 'int']);
       var buf = new Buffer([1, 0]);
       assert.throws(function () { type.fromBuffer(buf); });
     });
 
     test('non wrapped write', function () {
-      var type = new types.UnionType(['null', 'int']);
+      var type = new builtins.UnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer(1, true);
       }, Error);
     });
 
     test('to JSON', function () {
-      var type = new types.UnionType(['null', 'int']);
+      var type = new builtins.UnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
@@ -441,7 +441,7 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = new types.UnionType(['null', 'int']);
+      var t = new builtins.UnionType(['null', 'int']);
       var o = {'int': 1};
       assert.strictEqual(t.clone(null), null);
       var c = t.clone(o);
@@ -551,7 +551,7 @@ suite('types', function () {
       {name: 'G', symbols: ['0']}
     ];
 
-    testType(types.EnumType, data, schemas);
+    testType(builtins.EnumType, data, schemas);
 
     test('get full name', function () {
       var t = createType({
@@ -599,7 +599,9 @@ suite('types', function () {
     });
 
     test('read invalid index', function () {
-      var type = new types.EnumType({type: 'enum', symbols: ['A'], name: 'a'});
+      var type = new builtins.EnumType({
+        type: 'enum', symbols: ['A'], name: 'a'
+      });
       var buf = new Buffer([2]);
       assert.throws(function () { type.fromBuffer(buf); });
     });
@@ -632,7 +634,7 @@ suite('types', function () {
         if (namespace !== undefined) {
           obj.namespace = namespace;
         }
-        return new types.EnumType(obj);
+        return new builtins.EnumType(obj);
       }
     });
 
@@ -679,7 +681,7 @@ suite('types', function () {
       {}
     ];
 
-    testType(types.FixedType, data, schemas);
+    testType(builtins.FixedType, data, schemas);
 
     test('get full name', function () {
       var t = createType({
@@ -709,19 +711,19 @@ suite('types', function () {
     });
 
     test('resolve', function () {
-      var t1 = new types.FixedType({name: 'Id', size: 4});
-      var t2 = new types.FixedType({name: 'Id', size: 4});
+      var t1 = new builtins.FixedType({name: 'Id', size: 4});
+      var t2 = new builtins.FixedType({name: 'Id', size: 4});
       assert.doesNotThrow(function () { t2.createResolver(t1); });
-      t2 = new types.FixedType({name: 'Id2', size: 4});
+      t2 = new builtins.FixedType({name: 'Id2', size: 4});
       assert.throws(function () { t2.createResolver(t1); });
-      t2 = new types.FixedType({name: 'Id2', size: 4, aliases: ['Id']});
+      t2 = new builtins.FixedType({name: 'Id2', size: 4, aliases: ['Id']});
       assert.doesNotThrow(function () { t2.createResolver(t1); });
-      t2 = new types.FixedType({name: 'Id2', size: 5, aliases: ['Id']});
+      t2 = new builtins.FixedType({name: 'Id2', size: 5, aliases: ['Id']});
       assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('clone', function () {
-      var t = new types.FixedType({name: 'Id', size: 2});
+      var t = new builtins.FixedType({name: 'Id', size: 2});
       var s = '\x01\x02';
       var buf = new Buffer(s);
       var clone;
@@ -744,7 +746,7 @@ suite('types', function () {
     });
 
     test('fromString', function () {
-      var t = new types.FixedType({name: 'Id', size: 2});
+      var t = new builtins.FixedType({name: 'Id', size: 2});
       var s = '\x01\x02';
       var buf = new Buffer(s);
       var clone = t.fromString(JSON.stringify(s));
@@ -793,27 +795,27 @@ suite('types', function () {
       {values: {type: 'array'}}
     ];
 
-    testType(types.MapType, data, schemas);
+    testType(builtins.MapType, data, schemas);
 
     test('get values type', function () {
-      var t = new types.MapType({type: 'map', values: 'int'});
+      var t = new builtins.MapType({type: 'map', values: 'int'});
       assert.deepEqual(t.getValuesType(), createType('int'));
     });
 
     test('write int', function () {
-      var t = new types.MapType({type: 'map', values: 'int'});
+      var t = new builtins.MapType({type: 'map', values: 'int'});
       var buf = t.toBuffer({'\x01': 3, '\x02': 4});
       assert.deepEqual(buf, new Buffer([4, 2, 1, 6, 2, 2, 8, 0]));
     });
 
     test('read long', function () {
-      var t = new types.MapType({type: 'map', values: 'long'});
+      var t = new builtins.MapType({type: 'map', values: 'long'});
       var buf = new Buffer([4, 2, 1, 6, 2, 2, 8, 0]);
       assert.deepEqual(t.fromBuffer(buf), {'\x01': 3, '\x02': 4});
     });
 
     test('read with sizes', function () {
-      var t = new types.MapType({type: 'map', values: 'int'});
+      var t = new builtins.MapType({type: 'map', values: 'int'});
       var buf = new Buffer([1,6,2,97,2,0]);
       assert.deepEqual(t.fromBuffer(buf), {a: 1});
     });
@@ -840,8 +842,8 @@ suite('types', function () {
     });
 
     test('resolve int > long', function () {
-      var t1 = new types.MapType({type: 'map', values: 'int'});
-      var t2 = new types.MapType({type: 'map', values: 'long'});
+      var t1 = new builtins.MapType({type: 'map', values: 'int'});
+      var t2 = new builtins.MapType({type: 'map', values: 'long'});
       var resolver = t2.createResolver(t1);
       var obj = {one: 1, two: 2};
       var buf = t1.toBuffer(obj);
@@ -849,7 +851,7 @@ suite('types', function () {
     });
 
     test('resolve double > double', function () {
-      var t = new types.MapType({type: 'map', values: 'double'});
+      var t = new builtins.MapType({type: 'map', values: 'double'});
       var resolver = t.createResolver(t);
       var obj = {one: 1, two: 2};
       var buf = t.toBuffer(obj);
@@ -857,10 +859,10 @@ suite('types', function () {
     });
 
     test('resolve invalid', function () {
-      var t1 = new types.MapType({type: 'map', values: 'int'});
-      var t2 = new types.MapType({type: 'map', values: 'string'});
+      var t1 = new builtins.MapType({type: 'map', values: 'int'});
+      var t2 = new builtins.MapType({type: 'map', values: 'string'});
       assert.throws(function () { t2.createResolver(t1); });
-      t2 = new types.ArrayType({type: 'array', items: 'string'});
+      t2 = new builtins.ArrayType({type: 'array', items: 'string'});
       assert.throws(function () { t2.createResolver(t1); });
     });
 
@@ -880,7 +882,7 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = new types.MapType({type: 'map', values: 'int'});
+      var t = new builtins.MapType({type: 'map', values: 'int'});
       var o = {one: 1, two: 2};
       var c = t.clone(o);
       assert.deepEqual(c, o);
@@ -890,7 +892,7 @@ suite('types', function () {
     });
 
     test('clone coerce buffers', function () {
-      var t = new types.MapType({type: 'map', values: 'bytes'});
+      var t = new builtins.MapType({type: 'map', values: 'bytes'});
       var o = {one: {type: 'Buffer', data: [1]}};
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
@@ -898,13 +900,13 @@ suite('types', function () {
     });
 
     test('compare buffers', function () {
-      var t = new types.MapType({type: 'map', values: 'bytes'});
+      var t = new builtins.MapType({type: 'map', values: 'bytes'});
       var b1 = t.toBuffer({});
       assert.throws(function () { t.compareBuffers(b1, b1); });
     });
 
     test('isValid hook', function () {
-      var t = new types.MapType({type: 'map', values: 'int'});
+      var t = new builtins.MapType({type: 'map', values: 'int'});
       var o = {one: 1, two: 'deux', three: null, four: 4};
       var errs = {};
       assert(!t.isValid(o, {errorHook: hook}));
@@ -918,7 +920,7 @@ suite('types', function () {
     });
 
     test('getName', function () {
-      var t = new types.MapType({type: 'map', values: 'int'});
+      var t = new builtins.MapType({type: 'map', values: 'int'});
       assert.strictEqual(t.getName(), undefined);
     });
 
@@ -941,15 +943,15 @@ suite('types', function () {
       {items: ''},
     ];
 
-    testType(types.ArrayType, data, schemas);
+    testType(builtins.ArrayType, data, schemas);
 
     test('get items type', function () {
-      var t = new types.ArrayType({type: 'array', items: 'int'});
+      var t = new builtins.ArrayType({type: 'array', items: 'int'});
       assert.deepEqual(t.getItemsType(), createType('int'));
     });
 
     test('read with sizes', function () {
-      var t = new types.ArrayType({type: 'array', items: 'int'});
+      var t = new builtins.ArrayType({type: 'array', items: 'int'});
       var buf = new Buffer([1,2,2,0]);
       assert.deepEqual(t.fromBuffer(buf), [1]);
     });
@@ -976,8 +978,8 @@ suite('types', function () {
     });
 
     test('resolve string items to bytes items', function () {
-      var t1 = new types.ArrayType({type: 'array', items: 'string'});
-      var t2 = new types.ArrayType({type: 'array', items: 'bytes'});
+      var t1 = new builtins.ArrayType({type: 'array', items: 'string'});
+      var t2 = new builtins.ArrayType({type: 'array', items: 'bytes'});
       var resolver = t2.createResolver(t1);
       var obj = ['\x01\x02'];
       var buf = t1.toBuffer(obj);
@@ -985,15 +987,15 @@ suite('types', function () {
     });
 
     test('resolve invalid', function () {
-      var t1 = new types.ArrayType({type: 'array', items: 'string'});
-      var t2 = new types.ArrayType({type: 'array', items: 'long'});
+      var t1 = new builtins.ArrayType({type: 'array', items: 'string'});
+      var t2 = new builtins.ArrayType({type: 'array', items: 'long'});
       assert.throws(function () { t2.createResolver(t1); });
-      t2 = new types.MapType({type: 'map', values: 'string'});
+      t2 = new builtins.MapType({type: 'map', values: 'string'});
       assert.throws(function () { t2.createResolver(t1); });
     });
 
     test('clone', function () {
-      var t = new types.ArrayType({type: 'array', items: 'int'});
+      var t = new builtins.ArrayType({type: 'array', items: 'int'});
       var o = [1, 2];
       var c = t.clone(o);
       assert.deepEqual(c, o);
@@ -1085,7 +1087,7 @@ suite('types', function () {
       {type: 'record', name: 'a', fields: {type: 'int', name: 'age'}}
     ];
 
-    testType(types.RecordType, data, schemas);
+    testType(builtins.RecordType, data, schemas);
 
     test('duplicate field names', function () {
       assert.throws(function () {
@@ -1577,7 +1579,7 @@ suite('types', function () {
       var o = {name: 'Ann', age: 25};
       var c = t.clone(o, {fieldHook: function (f, o, r) {
         assert.strictEqual(r, t);
-        return f._type instanceof types.StringType ? o.toUpperCase() : o;
+        return f._type instanceof builtins.StringType ? o.toUpperCase() : o;
       }});
       assert.deepEqual(c, {name: 'ANN', age: 25});
     });
@@ -1717,11 +1719,11 @@ suite('types', function () {
 
   suite('AbstractLongType', function () {
 
-    var fastLongType = new types.LongType();
+    var fastLongType = new builtins.LongType();
 
     suite('unpacked', function () {
 
-      var slowLongType = types.LongType.using({
+      var slowLongType = builtins.LongType.using({
         fromBuffer: function (buf) {
           var neg = buf[7] >> 7;
           if (neg) { // Negative number.
@@ -1800,7 +1802,7 @@ suite('types', function () {
 
     suite('packed', function () {
 
-      var slowLongType = types.LongType.using({
+      var slowLongType = builtins.LongType.using({
         fromBuffer: function (buf) {
           var tap = new Tap(buf);
           return tap.readLong();
@@ -1846,7 +1848,7 @@ suite('types', function () {
 
     test('incomplete buffer', function () {
       // Check that `fromBuffer` doesn't get called.
-      var slowLongType = new types.LongType.using({
+      var slowLongType = new builtins.LongType.using({
         fromBuffer: function () { throw new Error('no'); },
         toBuffer: null,
         fromJSON: null,
@@ -1866,7 +1868,7 @@ suite('types', function () {
   suite('LogicalType', function () {
 
     function DateType(attrs, opts) {
-      types.LogicalType.call(this, attrs, opts, [types.LongType]);
+      types.LogicalType.call(this, attrs, opts, [builtins.LongType]);
     }
     util.inherits(DateType, types.LogicalType);
 
@@ -1875,15 +1877,15 @@ suite('types', function () {
     DateType.prototype._toValue = function (date) { return +date; };
 
     DateType.prototype._resolve = function (type) {
-      if (type instanceof types.StringType) {
+      if (type instanceof builtins.StringType) {
         return function (str) { return new Date(Date.parse(str)); };
-      } else if (type instanceof types.LongType) {
+      } else if (type instanceof builtins.LongType) {
         return this.fromValue;
       }
     };
 
     function AgeType(attrs, opts) {
-      types.LogicalType.call(this, attrs, opts, [types.IntType]);
+      types.LogicalType.call(this, attrs, opts, [builtins.IntType]);
     }
     util.inherits(AgeType, types.LogicalType);
 
@@ -1902,7 +1904,7 @@ suite('types', function () {
         logicalType: 'date'
       }, {logicalTypes: logicalTypes});
       assert(t instanceof DateType);
-      assert(t.getUnderlyingType() instanceof types.LongType);
+      assert(t.getUnderlyingType() instanceof builtins.LongType);
       assert(t.isValid(t.random()));
       var d = new Date(123);
       assert.equal(t.toString(d), '123');
@@ -1919,9 +1921,9 @@ suite('types', function () {
       };
       var t;
       t = createType(attrs); // Missing.
-      assert(t instanceof types.IntType);
+      assert(t instanceof builtins.IntType);
       t = createType(attrs, {logicalTypes: logicalTypes}); // Invalid.
-      assert(t instanceof types.IntType);
+      assert(t instanceof builtins.IntType);
       assert.throws(function () {
         createType(attrs, {
           logicalTypes: logicalTypes,
@@ -2026,7 +2028,7 @@ suite('types', function () {
 
     test('even integer', function () {
       function EvenIntType(attrs, opts) {
-        types.LogicalType.call(this, attrs, opts, [types.IntType]);
+        types.LogicalType.call(this, attrs, opts, [builtins.IntType]);
       }
       util.inherits(EvenIntType, types.LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
@@ -2238,7 +2240,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'nothing', type: {type: 'null'}}]
       });
-      assert.strictEqual(type._fields[0]._type.constructor, types.NullType);
+      assert.strictEqual(type._fields[0]._type.constructor, builtins.NullType);
     });
 
     test('fromBuffer truncated', function () {
@@ -2302,7 +2304,7 @@ suite('types', function () {
         refs.push(schema);
 
         var type = createType(schema, opts);
-        if (type instanceof types.RecordType) {
+        if (type instanceof builtins.RecordType) {
           ts.push(type);
         }
         return type;

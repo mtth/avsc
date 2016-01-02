@@ -1,16 +1,17 @@
-/* jshint browserify: true */
+/* jshint node: true */
 
 'use strict';
 
 /**
- * Various shimming utilities for browserify.
- *
- * Since there are no utf8 and binary functions on browserify's `Buffer`, we
- * must also patch in tap methods using the generic slice and write methods.
+ * Shim disabling file-system operations.
  *
  */
-var Tap = require('../../lib/utils').Tap;
 
+var Tap = require('../../../lib/utils').Tap;
+
+
+// Since there are no utf8 and binary functions on browserify's `Buffer`, we
+// must also patch in tap methods using the generic slice and write methods.
 
 Tap.prototype.readString = function () {
   var len = this.readLong();
@@ -44,17 +45,13 @@ Tap.prototype.writeBinary = function (s, len) {
 };
 
 
-/**
- * Similar to the one defined in `lib/files.js`, but without reading files.
- *
- */
-function loadSchema(schema) {
+function load(schema) {
   var obj;
   if (typeof schema == 'string') {
     try {
       obj = JSON.parse(schema);
     } catch (err) {
-      // Nothing here (no filesystem access).
+      // No file loading here.
     }
   }
   if (obj === undefined) {
@@ -65,5 +62,5 @@ function loadSchema(schema) {
 
 
 module.exports = {
-  loadSchema: loadSchema,
+  load: load
 };

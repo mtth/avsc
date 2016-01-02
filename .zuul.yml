@@ -18,6 +18,3 @@ browsers:
     version: latest
   - name: android
     version: latest
-browserify:
-  - add:
-      - etc/browser/_shim.js

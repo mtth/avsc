@@ -12,12 +12,12 @@
  *
  */
 
-var schemas = require('../../lib/schemas'),
-    shim = require('./_shim');
+var types = require('../../lib/types'),
+    schemas = require('./lib/schemas');
 
 
 function parse(schema, opts) {
-  return schemas.createType(shim.loadSchema(schema), opts);
+  return types.createType(schemas.load(schema), opts);
 }
 
 
@@ -25,5 +25,5 @@ module.exports = {
   LogicalType: schemas.LogicalType,
   Type: schemas.Type,
   parse: parse,
-  types: schemas.types
+  types: types.builtins
 };

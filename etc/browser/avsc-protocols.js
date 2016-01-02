@@ -10,12 +10,12 @@
  */
 
 var messages = require('../../lib/messages'),
-    schemas = require('../../lib/schemas'),
-    shim = require('./_shim');
+    schemas = require('./lib/schemas'),
+    types = require('../../lib/types');
 
 
 function parse(schema, opts) {
-  var obj = shim.loadSchema(schema);
+  var obj = schemas.load(schema);
   return obj.protocol ?
     messages.createProtocol(obj, opts) :
     schemas.createType(obj, opts);
@@ -27,5 +27,5 @@ module.exports = {
   Protocol: messages.Protocol,
   Type: schemas.Type,
   parse: parse,
-  types: schemas.types
+  types: types.builtins
 };
