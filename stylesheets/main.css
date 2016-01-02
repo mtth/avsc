@@ -1,6 +1,7 @@
 body {
   background-color: #DEDEDE;
   font-family: 'Open Sans', sans-serif;
+  margin: 0;
 }
 .-highlight- {
   background-color: #FFFF88;
@@ -42,28 +43,19 @@ body {
 }
 .-container- {
   width: 390px;
-  position: fixed;
+  display: inline-block;
+  position: relative;
 }
 #output {
   font-family: 'Roboto Mono', sans-serif;
 }
-#output-container {
-  left: 800px;
-}
-#input-container {
-  left: 400px;
-}
-#schema-container {
-  left: 0px;
-}
 #content {
   width: 100%;
   height: 100%;
-  top: 40px;
-  bottom: 5px;
-  left: 5px;
-  right: 5px;
-  position: absolute;
+  overflow: auto;
+  white-space: nowrap; /* To be able to scroll */
+  min-width: 1200px; /* So that it wouldn't stack up the divs if the window is too small */
+  margin: 40px 10px 10px 10px;
 }
 .-hidden- {
   display: none;
@@ -75,8 +67,6 @@ button {
   background-color: #0099cc;
   color: #FFFFFF;
 }
-.-label- {
-  }
 .-message- {
   opacity: 0.8;
   text-align: center;
@@ -87,19 +77,11 @@ button {
 }
 .-footer- {
   width: 370px;
-  bottom: 0;
   height: auto;
-  margin: 0 auto;
-  position: absolute;
 }
 .-error- {
   background-color: rgba(243, 247, 86, 0.78);
 }
-.-outer- {
-  position: fixed;
-  top: 40px;
-}
-
 a {
   text-decoration:none;
 }
@@ -110,7 +92,7 @@ a {
   top:10px;
   position:absolute;
   width: 10%;
-  right: 18px;
+  right: 30px;
   margin: 10px auto;
 }
 .-buttons-row- {
@@ -148,11 +130,11 @@ a {
 
 .-header-{
   width: 100%;
-  position: fixed;
   top:0;
   left: 0;
   right: 0;
-  height: 40px; 
+  height: 40px;
+  position: fixed;
 }
 
 
