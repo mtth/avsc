@@ -11,11 +11,11 @@
 
 var messages = require('../../lib/messages'),
     schemas = require('../../lib/schemas'),
-    shims = require('./_shims');
+    shim = require('./_shim');
 
 
 function parse(schema, opts) {
-  var obj = shims.loadSchema(schema);
+  var obj = shim.loadSchema(schema);
   return obj.protocol ?
     messages.createProtocol(obj, opts) :
     schemas.createType(obj, opts);

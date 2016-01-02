@@ -13,11 +13,11 @@
  */
 
 var schemas = require('../../lib/schemas'),
-    shims = require('./_shims');
+    shim = require('./_shim');
 
 
 function parse(schema, opts) {
-  return schemas.createType(shims.loadSchema(schema), opts);
+  return schemas.createType(shim.loadSchema(schema), opts);
 }
 
 

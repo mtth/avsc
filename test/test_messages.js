@@ -864,9 +864,10 @@ suite('messages', function () {
       run(function (emitterPtcl, listenerPtcl, cb) {
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
+        var opts = {bufferSize: 48};
         cb(
-          emitterPtcl.createEmitter({readable: pt1, writable: pt2}),
-          listenerPtcl.createListener({readable: pt2, writable: pt1})
+          emitterPtcl.createEmitter({readable: pt1, writable: pt2}, opts),
+          listenerPtcl.createListener({readable: pt2, writable: pt1}, opts)
         );
       });
 
