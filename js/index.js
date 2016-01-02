@@ -610,7 +610,7 @@ var cache = {},
     
     /* Adjust textbox heights according to current window size */
     function resize() {
-      $('#table').removeClass('-hidden-');
+      $('#content').removeClass('-hidden-');
       var vph = $(window).height();
       $('.-textbox-').css({'height': 0.85 * vph});
     }

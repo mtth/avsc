@@ -30,7 +30,7 @@ body {
   overflow: auto;
   text-align: left;
   padding: 10px;
-  width: 370px;
+  width: 350px;
   font-size: medium;
   font-weight: 200;
   font-size: small;
@@ -42,11 +42,21 @@ body {
 }
 .-container- {
   width: 390px;
+  position: fixed;
 }
 #output {
   font-family: 'Roboto Mono', sans-serif;
 }
-table {
+#output-container {
+  left: 800px;
+}
+#input-container {
+  left: 400px;
+}
+#schema-container {
+  left: 0px;
+}
+#content {
   width: 100%;
   height: 100%;
   top: 40px;
@@ -54,10 +64,6 @@ table {
   left: 5px;
   right: 5px;
   position: absolute;
-  table-layout: fixed;
-}
-td {
-  text-align: center;
 }
 .-hidden- {
   display: none;
@@ -73,8 +79,9 @@ button {
   }
 .-message- {
   opacity: 0.8;
+  text-align: center;
   background-color: #31CBFB;
-  width: 390px;
+  width: 370px;
   font-size: 11px;
   font-family: 'Roboto Mono', sans-serif;
 }

@@ -17,67 +17,66 @@ html(lang='en')
             a#reset(href="#") Reset
           li
             a(href="#") FAQ
-    table#table.-hidden-
-      tr
-        td.-container-
-          div.-outer-
-            div
-              pre(contentEditable='true')#schema.-textbox-.-highlightable-
-            div.-label-
-              img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
-
-            div.-footer-
-              div#schema-error.-message-.-hidden-.-error-
-              div.-message-
-                |Schema
- 
-        td#help-column
+    div#content.-hidden-
+      div#schema-container.-container-
+        div.-outer-
           div
-            P
-              |Not sure where to start? Enter your avro schema or select from one of these templates! 
-            div
-              select.-styled-select-.-blue-.-semi-square-#schema-template
-                option(value="")
-                  |--
-                option(value="Cake")
-                  |Cake
-                option(value="Coupon")
-                  |Coupon
-                option(value="Human")
-                  |Human
-                option(value="Person")
-                  |Person
-                option(value="Bytes")
-                  |Bytes
-                option(value="String")
-                  |String
-                option(value="Long")
-                  |Long
-                option(value="Enum")
-                  |Enum
-                option(value="ArrayString")
-                  |ArrayString
-          
-        td.-container-.-hidden-
-          div.-outer-
-            div
-              pre(contentEditable='true')#input.-textbox-.-highlightable-
-            div.-label-
-              img#input-valid(src='../assets/valid.png').-icon-.-hidden-
-            div.-footer-
-              div#decoded-error.-message-.-hidden-.-error-
-              div.-message-
-                |Input Record
+            pre(contentEditable='true')#schema.-textbox-.-highlightable-
+          div.-label-
+            img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
 
-        td.-container-.-hidden-
-          div.-outer-
-            div 
-              div
-                div(contentEditable='true')#output.-textbox-.-highlightable- 
-            div.-label-
-              img#output-valid(src='../assets/valid.png').-icon-.-hidden-
-            div.-footer-
-              div#encoded-error.-message-.-hidden-.-error-
-              div.-message-
-                |Encoded Record
+          div.-footer-
+            div#schema-error.-message-.-hidden-.-error-
+            div.-message-
+              |Schema
+
+      div#help-column
+        div
+          P
+            |Not sure where to start? Enter your avro schema or select from one of these templates! 
+          div
+            select.-styled-select-.-blue-.-semi-square-#schema-template
+              option(value="")
+                |--
+              option(value="Cake")
+                |Cake
+              option(value="Coupon")
+                |Coupon
+              option(value="Human")
+                |Human
+              option(value="Person")
+                |Person
+              option(value="Bytes")
+                |Bytes
+              option(value="String")
+                |String
+              option(value="Long")
+                |Long
+              option(value="Enum")
+                |Enum
+              option(value="ArrayString")
+                |ArrayString
+        
+      div#input-container.-container-.-hidden-
+        div.-outer-
+          div
+            pre(contentEditable='true')#input.-textbox-.-highlightable-
+          div.-label-
+            img#input-valid(src='../assets/valid.png').-icon-.-hidden-
+          div.-footer-
+            div#decoded-error.-message-.-hidden-.-error-
+            div.-message-
+              |Input Record
+
+      div#output-container.-container-.-hidden-
+        div.-outer-
+          div 
+            div
+              div(contentEditable='true')#output.-textbox-.-highlightable- 
+          div.-label-
+            img#output-valid(src='../assets/valid.png').-icon-.-hidden-
+          div.-footer-
+            div#encoded-error.-message-.-hidden-.-error-
+            div.-message-
+              |Encoded Record
 
