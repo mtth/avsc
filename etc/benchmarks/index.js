@@ -1,7 +1,6 @@
 /* jshint node: true */
 
-// TODO: Parse options cleanly from command line (e.g. which librarie to run).
-// TODO: Allow passing a value from the command line.
+// TODO: Add support for protobufjs.
 
 'use strict';
 
@@ -10,8 +9,9 @@
  *
  */
 
-var Benchmark = require('benchmark'),
-    avsc = require('../../lib'),
+var avsc = require('../../lib'),
+    Benchmark = require('benchmark'),
+    commander = require('commander'),
     msgpack = require('msgpack-lite'),
     util = require('util');
 
@@ -63,9 +63,13 @@ function Suite(type, opts) {
 
   opts = opts || {};
   this._type = type;
-  this._value = type.random();
+  this._value = opts.value ? type.fromString(opts.value) : type.random();
 
   Object.keys(opts).forEach(function (name) {
+    if (!name.indexOf('_')) {
+      return;
+    }
+
     var fn = this['__' + name];
     if (typeof fn == 'function') {
       this.add(name, fn.call(this, opts.name)); // Add benchmark.
@@ -228,14 +232,23 @@ EncodeSuite.prototype.__msgpack = function () {
 };
 
 
-var schema = process.argv[2];
-var opts = {
-  json: true,
-  jsonBinary: true,
-  jsonString: true,
-  avro: true,
-  avroJson: true,
-  msgpack: true
-};
-var stats = generateStats(schema, opts);
+commander
+  .usage('[options] <schema>')
+  .option('-v, --value <val>', 'Use this value for benchmarking.')
+  .option('--avro', 'Benchmark `avsc`.')
+  .option('--avro-json', 'Benchmark `avsc` (JSON serialization).')
+  .option('--json', 'Benchmark JSON.')
+  .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')
+  .option('--json-string', 'Benchmark JSON (pre-parsing bytes to strings).')
+  .option('--msgpack', 'Benchmark `msgpack-lite`.')
+  .option('--protobuf <schema>', 'Benchmark `protobufjs`.')
+  .parse(process.argv);
+
+var schema = commander.args[0];
+if (!schema) {
+  console.error('Missing schema.');
+  process.exit(1);
+}
+
+var stats = generateStats(schema, commander);
 console.log(JSON.stringify(stats));

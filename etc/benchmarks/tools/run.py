@@ -58,7 +58,7 @@ def build_avsc_jar():
 
 class Benchmark(object):
 
-  _schemas_dpath = osp.join(DPATH, 'schemas')
+  _schemas_dpath = osp.join(DPATH, os.pardir, 'schemas')
   _scripts_dpath = osp.join(DPATH, 'scripts')
 
   def __init__(self, name, n_records, attempts, libs, commands):
