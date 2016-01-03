@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 /* jshint node: true */
 
 'use strict';
@@ -9,21 +11,19 @@
  *
  */
 
-var avsc = require('../../../lib'),
-    fs = require('fs');
+var avsc = require('../../lib'),
+    util = require('util');
 
 var schemaPath = process.argv[2];
 var count = Number.parseInt(process.argv[3]);
 var filePath = process.argv[4];
 if (!filePath) {
-  console.error('usage: node random.js SCHEMA COUNT OUT');
+  console.error(util.format('usage: %s SCHEMA COUNT PATH', process.argv[1]));
   process.exit(1);
 }
 
 var type = avsc.parse(schemaPath);
-var encoder = new avsc.streams.BlockEncoder(type);
-encoder.pipe(fs.createWriteStream(filePath, {defaultEncoding: 'binary'}));
-
+var encoder = avsc.createFileEncoder(filePath, type);
 while (count--) {
   encoder.write(type.random());
 }

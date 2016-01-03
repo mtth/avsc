@@ -109,7 +109,7 @@ class Benchmark(object):
     os.remove(path)
     try:
       call([
-        'node', osp.join(DPATH, 'tools', 'random.js'),
+        'node', osp.join(DPATH, os.pardir, 'scripts', 'random.js'),
         self.path, str(self.n_records), path
       ])
       yield path
