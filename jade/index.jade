@@ -6,13 +6,15 @@ html(lang='en')
     meta(name='viewport', content='width=device-width')
     title Avsc
     link(rel='stylesheet', href='../stylesheets/main.css', type='text/css')
-    link(href='https://fonts.googleapis.com/css?family=Josefin+Sans|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
+    link(href='https://fonts.googleapis.com/css?family=Coustard|Goudy+Bookletter+1911|Droid+Serif|Josefin+Sans|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
     script(src='../js/bundle.js' async)
   
   body
     div.-header-
       div#header-image
         ul
+          li
+            a#random(href="#") Random
           li
             a#reset(href="#") Reset
           li
@@ -30,33 +32,39 @@ html(lang='en')
             div.-message-
               |Schema
 
-      div#help-column
-        div
-          P
-            |Not sure where to start? Enter your avro schema or select from one of these templates! 
+      div.-help-column-
+        div.-center-
+          div.-logo-
           div
-            select.-styled-select-.-blue-.-semi-square-#schema-template
-              option(value="")
-                |--
-              option(value="Cake")
-                |Cake
-              option(value="Coupon")
-                |Coupon
-              option(value="Human")
-                |Human
-              option(value="Person")
-                |Person
-              option(value="Bytes")
-                |Bytes
-              option(value="String")
-                |String
-              option(value="Long")
-                |Long
-              option(value="Enum")
-                |Enum
-              option(value="ArrayString")
-                |ArrayString
-        
+            H1
+              |Welcome to Avsc!
+            P
+              |Avsc is an online tool to learn, build, and test Avro schemas.
+            P
+              |Not sure where to start? Enter your avro schema or select from one of these templates! 
+            div
+              select.-styled-select-.-blue-.-semi-square-#schema-template
+                option(value="")
+                  |-Select a template-
+                option(value="Cake")
+                  |Cake
+                option(value="Coupon")
+                  |Coupon
+                option(value="Human")
+                  |Human
+                option(value="Person")
+                  |Person
+                option(value="Bytes")
+                  |Bytes
+                option(value="String")
+                  |String
+                option(value="Long")
+                  |Long
+                option(value="Enum")
+                  |Enum
+                option(value="ArrayString")
+                  |ArrayString
+          
       div.-container-.-hidden-
         div.-outer-
           div

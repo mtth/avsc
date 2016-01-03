@@ -1,5 +1,5 @@
 body {
-  background-color: #DEDEDE;
+  background-color: white;
   font-family: 'Open Sans', sans-serif;
   margin: 0;
 }
@@ -38,7 +38,7 @@ body {
   font-family: 'Open Sans', sans-serif;
   resize: none;
   border: none;
-  background-color: white; 
+  background-color: #EBEBEF; 
   margin : 10px 0px 0px 0px;
 }
 .-container- {
@@ -67,7 +67,7 @@ button {
 .-message- {
   opacity: 0.8;
   text-align: center;
-  background-color: #31CBFB;
+  background-color: #778D94;
   width: 320px;
   font-size: 11px;
   font-family: 'Roboto Mono', sans-serif;
@@ -91,7 +91,7 @@ a {
 .-icon- {
   opacity: 0.8;
   font-size: 19px;
-  background-color: white;
+  background-color: #EBEBEF; 
   top:10px;
   position:absolute;
   width: 10%;
@@ -116,9 +116,24 @@ a {
   font-weight: 200;
 }
 
-#help-column {
-  font-family: 'Josefin Sans', sans-serif;
-  padding: 200px;
+.-logo- {
+  background-image: url("../assets/avro-logo.png");
+  background-repeat: no-repeat;
+  height: 100px;
+  margin: 50px auto;
+}
+
+.-help-column- {
+  display: inline-block;
+  position: relative;
+  font-family: 'Coustard', serif;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+
+.-center-{
+  width: 55%;
+  margin: 0 auto;
 }
 
 #header-image {

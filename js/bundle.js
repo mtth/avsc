@@ -2603,7 +2603,9 @@ var cache = {},
 
     eventObj.on('update-layout', function() {
       if (window.type) {
-        $('#help-column').addClass('-hidden-'); 
+        $('.-help-column-').each(function(i, element) {
+          $(element).addClass('-hidden-');
+        });
         $('.-container-').each(function (i, element) {
           $(element).removeClass('-hidden-');
         });
@@ -2611,7 +2613,9 @@ var cache = {},
     });
 
     eventObj.on('reset-layout', function() {
-      $('#help-column').removeClass('-hidden-'); 
+      $('.-help-column-').each(function(i, element) {
+        $(element).removeClass('-hidden-');
+      });
       $('.-container-').each(function (i, element) {
         $(element).addClass('-hidden-');
       });
