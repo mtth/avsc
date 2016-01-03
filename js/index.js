@@ -37,9 +37,7 @@ var cache = {},
 
     eventObj.on('schema-changed', function() {
       runPreservingCursorPosition( 'schema', validateSchema);
-    });
-
-    eventObj.on('input-changed', function() {
+    }).on('input-changed', function() {
       runPreservingCursorPosition( 'input' , function () {
         var rawInput = $.trim($(inputElement).text());        
         try {
@@ -61,58 +59,38 @@ var cache = {},
         }
       });
       encode();
-    });
-
-    eventObj.on('output-changed', function() {
+    }).on('output-changed', function() {
       decode();
-    });
-
-    eventObj.on('valid-schema', function() {
+    }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
-    });
-
-    eventObj.on('invalid-schema', function (message) {
+    }).on('invalid-schema', function (message) {
       showError(schemaErrorElement, message);
-    });
-
-    eventObj.on('valid-input', function () { 
+    }).on('valid-input', function () { 
       hideError(inputErrorElement, decodedValidElement);
-    });
-
-    eventObj.on('invalid-input', function(message) {
+    }).on('invalid-input', function(message) {
       showError(inputErrorElement, message);
-    });
-
-    eventObj.on('valid-output', function () { 
+    }).on('valid-output', function () { 
       hideError(outputErrorElement, encodedValidElement);
-    });
-
-    eventObj.on('invalid-output', function(message) {
+    }).on('invalid-output', function(message) {
       showError(outputErrorElement, message);
-    });
-
-    eventObj.on('update-layout', function() {
+    }).on('update-layout', function() {
       if (window.type) {
         $('.-help-column-').each(function(i, element) {
           $(element).addClass('-hidden-');
         });
-        $('.-container-').each(function (i, element) {
+        $('.-to-hide-').each(function (i, element) {
           $(element).removeClass('-hidden-');
         });
       }
-    });
-
-    eventObj.on('reset-layout', function() {
+    }).on('reset-layout', function() {
       $('.-help-column-').each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
-      $('.-container-').each(function (i, element) {
+      $('.-to-hide-').each(function (i, element) {
         $(element).addClass('-hidden-');
       });
       $(schemaElement).text("");
-    });
-
-    eventObj.on('schema-loaded', function(rawSchema) {
+    }).on('schema-loaded', function(rawSchema) {
       var s = location.search.split('schema=')[1];
       s = s != undefined ? decodeURIComponent(s) : undefined;
       if (!s || s != rawSchema) {

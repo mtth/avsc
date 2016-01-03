@@ -55,7 +55,8 @@ body {
   height: 100%;
   overflow: auto;
   white-space: nowrap; /* To be able to scroll */
-  margin: 40px 10px 10px 10px;
+  margin-top: 40px;
+  padding-left: 10px;
 }
 
 button {
@@ -139,7 +140,7 @@ a {
 #header-image {
   height: 40px;
   width: 100%;
-  background-image: url("../assets/library_dim.jpg");
+  background-color: #367FAD;
 }
 
 .-header-{
@@ -181,6 +182,7 @@ li a:hover {
 /* Custom styles for select */
 
 .-styled-select- {
+  font-family: 'Coustard', serif;
   background: url(http://i62.tinypic.com/15xvbd5.png) no-repeat 96% 0;
   -webkit-appearance: none;
   height: 29px;
@@ -204,19 +206,7 @@ li a:hover {
   border-radius: 5px;
 }
 
-/* -------------------- Colors: Background */
-.slate   { background-color: #ddd; }
-.green   { background-color: #779126; }
 .-blue-    { background-color: #3b8ec2; }
-.yellow  { background-color: #eec111; }
-.black   { background-color: #000; }
-
-/* -------------------- Colors: Text */
-.slate select   { color: #000; }
-.green select   { color: #fff; }
-.blue select    { color: #fff; }
-.yellow select  { color: #000; }
-.black select   { color: #fff; }
 
 .-hidden- { /* Should be defined later to override all other display types */
   display: none;
