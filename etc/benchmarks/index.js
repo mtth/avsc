@@ -54,6 +54,7 @@ function generateStats(schema, opts) {
   });
 }
 
+
 /**
  * Custom benchmark suite.
  *
@@ -69,7 +70,6 @@ function Suite(type, opts) {
     if (!name.indexOf('_')) {
       return;
     }
-
     var fn = this['__' + name];
     if (typeof fn == 'function') {
       this.add(name, fn.call(this, opts.name)); // Add benchmark.
