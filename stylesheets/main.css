@@ -177,7 +177,7 @@ li a {
 
 /* Change the link color to #111 (black) on hover */
 li a:hover {
-  border-bottom-color: rgba(255, 246, 136, 0.84);
+  border-bottom-color: #840707;
   border-bottom-width: thick;
   border-bottom-style: solid;
 }
