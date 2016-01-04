@@ -2535,6 +2535,7 @@ var cache = {},
         outputElement = $('#output'),
         body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /(\d+)/g,
+        queryPattern = /[?&#]+([\w]+)=([^&#]*)/g,
         reservedKeysPattern = /-[a-z]+-/g,
         whitespacePattern = /[\s]+/g,
         typingTimer,
@@ -2609,7 +2610,7 @@ var cache = {},
         // Use this so that it doesn't reload the page, but that also means that you need to manually
         // load the schema from url
         window.history.pushState({}, 'AVSC', newUrl);
-        populateSchema();
+        populateFromQuery();
         eventObj.trigger('update-layout');
       }
     });
@@ -2731,7 +2732,7 @@ var cache = {},
 
     $("#reset").click(function() {
       var state = {};
-      var newUrl = updateQueryStringParameter(location.href, 'schema', '');
+      var newUrl = updateQueryStringParameter(location.href, 'schema', '', 'record', '');
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
       window.history.pushState(state, 'AVSC', newUrl);
@@ -2739,12 +2740,22 @@ var cache = {},
       return false;
     });
 
-    function populateSchema() {
-      var s = location.search.split('schema=')[1];
-      if(s) {
+    function populateFromQuery() {
+      var s = readQueryValue(location.href, 'schema');
+      if(!!s) {
         s = decodeURIComponent(s);
         $(schemaElement).text(s);
         eventObj.trigger('schema-changed');
+      }
+      
+      var record = readQueryValue(location.href, 'record');
+      if(!!record) {
+        record = decodeURIComponent(record);
+        setOutputText(record);
+        eventObj.trigger('output-changed');
+      }
+
+      if (!!s && !record) {
         generateRandom();
       }
     }
@@ -3237,18 +3248,36 @@ var cache = {},
     /**
     * http://stackoverflow.com/a/6021027/2070194
     */
-    function updateQueryStringParameter(uri, key, v) {
-      var value = v.replace(whitespacePattern, ''); // Remove whitespaces
-      var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
+    function updateQueryStringParameter(uri, k1, v1, k2, v2) {
+      var val1 = v1.replace(whitespacePattern, ''); // Remove whitespaces
+      var re = new RegExp("([?&])" + k1 + "=.*?(&|$)", "i");
       var separator = uri.indexOf('?') !== -1 ? "&" : "?";
+      var res;
       if (uri.match(re)) {
-        return uri.replace(re, '$1' + key + "=" + value + '$2');
+        res = uri.replace(re, '$1' + k1 + "=" + val1 + '$2');
       } else {
-        return uri + separator + key + "=" + value;
+        res = uri + separator + k1 + "=" + val1;
       }
+      if (!!k2) {
+        return updateQueryStringParameter(res, k2, v2);
+      }
+      return res;
+    }
+
+    function readQueryValue(uri, key) {
+      var query = {};
+      var m;
+      do {
+        m = queryPattern.exec(uri);
+        if (m) {
+          query[m[1]] = m[2];
+        }
+      } while (m);
+
+      return query[key];
     }
     resize();
-    populateSchema();
+    populateFromQuery();
  });
 })();
 
