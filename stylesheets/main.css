@@ -70,8 +70,8 @@ button {
   text-align: center;
   background-color: #778D94;
   width: 320px;
-  font-size: 11px;
-  font-family: 'Roboto Mono', sans-serif;
+  font-size: small;
+  font-family: 'Open Sans', sans-serif;
   position: absolute;
   bottom: 0;
   min-height: 25px;
@@ -84,6 +84,8 @@ button {
 
 .-error- {
   background-color: rgba(243, 247, 86, 0.78);
+  font-family: 'Roboto Mono', sans-serif;
+  font-size: 11px;
   bottom: 25px; /* To be displayed on top of the label */
 }
 a {

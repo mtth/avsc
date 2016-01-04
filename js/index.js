@@ -26,6 +26,7 @@ var cache = {},
         body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
+        whitespacePattern = /[\s]+/g,
         typingTimer,
         eventObj = Event,
         doneTypingInterval = 500; // wait for some time before processing user input.
@@ -94,11 +95,10 @@ var cache = {},
       var s = location.search.split('schema=')[1];
       s = s != undefined ? decodeURIComponent(s) : undefined;
       if (!s || s != rawSchema) {
-        var state = { 'some_id' : 1};
         var newUrl = updateQueryStringParameter(location.href, 'schema', rawSchema);
         // Use this so that it doesn't reload the page, but that also means that you need to manually
         // load the schema from url
-        window.history.pushState(state, 'AVSC', newUrl);
+        window.history.pushState({}, 'AVSC', newUrl);
         populateSchema();
         eventObj.trigger('update-layout');
       }
@@ -727,7 +727,8 @@ var cache = {},
     /**
     * http://stackoverflow.com/a/6021027/2070194
     */
-    function updateQueryStringParameter(uri, key, value) {
+    function updateQueryStringParameter(uri, key, v) {
+      var value = v.replace(whitespacePattern, ''); // Remove whitespaces
       var re = new RegExp("([?&])" + key + "=.*?(&|$)", "i");
       var separator = uri.indexOf('?') !== -1 ? "&" : "?";
       if (uri.match(re)) {
