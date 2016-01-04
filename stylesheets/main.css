@@ -40,6 +40,7 @@ body {
   border: none;
   background-color: #EBEBEF; 
   margin : 10px 0px 0px 0px;
+  padding-bottom: 50px;
 }
 .-container- {
   width: 340px;

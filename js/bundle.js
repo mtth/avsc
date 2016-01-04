@@ -2553,25 +2553,19 @@ var cache = {},
       runPreservingCursorPosition( 'input' , function () {
         var rawInput = $.trim($(inputElement).text());        
         try {
-          var inputJson = JSON.parse(rawInput);
-          var inputRecord = window.type._copy(inputJson, {coerce: 2});
-          var invalidPaths = [];
-          var isValid = window.type.isValid(inputRecord, {errorHook: function (p) {
-            invalidPaths.push(p.join());
-          }});
-          if(!isValid) {
-            eventObj.trigger('invalid-input', invalidPaths);
-          } else {
-            eventObj.trigger('valid-input');
-          }
           // Wrap key values in <span>.
           setInputText(rawInput);
+          eventObj.trigger('re-instrument');
+          
         } catch (err) {
           eventObj.trigger('invalid-input', err);
         }
       });
       encode();
     }).on('output-changed', function() {
+      runPreservingCursorPosition('output', function() {
+        var rawOutput = $.trim($(outputElement).text());
+      });
       decode();
     }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
@@ -2613,6 +2607,19 @@ var cache = {},
         populateFromQuery();
         eventObj.trigger('update-layout');
       }
+    }).on('re-instrument', function() {
+      window.instrumented = instrumentObject(window.type, readInput());
+      window.reverseIndexMap = computeReverseIndex(window.instrumented);
+    }).on('update-url', function(data) {
+      var state = {};
+      var newUrl = location.href;
+      for (var key in data) {
+        newUrl = updateQueryStringParameter(newUrl, key, data[key]);
+      }
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState(state, 'AVSC', newUrl);
+
     });
 
     schemaSelect.on('change', function() {
@@ -2731,11 +2738,7 @@ var cache = {},
     });
 
     $("#reset").click(function() {
-      var state = {};
-      var newUrl = updateQueryStringParameter(location.href, 'schema', '', 'record', '');
-      // Use this so that it doesn't reload the page, but that also means that you need to manually
-      // load the schema from url
-      window.history.pushState(state, 'AVSC', newUrl);
+      eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
       eventObj.trigger('reset-layout');
       return false;
     });
@@ -2751,8 +2754,8 @@ var cache = {},
       var record = readQueryValue(location.href, 'record');
       if(!!record) {
         record = decodeURIComponent(record);
+        decode(record);
         setOutputText(record);
-        eventObj.trigger('output-changed');
       }
 
       if (!!s && !record) {
@@ -3016,11 +3019,13 @@ var cache = {},
     function validateSchema() {
       window.type = null;
       try {
-        var rawSchema = readSchemaFromInput();
-        $(schemaElement).text(JSON.stringify(rawSchema, null, 2));
-        window.type = avsc.parse(rawSchema);
+        var schemaJson = readSchemaFromInput();
+        var schemaStr = JSON.stringify(schemaJson, null, 2); 
+        $(schemaElement).text(schemaStr);
+        window.type = avsc.parse(schemaJson);
         eventObj.trigger('valid-schema');
         eventObj.trigger('update-layout');
+        eventObj.trigger('update-url', {'schema':schemaStr});
       } catch (err) {
         eventObj.trigger('invalid-schema', err);
       }
@@ -3043,25 +3048,28 @@ var cache = {},
       if (window.type) {
         try {
           var input = readInput();
-          window.instrumented = instrumentObject(window.type, input);
-          window.reverseIndexMap = computeReverseIndex(window.instrumented);
           var output = window.type.toBuffer(input);
-          setOutputText(output.toString('hex'));
+          var outputStr = output.toString('hex');
+          setOutputText(outputStr);
+          eventObj.trigger('update-url', {'record' : outputStr});
           eventObj.trigger('valid-output');
+          eventObj.trigger('valid-input');
         }catch(err) {
           eventObj.trigger('invalid-input', err);
         }
       }
     }
 
-    function decode() {
+    function decode(rawInput) {
       if (window.type) {
         try {
-          var input = readBuffer(outputElement);
+          var input = rawInput ? readBuffer(rawInput) : readBuffer();
           var decoded = window.type.fromBuffer(input);
           var decodedStr = window.type.toString(decoded);
-          eventObj.trigger('valid-output');
           setInputText(decodedStr);
+          eventObj.trigger('re-instrument');
+          eventObj.trigger('valid-input');
+          eventObj.trigger('valid-output');
         }catch(err) {
           eventObj.trigger('invalid-output', err);
         }
@@ -3099,8 +3107,8 @@ var cache = {},
     /*Used for decoding.
     *Read the text represented as space-seperated hex numbers in elementId
     *and construct a Buffer object*/
-    function readBuffer(elementId) {
-      var rawInput = $.trim(outputElement.text());
+    function readBuffer(str) {
+      var rawInput = str || $.trim(outputElement.text());
       var hexArray = rawInput.split(/[\s,]+/);
       var i;
       var size = hexArray.length;
@@ -3115,7 +3123,7 @@ var cache = {},
     function resize() {
       $('#content').removeClass('-hidden-');
       var vph = $(window).height();
-      $('.-textbox-').css({'height': 0.85 * vph});
+      $('.-textbox-').css({'height': 0.78 * vph});
     }
 
     /**
