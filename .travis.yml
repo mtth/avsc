@@ -14,7 +14,7 @@ matrix:
     - node_js: node
       env: AVSC_RUN_ZUUL=1
 script:
-  - if [ -z "$AVSC_RUN_ZUUL" ] ; then npm run cover ; else npm run zuul ; fi
+  - if [ -z "$AVSC_RUN_ZUUL" ] ; then npm run cover ; elif [ "$TRAVIS_PULL_REQUEST" == 'false' ] ; then npm run zuul ; fi
 after_script:
   - cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js
 deploy:

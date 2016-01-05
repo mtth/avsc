@@ -20,7 +20,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 Representative throughput rates (higher is better):
 
-![Throughput rates chart](etc/benchmarks/charts/coupons-throughput-2172789.png)
+![Throughput rates chart](etc/benchmarks/results/png/coupons-throughput-2172789.png)
 
 Libraries compared:
 
@@ -43,7 +43,7 @@ details on the [benchmarks page][benchmarks].
 $ npm install avsc
 ```
 
-`avsc` is compatible with all versions of [node.js][] since `0.11` and major
+`avsc` is compatible with all versions of [node.js][] since `0.11` and all major
 browsers via [browserify][].
 
 
