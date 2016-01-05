@@ -42,7 +42,8 @@
     "coveralls": "^2.11.4",
     "istanbul": "^0.3.19",
     "mocha": "^2.3.2",
-    "tmp": "^0.0.28"
+    "tmp": "^0.0.28",
+    "zuul": "^3.8.0"
   },
   "author": "Matthieu Monsch",
   "license": "MIT",
