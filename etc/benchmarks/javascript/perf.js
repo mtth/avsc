@@ -13,14 +13,20 @@
  *
  */
 
-var avsc = require('../../lib'),
+var avsc = require('../../../lib'),
     Benchmark = require('benchmark'),
     path = require('path');
 
 
+// Number of random values to generate to try per schema. This is mostly to
+// reduce the variability introduced by unions (which can greatly affect
+// serialization speed).
 var NUM_VALUES = 1000;
 
-console.log(['fromBuffer', 'toBuffer', 'isValid'].join('\t'));
+// Header formatting is done according to GitHub flavored Markdown.
+console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t|\t'));
+console.log(['---------:', '-------:', '------: ', '---------'].join('\t|\t'));
+
 process.argv.slice(2).forEach(function (fpath) {
   var type = avsc.parse(fpath);
   var values = [];
@@ -71,5 +77,5 @@ process.argv.slice(2).forEach(function (fpath) {
   }}).run();
 
   stats.push(path.basename(fpath));
-  console.log(stats.join('\t'));
+  console.log(stats.join('\t|\t'));
 });
