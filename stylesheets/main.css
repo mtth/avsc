@@ -58,6 +58,8 @@ body {
   white-space: nowrap; /* To be able to scroll */
   margin-top: 40px;
   padding-left: 10px;
+  display: flex;
+  justify-content: center;
 }
 
 button {
