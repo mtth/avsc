@@ -1,4 +1,9 @@
-# Benchmarks
+# Avro benchmarks
+
+These benchmarks compare the performance of various Avro implementations
+(JavaScript, Java, Python, and Ruby). For historical reasons a few other
+JavaScript libraries are also included (JSON, PSON), but refer to the
+`etc/benchmarks/javascript` folder for such comparisons.
 
 ## Quickstart
 

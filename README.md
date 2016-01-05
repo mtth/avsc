@@ -20,7 +20,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 Representative throughput rates (higher is better):
 
-![Throughput rates chart](etc/benchmarks/results/png/coupons-throughput-2172789.png)
+![Throughput rates chart](etc/benchmarks/javascript/results/png/coupons-throughput-2172789.png)
 
 Libraries compared:
 
