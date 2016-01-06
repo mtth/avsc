@@ -44,7 +44,10 @@
     "mocha": "^2.3.2",
     "tmp": "^0.0.28"
   },
-  "author": "Matthieu Monsch",
+  "author": {
+    "name": "Matthieu Monsch",
+    "email": "monsch@alum.mit.edu"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
