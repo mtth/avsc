@@ -1,14 +1,9 @@
 {
-  "name": "avsc-benchmarks",
-  "description": "Benchmarks for avsc.",
-  "scripts": {
-    "compile-java": "cd deps/avro && mvn clean compile assembly:single"
-  },
+  "name": "avsc-javascript-benchmarks",
   "private": true,
   "dependencies": {
-    "benchmark": "^1.0.0",
-    "etp-avro": "^0.1.3-141",
-    "node-avro-io": "git://github.com/mdlavin/node-avro-io.git#node-4.1-adoption",
+    "msgpack-lite": "^0.1.15",
+    "protobufjs": "^4.1.3",
     "pson": "^2.0.0"
   }
 }
