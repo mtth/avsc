@@ -8,7 +8,7 @@
  */
 
 var containers = require('../../lib/containers'),
-    messages = require('../../lib/messages'),
+    protocols = require('../../lib/protocols'),
     schemas = require('./lib/schemas'),
     types = require('../../lib/types');
 
@@ -16,14 +16,14 @@ var containers = require('../../lib/containers'),
 function parse(schema, opts) {
   var attrs = schemas.load(schema);
   return attrs.protocol ?
-    messages.createProtocol(attrs, opts) :
+    protocols.createProtocol(attrs, opts) :
     types.createType(attrs, opts);
 }
 
 
 module.exports = {
   LogicalType: types.LogicalType,
-  Protocol: messages.Protocol,
+  Protocol: protocols.Protocol,
   Type: types.Type,
   parse: parse,
   streams: containers.streams,

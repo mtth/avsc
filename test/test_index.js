@@ -7,7 +7,7 @@ if (process.browser) {
 }
 
 var index = require('../lib'),
-    messages = require('../lib/messages'),
+    protocols = require('../lib/protocols'),
     types = require('../lib/types'),
     assert = require('assert'),
     path = require('path'),
@@ -34,7 +34,7 @@ suite('index', function () {
 
     test('protocol object', function () {
       var obj = {protocol: 'Foo'};
-      assert(parse(obj) instanceof messages.Protocol);
+      assert(parse(obj) instanceof protocols.Protocol);
     });
 
     test('type instance', function () {

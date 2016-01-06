@@ -2,19 +2,19 @@
 
 'use strict';
 
-var messages = require('../lib/messages'),
+var protocols = require('../lib/protocols'),
     utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
     util = require('util');
 
 
-var HANDSHAKE_REQUEST_TYPE = messages.HANDSHAKE_REQUEST_TYPE;
-var HANDSHAKE_RESPONSE_TYPE = messages.HANDSHAKE_RESPONSE_TYPE;
-var createProtocol = messages.createProtocol;
+var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
+var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
+var createProtocol = protocols.createProtocol;
 
 
-suite('messages', function () {
+suite('protocols', function () {
 
   suite('Protocol', function () {
 
@@ -134,7 +134,7 @@ suite('messages', function () {
 
   suite('Message', function () {
 
-    var Message = messages.Message;
+    var Message = protocols.Message;
 
     test('empty errors', function () {
       var m = new Message('Hi', {
@@ -176,7 +176,7 @@ suite('messages', function () {
 
   suite('MessageDecoder', function () {
 
-    var MessageDecoder = messages.streams.MessageDecoder;
+    var MessageDecoder = protocols.streams.MessageDecoder;
 
     test('ok', function (done) {
       var parts = [
@@ -229,7 +229,7 @@ suite('messages', function () {
 
   suite('MessageEncoder', function () {
 
-    var MessageEncoder = messages.streams.MessageEncoder;
+    var MessageEncoder = protocols.streams.MessageEncoder;
 
     test('invalid frame size', function () {
       assert.throws(function () { new MessageEncoder(); });
@@ -401,7 +401,7 @@ suite('messages', function () {
 
     test('orphan response', function (done) {
       var ptcl = createProtocol({protocol: 'Empty'});
-      var idType = messages.IdType.createMetadataType();
+      var idType = protocols.IdType.createMetadataType();
       var resBufs = [
         new Buffer([0, 0, 0]), // OK handshake.
         idType.toBuffer(23)
@@ -548,7 +548,7 @@ suite('messages', function () {
             done();
           });
 
-          var idType = messages.IdType.createMetadataType();
+          var idType = protocols.IdType.createMetadataType();
           var bufs = [
               idType.toBuffer(1), // Metadata.
               new Buffer([3]) // Invalid response.
@@ -705,7 +705,7 @@ suite('messages', function () {
           var idType = ee._idType;
           var bufs = [];
           transports[0].readable
-            .pipe(new messages.streams.MessageDecoder())
+            .pipe(new protocols.streams.MessageDecoder())
             .on('data', function (buf) { bufs.push(buf); })
             .on('end', function () {
               assert.equal(bufs.length, 1);
@@ -745,7 +745,7 @@ suite('messages', function () {
           var idType = ee._idType;
           var bufs = [];
           transports[0].readable
-            .pipe(new messages.streams.MessageDecoder())
+            .pipe(new protocols.streams.MessageDecoder())
             .on('data', function (buf) { bufs.push(buf); })
             .on('end', function () {
               assert.equal(bufs.length, 1);
@@ -804,7 +804,7 @@ suite('messages', function () {
         return readable;
       });
       var bufs = [];
-      writable.pipe(new messages.streams.MessageDecoder())
+      writable.pipe(new protocols.streams.MessageDecoder())
         .on('data', function (buf) { bufs.push(buf); })
         .on('end', function () {
           assert.equal(bufs.length, 1);
@@ -822,7 +822,7 @@ suite('messages', function () {
         clientProtocol: null,
         serverHash: hash
       };
-      var encoder = new messages.streams.MessageEncoder(64);
+      var encoder = new protocols.streams.MessageEncoder(64);
       encoder.pipe(readable);
       encoder.end(Buffer.concat([
         HANDSHAKE_REQUEST_TYPE.toBuffer(req),
@@ -1287,7 +1287,7 @@ suite('messages', function () {
 
     function tryCatch(err) {
       try {
-        messages.throwError(err);
+        protocols.throwError(err);
       } catch (err_) {
         return err_.message;
       }
@@ -1308,11 +1308,11 @@ function frame(buf) {
 
 function createReadableTransport(bufs, frameSize) {
   return createReadableStream(bufs)
-    .pipe(new messages.streams.MessageEncoder(frameSize || 64));
+    .pipe(new protocols.streams.MessageEncoder(frameSize || 64));
 }
 
 function createWritableTransport(bufs) {
-  var decoder = new messages.streams.MessageDecoder();
+  var decoder = new protocols.streams.MessageDecoder();
   decoder.pipe(createWritableStream(bufs));
   return decoder;
 }

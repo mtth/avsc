@@ -9,7 +9,7 @@
  *
  */
 
-var messages = require('../../lib/messages'),
+var protocols = require('../../lib/protocols'),
     schemas = require('./lib/schemas'),
     types = require('../../lib/types');
 
@@ -17,14 +17,14 @@ var messages = require('../../lib/messages'),
 function parse(schema, opts) {
   var obj = schemas.load(schema);
   return obj.protocol ?
-    messages.createProtocol(obj, opts) :
-    schemas.createType(obj, opts);
+    protocols.createProtocol(obj, opts) :
+    types.createType(obj, opts);
 }
 
 
 module.exports = {
   LogicalType: types.LogicalType,
-  Protocol: messages.Protocol,
+  Protocol: protocols.Protocol,
   Type: types.Type,
   parse: parse,
   types: types.builtins
