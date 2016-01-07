@@ -33,7 +33,7 @@
   "scripts": {
     "cover": "istanbul cover _mocha",
     "clean": "rm -rf coverage node_modules",
-    "dist": "browserify --standalone avsc . | uglifyjs -c -m --preamble \"/* v$(jq -r <package.json .version) */\" >dist/avsc.min.js",
+    "dist": "browserify --standalone avsc . | uglifyjs --preamble \"/* v$(jq -r <package.json .version) */\" >dist/avsc.min.js",
     "perf": "node etc/benchmarks/javascript/perf.js etc/schemas/*",
     "test": "mocha",
     "zuul": "zuul --no-coverage -- test/*.js"
