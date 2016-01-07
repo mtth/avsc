@@ -77,14 +77,6 @@ var avsc = require('avsc');
   var val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
   ```
 
-+ Check whether a value fits a given schema:
-
-  ```javascript
-  var type = avsc.parse('./Person.avsc');
-  var person = {name: 'Bob', address: {city: 'Cambridge', zip: '02139'}};
-  var status = type.isValid(person); // Boolean status.
-  ```
-
 + Get a [readable stream][readable-stream] of decoded values from an Avro
   container file:
 
