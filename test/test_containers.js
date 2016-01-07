@@ -329,9 +329,8 @@ suite('containers', function () {
         var decoder = new BlockDecoder()
           .on('data', function () {})
           .on('error', function () { cb(); });
-        decoder.write(new Buffer([0, 3, 2, 1])); // !== MAGIC_BYTES
-        decoder.write(new Buffer([0]));
-        decoder.end(SYNC);
+        decoder.write(new Buffer([0, 3, 2]));
+        decoder.write(new Buffer([1]));
       });
 
       test('invalid sync marker', function (cb) {
@@ -391,6 +390,26 @@ suite('containers', function () {
           SYNC
         );
         decoder.end(header.$toBuffer());
+      });
+
+      test('short header', function (cb) {
+        var vals = [];
+        var decoder = new BlockDecoder()
+          .on('data', function (val) { vals.push(val); })
+          .on('end', function () {
+            assert.deepEqual(vals, [2]);
+            cb();
+          });
+        var buf = new Header(
+          MAGIC_BYTES,
+          {'avro.schema': new Buffer('"int"')},
+          SYNC
+        ).$toBuffer();
+        decoder.write(buf.slice(0, 5)); // Part of header.
+        decoder.write(buf.slice(5));
+        decoder.write(new Buffer([2, 2, 4]));
+        decoder.write(SYNC);
+        decoder.end();
       });
 
     });
