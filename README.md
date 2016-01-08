@@ -6,12 +6,11 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ [*Fast and compact!*][benchmarks] Typically twice as fast as JSON with much
++ [Fast *and* compact!][benchmarks] Typically twice as fast as JSON with much
   smaller encodings.
 + All the Avro goodness, including [schema evolution][schema-evolution] and
   [remote procedure calls][rpc]!
-+ Serialization of arbitrary JavaScript objects via [logical
-  types][logical-types].
++ Support for [serializing arbitrary JavaScript objects][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
 
@@ -23,8 +22,9 @@ $ npm install avsc
 ```
 
 `avsc` is compatible with all versions of [node.js][] since `0.11` and major
-browsers via [browserify][] (the full compatibility table and more information
-on the distributions available can be found [here][home]).
+browsers via [browserify][] (the full compatibility table is available
+[here][home]). You can also find compiled distributions in the [releases][]
+(but please host your own copy).
 
 
 ## Documentation
@@ -89,3 +89,4 @@ var avsc = require('avsc');
 [browserify]: http://browserify.org/
 [home]: https://github.com/mtth/avsc/wiki
 [rpc]: https://github.com/mtth/avsc/wiki/Quickstart#and-rpc
+[releases]: https://github.com/mtth/avsc/releases
