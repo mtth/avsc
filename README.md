@@ -6,9 +6,9 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ [*Fast!*][benchmarks] Typically twice as fast as JSON with much smaller
-  encodings.
-+ Full Avro support, including [schema evolution][schema-evolution] and
++ [*Fast and compact!*][benchmarks] Typically twice as fast as JSON with much
+  smaller encodings.
++ All the Avro goodness, including [schema evolution][schema-evolution] and
   [remote procedure calls][rpc]!
 + Serialization of arbitrary JavaScript objects via [logical
   types][logical-types].
@@ -23,8 +23,8 @@ $ npm install avsc
 ```
 
 `avsc` is compatible with all versions of [node.js][] since `0.11` and major
-browsers via [browserify][] (the browser compatibility table and more
-information on the distributions available can be found [here][home]).
+browsers via [browserify][] (the full compatibility table and more information
+on the distributions available can be found [here][home]).
 
 
 ## Documentation
