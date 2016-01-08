@@ -32,7 +32,8 @@
   },
   "scripts": {
     "cover": "istanbul cover _mocha",
-    "clean": "rm -rf coverage node_modules",
+    "clean": "rm -rf coverage dist node_modules",
+    "dist": "./etc/scripts/dist",
     "perf": "node etc/benchmarks/javascript/perf.js etc/schemas/*",
     "test": "mocha",
     "zuul": "zuul --no-coverage -- test/*.js"
