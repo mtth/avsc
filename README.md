@@ -6,10 +6,10 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ [Fast!][benchmarks] Typically twice as fast as JSON with much smaller
++ [*Fast!*][benchmarks] Typically twice as fast as JSON with much smaller
   encodings.
 + Full Avro support, including [schema evolution][schema-evolution] and
-  [protocols][rpc]!
+  [remote procedure calls][rpc]!
 + Serialization of arbitrary JavaScript objects via [logical
   types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
@@ -22,15 +22,17 @@ specification](https://avro.apache.org/docs/current/spec.html).
 $ npm install avsc
 ```
 
-`avsc` is compatible with all versions of [node.js][] since `0.11` and all major
-browsers via [browserify][].
+`avsc` is compatible with all versions of [node.js][] since `0.11` and major
+browsers via [browserify][] (more information and the browser compatibility
+table are available [here][home]).
 
 
 ## Documentation
 
-+ [Overview](https://github.com/mtth/avsc/wiki)
-+ [API](https://github.com/mtth/avsc/wiki/API)
++ [Home][home]
++ [Quickstart](https://github.com/mtth/avsc/wiki/Quickstart)
 + [Advanced usage](https://github.com/mtth/avsc/wiki/Advanced-usage)
++ [API](https://github.com/mtth/avsc/wiki/API)
 + [Benchmarks][benchmarks]
 
 
@@ -85,4 +87,5 @@ var avsc = require('avsc');
 [custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [browserify]: http://browserify.org/
-[rpc]: https://github.com/mtth/avsc/wiki#and-rpc
+[home]: https://github.com/mtth/avsc/wiki
+[rpc]: https://github.com/mtth/avsc/wiki/Quickstart#and-rpc
