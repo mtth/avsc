@@ -6,35 +6,14 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ [Fast!](#performance) Typically twice as fast as JSON with much smaller
++ [Fast!][benchmarks] Typically twice as fast as JSON with much smaller
   encodings.
 + Full Avro support, including [schema evolution][schema-evolution] and
-  [protocols][rpc].
+  [protocols][rpc]!
 + Serialization of arbitrary JavaScript objects via [logical
   types][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 + No dependencies, `avsc` even runs in the browser.
-
-
-## Performance
-
-Representative throughput rates (higher is better):
-
-![Throughput rates chart](etc/benchmarks/javascript/results/png/coupons-throughput-2172789.png)
-
-Libraries compared:
-
-+ `node-avsc`, this package.
-+ `node-json`, built-in JSON serializer.
-+ [`node-protobuf`](https://www.npmjs.com/package/protobufjs), most popular
-  Protocol Buffers implementation.
-+ [`node-pson`](https://www.npmjs.com/package/pson), alternative to JSON.
-+ [`node-msgpack`](https://www.npmjs.com/package/msgpack-lite), official
-  MessagePack implementation.
-
-These rates are for processing a [realistic record schema][coupon-schema],
-modeled after a popular open-source API. You can find the raw numbers and more
-details on the [benchmarks page][benchmarks].
 
 
 ## Installation
@@ -52,6 +31,7 @@ browsers via [browserify][].
 + [Overview](https://github.com/mtth/avsc/wiki)
 + [API](https://github.com/mtth/avsc/wiki/API)
 + [Advanced usage](https://github.com/mtth/avsc/wiki/Advanced-usage)
++ [Benchmarks][benchmarks]
 
 
 ## Examples
@@ -105,5 +85,4 @@ var avsc = require('avsc');
 [custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [browserify]: http://browserify.org/
-[coupon-schema]: etc/benchmarks/schemas/Coupon.avsc
 [rpc]: https://github.com/mtth/avsc/wiki#and-rpc
