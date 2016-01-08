@@ -1,7 +1,7 @@
 {
   "name": "avsc",
   "version": "3.2.2",
-  "description": "Blazingly fast serialization",
+  "description": "Avro in JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
     "avpr",
