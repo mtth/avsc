@@ -11,7 +11,7 @@
  *
  */
 
-var avsc = require('../../lib'),
+var avro = require('../../lib'),
     util = require('util');
 
 var schemaPath = process.argv[2];
@@ -22,8 +22,8 @@ if (!filePath) {
   process.exit(1);
 }
 
-var type = avsc.parse(schemaPath);
-var encoder = avsc.createFileEncoder(filePath, type);
+var type = avro.parse(schemaPath);
+var encoder = avro.createFileEncoder(filePath, type);
 while (count--) {
   encoder.write(type.random());
 }

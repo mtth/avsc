@@ -5,7 +5,7 @@
 /**
  * Optional entry point for browser builds.
  *
- * To use it: `require('avsc/etc/browser/avsc-types.js')`.
+ * To use it: `require('avsc/etc/browser/avsc-types')`.
  *
  */
 

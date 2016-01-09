@@ -10,12 +10,15 @@
     "data",
     "decoding",
     "encoding",
+    "interface",
     "ipc",
     "json",
+    "message",
     "protocol",
     "rpc",
     "schema",
-    "serialization"
+    "serialization",
+    "type"
   ],
   "files": [
     "lib",
@@ -34,7 +37,7 @@
     "cover": "istanbul cover _mocha",
     "clean": "rm -rf coverage dist node_modules",
     "dist": "./etc/scripts/dist",
-    "perf": "node etc/benchmarks/javascript/perf.js etc/schemas/*",
+    "perf": "./etc/scripts/perf etc/schemas/*",
     "test": "mocha",
     "zuul": "zuul --no-coverage -- test/*.js"
   },

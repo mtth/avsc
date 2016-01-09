@@ -1,5 +1,6 @@
 # Avsc [![NPM version](https://img.shields.io/npm/v/avsc.svg)](https://www.npmjs.com/package/avsc) [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc) [![Coverage status](https://coveralls.io/repos/mtth/avsc/badge.svg?branch=master&service=github)](https://coveralls.io/github/mtth/avsc?branch=master)
 
+
 Pure JavaScript implementation of the [Avro
 specification](https://avro.apache.org/docs/current/spec.html).
 
@@ -40,13 +41,13 @@ For convenience, you can also find compiled distributions with the [releases][]
 Inside a node.js module, or using browserify:
 
 ```javascript
-var avsc = require('avsc');
+var avro = require('avsc');
 ```
 
 + Encode and decode values:
 
   ```javascript
-  var type = avsc.parse({
+  var type = avro.parse({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -62,7 +63,7 @@ var avsc = require('avsc');
   container file:
 
   ```javascript
-  avsc.createFileDecoder('./values.avro')
+  avro.createFileDecoder('./values.avro')
     .on('metadata', function (type) { /* `type` is the writer's type. */ })
     .on('data', function (val) { /* Do something with the decoded value. */ });
   ```
@@ -70,7 +71,7 @@ var avsc = require('avsc');
 + Respond to remote procedure calls over TCP:
 
   ```javascript
-  var protocol = avsc.parse('./Ping.avpr')
+  var protocol = avro.parse('./Ping.avpr')
     .on('ping', function (req, ee, cb) { cb(null, 'pong'); });
 
   require('net').createServer()
@@ -87,5 +88,5 @@ var avsc = require('avsc');
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [browserify]: http://browserify.org/
 [home]: https://github.com/mtth/avsc/wiki
-[rpc]: https://github.com/mtth/avsc/wiki/Quickstart#and-rpc
+[rpc]: https://github.com/mtth/avsc/wiki/Advanced-usage#remote-procedure-calls
 [releases]: https://github.com/mtth/avsc/releases

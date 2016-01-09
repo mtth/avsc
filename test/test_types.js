@@ -1867,9 +1867,9 @@ suite('types', function () {
   suite('LogicalType', function () {
 
     function DateType(attrs, opts) {
-      types.LogicalType.call(this, attrs, opts, [builtins.LongType]);
+      types.builtins.LogicalType.call(this, attrs, opts, [builtins.LongType]);
     }
-    util.inherits(DateType, types.LogicalType);
+    util.inherits(DateType, types.builtins.LogicalType);
 
     DateType.prototype._fromValue = function (val) { return new Date(val); };
 
@@ -1884,9 +1884,9 @@ suite('types', function () {
     };
 
     function AgeType(attrs, opts) {
-      types.LogicalType.call(this, attrs, opts, [builtins.IntType]);
+      types.builtins.LogicalType.call(this, attrs, opts, [builtins.IntType]);
     }
-    util.inherits(AgeType, types.LogicalType);
+    util.inherits(AgeType, types.builtins.LogicalType);
 
     AgeType.prototype._fromValue = function (val) {
       if (val < 0) { throw new Error('invalid age'); }
@@ -1968,9 +1968,9 @@ suite('types', function () {
       function Person(friends) { this.friends = friends || []; }
 
       function PersonType(attrs, opts) {
-        types.LogicalType.call(this, attrs, opts);
+        types.builtins.LogicalType.call(this, attrs, opts);
       }
-      util.inherits(PersonType, types.LogicalType);
+      util.inherits(PersonType, types.builtins.LogicalType);
 
       PersonType.prototype._fromValue = function (val) {
         return new Person(val.friends);
@@ -2027,9 +2027,9 @@ suite('types', function () {
 
     test('even integer', function () {
       function EvenIntType(attrs, opts) {
-        types.LogicalType.call(this, attrs, opts, [builtins.IntType]);
+        types.builtins.LogicalType.call(this, attrs, opts, [builtins.IntType]);
       }
-      util.inherits(EvenIntType, types.LogicalType);
+      util.inherits(EvenIntType, types.builtins.LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
         this._assertValid(val);
         return val;
@@ -2091,9 +2091,9 @@ suite('types', function () {
         *
         */
         function UnwrappedUnionType(attrs, opts) {
-          types.LogicalType.call(this, attrs, opts);
+          types.builtins.LogicalType.call(this, attrs, opts);
         }
-        util.inherits(UnwrappedUnionType, types.LogicalType);
+        util.inherits(UnwrappedUnionType, types.builtins.LogicalType);
 
         UnwrappedUnionType.prototype._fromValue = function (val) {
           return val === null ? null : val[Object.keys(val)[0]];
@@ -2134,11 +2134,11 @@ suite('types', function () {
         *
         */
         function OptionalType(attrs, opts) {
-          types.LogicalType.call(this, attrs, opts);
+          types.builtins.LogicalType.call(this, attrs, opts);
           var type = this.getUnderlyingType().getTypes()[1];
           this._name = type.getName() || type.getName(true);
         }
-        util.inherits(OptionalType, types.LogicalType);
+        util.inherits(OptionalType, types.builtins.LogicalType);
 
         OptionalType.prototype._fromValue = function (val) {
           return val === null ? null : val[this._name];

@@ -13,7 +13,7 @@
  *
  */
 
-var avsc = require('../../lib'),
+var avro = require('../../lib'),
     utils = require('../../lib/utils'),
     util = require('util');
 
@@ -26,7 +26,7 @@ if (!fpath) {
   process.exit(1);
 }
 
-var type = avsc.parse(fpath, {typeHook: function (attrs) {
+var type = avro.parse(fpath, {typeHook: function (attrs) {
   if (!attrs.name) {
     return; // Nothing to mangle.
   }

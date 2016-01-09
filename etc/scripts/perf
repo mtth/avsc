@@ -13,7 +13,7 @@
  *
  */
 
-var avsc = require('../../../lib'),
+var avro = require('../../lib'),
     Benchmark = require('benchmark'),
     path = require('path');
 
@@ -28,7 +28,7 @@ console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t|\t'));
 console.log(['---------:', '-------:', '------: ', '---------'].join('\t|\t'));
 
 process.argv.slice(2).forEach(function (fpath) {
-  var type = avsc.parse(fpath);
+  var type = avro.parse(fpath);
   var values = [];
   var bufs = [];
 
