@@ -76,10 +76,14 @@ suite('schemas', function () {
       var tokenizer = new Tokenizer(str);
       var tokens = [];
       var token;
-      while ((token = tokenizer.next())) {
-        tokens.push(token);
+      try {
+        while ((token = tokenizer.next())) {
+          tokens.push(token);
+        }
+      } catch (err) {
+        assert(/end of input/.test(err.message));
+        return tokens;
       }
-      return tokens;
     }
 
   });
