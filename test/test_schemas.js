@@ -21,50 +21,62 @@ suite('schemas', function () {
 
   suite('JSON boundary', function () {
 
-    var endOfJson = schemas.endOfJson;
-
-    test('number', function () {
-      assert.equal(endOfJson('324,'), 3);
-      assert.equal(endOfJson('3,'), 1);
-      assert.equal(endOfJson('-3.123,'), 6);
-    });
-
-    test('string', function () {
-      assert.equal(endOfJson('"324,",'), 6);
-      assert.equal(endOfJson('"hello \\"you\\""r'), 15);
-      assert.equal(endOfJson('"\\\\"a'), 4);
-    });
-
-    test('object', function () {
-      assert.equal(endOfJson('{},'), 2);
-      assert.equal(endOfJson('{"a":"}"},'), 9);
-    });
-
-    test('array', function () {
-      assert.equal(endOfJson(' [],'), 3);
-    });
-
   });
 
   suite('Tokenizer', function () {
 
     var Tokenizer = schemas.Tokenizer;
 
-    test('simple', function () {
+    test('next', function () {
       assert.deepEqual(
-        getTokens(new Tokenizer('hello; "you"')),
+        getTokens('hello; "you"'),
         [
-          {id: 'literal', val: 'hello'},
+          {id: 'name', val: 'hello'},
           {id: 'operator', val: ';'},
           {id: 'string', val: '"you"'}
         ]
       );
     });
 
-    function getTokens(tokenizer) {
+    test('prev', function () {
+      var t = new Tokenizer('fee 1');
+      assert.equal(t.next().val, 'fee');
+      assert.equal(t.next().val, '1');
+      t.prev();
+      assert.equal(t.next().val, '1');
+      t.prev();
+      t.prev();
+      assert.equal(t.next().val, 'fee');
+      assert.equal(t.next().val, '1');
+    });
+
+    test('JSON', function () {
+      [
+        {str: '324,', val: '324'},
+        {str: '3,', val: '3'},
+        {str: '-54,', val: '-54'},
+        {str: '-5.4)', val: '-5.4'},
+        {str: '"324",', val: '"324"'},
+        {str: '"hello \\"you\\""r', val: '"hello \\"you\\""'},
+        {str: '{}o', val: '{}'},
+        {str: '{"a": 1},', val: '{"a": 1}'},
+        {str: '[]', val: '[]'},
+      ].forEach(function (el) {
+        assert.equal(getToken(el.str, 'json').val, el.val);
+      });
+
+    });
+
+    function getToken(str, id) {
+      var tokenizer = new Tokenizer(str);
+      return tokenizer.next({id: id});
+    }
+
+    function getTokens(str) {
+      var tokenizer = new Tokenizer(str);
       var tokens = [];
       var token;
-      while ((token = tokenizer.advance())) {
+      while ((token = tokenizer.next())) {
         tokens.push(token);
       }
       return tokens;
