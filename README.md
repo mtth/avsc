@@ -6,8 +6,8 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ [Blazingly fast *and* compact!][benchmarks] Typically twice as fast as JSON
-  with much smaller encodings.
++ [Blazingly fast *and* compact serialization!][benchmarks] Typically twice as
+  fast as JSON with much smaller encodings.
 + All the Avro goodness, including [schema evolution][schema-evolution] and
   [remote procedure calls][rpc].
 + Support for [serializing arbitrary JavaScript objects][logical-types].

@@ -2,7 +2,6 @@
 
 'use strict';
 
-
 var containers = require('../lib/containers'),
     types = require('../lib/types'),
     assert = require('assert');
