@@ -119,7 +119,15 @@ suite('schemas', function () {
       assert.equal(t.next().val, '1');
     });
 
-    test('JSON', function () {
+    test('invalid comment', function () {
+      assert.throws(function () { getToken('/** rew'); });
+    });
+
+    test('invalid string', function () {
+      assert.throws(function () { getToken('"rewr\\"re'); });
+    });
+
+    test('valid JSON', function () {
       [
         {str: '324,', val: 324},
         {str: '3,', val: 3},
@@ -130,9 +138,17 @@ suite('schemas', function () {
         {str: '{}o', val: {}},
         {str: '{"a": 1},', val: {a: 1}},
         {str: '[]', val: []},
+        {str: 'true+1', val: true},
+        {str: 'null.1', val: null},
+        {str: 'false::', val: false},
+        {str: '["[", {"}": null}, true]', val: ['[', {'}': null}, true]},
       ].forEach(function (el) {
         assert.deepEqual(getToken(el.str, 'json').val, el.val);
       });
+    });
+
+    test('invalid JSON', function () {
+      assert.throws(function () { getToken('{"rew": "3}"', 'json'); });
     });
 
     test('name', function () {
