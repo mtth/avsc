@@ -1,6 +1,12 @@
 /**
- * An example protocol in Avro IDL
+ * An example protocol in Avro IDL.
+ *
+ * Inspired by the Avro specification IDL page:
+ * https://avro.apache.org/docs/current/idl.html#example
+ *
  */
+import idl "Hello.avdl"; // Test circular import.
+
 @namespace("org.apache.avro.test")
 protocol Simple {
 
@@ -25,13 +31,15 @@ protocol Simple {
     union { MD5, null} @aliases(["hash"]) nullableHash;
 
     array<long> arrayOfLongs;
+
+    map<boolean> someMap = {"true": true};
   }
 
   error TestError {
     string message;
   }
 
-  string hello(string greeting);
+  string @doc("greet") hello(string greeting = "hi");
   TestRecord echo(TestRecord `record`);
   int add(int arg1, int arg2);
   bytes echoBytes(bytes data);

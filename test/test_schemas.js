@@ -27,8 +27,8 @@ suite('schemas', function () {
       });
     });
 
-    test('simple file', function (done) {
-      assemble(path.join(DPATH, 'hello.avdl'), function (err, attrs) {
+    test('single file', function (done) {
+      assemble(path.join(DPATH, 'Hello.avdl'), function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           namespace: 'org.apache.avro.test',
@@ -53,7 +53,12 @@ suite('schemas', function () {
                   aliases: ['hash'],
                   name: 'nullableHash'
                 },
-                {type: {type: 'array', items: 'long'}, name: 'arrayOfLongs'}
+                {type: {type: 'array', items: 'long'}, name: 'arrayOfLongs'},
+                {
+                  type: {type: 'map', values: 'boolean'},
+                  name: 'someMap',
+                  'default': {'true': true}
+                }
               ]
             },
             {
@@ -64,8 +69,9 @@ suite('schemas', function () {
           ],
           messages: {
             hello: {
+              doc: 'greet',
               response: 'string',
-              request: [{ type: 'string', name: 'greeting' }]
+              request: [{ type: 'string', name: 'greeting', 'default': 'hi'}]
             },
             echo: {
               response: 'TestRecord',
@@ -89,6 +95,102 @@ suite('schemas', function () {
         done();
       });
     });
+
+    test('custom loader', function (done) {
+      var loader = createLoader({'foo.avdl': 'protocol Foo {}'});
+      assemble('foo.avdl', {loader: loader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {protocol: 'Foo', messages: {}, types: []});
+        done();
+      });
+    });
+
+    test('import idl', function (done) {
+      var loader = createLoader({
+        '1.avdl': 'import idl "2.avdl"; protocol First {}',
+        '2.avdl': 'protocol Second { int one(); }'
+      });
+      assemble('1.avdl', {loader: loader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'First',
+          messages: {one: {request: [], response: 'int'}},
+          types: []
+        });
+        done();
+      });
+    });
+
+    test('duplicate message', function (done) {
+      var loader = createLoader({
+        '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
+        '2.avdl': 'protocol Second { int one(); }'
+      });
+      assemble('1.avdl', {loader: loader}, function (err) {
+        assert(/duplicate message/.test(err.message));
+        done();
+      });
+    });
+
+    test('repeated import', function (done) {
+      var loader = createLoader({
+        '1.avdl': 'import idl "2.avdl";import idl "3.avdl";protocol A {}',
+        '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
+        '3.avdl': 'protocol C { enum Letter { A } }'
+      });
+      assemble('1.avdl', {loader: loader}, function (err, attrs) {
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          messages: {},
+          types: [
+            {name: 'Letter', type: 'enum', symbols: ['A']},
+            {name: 'Number', type: 'enum', symbols: ['ONE']}
+          ]
+        });
+        done();
+      });
+    });
+
+    test('import protocol', function (done) {
+      var loader = createLoader({
+        '1': 'import protocol "2";import protocol "3.avpr"; protocol A {}',
+        '2': JSON.stringify({
+          protocol: 'B',
+          types: [{name: 'Letter', type: 'enum', symbols: ['A']}],
+          messages: {ping: {request: [], response: 'boolean'}}
+        }),
+        '3.avpr': '{"protocol": "C"}'
+      });
+      assemble('1', {loader: loader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          messages: {ping: {request: [], response: 'boolean'}},
+          types: [
+            {name: 'Letter', type: 'enum', symbols: ['A']}
+          ]
+        });
+        done();
+      });
+    });
+
+    test('import invalid', function (done) {
+      var loader = createLoader({'A.avdl': 'import foo "2";protocol A {}'});
+      assemble('A.avdl', {loader: loader}, function (err) {
+        assert(/invalid import/.test(err.message));
+        done();
+      });
+    });
+
+    // Loader from strings.
+    function createLoader(imports) {
+      return function (fpath, cb) {
+        var fname = path.basename(fpath);
+        var str = imports[fname];
+        delete imports[fname];
+        process.nextTick(function () { cb(null, str); });
+      };
+    }
 
   });
 
