@@ -2542,9 +2542,6 @@ var cache = {},
         eventObj = Event,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
-    window.onresize = function(event) {
-      resize();
-    }
     window.reverseIndexMap = [];  
 
     eventObj.on('schema-changed', function() {
@@ -3120,13 +3117,6 @@ var cache = {},
       }
       return Buffer.concat(buffer);
     }
-    
-    /* Adjust textbox heights according to current window size */
-    function resize() {
-      $('#content').removeClass('-hidden-');
-      var vph = $(window).height();
-      $('.-textbox-').css({'height': 0.78 * vph});
-    }
 
     /**
      * Will update the old value of the element to the new one, 
@@ -3294,7 +3284,6 @@ var cache = {},
       }
       return true;
     }
-    resize();
     populateFromQuery();
  });
 })();
