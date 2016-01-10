@@ -228,11 +228,13 @@ var cache = {},
       typingTimer = setTimeout(function() {
         generateRandom();
       }, doneTypingInterval);
+      return false;
     });
 
     $("#reset").click(function() {
       eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
       eventObj.trigger('reset-layout');
+      window.type = undefined;      
       return false;
     });
 
