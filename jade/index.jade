@@ -14,11 +14,11 @@ html(lang='en')
       div#header-image
         ul
           li
-            a#random(href="#") Random
+            a(href="#") FAQ
           li
             a#reset(href="#") Reset
           li
-            a(href="#") FAQ
+            a.-disabled-#random(href="#") Random
     div#content.-hidden-
       div.-container-
         div.-outer-
@@ -68,6 +68,7 @@ html(lang='en')
       div.-container-.-to-hide-.-hidden-
         div.-outer-
           div
+            //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
             pre(contentEditable='true')#input.-textbox-.-highlightable-
           div.-label-
             img#input-valid(src='../assets/valid.png').-icon-.-hidden-

@@ -177,9 +177,9 @@ var cache = {},
         /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
         event.stopPropagation(); 
 
-        var path = getPathFromParents($(this));
+        var path = getPath($(this));
         var position = findPositionOf(path);
-        highlightOutput(position.start, position.end); 
+        highlight(position); 
       } else 
         console.log("No instrumented type found");
     }).on('mouseleave', 'span', function(event) {
@@ -198,21 +198,24 @@ var cache = {},
         clearHighlights();
         event.stopPropagation();
         
-        var path = getPathFromClasses($(this));
-        //TODO: why should these two be differnet? 
-        var outputSelector = '.' + path.join('.');
-        var inputSelector = '.' + path.join(' .');
-        var inputCandidates = $(inputElement).find(inputSelector);
-        
-        // TODO: well... here comes the hack... 
-        if(inputCandidates.length == 0) {
-          path.pop();
-          inputSelector = '.' + path.join(' .');
-          inputCandidates = $(inputElement).find(inputSelector);
-        }
+        var path = getPath(this);
 
-        highlight($(outputElement).children(outputSelector));
-        highlight(inputCandidates);
+        //The .find() and .children() methods are similar, 
+        //except that the latter only travels a single level down the DOM tree.
+        var inputCandidates = $(inputElement).find('.' + path.join(' .'));
+
+        // Go through all input candidates and make sure the `full path` matches 
+        // (and in the same order) and then find its position to be highlighted.
+
+        $.each(inputCandidates, (function(idx, e) { 
+          var cs = getPath(e);
+          if (arraysEqual(cs, path)) {
+            highlight($(e)); // highlight input
+            var p = getPath(e); // find path
+            var position = findPositionOf(p); // find the indexes in the output
+            highlight(position); // highlight them in output
+          }
+        }));
       }
     }).on('mouseleave', 'div', function (event) { 
       clearHighlights(); 
@@ -327,26 +330,23 @@ var cache = {},
       return charCount;
     }
 
-    /**
-    * Goes through all parents of an element, and concatenates
-    * their classes to generate the path for the given key.  
-    */
-    function getPathFromParents(element) {
-      var selfClass = $.trim(element.attr('class').replace(reservedKeysPattern, ''));
-      var parents = element.parents('span').map(function () {
-        var parentClass = $(this).attr('class').replace(reservedKeysPattern, '');
-        return $.trim(parentClass);
-      }).get();
-      parents.reverse(); /* parents() will go through parents starting from the inner most,
-                            so it needs to be reversed to get the correct path. */
-
-      if (selfClass != '' ) 
-        parents.push(selfClass); /* The innermost class is not part of the parents. Adding it here. */
-      return parents;
-    }
-
-    function getPathFromClasses(element) {
-      return $.trim(element.attr('class').replace(reservedKeysPattern, '')).split(' ');
+    /* Get full path of an element based on its css class attributes. (both inherited 
+     * or direct)*/
+    function getPath(element) {
+      var cs = [];
+      /* We can't just read the .attr() parameter, because we need the 
+       * class properties of the parents too.*/
+      $(element)
+        .parentsUntil($('.-textbox-'))
+        .andSelf()
+        .each(function() {
+          if(this.className) {
+            /* This should be a concat because the result of split is already an array */
+            cs = cs.concat($.trim(this.className.replace(reservedKeysPattern,''))
+                            .split(' '));
+          }
+      });
+      return cs;
     }
 
     /**
@@ -379,19 +379,19 @@ var cache = {},
     }
 
     /**
-    * Highlight the entries between `start` and `end` in the output (encoded) text.
-    */  
-    function highlightOutput(start, end) {
-      outputElement.children('div').each(function( index ) {
-        if (index >= start && index < end) {
-          highlight($(this));
-        }
-      });
-    }
-
-    /* Add -highlight- to the element class */
-    function highlight(element) {
-      element.addClass('-highlight-');
+    * Add -highlight- to the input element class, 
+    * or highlight entries between 'start' and 'end' in the output text.
+    */
+    function highlight(input) {
+      if (input.start !== undefined && input.end !== undefined){
+        outputElement.children('div').each(function( index ) {
+          if (index >= input.start && index < input.end) {
+            highlight($(this));
+          }
+        });
+      } else {
+        input.addClass('-highlight-');
+      }
     }
 
     function addClassToOutputWithRange(cls, start, end) {
@@ -773,6 +773,14 @@ var cache = {},
       } while (m);
 
       return query[key];
+    }
+
+    function arraysEqual(a1, a2) {
+      if(a1.length !== a2.length) { return false; }
+      for (var i = 0; i < a1.length; i++ ) {
+        if (a1[i] !== a2[i]) { return false; }
+      }
+      return true;
     }
     resize();
     populateFromQuery();

@@ -58,8 +58,6 @@ body {
   white-space: nowrap; /* To be able to scroll */
   margin-top: 40px;
   padding-left: 10px;
-  display: flex;
-  justify-content: center;
 }
 
 button {
@@ -155,6 +153,7 @@ a {
   right: 0;
   height: 40px;
   position: fixed;
+  z-index: 500;
 }
 
 
@@ -166,7 +165,7 @@ ul {
 }
 
 li {
-  float: left;
+  float: right;
 }
 
 li a {
