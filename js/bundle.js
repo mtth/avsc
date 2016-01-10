@@ -2566,6 +2566,7 @@ var cache = {},
       decode();
     }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
+      $('#random').removeClass('-disabled-');
     }).on('invalid-schema', function (message) {
       showError(schemaErrorElement, message);
     }).on('valid-input', function () { 
@@ -2741,7 +2742,8 @@ var cache = {},
     $("#reset").click(function() {
       eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
       eventObj.trigger('reset-layout');
-      window.type = undefined;      
+      window.type = undefined;
+      $('#random').addClass('-disabled-');
       return false;
     });
 
