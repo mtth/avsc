@@ -140,7 +140,7 @@ a {
   vertical-align: top;
   white-space: pre-wrap;
   margin-top: 60px;
-  width: 500px
+  width: 620px
 }
 
 .-center-{
@@ -197,6 +197,9 @@ li a:hover {
   font-family: 'Coustard', serif;
   background: url(http://i62.tinypic.com/15xvbd5.png) no-repeat 96% 0;
   -webkit-appearance: none;
+  -moz-appearance: none; /* more info: https://gist.github.com/joaocunha/6273016/ */
+  text-indent: 0.01px;
+  text-overflow: '';
   height: 29px;
   overflow: hidden;
   width: 240px;
@@ -210,6 +213,11 @@ li a:hover {
   height: 29px;
   padding: 5px; 
   width: 268px;
+}
+
+select option {
+  color:black;
+  background-color: white;
 }
 
 .-semi-square- {
