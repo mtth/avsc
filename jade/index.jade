@@ -40,8 +40,10 @@ html(lang='en')
               |Welcome to Avsc playground!
             P
               |Avsc playground is an online tool to learn, build, and test Avro schemas.
-            P
-              |Not sure where to start? Enter your avro schema or select from one of these templates! 
+
+            input#upload.-hidden-(type="file", accept=".avsc")
+            p. 
+              Not sure where to start? Enter or #[a#uploadLink(href="#") upload] your avro schema or select from one of these templates! 
             div
               select.-styled-select-.-blue-.-semi-square-#schema-template
                 option(value="")

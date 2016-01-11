@@ -237,6 +237,32 @@ var cache = {},
       return false;
     });
 
+    $('#uploadLink').click(function(e) {
+      console.log("uploading");
+      e.preventDefault();
+      $("#upload").trigger('click');
+      return false;
+    });
+
+    $('#upload').on("change", function(e) {
+      console.log("new file uploading");
+      var files = $('#upload')[0].files;
+      if(!!files && files.length > 0) {
+        var file = files[0]; //TODO: make sure only one file can be selected.
+        var reader = new FileReader();
+        reader.readAsText(file, "UTF-8");
+        reader.onload = function (evt) {
+
+          eventObj.trigger('schema-loaded', evt.target.result);
+          console.log(evt.target.result);
+        }
+        reader.onerror = function (evt) {
+          console.log("error reading file.");
+        }
+      }
+
+    });
+
     function populateFromQuery() {
       var s = readQueryValue(location.href, 'schema');
       if(!!s) {

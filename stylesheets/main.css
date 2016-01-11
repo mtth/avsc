@@ -220,6 +220,11 @@ li a:hover {
 
 .-blue-    { background-color: #3b8ec2; }
 
+#uploadLink {
+  font-weight: bold;
+  color: #367FAD; 
+}
+
 .-disabled- {
   color: #AEADB9;
   pointer-events: none;
