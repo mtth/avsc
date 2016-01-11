@@ -106,9 +106,9 @@ suite('schemas', function () {
       });
     });
 
-    test('custom loader', function (done) {
-      var loader = createLoader({'foo.avdl': 'protocol Foo {}'});
-      assemble('foo.avdl', {loader: loader}, function (err, attrs) {
+    test('custom reader', function (done) {
+      var reader = createReader({'foo.avdl': 'protocol Foo {}'});
+      assemble('foo.avdl', {reader: reader}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {protocol: 'Foo', messages: {}, types: []});
         done();
@@ -116,11 +116,11 @@ suite('schemas', function () {
     });
 
     test('import idl', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1.avdl': 'import idl "2.avdl"; protocol First {}',
         '2.avdl': 'protocol Second { int one(); }'
       });
-      assemble('1.avdl', {loader: loader}, function (err, attrs) {
+      assemble('1.avdl', {reader: reader}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'First',
@@ -132,23 +132,23 @@ suite('schemas', function () {
     });
 
     test('duplicate message', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
         '2.avdl': 'protocol Second { int one(); }'
       });
-      assemble('1.avdl', {loader: loader}, function (err) {
+      assemble('1.avdl', {reader: reader}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('repeated import', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1.avdl': 'import idl "2.avdl";import idl "3.avdl";protocol A {}',
         '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
         '3.avdl': 'protocol C { enum Letter { A } }'
       });
-      assemble('1.avdl', {loader: loader}, function (err, attrs) {
+      assemble('1.avdl', {reader: reader}, function (err, attrs) {
         assert.deepEqual(attrs, {
           protocol: 'A',
           messages: {},
@@ -162,7 +162,7 @@ suite('schemas', function () {
     });
 
     test('import protocol', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1': 'import protocol "2";import protocol "3.avpr"; protocol A {}',
         '2': JSON.stringify({
           protocol: 'B',
@@ -171,7 +171,7 @@ suite('schemas', function () {
         }),
         '3.avpr': '{"protocol": "C"}'
       });
-      assemble('1', {loader: loader}, function (err, attrs) {
+      assemble('1', {reader: reader}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -185,7 +185,7 @@ suite('schemas', function () {
     });
 
     test('import protocol with namespace', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
           protocol: 'B',
@@ -198,7 +198,7 @@ suite('schemas', function () {
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         })
       });
-      assemble('A', {loader: loader}, function (err, attrs) {
+      assemble('A', {reader: reader}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -213,7 +213,7 @@ suite('schemas', function () {
     });
 
     test('import protocol with duplicate message', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
           protocol: 'B',
@@ -224,18 +224,18 @@ suite('schemas', function () {
           messages: {ping: {request: [], response: 'boolean'}}
         })
       });
-      assemble('A', {loader: loader}, function (err) {
+      assemble('A', {reader: reader}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('import schema', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1': 'import schema "2"; protocol A {}',
         '2': JSON.stringify({name: 'Number', type: 'enum', symbols: ['1']})
       });
-      assemble('1', {loader: loader}, function (err, attrs) {
+      assemble('1', {reader: reader}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -248,34 +248,34 @@ suite('schemas', function () {
       });
     });
 
-    test('loader error', function (done) {
-      var loader = function (fpath, cb) {
+    test('reader error', function (done) {
+      var reader = function (fpath, cb) {
         if (path.basename(fpath) === 'A.avdl') {
           cb(null, 'import schema "hi"; protocol A {}');
         } else {
           cb(new Error('foo'));
         }
       };
-      assemble('A.avdl', {loader: loader}, function (err) {
+      assemble('A.avdl', {reader: reader}, function (err) {
         assert(/foo/.test(err.message));
         done();
       });
     });
 
     test('import invalid kind', function (done) {
-      var loader = createLoader({'A.avdl': 'import foo "2";protocol A {}'});
-      assemble('A.avdl', {loader: loader}, function (err) {
+      var reader = createReader({'A.avdl': 'import foo "2";protocol A {}'});
+      assemble('A.avdl', {reader: reader}, function (err) {
         assert(/invalid import/.test(err.message));
         done();
       });
     });
 
     test('import invalid JSON', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1': 'import schema "2"; protocol A {}',
         '2': '{'
       });
-      assemble('1', {loader: loader}, function (err) {
+      assemble('1', {reader: reader}, function (err) {
         assert(err);
         assert.equal(err.path, '2');
         done();
@@ -283,17 +283,17 @@ suite('schemas', function () {
     });
 
     test('annotated union', function (done) {
-      var loader = createLoader({
+      var reader = createReader({
         '1': 'protocol A { @doc("") union { null, int } }'
       });
-      assemble('1', {loader: loader}, function (err) {
+      assemble('1', {reader: reader}, function (err) {
         assert(/unions cannot be annotated/.test(err.message));
         done();
       });
     });
 
-    // Loader from strings.
-    function createLoader(imports) {
+    // Reader from strings.
+    function createReader(imports) {
       return function (fpath, cb) {
         var fname = path.basename(fpath);
         var str = imports[fname];
