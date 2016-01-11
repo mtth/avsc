@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "3.2.2",
+  "version": "3.3.0",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -10,6 +10,7 @@
     "data",
     "decoding",
     "encoding",
+    "idl",
     "interface",
     "ipc",
     "json",
