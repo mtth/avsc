@@ -21,6 +21,7 @@ protocol Simple {
 
   record TestRecord {
     @order("ignore")
+    @doc("first and last")
     string name;
 
     @order("descending")
@@ -30,7 +31,7 @@ protocol Simple {
 
     union { MD5, null} @aliases(["hash"]) nullableHash;
 
-    array<long> arrayOfLongs;
+    array<@logicalType("date") long> arrayOfDates;
 
     map<boolean> someMap = {"true": true};
   }

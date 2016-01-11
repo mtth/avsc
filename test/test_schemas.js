@@ -45,7 +45,11 @@ suite('schemas', function () {
               type: 'record',
               name: 'TestRecord',
               fields: [
-                {type: 'string', order: 'ignore', name: 'name'},
+                {
+                  type: {type: 'string', doc: 'first and last'},
+                  order: 'ignore',
+                  name: 'name'
+                },
                 {type: 'Kind', order: 'descending', name: 'kind'},
                 {type: 'MD5', name: 'hash'},
                 {
@@ -53,7 +57,13 @@ suite('schemas', function () {
                   aliases: ['hash'],
                   name: 'nullableHash'
                 },
-                {type: {type: 'array', items: 'long'}, name: 'arrayOfLongs'},
+                {
+                  type: {
+                    type: 'array',
+                    items: {type: 'long', logicalType: 'date'}
+                  },
+                  name: 'arrayOfDates'
+                },
                 {
                   type: {type: 'map', values: 'boolean'},
                   name: 'someMap',
@@ -174,10 +184,110 @@ suite('schemas', function () {
       });
     });
 
-    test('import invalid', function (done) {
+    test('import protocol with namespace', function (done) {
+      var loader = createLoader({
+        'A': 'import protocol "B";import protocol "C";protocol A {}',
+        'B': JSON.stringify({
+          protocol: 'B',
+          namespace: 'b',
+          types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
+        }),
+        'C': JSON.stringify({
+          protocol: 'C',
+          namespace: 'c',
+          types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
+        })
+      });
+      assemble('A', {loader: loader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          messages: {},
+          types: [
+            {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']},
+            {namespace: 'c', name: 'Letter', type: 'enum', symbols: ['A']}
+          ]
+        });
+        done();
+      });
+    });
+
+    test('import protocol with duplicate message', function (done) {
+      var loader = createLoader({
+        'A': 'import protocol "B";import protocol "C";protocol A {}',
+        'B': JSON.stringify({
+          protocol: 'B',
+          messages: {ping: {request: [], response: 'boolean'}}
+        }),
+        'C': JSON.stringify({
+          protocol: 'C',
+          messages: {ping: {request: [], response: 'boolean'}}
+        })
+      });
+      assemble('A', {loader: loader}, function (err) {
+        assert(/duplicate message/.test(err.message));
+        done();
+      });
+    });
+
+    test('import schema', function (done) {
+      var loader = createLoader({
+        '1': 'import schema "2"; protocol A {}',
+        '2': JSON.stringify({name: 'Number', type: 'enum', symbols: ['1']})
+      });
+      assemble('1', {loader: loader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          messages: {},
+          types: [
+            {name: 'Number', type: 'enum', symbols: ['1']}
+          ]
+        });
+        done();
+      });
+    });
+
+    test('loader error', function (done) {
+      var loader = function (fpath, cb) {
+        if (path.basename(fpath) === 'A.avdl') {
+          cb(null, 'import schema "hi"; protocol A {}');
+        } else {
+          cb(new Error('foo'));
+        }
+      };
+      assemble('A.avdl', {loader: loader}, function (err) {
+        assert(/foo/.test(err.message));
+        done();
+      });
+    });
+
+    test('import invalid kind', function (done) {
       var loader = createLoader({'A.avdl': 'import foo "2";protocol A {}'});
       assemble('A.avdl', {loader: loader}, function (err) {
         assert(/invalid import/.test(err.message));
+        done();
+      });
+    });
+
+    test('import invalid JSON', function (done) {
+      var loader = createLoader({
+        '1': 'import schema "2"; protocol A {}',
+        '2': '{'
+      });
+      assemble('1', {loader: loader}, function (err) {
+        assert(err);
+        assert.equal(err.path, '2');
+        done();
+      });
+    });
+
+    test('annotated union', function (done) {
+      var loader = createLoader({
+        '1': 'protocol A { @doc("") union { null, int } }'
+      });
+      assemble('1', {loader: loader}, function (err) {
+        assert(/unions cannot be annotated/.test(err.message));
         done();
       });
     });
@@ -217,6 +327,7 @@ suite('schemas', function () {
       assert.equal(t.next().val, '1');
       t.prev();
       t.prev();
+      assert.throws(function () { t.prev(); });
       assert.equal(t.next().val, 'fee');
       assert.equal(t.next().val, '1');
     });
@@ -251,6 +362,7 @@ suite('schemas', function () {
 
     test('invalid JSON', function () {
       assert.throws(function () { getToken('{"rew": "3}"', 'json'); });
+      assert.throws(function () { getToken('{"rew": "3}"]', 'json'); });
     });
 
     test('name', function () {
@@ -262,9 +374,14 @@ suite('schemas', function () {
       });
     });
 
-    function getToken(str, id) {
+    test('non-matching', function () {
+      assert.throws(function () { getToken('\n1', 'name'); });
+      assert.throws(function () { getToken('{', undefined, '}'); });
+    });
+
+    function getToken(str, id, val) {
       var tokenizer = new Tokenizer(str);
-      return tokenizer.next({id: id});
+      return tokenizer.next({id: id, val: val});
     }
 
     function getTokens(str) {
