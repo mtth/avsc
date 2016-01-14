@@ -109,6 +109,7 @@ suite('types', function () {
     test('clone', function () {
       var t = createType('int');
       assert.equal(t.clone(123), 123);
+      assert.equal(t.clone(123, {}), 123);
       assert.throws(function () { t.clone(''); });
     });
 
@@ -307,6 +308,8 @@ suite('types', function () {
       var clone;
       clone = t.clone(buf);
       assert.deepEqual(clone, buf);
+      clone = t.clone(buf, {});
+      assert.deepEqual(clone, buf);
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); });
@@ -319,7 +322,10 @@ suite('types', function () {
       var t = createType('bytes');
       var s = '\x01\x02';
       var buf = new Buffer(s);
-      var clone = t.fromString(JSON.stringify(s));
+      var clone;
+      clone = t.fromString(JSON.stringify(s));
+      assert.deepEqual(clone, buf);
+      clone = t.fromString(JSON.stringify(s), {});
       assert.deepEqual(clone, buf);
     });
 
@@ -449,11 +455,15 @@ suite('types', function () {
       var t = new builtins.UnionType(['null', 'int']);
       var o = {'int': 1};
       assert.strictEqual(t.clone(null), null);
-      var c = t.clone(o);
+      var c;
+      c = t.clone(o);
+      assert.deepEqual(c, o);
+      c = t.clone(o, {});
       assert.deepEqual(c, o);
       c.int = 2;
       assert.equal(o.int, 1);
       assert.throws(function () { t.clone([]); });
+      assert.throws(function () { t.clone([], {}); });
       assert.throws(function () { t.clone(undefined); });
     });
 
@@ -479,9 +489,10 @@ suite('types', function () {
       var t = createType(['null', 'int']);
       var o = {'int': 2, foo: 3};
       assert.throws(function () { t.clone(o); });
+      assert.throws(function () { t.clone(o, {}); });
     });
 
-    test('clone unqualified names', function () {
+    test('clone qualify names', function () {
       var t = createType({
         name: 'Person',
         type: 'record',
@@ -492,10 +503,12 @@ suite('types', function () {
       });
       var b = new Buffer([0]);
       var o = {id1: b, id2: {Id: b}};
-      assert.deepEqual(t.clone(o), {id1: b, id2: {'an.Id': b}});
+      var c = {id1: b, id2: {'an.Id': b}};
+      assert.throws(function () { t.clone(o, {}); });
+      assert.deepEqual(t.clone(o, {qualifyNames: true}), c);
     });
 
-    test('clone unqualified names', function () {
+    test('clone invalid qualified names', function () {
       var t = createType({
         name: 'Person',
         type: 'record',
@@ -507,6 +520,7 @@ suite('types', function () {
       var b = new Buffer([0]);
       var o = {id1: b, id2: {'an.Id': b}};
       assert.throws(function () { t.clone(o); });
+      assert.throws(function () { t.clone(o, {}); });
     });
 
     test('compare buffers', function () {
@@ -646,6 +660,7 @@ suite('types', function () {
     test('clone', function () {
       var t = createType({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
       assert.equal(t.clone('bar'), 'bar');
+      assert.equal(t.clone('bar', {}), 'bar');
       assert.throws(function () { t.clone('BAR'); });
       assert.throws(function () { t.clone(null); });
     });
@@ -734,9 +749,12 @@ suite('types', function () {
       var clone;
       clone = t.clone(buf);
       assert.deepEqual(clone, buf);
+      clone = t.clone(buf, {});
+      assert.deepEqual(clone, buf);
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); });
+      assert.throws(function () { t.clone(s, {}); });
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
@@ -889,16 +907,21 @@ suite('types', function () {
     test('clone', function () {
       var t = new builtins.MapType({type: 'map', values: 'int'});
       var o = {one: 1, two: 2};
-      var c = t.clone(o);
+      var c;
+      c = t.clone(o);
+      assert.deepEqual(c, o);
+      c = t.clone(o, {});
       assert.deepEqual(c, o);
       c.one = 3;
       assert.equal(o.one, 1);
       assert.throws(function () { t.clone(undefined); });
+      assert.throws(function () { t.clone(undefined, {}); });
     });
 
     test('clone coerce buffers', function () {
       var t = new builtins.MapType({type: 'map', values: 'bytes'});
       var o = {one: {type: 'Buffer', data: [1]}};
+      assert.throws(function () { t.clone(o, {}); });
       assert.throws(function () { t.clone(o); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, {one: new Buffer([1])});
@@ -1002,11 +1025,15 @@ suite('types', function () {
     test('clone', function () {
       var t = new builtins.ArrayType({type: 'array', items: 'int'});
       var o = [1, 2];
-      var c = t.clone(o);
+      var c;
+      c = t.clone(o);
+      assert.deepEqual(c, o);
+      c = t.clone(o, {});
       assert.deepEqual(c, o);
       c.one = 3;
       assert.equal(o[0], 1);
       assert.throws(function () { t.clone({}); });
+      assert.throws(function () { t.clone({}, {}); });
     });
 
     test('clone coerce buffers', function () {
@@ -1016,6 +1043,7 @@ suite('types', function () {
       });
       var o = [{type: 'Buffer', data: [1, 2]}];
       assert.throws(function () { t.clone(o); });
+      assert.throws(function () { t.clone(o, {}); });
       var c = t.clone(o, {coerceBuffers: true});
       assert.deepEqual(c, [new Buffer([1, 2])]);
     });
@@ -1541,7 +1569,10 @@ suite('types', function () {
       });
       var Person = t.getRecordConstructor();
       var o = {age: 25, name: 'Ann'};
-      var c = t.clone(o);
+      var c;
+      c = t.clone(o);
+      assert.deepEqual(c, o);
+      c = t.clone(o, {});
       assert.deepEqual(c, o);
       assert(c instanceof Person);
       c.age = 26;
@@ -1566,6 +1597,10 @@ suite('types', function () {
       );
       assert.deepEqual(
         t.clone({id: 1, name: 'Ann', age: {'int': 21}}),
+        {id: 1, name: 'Ann', age: {'int': 21}}
+      );
+      assert.deepEqual(
+        t.clone({id: 1, name: 'Ann', age: {'int': 21}}, {}),
         {id: 1, name: 'Ann', age: {'int': 21}}
       );
       assert.deepEqual(
@@ -1781,6 +1816,7 @@ suite('types', function () {
 
       test('clone', function () {
         assert.equal(slowLongType.clone(123), 123);
+        assert.equal(slowLongType.clone(123, {}), 123);
         assert.equal(slowLongType.fromString('-1'), -1);
         assert.equal(slowLongType.toString(-1), '-1');
       });
