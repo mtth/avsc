@@ -636,7 +636,7 @@ suite('protocols', function () {
       );
       ptcl.createListener(transport)
         .on('handshake', function (req, res) {
-          assert(!req.$isValid());
+          assert(!req.isValid());
           assert.equal(res.match, 'NONE');
           done();
         });
@@ -660,7 +660,7 @@ suite('protocols', function () {
       );
       ptcl1.createListener(transport)
         .on('handshake', function (req, res) {
-          assert(req.$isValid());
+          assert(req.isValid());
           assert.equal(res.match, 'NONE');
           var msg = res.meta.map.error.toString();
           assert(/missing server message/.test(msg));

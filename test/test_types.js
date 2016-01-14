@@ -388,6 +388,12 @@ suite('types', function () {
       assert(type instanceof builtins.UnionType);
     });
 
+    test('get branch type', function () {
+      var type = new builtins.UnionType(['null', 'int']);
+      var buf = type.toBuffer({'int': 48});
+      assert(type.fromBuffer(buf).getBranchType() instanceof builtins.IntType);
+    });
+
     test('missing name write', function () {
       var type = new builtins.UnionType(['null', 'int']);
       assert.throws(function () {
@@ -1208,9 +1214,9 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}]
       });
       var Person = type.getRecordConstructor();
-      assert((new Person(20)).$isValid());
-      assert(!(new Person()).$isValid());
-      assert(!(new Person('a')).$isValid());
+      assert((new Person(20)).isValid());
+      assert(!(new Person()).isValid());
+      assert(!(new Person('a')).isValid());
     });
 
     test('record toBuffer', function () {
@@ -1220,8 +1226,8 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}]
       });
       var Person = type.getRecordConstructor();
-      assert.deepEqual((new Person(48)).$toBuffer(), new Buffer([96]));
-      assert.throws(function () { (new Person()).$toBuffer(); });
+      assert.deepEqual((new Person(48)).toBuffer(), new Buffer([96]));
+      assert.throws(function () { (new Person()).toBuffer(); });
     });
 
     test('record compare', function () {
@@ -1235,9 +1241,9 @@ suite('types', function () {
       }).getRecordConstructor();
       var p1 = new P({}, 1);
       var p2 = new P({}, 2);
-      assert.equal(p1.$compare(p2), -1);
-      assert.equal(p2.$compare(p2), 0);
-      assert.equal(p2.$compare(p1), 1);
+      assert.equal(p1.compare(p2), -1);
+      assert.equal(p2.compare(p2), 0);
+      assert.equal(p2.compare(p1), 1);
     });
 
     test('Record type', function () {
@@ -1524,7 +1530,7 @@ suite('types', function () {
         fields: [{name: 'pwd', type: 'bytes'}]
       }).getRecordConstructor();
       var r = new T(new Buffer([1, 2]));
-      assert.equal(r.$toString(), T.getType().toString(r));
+      assert.equal(r.toString(), T.getType().toString(r));
     });
 
     test('clone', function () {
@@ -1540,8 +1546,8 @@ suite('types', function () {
       assert(c instanceof Person);
       c.age = 26;
       assert.equal(o.age, 25);
-      assert.strictEqual(c.$getType(), t);
-      assert.deepEqual(c.$clone(), c);
+      assert.strictEqual(c.getType(), t);
+      assert.deepEqual(c.clone(), c);
     });
 
     test('clone field default', function () {

@@ -292,6 +292,19 @@ suite('schemas', function () {
       });
     });
 
+    // FIXME
+    // test('commented import', function (done) {
+    //   var reader = createReader({
+    //     '1': '/* import idl "2"; */ // import idl "3"\nprotocol A {}',
+    //     '2': 'foo', // Invalid IDL.
+    //     '3': 'bar'  // Same.
+    //   });
+    //   assemble('1', {reader: reader}, function (err) {
+    //     assert.strictEqual(err, null);
+    //     done();
+    //   });
+    // });
+
     // Reader from strings.
     function createReader(imports) {
       return function (fpath, cb) {

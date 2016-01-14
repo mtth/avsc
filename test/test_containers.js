@@ -344,7 +344,7 @@ suite('containers', function () {
           },
           SYNC
         );
-        decoder.write(header.$toBuffer());
+        decoder.write(header.toBuffer());
         decoder.write(new Buffer([0, 0])); // Empty block.
         decoder.end(new Buffer('alongerstringthansixteenbytes'));
       });
@@ -358,7 +358,7 @@ suite('containers', function () {
           {'avro.schema': new Buffer('"int"')},
           SYNC
         );
-        decoder.end(header.$toBuffer());
+        decoder.end(header.toBuffer());
       });
 
       test('unknown codec', function (cb) {
@@ -373,7 +373,7 @@ suite('containers', function () {
           },
           SYNC
         );
-        decoder.end(header.$toBuffer());
+        decoder.end(header.toBuffer());
       });
 
       test('invalid schema', function (cb) {
@@ -388,7 +388,7 @@ suite('containers', function () {
           },
           SYNC
         );
-        decoder.end(header.$toBuffer());
+        decoder.end(header.toBuffer());
       });
 
       test('short header', function (cb) {
@@ -403,7 +403,7 @@ suite('containers', function () {
           MAGIC_BYTES,
           {'avro.schema': new Buffer('"int"')},
           SYNC
-        ).$toBuffer();
+        ).toBuffer();
         decoder.write(buf.slice(0, 5)); // Part of header.
         decoder.write(buf.slice(5));
         decoder.write(new Buffer([2, 2, 4]));
