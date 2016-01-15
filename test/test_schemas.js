@@ -115,6 +115,16 @@ suite('schemas', function () {
       });
     });
 
+    test('duplicate message', function (done) {
+      var reader = createReader({
+        '1.avdl': 'protocol First { double one(); int one(); }'
+      });
+      assemble('1.avdl', {reader: reader}, function (err) {
+        assert(/duplicate message/.test(err.message));
+        done();
+      });
+    });
+
     test('import idl', function (done) {
       var reader = createReader({
         '1.avdl': 'import idl "2.avdl"; protocol First {}',
@@ -131,7 +141,23 @@ suite('schemas', function () {
       });
     });
 
-    test('duplicate message', function (done) {
+    test('import idl inside protocol', function (done) {
+      var reader = createReader({
+        '1.avdl': 'protocol First {int two(); import idl "2.avdl";}',
+        '2.avdl': 'protocol Second { fixed Foo(1); }'
+      });
+      assemble('1.avdl', {reader: reader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'First',
+          messages: {two: {request: [], response: 'int'}},
+          types: [{name: 'Foo', type: 'fixed', size: 1}]
+        });
+        done();
+      });
+    });
+
+    test('duplicate message from import', function (done) {
       var reader = createReader({
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
         '2.avdl': 'protocol Second { int one(); }'
@@ -292,18 +318,17 @@ suite('schemas', function () {
       });
     });
 
-    // FIXME
-    // test('commented import', function (done) {
-    //   var reader = createReader({
-    //     '1': '/* import idl "2"; */ // import idl "3"\nprotocol A {}',
-    //     '2': 'foo', // Invalid IDL.
-    //     '3': 'bar'  // Same.
-    //   });
-    //   assemble('1', {reader: reader}, function (err) {
-    //     assert.strictEqual(err, null);
-    //     done();
-    //   });
-    // });
+    test('commented import', function (done) {
+      var reader = createReader({
+        '1': '/* import idl "2"; */ // import idl "3"\nprotocol A {}',
+        '2': 'foo', // Invalid IDL.
+        '3': 'bar'  // Same.
+      });
+      assemble('1', {reader: reader}, function (err) {
+        assert.strictEqual(err, null);
+        done();
+      });
+    });
 
     // Reader from strings.
     function createReader(imports) {
