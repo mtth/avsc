@@ -345,6 +345,22 @@ suite('schemas', function () {
       });
     });
 
+    test('reset namespace', function (done) {
+      var reader = createReader({
+        '1': 'protocol A { import idl "2"; }',
+        '2': '@namespace("b") protocol B { @namespace("") fixed One(1); }'
+      });
+      assemble('1', {reader: reader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}],
+          messages: {}
+        });
+        done();
+      });
+    });
+
     // Reader from strings.
     function createReader(imports) {
       return function (fpath, cb) {
