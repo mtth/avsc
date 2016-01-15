@@ -151,7 +151,7 @@ suite('schemas', function () {
         assert.deepEqual(attrs, {
           protocol: 'First',
           messages: {two: {request: [], response: 'int'}},
-          types: [{name: 'Foo', type: 'fixed', size: 1}]
+          types: [{name: 'Foo', type: 'fixed', size: 1, namespace: ''}]
         });
         done();
       });
@@ -179,8 +179,8 @@ suite('schemas', function () {
           protocol: 'A',
           messages: {},
           types: [
-            {name: 'Letter', type: 'enum', symbols: ['A']},
-            {name: 'Number', type: 'enum', symbols: ['ONE']}
+            {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''},
+            {name: 'Number', type: 'enum', symbols: ['ONE'], namespace: ''}
           ]
         });
         done();
@@ -203,7 +203,7 @@ suite('schemas', function () {
           protocol: 'A',
           messages: {ping: {request: [], response: 'boolean'}},
           types: [
-            {name: 'Letter', type: 'enum', symbols: ['A']}
+            {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''}
           ]
         });
         done();
@@ -267,7 +267,7 @@ suite('schemas', function () {
           protocol: 'A',
           messages: {},
           types: [
-            {name: 'Number', type: 'enum', symbols: ['1']}
+            {name: 'Number', type: 'enum', symbols: ['1'], namespace: ''}
           ]
         });
         done();
@@ -355,6 +355,23 @@ suite('schemas', function () {
         assert.deepEqual(attrs, {
           protocol: 'A',
           types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}],
+          messages: {}
+        });
+        done();
+      });
+    });
+
+    test('reset nested namespace', function (done) {
+      var hook = createImportHook({
+        '1': 'protocol A { import idl "2"; }',
+        '2': 'import idl "3"; @namespace("b") protocol B {}',
+        '3': 'protocol C { fixed Two(1); }'
+      });
+      assemble('1', {importHook: hook}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [{name: 'Two', type: 'fixed', size: 1, namespace: ''}],
           messages: {}
         });
         done();
