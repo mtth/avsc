@@ -106,9 +106,9 @@ suite('schemas', function () {
       });
     });
 
-    test('custom reader', function (done) {
-      var reader = createReader({'foo.avdl': 'protocol Foo {}'});
-      assemble('foo.avdl', {reader: reader}, function (err, attrs) {
+    test('custom import hook', function (done) {
+      var hook = createImportHook({'foo.avdl': 'protocol Foo {}'});
+      assemble('foo.avdl', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {protocol: 'Foo', messages: {}, types: []});
         done();
@@ -116,21 +116,21 @@ suite('schemas', function () {
     });
 
     test('duplicate message', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1.avdl': 'protocol First { double one(); int one(); }'
       });
-      assemble('1.avdl', {reader: reader}, function (err) {
+      assemble('1.avdl', {importHook: hook}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('import idl', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1.avdl': 'import idl "2.avdl"; protocol First {}',
         '2.avdl': 'protocol Second { int one(); }'
       });
-      assemble('1.avdl', {reader: reader}, function (err, attrs) {
+      assemble('1.avdl', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'First',
@@ -142,11 +142,11 @@ suite('schemas', function () {
     });
 
     test('import idl inside protocol', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1.avdl': 'protocol First {int two(); import idl "2.avdl";}',
         '2.avdl': 'protocol Second { fixed Foo(1); }'
       });
-      assemble('1.avdl', {reader: reader}, function (err, attrs) {
+      assemble('1.avdl', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'First',
@@ -158,23 +158,23 @@ suite('schemas', function () {
     });
 
     test('duplicate message from import', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
         '2.avdl': 'protocol Second { int one(); }'
       });
-      assemble('1.avdl', {reader: reader}, function (err) {
+      assemble('1.avdl', {importHook: hook}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('repeated import', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1.avdl': 'import idl "2.avdl";import idl "3.avdl";protocol A {}',
         '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
         '3.avdl': 'protocol C { enum Letter { A } }'
       });
-      assemble('1.avdl', {reader: reader}, function (err, attrs) {
+      assemble('1.avdl', {importHook: hook}, function (err, attrs) {
         assert.deepEqual(attrs, {
           protocol: 'A',
           messages: {},
@@ -188,7 +188,7 @@ suite('schemas', function () {
     });
 
     test('import protocol', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': 'import protocol "2";import protocol "3.avpr"; protocol A {}',
         '2': JSON.stringify({
           protocol: 'B',
@@ -197,7 +197,7 @@ suite('schemas', function () {
         }),
         '3.avpr': '{"protocol": "C"}'
       });
-      assemble('1', {reader: reader}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -211,7 +211,7 @@ suite('schemas', function () {
     });
 
     test('import protocol with namespace', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
           protocol: 'B',
@@ -224,7 +224,7 @@ suite('schemas', function () {
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         })
       });
-      assemble('A', {reader: reader}, function (err, attrs) {
+      assemble('A', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -239,7 +239,7 @@ suite('schemas', function () {
     });
 
     test('import protocol with duplicate message', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
           protocol: 'B',
@@ -250,18 +250,18 @@ suite('schemas', function () {
           messages: {ping: {request: [], response: 'boolean'}}
         })
       });
-      assemble('A', {reader: reader}, function (err) {
+      assemble('A', {importHook: hook}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('import schema', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': 'import schema "2"; protocol A {}',
         '2': JSON.stringify({name: 'Number', type: 'enum', symbols: ['1']})
       });
-      assemble('1', {reader: reader}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -274,34 +274,34 @@ suite('schemas', function () {
       });
     });
 
-    test('reader error', function (done) {
-      var reader = function (fpath, cb) {
+    test('import hook error', function (done) {
+      var hook = function (fpath, kind, cb) {
         if (path.basename(fpath) === 'A.avdl') {
           cb(null, 'import schema "hi"; protocol A {}');
         } else {
           cb(new Error('foo'));
         }
       };
-      assemble('A.avdl', {reader: reader}, function (err) {
+      assemble('A.avdl', {importHook: hook}, function (err) {
         assert(/foo/.test(err.message));
         done();
       });
     });
 
     test('import invalid kind', function (done) {
-      var reader = createReader({'A.avdl': 'import foo "2";protocol A {}'});
-      assemble('A.avdl', {reader: reader}, function (err) {
+      var hook = createImportHook({'A.avdl': 'import foo "2";protocol A {}'});
+      assemble('A.avdl', {importHook: hook}, function (err) {
         assert(/invalid import/.test(err.message));
         done();
       });
     });
 
     test('import invalid JSON', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': 'import schema "2"; protocol A {}',
         '2': '{'
       });
-      assemble('1', {reader: reader}, function (err) {
+      assemble('1', {importHook: hook}, function (err) {
         assert(err);
         assert.equal(err.path, '2');
         done();
@@ -309,32 +309,32 @@ suite('schemas', function () {
     });
 
     test('annotated union', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': 'protocol A { @doc("") union { null, int } }'
       });
-      assemble('1', {reader: reader}, function (err) {
+      assemble('1', {importHook: hook}, function (err) {
         assert(/unions cannot be annotated/.test(err.message));
         done();
       });
     });
 
     test('commented import', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': '/* import idl "2"; */ // import idl "3"\nprotocol A {}',
         '2': 'foo', // Invalid IDL.
         '3': 'bar'  // Same.
       });
-      assemble('1', {reader: reader}, function (err) {
+      assemble('1', {importHook: hook}, function (err) {
         assert.strictEqual(err, null);
         done();
       });
     });
 
     test('qualified name', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': 'protocol A { fixed one.One(1); }',
       });
-      assemble('1', {reader: reader}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -346,11 +346,11 @@ suite('schemas', function () {
     });
 
     test('reset namespace', function (done) {
-      var reader = createReader({
+      var hook = createImportHook({
         '1': 'protocol A { import idl "2"; }',
         '2': '@namespace("b") protocol B { @namespace("") fixed One(1); }'
       });
-      assemble('1', {reader: reader}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
@@ -361,9 +361,9 @@ suite('schemas', function () {
       });
     });
 
-    // Reader from strings.
-    function createReader(imports) {
-      return function (fpath, cb) {
+    // Import hook from strings.
+    function createImportHook(imports) {
+      return function (fpath, kind, cb) {
         var fname = path.basename(fpath);
         var str = imports[fname];
         delete imports[fname];
