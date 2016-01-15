@@ -1056,7 +1056,7 @@ suite('protocols', function () {
             assert.deepEqual(ids, [null, 'b', 'a']);
             done();
           });
-          ptcl.emit('wait', {ms: 100, id: 'a'}, ee, function (err, res) {
+          ptcl.emit('wait', {ms: 500, id: 'a'}, ee, function (err, res) {
             assert.strictEqual(err, null);
             ids.push(res);
           });

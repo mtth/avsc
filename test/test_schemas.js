@@ -330,6 +330,21 @@ suite('schemas', function () {
       });
     });
 
+    test('qualified name', function (done) {
+      var reader = createReader({
+        '1': 'protocol A { fixed one.One(1); }',
+      });
+      assemble('1', {reader: reader}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [{name: 'one.One', type: 'fixed', size: 1}],
+          messages: {}
+        });
+        done();
+      });
+    });
+
     // Reader from strings.
     function createReader(imports) {
       return function (fpath, cb) {
