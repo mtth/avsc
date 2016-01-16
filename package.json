@@ -43,9 +43,9 @@
     "zuul": "zuul --no-coverage -- test/*.js"
   },
   "devDependencies": {
-    "coveralls": "^2.11.4",
-    "istanbul": "^0.3.19",
-    "mocha": "^2.3.2",
+    "coveralls": "^2.11.6",
+    "istanbul": "^0.4.2",
+    "mocha": "^2.3.4",
     "tmp": "^0.0.28"
   },
   "author": {
