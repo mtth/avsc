@@ -831,6 +831,42 @@ suite('protocols', function () {
       ]));
     });
 
+    test('incompatible one-way', function (done) {
+      var ptcl1 = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'null'}}
+      });
+      var ptcl2 = createProtocol({
+        protocol: 'Heartbeat',
+        messages: {beat: {request: [], response: 'null', 'one-way': true}}
+      });
+      var readable = new stream.PassThrough();
+      var writable = new stream.PassThrough();
+      ptcl2.createListener(function (cb) {
+        cb(writable);
+        return readable;
+      });
+      var bufs = [];
+      writable.pipe(new protocols.streams.MessageDecoder())
+        .on('data', function (buf) { bufs.push(buf); })
+        .on('end', function () {
+          assert.equal(bufs.length, 1);
+          var tap = new utils.Tap(bufs[0]);
+          var res = HANDSHAKE_RESPONSE_TYPE._read(tap);
+          assert.equal(res.match, 'NONE');
+          done();
+        });
+      var hash = new Buffer(ptcl1._hashString, 'binary');
+      var req = {
+        clientHash: hash,
+        clientProtocol: {'string': ptcl1.toString()},
+        serverHash: hash
+      };
+      var encoder = new protocols.streams.MessageEncoder(64);
+      encoder.pipe(readable);
+      encoder.end(HANDSHAKE_REQUEST_TYPE.toBuffer(req));
+    });
+
     test('late writable', function (done) {
       var ptcl = createProtocol({
         protocol: 'Heartbeat',
@@ -1181,6 +1217,25 @@ suite('protocols', function () {
           function (ee) {
             ee.on('error', function () {}); // For stateful protocols.
             emitterPtcl.emit('age', {name: 'Ann'}, ee, function (err) {
+              assert(err);
+              done();
+            });
+          }
+        );
+      });
+
+      test('incompatible protocols one way message', function (done) {
+        var ptcl1 = createProtocol({
+          protocol: 'ptcl1',
+          messages: {ping: {request: [], response: 'null', 'one-way': true}}
+        });
+        var ptcl2 = createProtocol({
+          protocol: 'ptcl2',
+          messages: {ping: {request: [], response: 'null'}}
+        });
+        setupFn(ptcl1, ptcl2, function (ee) {
+            ee.on('error', function () {}); // For stateful protocols.
+            ptcl1.emit('ping', {}, ee, function (err) {
               assert(err);
               done();
             });
