@@ -1,14 +1,11 @@
 /* jshint browser: true, browserify: true */
-var cache = {},
-    guidCounter = 1,
-    dataKey = 'data'  + (new Date).getTime();
- 
+
 (function () {
   'use strict';
   global.jQuery = require("jquery")
-  require('jquery-ui');
   var avsc = require('avsc'),
       buffer = require('buffer'),
+      utils = require('./utils'),
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
@@ -29,7 +26,7 @@ var cache = {},
         reservedKeysPattern = /-[a-z]+-/g,
         whitespacePattern = /[\s]+/g,
         typingTimer,
-        eventObj = Event,
+        eventObj = utils.eventObj,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     window.reverseIndexMap = [];  
@@ -207,7 +204,7 @@ var cache = {},
 
         $.each(inputCandidates, (function(idx, e) { 
           var cs = getPath(e);
-          if (arraysEqual(cs, path)) {
+          if (utils.arraysEqual(cs, path)) {
             highlight($(e)); // highlight input
             var p = getPath(e); // find path
             var position = findPositionOf(p); // find the indexes in the output
@@ -795,34 +792,8 @@ var cache = {},
       return query[key];
     }
 
-    function arraysEqual(a1, a2) {
-      if(a1.length !== a2.length) { return false; }
-      for (var i = 0; i < a1.length; i++ ) {
-        if (a1[i] !== a2[i]) { return false; }
-      }
-      return true;
-    }
     populateFromQuery();
  });
 })();
 
-/* Get the associated data of `elem` from the global cache.
- * (Will create a new entry in cache the first time called for an `elem`.)
-*/
-
-var Event = {
-  on: function(event, callback) {
-    this.hasOwnProperty('events') || (this.events = {});
-    this.events.hasOwnProperty(event) || (this.events[event] = []);
-    this.events[event].push(callback);
-    return this;
-  },
-  trigger: function(event) {
-    var tail = Array.prototype.slice.call(arguments, 1),
-        callbacks = this.events[event];
-    for (var i = 0, l = callbacks.length; i < l ; i++) {
-      callbacks[i].apply(this, tail); // To pass parameters to calback not as an array, but as individual function arguments.  
-    }
-  }
-};
 
