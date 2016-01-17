@@ -12,10 +12,9 @@
     "test": "mocha --ui tdd"
   },
   "dependencies": {
-    "avsc": "^3.0.1",
+    "avsc": "^3.3.0",
     "buffer": "^3.5.0",
     "jquery": "^2.1.4",
-    "jquery-ui": "^1.10.5",
-    "jquery-highlight": "^3.3.0"
+    "jquery-ui": "^1.10.5"
   }
 }
