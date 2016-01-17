@@ -397,7 +397,8 @@ suite('types', function () {
     test('get branch type', function () {
       var type = new builtins.UnionType(['null', 'int']);
       var buf = type.toBuffer({'int': 48});
-      assert(type.fromBuffer(buf).getBranchType() instanceof builtins.IntType);
+      var branchType = type.fromBuffer(buf).constructor.getBranchType();
+      assert(branchType instanceof builtins.IntType);
     });
 
     test('missing name write', function () {
@@ -1577,7 +1578,6 @@ suite('types', function () {
       assert(c instanceof Person);
       c.age = 26;
       assert.equal(o.age, 25);
-      assert.strictEqual(c.getType(), t);
       assert.deepEqual(c.clone(), c);
     });
 
