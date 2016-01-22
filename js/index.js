@@ -563,6 +563,7 @@
         try {
           var input = readInput();
           var output = window.type.toBuffer(input);
+        
           var outputStr = output.toString('hex');
           setOutputText(outputStr);
           eventObj.trigger('update-url', {'record' : outputStr});
@@ -612,10 +613,30 @@
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
+      var attrs = JSON.parse(rawInput);
+      // Throw more useful error if not valid.
+      window.type.isValid(attrs, {errorHook: hook});
       if(!!window.type) {
         return window.type.fromString(rawInput);
       } else {
         return JSON.parse(rawInput);
+      }
+
+      function hook(path, any, type) {
+        if (
+          typeof any == 'string' &&
+          ( 
+            type instanceof avsc.types.BytesType ||
+            (
+              type instanceof avsc.types.FixedType &&
+              any.length === type.getSize()
+            )
+          )
+        ) {
+          // This is a string-encoded buffer.
+          return;
+        }
+        throw new Error('invalid ' + type + ' at ' + path.join('.'));
       }
     }
     /*Used for decoding.
