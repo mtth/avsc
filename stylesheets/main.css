@@ -44,10 +44,11 @@ body {
   padding-bottom: 50px;
 }
 .-container- {
-  width: 340px;
+  width: 330px;
   height: 85%; /*To have enough room for labels and error messages */
   display: inline-block;
   position: relative;
+  vertical-align: top;
 }
 #output {
   font-family: 'Roboto Mono', sans-serif;
