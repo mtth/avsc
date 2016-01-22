@@ -1,0 +1,231 @@
+{
+  "type": "record",
+  "name": "Cake",
+  "fields": [
+    {
+      "type": {
+        "fields": [
+          {
+            "type": "int",
+            "name": "recipeId"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "eaterName"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "reason"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "another"
+          },
+          {
+            "type": "long",
+            "name": "time"
+          },
+          {
+            "type": "string",
+            "name": "where"
+          },
+          {
+            "type": "string",
+            "name": "why"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "how"
+          },
+          {
+            "type": {
+              "type": "fixed",
+              "name": "Waist",
+              "size": 16
+            },
+            "name": "waist"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              {
+                "type": "fixed",
+                "name": "fixed_16",
+                "size": 16
+              }
+            ],
+            "name": "belt"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "int"
+            ],
+            "name": "shoe"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "prizeId"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "version"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "mouse"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "cloud"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "anId"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              "string"
+            ],
+            "name": "anotherId"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              {
+                "fields": [
+                  {
+                    "type": "long",
+                    "name": "yes"
+                  },
+                  {
+                    "type": "string",
+                    "name": "no"
+                  },
+                  {
+                    "type": [
+                      "null",
+                      "string"
+                    ],
+                    "name": "date"
+                  },
+                  {
+                    "type": "string",
+                    "name": "data"
+                  },
+                  {
+                    "type": {
+                      "type": "fixed",
+                      "name": "UUID",
+                      "size": 16
+                    },
+                    "name": "almond"
+                  }
+                ],
+                "type": "record",
+                "name": "Plate"
+              }
+            ],
+            "name": "plate"
+          },
+          {
+            "default": null,
+            "type": [
+              "null",
+              {
+                "type": "record",
+                "name": "Sugar",
+                "fields": [
+                  {
+                    "type": "string",
+                    "name": "light"
+                  },
+                  {
+                    "type": {
+                      "type": "fixed",
+                      "name": "Powder",
+                      "size": 16
+                    },
+                    "name": "powder"
+                  }
+                ]
+              }
+            ],
+            "name": "sugar"
+          }
+        ],
+        "type": "record",
+        "name": "Something"
+      },
+      "name": "something"
+    },
+    {
+      "default": "",
+      "type": "string",
+      "name": "bread"
+    },
+    {
+      "default": -1,
+      "type": "int",
+      "name": "temperature"
+    },
+    {
+      "default": -1,
+      "type": "int",
+      "name": "frost"
+    },
+    {
+      "default": 0,
+      "type": "int",
+      "name": "weeekend"
+    },
+    {
+      "type": {
+        "items": "int",
+        "type": "array"
+      },
+      "name": "tree"
+    }
+  ]
+}

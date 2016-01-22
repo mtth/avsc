@@ -6,56 +6,88 @@ html(lang='en')
     meta(name='viewport', content='width=device-width')
     title Avsc
     link(rel='stylesheet', href='../stylesheets/main.css', type='text/css')
+    link(href='https://fonts.googleapis.com/css?family=Coustard|Goudy+Bookletter+1911|Droid+Serif|Josefin+Sans|Roboto+Slab|Vollkorn|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
     script(src='../js/bundle.js' async)
   
   body
-    div.container
-      table
-        col.wide
-        col.narrow
-        col.wide
-        tr.input-row
-          td
-            div.outer
-              div
-                textarea#schema.textbox.verifiable
-              div.label
-                |Schema
-              div#schema-error.message.hidden
-          td
-            table
-              tr
-                td 
-                  button#random.button-label
-                    |Generate Random Input!
-          td
-            div.outer
-              div
-                textarea#randomInput.textbox.disabled
-              div.label
-                |Random input
-        tr.input-row 
-          td 
-            div.outer
-              div
-                textarea#input.textbox.verifiable
-              div.label
-                |Decoded String
-              div#decoded-error.message.hidden
-          td
-            table#buttons
-              tr
-                td
-                  button#encode.button-label
-                    |Encode->
-              tr
-                td
-                  button#decode.button-label
-                    |<-Decode
-          td
-            div.outer
-              div 
-                textarea#output.textbox.verifiable  
-              div.label
-                |Encoded String
-              div#encoded-error.message.hidden
+    div.-header-
+      div#header-image
+        ul
+          li
+            a(href="#") FAQ
+          li
+            a#reset(href="#") Reset
+          li
+            a.-disabled-#random(href="#") Random
+    div#content
+      div.-container-
+        div.-outer-
+          div
+            pre(contentEditable='true')#schema.-textbox-.-highlightable-
+          div.-label-
+            img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
+
+          div.-footer-
+            div#schema-error.-message-.-hidden-.-error-
+            div.-message-
+              |Schema
+
+      div.-help-column-
+        div.-center-
+          div.-logo-
+          div
+            H1
+              |Welcome to Avsc playground!
+            P
+              |Avsc playground is an online tool to learn, build, and test Avro schemas.
+
+            input#upload.-hidden-(type="file", accept=".avsc")
+            p. 
+              Not sure where to start? Enter or #[a#uploadLink(href="#") upload] your avro schema or select from one of these templates! 
+            div
+              select.-styled-select-.-blue-.-semi-square-#schema-template
+                option(value="")
+                  |-Select a template-
+                option(value="Cake")
+                  |Cake
+                option(value="Coupon")
+                  |Coupon
+                option(value="Human")
+                  |Human
+                option(value="Person")
+                  |Person
+                option(value="Bytes")
+                  |Bytes
+                option(value="String")
+                  |String
+                option(value="Long")
+                  |Long
+                option(value="Enum")
+                  |Enum
+                option(value="ArrayString")
+                  |ArrayString
+          
+      div.-container-.-to-hide-.-hidden-
+        div.-outer-
+          div
+            //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
+            pre(contentEditable='true')#input.-textbox-.-highlightable-
+          div.-label-
+            img#input-valid(src='../assets/valid.png').-icon-.-hidden-
+          div.-footer-
+            div#decoded-error.-message-.-hidden-.-error-
+            div.-message-
+              |Input Record
+
+      div.-container-.-hidden-.-to-hide-
+        div.-outer-
+          div 
+            div
+              div(contentEditable='true')#output.-textbox-.-highlightable- 
+          div.-label-
+            img#output-valid(src='../assets/valid.png').-icon-.-hidden-
+          div.-footer-
+            div#encoded-error.-message-.-hidden-.-error-
+            div.-message-
+              |Encoded Record
+

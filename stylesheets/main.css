@@ -1,50 +1,68 @@
 body {
-  background-color: #2E2F2E;
+  background-color: white;
+  font-family: 'Open Sans', sans-serif;
+  margin: 0;
 }
-.container {
-  margin: auto;
-  font-family: Helvetica, arial, freesans, clean, sans-serif;
-  font-size: 1em;
-  background-color: #2E2F2E;
+.-highlight- {
+  background-color: #FFFF88;
+  font-weight: bold;
 }
-.valid {
-  background-color: rgba(65, 239, 160, 0.78);
+.-string- {
+  color: rgb(0, 162, 45);
+}
 
+.-number- {
+  color: #1059BB;
 }
-.button-label {
+
+.-boolean- {
+  color: #8608E0;
+}
+
+.-null- {
+  color: #C35806;
+}
+.-button-label- {
   text-align: center;
   font-size:13px;
-  font-family: Helvetica, arial, freesans, clean, sans-serif;
 }
 
-.textbox {
+.-textbox- {
+  overflow: auto;
+  text-align: left;
+  height: 80vh;
   padding: 10px;
-  padding-top: 35px;
-  width: 90%;
-  height: 250px;
+  width: 300px;
   font-size: medium;
-  color: #CACCCB;
   font-weight: 200;
-  font-family: "Courier New", Courier, monospace;
-  border-radius: 3px;
+  font-size: small;
+  font-family: 'Open Sans', sans-serif;
   resize: none;
-  background-color: black; 
+  border: none;
+  background-color: #EBEBEF; 
+  margin : 10px 0px 0px 0px;
+  padding-bottom: 50px;
 }
-.narrow {
-  width: 15%;
+.-container- {
+  width: 330px;
+  height: 85%; /*To have enough room for labels and error messages */
+  display: inline-block;
+  position: relative;
+  vertical-align: top;
 }
-.wide {
-  width 42%;
+#output {
+  font-family: 'Roboto Mono', sans-serif;
+  white-space: pre-wrap;
 }
-table {
-  width: 100%;
+#content {
   height: 100%;
-}
-td {
-  text-align: center;
-}
-.hidden {
-  display: none;
+  overflow: auto;
+  white-space: nowrap; /* To be able to scroll */
+  margin-top: 40px;
+  padding-left: 10px;
+  margin-left: auto;
+  margin-right: auto; /* To be centered */
+  width: 1000px;
 }
 
 button {
@@ -53,34 +71,174 @@ button {
   background-color: #0099cc;
   color: #FFFFFF;
 }
-.label {
-  border-radius: 3px;
-  padding: 2px;
+.-message- {
   opacity: 0.8;
-  font-size: 11px;
-  background-color: #74AD86;
-  top:10px;
-  right: 20px;
-  position:absolute;
-  margin: 0 auto;
-  
-}
-.message {
-  padding: 2px;
-  opacity: 0.8;
-  font-size: 11px;
-  bottom:5px;
-  left: 22px;
-  width: 90%;
-  height: auto;
-  margin: 0 auto;
+  text-align: center;
+  background-color: #778D94;
+  width: 320px;
+  font-size: small;
+  font-family: 'Open Sans', sans-serif;
   position: absolute;
-  font-family: "Courier New", Courier, monospace;
- 
+  bottom: 0;
+  min-height: 25px;
+  display: flex;
+  align-items: center; /* To vertically align them in center */
+  justify-content: center;
+  white-space: pre-wrap; /* In case the error message is too long, break it into multiple lines*/
+
 }
-.error {
+
+.-error- {
   background-color: rgba(243, 247, 86, 0.78);
+  font-family: 'Roboto Mono', sans-serif;
+  font-size: 11px;
+  bottom: 25px; /* To be displayed on top of the label */
 }
-.outer {
+a {
+  text-decoration:none;
+}
+.-icon- {
+  opacity: 0.8;
+  font-size: 19px;
+  background-color: #EBEBEF; 
+  top:10px;
+  position:absolute;
+  width: 10%;
+  right: 30px;
+  margin: 10px auto;
+}
+.-buttons-row- {
+  height: 10%;
+}
+
+.-inline- {
+  display: inline-block;
+}
+.-narrow- {
+  width: 100%;
+  left: -50%;
   position: relative;
 }
+.-placeholder- {
+  color: #867E7E;
+  font-size: medium;
+  font-weight: 200;
+}
+
+.-logo- {
+  background-image: url("../assets/avro-logo.png");
+  background-repeat: no-repeat;
+  height: 100px;
+  width: 300px;
+  margin-right: auto;
+  margin-left: auto;
+}
+
+.-help-column- {
+  display: inline-block;
+  position: relative;
+  font-family: 'Coustard', serif;
+  vertical-align: top;
+  white-space: pre-wrap;
+  margin-top: 60px;
+  width: 620px
+}
+
+.-center-{
+  margin-left: 10px;
+  text-align: center;
+}
+
+#header-image {
+  height: 40px;
+  width: 100%;
+  background-color: #367FAD;
+}
+
+.-header-{
+  width: 100%;
+  top:0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  position: fixed;
+  z-index: 500;
+}
+
+
+ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+li {
+  float: right;
+}
+
+li a {
+  display: block;
+  color: white;
+  text-align: center;
+  padding: 5px 20px 8px 20px;
+  text-decoration: none;
+}
+
+/* Change the link color to #111 (black) on hover */
+li a:hover {
+  border-bottom-color: #840707;
+  border-bottom-width: thick;
+  border-bottom-style: solid;
+}
+
+/* Custom styles for select */
+
+.-styled-select- {
+  font-family: 'Coustard', serif;
+  background: url(http://i62.tinypic.com/15xvbd5.png) no-repeat 96% 0;
+  -webkit-appearance: none;
+  -moz-appearance: none; /* more info: https://gist.github.com/joaocunha/6273016/ */
+  text-indent: 0.01px;
+  text-overflow: '';
+  height: 29px;
+  overflow: hidden;
+  width: 240px;
+  padding-left: 10px;
+}
+
+.-styled-select- select {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  height: 29px;
+  padding: 5px; 
+  width: 268px;
+}
+
+select option {
+  color:black;
+  background-color: white;
+}
+
+.-semi-square- {
+  -webkit-border-radius: 5px;
+  -moz-border-radius: 5px;
+  border-radius: 5px;
+}
+
+.-blue-    { background-color: #3b8ec2; }
+
+#uploadLink {
+  font-weight: bold;
+  color: #367FAD; 
+}
+
+.-disabled- {
+  color: #AEADB9;
+  pointer-events: none;
+}
+.-hidden- { /* Should be defined later to override all other display types */
+  display: none;
+}
+

@@ -1,0 +1,6 @@
+Support reverse highlighting.
+Align/fix the error message bar.
+Fix decoding
+colors
+Fix adding spaces in schema field names.
+Refactor how error message is handled.

@@ -1,0 +1,10 @@
+{
+  "name": "Double",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": "double"
+    }
+  ]
+}
