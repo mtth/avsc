@@ -39,7 +39,7 @@ body {
   font-family: 'Open Sans', sans-serif;
   resize: none;
   border: none;
-  background-color: #EBEBEF; 
+  background-color: #EBEBEF;
   margin : 10px 0px 0px 0px;
   padding-bottom: 50px;
 }
@@ -100,7 +100,7 @@ a {
 .-icon- {
   opacity: 0.8;
   font-size: 19px;
-  background-color: #EBEBEF; 
+  background-color: #EBEBEF;
   top:10px;
   position:absolute;
   width: 10%;
@@ -212,7 +212,7 @@ li a:hover {
   border: none;
   font-size: 14px;
   height: 29px;
-  padding: 5px; 
+  padding: 5px;
   width: 268px;
 }
 
@@ -231,7 +231,7 @@ select option {
 
 #uploadLink {
   font-weight: bold;
-  color: #367FAD; 
+  color: #367FAD;
 }
 
 .-disabled- {

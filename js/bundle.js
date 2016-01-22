@@ -384,7 +384,7 @@
       var current = window.instrumented;
       path.forEach(function(entry) {
         var arrayKey = arrayKeyPattern.exec(entry);
-        var nextKey = arrayKey ? arrayKey[1] : entry + '_'; // getting the first captured group from regex result if a match was found.
+        var nextKey = arrayKey ? arrayKey[1] : entry; // getting the first captured group from regex result if a match was found.
         if (nextKey in current.value) {
           current = current.value[nextKey];
         }
@@ -666,18 +666,20 @@
         refs.push(schema);
 
         if (schema.type === 'record') {
-          schema.fields.forEach(function (f) { 
+          schema.fields.forEach(function (f) {
             f['default'] = undefined;
-            f['name'] = f['name'] == undefined ? undefined : f['name'] + '_';
+            // if (typeof f.type == 'string') {
+            //   f.type = f.type + '_';
+            // }
           });
         }
 
-        var name = schema.name || schema.type;
+        var name = schema.name;
         if (name) {
           schema.name = 'r' + Math.random().toString(36).substr(2, 6);
         }
         var wrappedSchema = {
-          name: name == undefined ? 'r' + Math.random().toString(36).substr(2, 6) : name + '_',
+          name: name || (schema.type ? (schema.type + '_') : 'r' + Math.random().toString(36).substr(2, 6)),
           namespace: schema.namespace,
           type: 'record',
           fields: [{name: 'value', type: schema}]
@@ -12580,9 +12582,6 @@ var rootParent = {}
  *   - Firefox 4-29 lacks support for adding new properties to `Uint8Array` instances,
  *     See: https://bugzilla.mozilla.org/show_bug.cgi?id=695438.
  *
- *   - Safari 5-7 lacks support for changing the `Object.prototype.constructor` property
- *     on objects.
- *
  *   - Chrome 9-10 is missing the `TypedArray.prototype.subarray` function.
  *
  *   - IE10 has a broken `TypedArray.prototype.subarray` function which returns arrays of
@@ -12596,13 +12595,10 @@ Buffer.TYPED_ARRAY_SUPPORT = global.TYPED_ARRAY_SUPPORT !== undefined
   : typedArraySupport()
 
 function typedArraySupport () {
-  function Bar () {}
   try {
     var arr = new Uint8Array(1)
     arr.foo = function () { return 42 }
-    arr.constructor = Bar
     return arr.foo() === 42 && // typed array instances can be augmented
-        arr.constructor === Bar && // constructor can be set
         typeof arr.subarray === 'function' && // chrome 9-10 lack `subarray`
         arr.subarray(1, 1).byteLength === 0 // ie10 has broken `subarray`
   } catch (e) {
@@ -13039,18 +13035,6 @@ Buffer.prototype.indexOf = function indexOf (val, byteOffset) {
   }
 
   throw new TypeError('val must be string, number or Buffer')
-}
-
-// `get` is deprecated
-Buffer.prototype.get = function get (offset) {
-  console.log('.get() is deprecated. Access using array indexes instead.')
-  return this.readUInt8(offset)
-}
-
-// `set` is deprecated
-Buffer.prototype.set = function set (v, offset) {
-  console.log('.set() is deprecated. Access using array indexes instead.')
-  return this.writeUInt8(v, offset)
 }
 
 function hexWrite (buf, string, offset, length) {

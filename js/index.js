@@ -382,7 +382,7 @@
       var current = window.instrumented;
       path.forEach(function(entry) {
         var arrayKey = arrayKeyPattern.exec(entry);
-        var nextKey = arrayKey ? arrayKey[1] : entry + '_'; // getting the first captured group from regex result if a match was found.
+        var nextKey = arrayKey ? arrayKey[1] : entry; // getting the first captured group from regex result if a match was found.
         if (nextKey in current.value) {
           current = current.value[nextKey];
         }
@@ -664,18 +664,17 @@
         refs.push(schema);
 
         if (schema.type === 'record') {
-          schema.fields.forEach(function (f) { 
+          schema.fields.forEach(function (f) {
             f['default'] = undefined;
-            f['name'] = f['name'] == undefined ? undefined : f['name'] + '_';
           });
         }
 
-        var name = schema.name || schema.type;
+        var name = schema.name;
         if (name) {
           schema.name = 'r' + Math.random().toString(36).substr(2, 6);
         }
         var wrappedSchema = {
-          name: name == undefined ? 'r' + Math.random().toString(36).substr(2, 6) : name + '_',
+          name: name || (schema.type ? (schema.type + '_') : 'r' + Math.random().toString(36).substr(2, 6)),
           namespace: schema.namespace,
           type: 'record',
           fields: [{name: 'value', type: schema}]
