@@ -750,7 +750,7 @@
 
     function loadTemplate(name) { 
       if (name != '') {
-        var p = '../schemas/' + name + '.avsc';
+        var p = 'schemas/' + name + '.avsc';
         $.ajax({
             url: p,
             success: function(data){
