@@ -23,7 +23,7 @@ html(lang='en')
       div.-container-
         div.-outer-
           div
-            pre(contentEditable='true')#schema.-textbox-.-highlightable-
+            pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
           div.-label-
             img#schema-valid(src='../assets/valid.png').-icon-.-hidden-
 
@@ -71,7 +71,7 @@ html(lang='en')
         div.-outer-
           div
             //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
-            pre(contentEditable='true')#input.-textbox-.-highlightable-
+            pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
           div.-label-
             img#input-valid(src='../assets/valid.png').-icon-.-hidden-
           div.-footer-
@@ -83,7 +83,7 @@ html(lang='en')
         div.-outer-
           div 
             div
-              div(contentEditable='true')#output.-textbox-.-highlightable- 
+              div(contentEditable='true', spellcheck='false')#output.-textbox-.-highlightable- 
           div.-label-
             img#output-valid(src='../assets/valid.png').-icon-.-hidden-
           div.-footer-

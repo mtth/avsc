@@ -56,7 +56,7 @@ body {
 }
 #content {
   height: 100%;
-  overflow: auto;
+  overflow: hidden;
   white-space: nowrap; /* To be able to scroll */
   margin-top: 40px;
   padding-left: 10px;

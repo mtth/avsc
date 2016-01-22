@@ -12621,6 +12621,7 @@ function hasOwnProperty(obj, prop) {
         try {
           var input = readInput();
           var output = window.type.toBuffer(input);
+        
           var outputStr = output.toString('hex');
           setOutputText(outputStr);
           eventObj.trigger('update-url', {'record' : outputStr});
@@ -12670,10 +12671,30 @@ function hasOwnProperty(obj, prop) {
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
+      var attrs = JSON.parse(rawInput);
+      // Throw more useful error if not valid.
+      window.type.isValid(attrs, {errorHook: hook});
       if(!!window.type) {
         return window.type.fromString(rawInput);
       } else {
         return JSON.parse(rawInput);
+      }
+
+      function hook(path, any, type) {
+        if (
+          typeof any == 'string' &&
+          ( 
+            type instanceof avsc.types.BytesType ||
+            (
+              type instanceof avsc.types.FixedType &&
+              any.length === type.getSize()
+            )
+          )
+        ) {
+          // This is a string-encoded buffer.
+          return;
+        }
+        throw new Error('invalid ' + type + ' at ' + path.join('.'));
       }
     }
     /*Used for decoding.
@@ -13212,9 +13233,9 @@ var schemas = require('./schemas'),
 
 // Type of Avro header.
 var HEADER_TYPE = types.createType({
-  type: 'record',
-  name: 'Header',
   namespace: 'org.apache.avro.file',
+  name: 'Header',
+  type: 'record',
   fields : [
     {name: 'magic', type: {type: 'fixed', name: 'Magic', size: 4}},
     {name: 'meta', type: {type: 'map', values: 'bytes'}},
@@ -13224,9 +13245,9 @@ var HEADER_TYPE = types.createType({
 
 // Type of each block.
 var BLOCK_TYPE = types.createType({
-  type: 'record',
-  name: 'Block',
   namespace: 'org.apache.avro.file',
+  name: 'Block',
+  type: 'record',
   fields : [
     {name: 'count', type: 'long'},
     {name: 'data', type: 'bytes'},
@@ -13615,7 +13636,7 @@ BlockEncoder.prototype._write = function (val, encoding, cb) {
     };
     var Header = HEADER_TYPE.getRecordConstructor();
     var header = new Header(MAGIC_BYTES, meta, this._syncMarker);
-    this.push(header.$toBuffer());
+    this.push(header.toBuffer());
   }
 
   this._write = this._writeChunk;
@@ -13778,7 +13799,7 @@ module.exports = {
 /* jshint node: true */
 
 // TODO: Optimize MessageEncoder by avoiding the extra copy on transform.
-// TODO: Add timeout for emitter options?
+// TODO: Add timeout as emitter options?
 // TODO: Add error hook to allow transformation of system errors?
 // TODO: Add protocol `discover` method?
 // TODO: Add clear protocol cache method?
@@ -14060,6 +14081,9 @@ MessageEmitter.prototype._generateResolvers = function (
     if (!sm) {
       throw new Error(f('missing server message: %s', name));
     }
+    if (cm.oneWay !== sm.oneWay) {
+      throw new Error(f('incompatible one-way options for message: %s', name));
+    }
     resolvers[name] = {
       responseType: cm.responseType.createResolver(sm.responseType),
       errorType: cm.errorType.createResolver(sm.errorType)
@@ -14306,7 +14330,7 @@ function StatefulEmitter(ptcl, readable, writable, opts) {
       self._serverHashString,
       noPtcl
     );
-    self._encoder.write(handshakeReq.$toBuffer());
+    self._encoder.write(handshakeReq.toBuffer());
   }
 
   function onHandshakeData(buf) {
@@ -14453,6 +14477,9 @@ MessageListener.prototype._generateResolvers = function (
       throw new Error(f('missing server message: %s', name));
     }
     var cm = clientMessages[name];
+    if (cm.oneWay !== sm.oneWay) {
+      throw new Error(f('incompatible one-way options for message: %s', name));
+    }
     resolvers[name] = {
       requestType: sm.requestType.createResolver(cm.requestType)
     };
@@ -14753,6 +14780,9 @@ Message.prototype.toJSON = function () {
   if (errorTypes.length > 1) {
     obj.errors = types.createType(errorTypes.slice(1));
   }
+  if (this.oneWay) {
+    obj['one-way'] = true;
+  }
   return obj;
 };
 
@@ -15039,6 +15069,9 @@ module.exports = {
 (function (process){
 /* jshint node: true */
 
+// TODO: Add `extends` logic.
+// TODO: Remove legacy import hook in next major release.
+
 'use strict';
 
 /**
@@ -15092,31 +15125,41 @@ function assemble(fpath, opts, cb) {
   }
 
   opts = opts || {};
-  opts.reader = opts.reader || createReader();
+  // Legacy hook name. (Also not as flexible since it didn't expose the kind.)
+  /* istanbul ignore next */
+  if (opts.reader) {
+    opts.importHook = wrapReader(opts.reader);
+  } else {
+    opts.importHook = opts.importHook || createImportHook();
+  }
 
   var attrs = {types: [], messages: {}}; // Final result.
+  var importedTypes = []; // Imported types, kept separate for ordering.
   var imports = []; // List of paths inside this file to import.
   var tk; // Tokenizer.
 
-  opts.reader(path.resolve(fpath), function (err, str) {
+  opts.importHook(path.resolve(fpath), 'idl', function (err, str) {
     if (err) {
       cb(err);
       return;
     }
+
     if (!str) {
       // Skipped import (likely already imported).
       cb(null, {});
       return;
     }
-    // Before we start parsing the file, we gather all imports. This is handled
-    // separately because importing files is done in a non-blocking fashion.
-    var pat = /import\s+(\w+)\s+"([^"]+)"\s*;/gm;
-    tk = new Tokenizer(str.replace(pat, function (all, kind, fname) {
-      imports.push({kind: kind, path: path.join(path.dirname(fpath), fname)});
-      // We remove the import from the file, but keep its length for error
-      // messages to correctly report their location later on.
-      return new Array(all.length + 1).join(' ');
-    }));
+
+    try {
+      tk = new Tokenizer(str);
+      tk.next(); // Prime tokenizer.
+      readProtocol();
+    } catch (err) {
+      err.path = fpath; // To help debug which file caused the error.
+      cb(err);
+      return;
+    }
+
     assembleImports();
   });
 
@@ -15136,10 +15179,10 @@ function assemble(fpath, opts, cb) {
         // limitation of not allowing inline definition of named types, we are
         // also guaranteed to be correct (we don't need to walk the type's
         // attributes for named type declarations, they are all top level).
-        if (importAttrs.namespace) {
-          typeAttrs.namespace = typeAttrs.namespace || importAttrs.namespace;
+        if (typeAttrs.namespace === undefined) {
+          typeAttrs.namespace = importAttrs.namespace || '';
         }
-        attrs.types.push(typeAttrs);
+        importedTypes.push(typeAttrs);
       });
       try {
         Object.keys(importAttrs.messages || {}).forEach(function (name) {
@@ -15156,21 +15199,15 @@ function assemble(fpath, opts, cb) {
 
     var info = imports.shift();
     if (!info) {
-      // We are done with imports, parse this file.
-      try {
-        tk.next(); // Prime tokenizer.
-        readProtocol();
-      } catch (err) {
-        err.path = fpath; // To help debug which file caused the error.
-        cb(err);
-        return;
-      }
+      // We are done with this file. We prepend all imported types to this
+      // file's and we can return the final result.
+      attrs.types = importedTypes.concat(attrs.types);
       cb(null, attrs);
     } else if (info.kind === 'idl') {
       assemble(info.path, opts, assembleImports);
     } else {
       // We are importing a protocol or schema file.
-      opts.reader(info.path, function (err, str) {
+      opts.importHook(info.path, info.kind, function (err, str) {
         if (err) {
           cb(err);
           return;
@@ -15195,6 +15232,9 @@ function assemble(fpath, opts, cb) {
   }
 
   function readProtocol() {
+    while (tk.get().val === 'import') {
+      readImport();
+    }
     while (tk.get().val === '@') {
       readAnnotation(attrs);
     }
@@ -15203,17 +15243,32 @@ function assemble(fpath, opts, cb) {
     tk.next({val: '{'});
     tk.next();
     while (tk.get().val !== '}') {
-      var typeAttrs = readType();
-      if (typeAttrs.name) {
-        // This was a named type declaration. Not very clean to rely on this,
-        // but since the IDL spec doesn't consistently delimit type declaration
-        // (e.g. fixed end with `;` but other bracketed types don't) we aren't
-        // able to tell whether this is the start of a message otherwise.
-        attrs.types.push(typeAttrs);
+      if (tk.get().val === 'import') {
+        readImport();
       } else {
-        readMessage(attrs, typeAttrs);
+        var typeAttrs = readType();
+        if (typeAttrs.name) {
+          // This was a named type declaration. Not very clean to rely on this,
+          // but since the IDL spec doesn't consistently delimit type
+          // declaration (e.g. fixed end with `;` but other bracketed types
+          // don't) we aren't able to tell whether this is the start of a
+          // message otherwise.
+          attrs.types.push(typeAttrs);
+        } else {
+          readMessage(attrs, typeAttrs);
+        }
       }
     }
+    tk.next({id: '(eof)'});
+  }
+
+  function readImport() {
+    tk.get({val: 'import'});
+    var kind = tk.next({id: 'name'}).val;
+    var fname = JSON.parse(tk.next({id: 'string'}).val);
+    imports.push({kind: kind, path: path.join(path.dirname(fpath), fname)});
+    tk.next({val: ';'});
+    tk.next();
   }
 
   function readAnnotation(attrs) {
@@ -15399,9 +15454,9 @@ function assemble(fpath, opts, cb) {
  * Default file loading function.
  *
  */
-function createReader() {
+function createImportHook() {
   var imports = {};
-  return function (fpath, cb) {
+  return function (fpath, kind, cb) {
     if (imports[fpath]) {
       // Already imported, return nothing to avoid duplicating attributes.
       process.nextTick(function () { cb(); });
@@ -15411,6 +15466,14 @@ function createReader() {
     fs.readFile(fpath, {encoding: 'utf8'}, cb);
   };
 }
+
+/**
+ * Legacy import hook.
+ *
+ */
+/* istanbul ignore next */ var wrapReader = util.deprecate(function (reader) {
+  return function (fpath, kind, cb) { reader(fpath, cb); };
+}, '`reader` option is deprecated please use `importHook` instead');
 
 /**
  * Simple class to split an input string into tokens.
@@ -15434,7 +15497,7 @@ function Tokenizer(str) {
 
 Tokenizer.prototype.get = function (opts) {
   if (opts && opts.id && opts.id !== this._token.id) {
-    throw this.error(f('expected a %s but got %s', opts.id, this._token.val));
+    throw this.error(f('expected %s but got %s', opts.id, this._token.val));
   } else if (opts && opts.val && opts.val !== this._token.val) {
     throw this.error(f('expected %s but got %s', opts.val, this._token.val));
   } else {
@@ -15451,7 +15514,11 @@ Tokenizer.prototype.next = function (opts) {
   var id;
 
   if (!c) {
-    throw this.error('unexpected end of input');
+    if (opts && opts.id === '(eof)') {
+      return {id: '(eof)'};
+    } else {
+      throw this.error('unexpected end of input');
+    }
   }
 
   if (opts && opts.id === 'json') {
@@ -15508,7 +15575,7 @@ Tokenizer.prototype.error = function (msg) {
       lineStart = i;
     }
   }
-  return new Error(f('%s at %d:%d in %s', msg, lineNum, pos - lineStart));
+  return new Error(f('%s at %d:%d', msg, lineNum, pos - lineStart));
 };
 
 /**
@@ -15958,10 +16025,15 @@ Type.prototype.clone = function (val, opts) {
     opts = {
       coerce: !!opts.coerceBuffers | 0, // Coerce JSON to Buffer.
       fieldHook: opts.fieldHook,
+      qualifyNames: !!opts.qualifyNames,
       wrap: !!opts.wrapUnions | 0 // Wrap first match into union.
     };
+    return this._copy(val, opts);
+  } else {
+    // If no modifications are required, we can get by with a serialization
+    // roundtrip (generally much faster than a standard deep copy).
+    return this.fromBuffer(this.toBuffer(val));
   }
-  return this._copy(val, opts);
 };
 
 Type.prototype.isValid = function (val, opts) {
@@ -16422,7 +16494,9 @@ function UnionType(attrs, opts) {
     } else {
       body = 'this.' + name + ' = val;';
     }
-    return new Function('val', body);
+    var constructor = new Function('val', body);
+    constructor.prototype.getBranchType = function () { return type; };
+    return constructor;
   });
 
   opts.namespace = namespace;
@@ -16545,7 +16619,7 @@ UnionType.prototype._copy = function (val, opts) {
     if (keys.length === 1) {
       var name = keys[0];
       i = this._indices[name];
-      if (i === undefined) {
+      if (i === undefined && opts.qualifyNames) {
         // We are a bit more flexible than in `_check` here since we have
         // to deal with other serializers being less strict, so we fall
         // back to looking up unqualified names.
@@ -17171,26 +17245,42 @@ RecordType.prototype._createConstructor = function (isError) {
   var Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
 
   var self = this;
-  Record.getType = function () { return self; };
+  var msg = 'deprecated: please use method without the $ prefix instead';
+  Record.getType = getType;
   Record.prototype = {
     constructor: Record,
-    $clone: function (opts) { return self.clone(this, opts); },
-    $compare: function (val) { return self.compare(this, val); },
-    $getType: Record.getType,
-    $isValid: function (opts) { return self.isValid(this, opts); },
-    $toBuffer: function () { return self.toBuffer(this); },
-    $toString: function (noCheck) { return self.toString(this, noCheck); }
+    clone: clone,
+    compare: compare,
+    getType: getType,
+    isValid: isValid,
+    toBuffer: toBuffer,
+    toString: toString,
+    // Legacy names. These were prefixed with `$` because it is an invalid
+    // property name in Avro but not in JavaScript (and therefore are
+    // guaranteed not to collide with field names). However, the prefixed name
+    // was not as unintuitive (e.g. `$toString`) so these will be removed in
+    // the next major release.
+    $clone: util.deprecate(clone, msg),
+    $compare: util.deprecate(compare, msg),
+    $getType: util.deprecate(getType, msg),
+    $isValid: util.deprecate(isValid, msg),
+    $toBuffer: util.deprecate(toBuffer, msg),
+    $toString: util.deprecate(toString, msg)
   };
-  // The names of these properties added to the prototype are prefixed with `$`
-  // because it is an invalid property name in Avro but not in JavaScript.
-  // (This way we are guaranteed not to be stepped over!)
   if (isError) {
     util.inherits(Record, Error);
-    // Not setting the name on the prototype to be consistent with how object
-    // fields are mapped to (only if defined in the schema as a field).
+    // Not setting the error's name on the prototype to be consistent with how
+    // object fields are mapped to (only if defined in the schema as a field).
   }
-
   return Record;
+
+  // Convenience functions, attached to records' prototype.
+  function clone(o) { /* jshint -W040 */ return self.clone(this, o); }
+  function compare(v) { /* jshint -W040 */ return self.compare(this, v); }
+  function getType() { /* jshint -W040 */ return self; }
+  function isValid(o) { /* jshint -W040 */ return self.isValid(this, o); }
+  function toBuffer() { /* jshint -W040 */ return self.toBuffer(this); }
+  function toString() { /* jshint -W040 */ return self.toString(this); }
 };
 
 RecordType.prototype._createChecker = function () {
@@ -17730,8 +17820,10 @@ function readValue(type, tap, resolver, lazy) {
  *
  */
 function updateOpts(opts, attrs) {
+  var namespace = attrs && attrs.namespace;
+
   opts = opts || {};
-  opts.namespace = attrs && attrs.namespace || opts.namespace;
+  opts.namespace = namespace !== undefined ? namespace : opts.namespace;
   opts.registry = opts.registry || {};
   opts.logicalTypes = opts.logicalTypes || {};
   return opts;
