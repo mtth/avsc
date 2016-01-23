@@ -66,18 +66,18 @@
       showError(outputErrorElement, message);
     }).on('update-layout', function() {
       if (window.type) {
-        $('.-help-column-').each(function(i, element) {
+        $('.-level1-').each(function(i, element) {
           $(element).addClass('-hidden-');
         });
-        $('.-to-hide-').each(function (i, element) {
+        $('.-level2-').each(function (i, element) {
           $(element).removeClass('-hidden-');
         });
       }
     }).on('reset-layout', function() {
-      $('.-help-column-').each(function(i, element) {
+      $('.-level1-').each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
-      $('.-to-hide-').each(function (i, element) {
+      $('.-level2-').each(function (i, element) {
         $(element).addClass('-hidden-');
       });
       $(schemaElement).text("");

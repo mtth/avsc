@@ -12,7 +12,7 @@ html(lang='en')
   body
     div.-header-
       div
-        a(href="https://github.com/mtth/avsc")
+        a.-level1-(href="https://github.com/mtth/avsc")
           img#github(src='https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67', alt="Fork me on GitHub", data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" )
       div#header-image
         ul
@@ -33,7 +33,7 @@ html(lang='en')
             div.-message-
               |Schema
 
-      div.-help-column-
+      div.-help-column-.-level1-
         div.-center-
           div.-logo-
           div
@@ -43,7 +43,7 @@ html(lang='en')
               |Avro playground is an online tool to learn, build, and test Avro schemas.
 
             input#upload.-hidden-(type="file", accept=".avsc")
-            p. 
+            p.
               Not sure where to start? Enter or #[a#uploadLink(href="#") upload] your avro schema or select from one of these templates! 
             div
               select.-styled-select-.-blue-.-semi-square-#schema-template
@@ -68,7 +68,7 @@ html(lang='en')
                 option(value="ArrayString")
                   |ArrayString
           
-      div.-container-.-to-hide-.-hidden-
+      div.-container-.-level2-.-hidden-
         div.-outer-
           div
             //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
@@ -80,7 +80,7 @@ html(lang='en')
             div.-message-
               |Input Record
 
-      div.-container-.-hidden-.-to-hide-
+      div.-container-.-hidden-.-level2-
         div.-outer-
           div 
             div

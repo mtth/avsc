@@ -226,7 +226,9 @@ select option {
   border-radius: 5px;
 }
 
-.-blue-    { background-color: #3b8ec2; }
+.-blue- {
+  background-color: #3b8ec2;
+}
 
 #uploadLink {
   font-weight: bold;
