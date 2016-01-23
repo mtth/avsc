@@ -173,14 +173,14 @@ ul {
 }
 
 li {
-  float: right;
+  float: left;
 }
 
 li a {
   display: block;
   color: white;
   text-align: center;
-  padding: 5px 20px 8px 20px;
+  padding: 8px 20px 8px 20px;
   text-decoration: none;
 }
 
@@ -231,6 +231,13 @@ select option {
 #uploadLink {
   font-weight: bold;
   color: #367FAD;
+}
+
+#github {
+  position:absolute;
+  top: 0;
+  right: 0;
+  border: 0;
 }
 
 .-disabled- {
