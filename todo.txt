@@ -1,6 +1,7 @@
-Support reverse highlighting.
-Align/fix the error message bar.
-Fix decoding
-colors
-Fix adding spaces in schema field names.
-Refactor how error message is handled.
+Fork me on github
+footer
+Upload on a new line, and also drag and drop
+If the url contains a schema don't put random records.
+When you click on reset, the error message should be cleaned up.
+Move letters 1-4 pixel down. 
+
