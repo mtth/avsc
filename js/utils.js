@@ -69,7 +69,6 @@ var UrlUtils = {
   }
 }
 
-
 module.exports = {
   eventObj: Event,
   arraysEqual: arraysEqual,

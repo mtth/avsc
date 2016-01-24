@@ -80,17 +80,15 @@
         $(element).addClass('-hidden-');
       });
       $(schemaElement).text("");
+      hideError(schemaErrorElement);
     }).on('schema-loaded', function(rawSchema) {
-      var s = location.search.split('schema=')[1];
-      s = s != undefined ? decodeURIComponent(s) : undefined;
-      if (!s || s != rawSchema) {
-        var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
-        // Use this so that it doesn't reload the page, but that also means that you need to manually
-        // load the schema from url
-        window.history.pushState({}, 'AVSC', newUrl);
-        populateFromQuery();
-        eventObj.trigger('update-layout');
-      }
+      var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState({}, 'AVSC', newUrl);
+      populateFromQuery();
+      eventObj.trigger('update-layout');
+      
     }).on('re-instrument', function() {
       window.instrumented = instrumentObject(window.type, readInput());
       window.reverseIndexMap = computeReverseIndex(window.instrumented);
@@ -588,7 +586,9 @@
     function hideError(errorElem, validElem) {
       errorElem.text("");
       errorElem.addClass('-hidden-');
-      validElem.show('slow').delay(500).hide('slow');
+      if (validElem) {
+        validElem.show('slow').delay(500).hide('slow');
+      }
     }
     
     function clearText(element) {
@@ -772,5 +772,3 @@
     populateFromQuery();
  });
 })();
-
-

@@ -12138,17 +12138,15 @@ function hasOwnProperty(obj, prop) {
         $(element).addClass('-hidden-');
       });
       $(schemaElement).text("");
+      hideError(schemaErrorElement);
     }).on('schema-loaded', function(rawSchema) {
-      var s = location.search.split('schema=')[1];
-      s = s != undefined ? decodeURIComponent(s) : undefined;
-      if (!s || s != rawSchema) {
-        var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
-        // Use this so that it doesn't reload the page, but that also means that you need to manually
-        // load the schema from url
-        window.history.pushState({}, 'AVSC', newUrl);
-        populateFromQuery();
-        eventObj.trigger('update-layout');
-      }
+      var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState({}, 'AVSC', newUrl);
+      populateFromQuery();
+      eventObj.trigger('update-layout');
+      
     }).on('re-instrument', function() {
       window.instrumented = instrumentObject(window.type, readInput());
       window.reverseIndexMap = computeReverseIndex(window.instrumented);
@@ -12646,7 +12644,9 @@ function hasOwnProperty(obj, prop) {
     function hideError(errorElem, validElem) {
       errorElem.text("");
       errorElem.addClass('-hidden-');
-      validElem.show('slow').delay(500).hide('slow');
+      if (validElem) {
+        validElem.show('slow').delay(500).hide('slow');
+      }
     }
     
     function clearText(element) {
@@ -12831,8 +12831,6 @@ function hasOwnProperty(obj, prop) {
  });
 })();
 
-
-
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
 },{"./utils":45,"avsc":46,"buffer":17,"jquery":54}],45:[function(require,module,exports){
 /* jshint browser: true, browserify: true */
@@ -12905,7 +12903,6 @@ var UrlUtils = {
     return res;
   }
 }
-
 
 module.exports = {
   eventObj: Event,
