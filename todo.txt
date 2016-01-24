@@ -1,7 +1,6 @@
-Fork me on github
 footer
 Upload on a new line, and also drag and drop
 If the url contains a schema don't put random records.
 When you click on reset, the error message should be cleaned up.
-Move letters 1-4 pixel down. 
 
+minify stuff.
