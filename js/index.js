@@ -104,6 +104,8 @@
       // load the schema from url
       window.history.pushState(state, 'AVSC', newUrl);
 
+    }).on('generate-random', function() {
+      generateRandom();
     });
 
     schemaSelect.on('change', function() {
@@ -124,7 +126,7 @@
       if(e.target.id === 'schema') {
         if(updateContent(schemaElement)) {
           eventObj.trigger('schema-changed');
-          generateRandom();
+          eventObj.trigger('generate-random');
         };
       }
     });
@@ -220,7 +222,7 @@
     $('#random').click(function () {   
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
-        generateRandom();
+        eventObj.trigger('generate-random');
       }, doneTypingInterval);
       return false;
     });
@@ -768,6 +770,7 @@
             url: p,
             success: function(data){
             eventObj.trigger('schema-loaded', data);
+            eventObj.trigger('generate-random');
           }
         });
       }

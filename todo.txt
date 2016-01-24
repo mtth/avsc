@@ -1,5 +1,5 @@
 footer
 Upload on a new line, and also drag and drop
-If the url contains a schema don't put random records.
 minify stuff.
-change select's color to match the arrow.
+Fix the bug when highlighting union types.
+If the schema changes, input should be verified again.
