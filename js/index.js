@@ -80,7 +80,11 @@
         $(element).addClass('-hidden-');
       });
       $(schemaElement).text("");
+      $(inputElement).text("");
+      $(outputElement).text("");
       hideError(schemaErrorElement);
+      hideError(inputErrorElement);
+      hideError(outputErrorElement);
     }).on('schema-loaded', function(rawSchema) {
       var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
       // Use this so that it doesn't reload the page, but that also means that you need to manually
