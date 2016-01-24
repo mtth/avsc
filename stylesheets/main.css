@@ -180,13 +180,13 @@ li a {
   display: block;
   color: white;
   text-align: center;
-  padding: 8px 20px 8px 20px;
+  padding: 8px 20px 9px 20px;
   text-decoration: none;
 }
 
 /* Change the link color to #111 (black) on hover */
 li a:hover {
-  border-bottom-color: #840707;
+  border-bottom-color: rgb(124, 183, 124);
   border-bottom-width: thick;
   border-bottom-style: solid;
 }
@@ -200,19 +200,11 @@ li a:hover {
   -moz-appearance: none; /* more info: https://gist.github.com/joaocunha/6273016/ */
   text-indent: 0.01px;
   text-overflow: '';
-  height: 29px;
+  height: 35px;
   overflow: hidden;
   width: 240px;
   padding-left: 10px;
-}
-
-.-styled-select- select {
-  background: transparent;
-  border: none;
-  font-size: 14px;
-  height: 29px;
-  padding: 5px;
-  width: 268px;
+  color: white;
 }
 
 select option {

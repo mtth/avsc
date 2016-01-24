@@ -12195,6 +12195,7 @@ function hasOwnProperty(obj, prop) {
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
           eventObj.trigger('schema-changed');
+          eventObj.trigger('input-changed');
         }
       }, doneTypingInterval);
     }).on('keydown', function() {
