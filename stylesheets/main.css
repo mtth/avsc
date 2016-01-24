@@ -118,11 +118,6 @@ a {
   left: -50%;
   position: relative;
 }
-.-placeholder- {
-  color: #867E7E;
-  font-size: medium;
-  font-weight: 200;
-}
 
 .-logo- {
   background-image: url("../assets/avro-logo.png");

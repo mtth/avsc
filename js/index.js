@@ -107,6 +107,16 @@
 
     }).on('generate-random', function() {
       generateRandom();
+    }).on('schema-uploaded', function(files) {
+      var file = files[0]; 
+      var reader = new FileReader();
+      reader.readAsText(file, "UTF-8");
+      reader.onload = function (evt) {
+        eventObj.trigger('schema-loaded', evt.target.result);
+      }
+      reader.onerror = function (evt) {
+        console.log("error reading file.");
+      }
     });
 
     schemaSelect.on('change', function() {
@@ -143,11 +153,12 @@
       }, doneTypingInterval);
     }).on('keydown', function() {
       clearTimeout(typingTimer);
-    }).on('click', function(event) {
-      if($(this).hasClass('-placeholder-')) {
-        $(this).text('');
-        $(this).removeClass('-placeholder-');
-      }
+    }).on('drop', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      console.log("dropped stuff");
+      var files = e.originalEvent.dataTransfer.files;
+      eventObj.trigger('schema-uploaded', files);
     }).bind('DOMSubtreeModified', function() {
       if($(this).hasClass('-placeholder-')) {
         $(this).removeClass('-placeholder-');
@@ -245,18 +256,7 @@
 
     $('#upload').on("change", function(e) {
       var files = $('#upload')[0].files;
-      if(!!files && files.length > 0) {
-        var file = files[0]; //TODO: make sure only one file can be selected.
-        var reader = new FileReader();
-        reader.readAsText(file, "UTF-8");
-        reader.onload = function (evt) {
-          eventObj.trigger('schema-loaded', evt.target.result);
-        }
-        reader.onerror = function (evt) {
-          console.log("error reading file.");
-        }
-      }
-
+      eventObj.trigger('schema-uploaded', files);
     });
 
     function populateFromQuery() {
