@@ -143,6 +143,14 @@ a {
   text-align: center;
 }
 
+#template{
+  color: darkgrey;
+  position: absolute;
+  margin-top: 35vh;
+  margin-left: 8px;
+  font-size: medium;
+}
+
 #header-image {
   height: 40px;
   width: 100%;

@@ -23,8 +23,9 @@ html(lang='en')
     div#content
       div.-container-
         div.-outer-
-          div
-            pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
+          div#template
+            | Enter, #[a#uploadLink(href="#") upload], or drag your schema here. 
+          pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
           div.-label-
             img#schema-valid(src='assets/valid.png').-icon-.-hidden-
 
@@ -44,7 +45,7 @@ html(lang='en')
 
             input#upload.-hidden-(type="file", accept=".avsc")
             p.
-              Not sure where to start? Enter or #[a#uploadLink(href="#") upload] your avro schema or select from one of these templates! 
+              Not sure where to start? Enter your schema or select from one of these templates! 
             div
               select.-styled-select-.-blue-.-semi-square-#schema-template
                 option(value="")

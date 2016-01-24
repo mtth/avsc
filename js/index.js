@@ -74,6 +74,7 @@
         });
       }
     }).on('reset-layout', function() {
+      $('#random').addClass('-disabled-');
       $('.-level1-').each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
@@ -86,7 +87,10 @@
       hideError(schemaErrorElement);
       hideError(inputErrorElement);
       hideError(outputErrorElement);
+      $('#template').show();
+      console.log($('#template'));
     }).on('schema-loaded', function(rawSchema) {
+      $('#template').hide();
       var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
@@ -143,7 +147,6 @@
     });
 
     $('#schema').on('keyup', function() {
-
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
@@ -151,12 +154,13 @@
           validateInput();
         }
       }, doneTypingInterval);
+    }).on('click keydown', function() {
+      $('#template').hide();
     }).on('keydown', function() {
       clearTimeout(typingTimer);
     }).on('drop', function (e) {
       e.preventDefault();
       e.stopPropagation();
-      console.log("dropped stuff");
       var files = e.originalEvent.dataTransfer.files;
       eventObj.trigger('schema-uploaded', files);
     }).bind('DOMSubtreeModified', function() {
@@ -244,7 +248,6 @@
       eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
       eventObj.trigger('reset-layout');
       window.type = undefined;
-      $('#random').addClass('-disabled-');
       return false;
     });
 
@@ -619,12 +622,12 @@
 
     function showError(errorElem, msg) {
       errorElem.text(msg);
-      errorElem.removeClass('-hidden-');
+      errorElem.show();
     };
 
     function hideError(errorElem, validElem) {
       errorElem.text("");
-      errorElem.addClass('-hidden-');
+      errorElem.hide();
       if (validElem) {
         validElem.show('slow').delay(500).hide('slow');
       }
