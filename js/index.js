@@ -38,6 +38,7 @@
         try {
           // Wrap key values in <span>.
           setInputText(rawInput);
+          validateInput(rawInput);
           eventObj.trigger('re-instrument');
           
         } catch (err) {
@@ -595,7 +596,6 @@
           setOutputText(outputStr);
           eventObj.trigger('update-url', {'record' : outputStr});
           eventObj.trigger('valid-output');
-          eventObj.trigger('valid-input');
         }catch(err) {
           eventObj.trigger('invalid-input', err);
         }

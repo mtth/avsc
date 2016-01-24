@@ -12096,6 +12096,7 @@ function hasOwnProperty(obj, prop) {
         try {
           // Wrap key values in <span>.
           setInputText(rawInput);
+          validateInput(rawInput);
           eventObj.trigger('re-instrument');
           
         } catch (err) {
@@ -12584,7 +12585,6 @@ function hasOwnProperty(obj, prop) {
     }
 
     function validateInput(rawInput) {
-      console.log("here");
       if (!!window.type) {
         try {
           if (!rawInput) {
@@ -12654,7 +12654,6 @@ function hasOwnProperty(obj, prop) {
           setOutputText(outputStr);
           eventObj.trigger('update-url', {'record' : outputStr});
           eventObj.trigger('valid-output');
-          eventObj.trigger('valid-input');
         }catch(err) {
           eventObj.trigger('invalid-input', err);
         }
@@ -12701,7 +12700,6 @@ function hasOwnProperty(obj, prop) {
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
-      console.log("readingInput");
       // Throw more useful error if not valid.
       if(!!window.type) {
         return window.type.fromString(rawInput);
