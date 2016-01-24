@@ -12196,7 +12196,6 @@ function hasOwnProperty(obj, prop) {
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
           eventObj.trigger('schema-changed');
-          console.log("schema-changed");
           validateInput();
         }
       }, doneTypingInterval);
