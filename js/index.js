@@ -22,11 +22,10 @@
         outputElement = $('#output'),
         body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /(\d+)/g,
-        queryPattern = /[?&#]+([\w]+)=([^&#]*)/g,
         reservedKeysPattern = /-[a-z]+-/g,
-        whitespacePattern = /[\s]+/g,
         typingTimer,
         eventObj = utils.eventObj,
+        urlUtils = utils.urlUtils,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     window.reverseIndexMap = [];  
@@ -85,7 +84,7 @@
       var s = location.search.split('schema=')[1];
       s = s != undefined ? decodeURIComponent(s) : undefined;
       if (!s || s != rawSchema) {
-        var newUrl = updateQueryStringParameter(location.href, 'schema', rawSchema);
+        var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
         // Use this so that it doesn't reload the page, but that also means that you need to manually
         // load the schema from url
         window.history.pushState({}, 'AVSC', newUrl);
@@ -98,9 +97,7 @@
     }).on('update-url', function(data) {
       var state = {};
       var newUrl = location.href;
-      for (var key in data) {
-        newUrl = updateQueryStringParameter(newUrl, key, data[key]);
-      }
+      newUrl = urlUtils.updateValues(newUrl, data);
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
       window.history.pushState(state, 'AVSC', newUrl);
@@ -235,23 +232,19 @@
     });
 
     $('#uploadLink').click(function(e) {
-      console.log("uploading");
       e.preventDefault();
       $("#upload").trigger('click');
       return false;
     });
 
     $('#upload').on("change", function(e) {
-      console.log("new file uploading");
       var files = $('#upload')[0].files;
       if(!!files && files.length > 0) {
         var file = files[0]; //TODO: make sure only one file can be selected.
         var reader = new FileReader();
         reader.readAsText(file, "UTF-8");
         reader.onload = function (evt) {
-
           eventObj.trigger('schema-loaded', evt.target.result);
-          console.log(evt.target.result);
         }
         reader.onerror = function (evt) {
           console.log("error reading file.");
@@ -261,22 +254,18 @@
     });
 
     function populateFromQuery() {
-      var s = readQueryValue(location.href, 'schema');
+      var s = urlUtils.readValue(location.href, 'schema');
       if(!!s) {
         s = decodeURIComponent(s);
         $(schemaElement).text(s);
         eventObj.trigger('schema-changed');
       }
       
-      var record = readQueryValue(location.href, 'record');
+      var record = urlUtils.readValue(location.href, 'record');
       if(!!record) {
         record = decodeURIComponent(record);
         decode(record);
         setOutputText(record);
-      }
-
-      if (!!s && !record) {
-        generateRandom();
       }
     }
     
@@ -778,38 +767,6 @@
           }
         });
       }
-    }
-
-    /**
-    * http://stackoverflow.com/a/6021027/2070194
-    */
-    function updateQueryStringParameter(uri, k1, v1, k2, v2) {
-      var val1 = v1.replace(whitespacePattern, ''); // Remove whitespaces
-      var re = new RegExp("([?&])" + k1 + "=.*?(&|$)", "i");
-      var separator = uri.indexOf('?') !== -1 ? "&" : "?";
-      var res;
-      if (uri.match(re)) {
-        res = uri.replace(re, '$1' + k1 + "=" + val1 + '$2');
-      } else {
-        res = uri + separator + k1 + "=" + val1;
-      }
-      if (!!k2) {
-        return updateQueryStringParameter(res, k2, v2);
-      }
-      return res;
-    }
-
-    function readQueryValue(uri, key) {
-      var query = {};
-      var m;
-      do {
-        m = queryPattern.exec(uri);
-        if (m) {
-          query[m[1]] = m[2];
-        }
-      } while (m);
-
-      return query[key];
     }
 
     populateFromQuery();
