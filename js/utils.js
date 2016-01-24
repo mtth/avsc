@@ -31,13 +31,13 @@ function arraysEqual(a1, a2) {
 
 var UrlUtils = {
 
-  readValue : function (uri, key) {
+  readValue : function (key) {
     var queryPattern = /[?&#]+([\w]+)=([^&#]*)/g;
     var query = {};
     var m;
     do {
 
-      m = queryPattern.exec(uri);
+      m = queryPattern.exec(window.location.href);
       if (m) {
         query[m[1]] = m[2];
       }

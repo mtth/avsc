@@ -12146,7 +12146,6 @@ function hasOwnProperty(obj, prop) {
       hideError(inputErrorElement);
       hideError(outputErrorElement);
       $('#template').show();
-      console.log($('#template'));
     }).on('schema-loaded', function(rawSchema) {
       $('#template').hide();
       var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
@@ -12320,15 +12319,23 @@ function hasOwnProperty(obj, prop) {
       eventObj.trigger('schema-uploaded', files);
     });
 
+    $(document).click(function(e) {
+      if(!$(e.target).closest('#schema').length) {
+        if (!$(schemaElement).text()){
+          $('#template').show();
+        }
+      }
+    });
+
     function populateFromQuery() {
-      var s = urlUtils.readValue(location.href, 'schema');
+      var s = urlUtils.readValue('schema');
       if(!!s) {
         s = decodeURIComponent(s);
         $(schemaElement).text(s);
         eventObj.trigger('schema-changed');
       }
       
-      var record = urlUtils.readValue(location.href, 'record');
+      var record = urlUtils.readValue('record');
       if(!!record) {
         record = decodeURIComponent(record);
         decode(record);
@@ -12890,13 +12897,13 @@ function arraysEqual(a1, a2) {
 
 var UrlUtils = {
 
-  readValue : function (uri, key) {
+  readValue : function (key) {
     var queryPattern = /[?&#]+([\w]+)=([^&#]*)/g;
     var query = {};
     var m;
     do {
 
-      m = queryPattern.exec(uri);
+      m = queryPattern.exec(window.location.href);
       if (m) {
         query[m[1]] = m[2];
       }
