@@ -12195,7 +12195,8 @@ function hasOwnProperty(obj, prop) {
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
           eventObj.trigger('schema-changed');
-          eventObj.trigger('input-changed');
+          console.log("schema-changed");
+          validateInput();
         }
       }, doneTypingInterval);
     }).on('keydown', function() {
@@ -12582,6 +12583,39 @@ function hasOwnProperty(obj, prop) {
       return res;
     }
 
+    function validateInput(rawInput) {
+      console.log("here");
+      if (!!window.type) {
+        try {
+          if (!rawInput) {
+            rawInput = $.trim($(inputElement).text());
+          }
+          var attrs = JSON.parse(rawInput);
+          // Throw more useful error if not valid.
+          window.type.isValid(attrs, {errorHook: hook});
+          eventObj.trigger('valid-input');
+          function hook(path, any, type) {
+            if (
+              typeof any == 'string' &&
+              ( 
+                type instanceof avsc.types.BytesType ||
+                (
+                  type instanceof avsc.types.FixedType &&
+                  any.length === type.getSize()
+                )
+              )
+            ) {
+              // This is a string-encoded buffer.
+              return;
+            }
+            throw new Error('invalid ' + type + ' at ' + path.join('.'));
+          }
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
+      }
+    }
+
     function validateSchema() {
       window.type = null;
       try {
@@ -12667,30 +12701,12 @@ function hasOwnProperty(obj, prop) {
 
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
-      var attrs = JSON.parse(rawInput);
+      console.log("readingInput");
       // Throw more useful error if not valid.
-      window.type.isValid(attrs, {errorHook: hook});
       if(!!window.type) {
         return window.type.fromString(rawInput);
       } else {
         return JSON.parse(rawInput);
-      }
-
-      function hook(path, any, type) {
-        if (
-          typeof any == 'string' &&
-          ( 
-            type instanceof avsc.types.BytesType ||
-            (
-              type instanceof avsc.types.FixedType &&
-              any.length === type.getSize()
-            )
-          )
-        ) {
-          // This is a string-encoded buffer.
-          return;
-        }
-        throw new Error('invalid ' + type + ' at ' + path.join('.'));
       }
     }
     /*Used for decoding.

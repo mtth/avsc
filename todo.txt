@@ -2,4 +2,4 @@ footer
 Upload on a new line, and also drag and drop
 minify stuff.
 Fix the bug when highlighting union types.
-If the schema changes, input should be verified again.
+Adding a new field to the record doesn't trigger an error.
