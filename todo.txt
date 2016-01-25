@@ -1,3 +1,2 @@
-Upload on a new line, and also drag and drop
 minify stuff.
 Fix the bug when highlighting union types.

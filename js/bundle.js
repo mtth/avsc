@@ -12915,12 +12915,12 @@ var UrlUtils = {
   * Will add or update the uri based on the key,value pairs provided in params object.
   * http://stackoverflow.com/a/6021027/2070194
   */
-  updateValues(uri, params) {
+  updateValues: function(uri, paramsObj) {
     var whitespacePattern = /[\s]+/g; 
     var res = uri;
-    for (var k in params) {
-      if (params.hasOwnProperty(k)) {
-        var val = params[k].replace(whitespacePattern, ''); // Remove whitespaces
+    for (var k in paramsObj) {
+      if (paramsObj.hasOwnProperty(k)) {
+        var val = paramsObj[k].replace(whitespacePattern, ''); // Remove whitespaces
         var re = new RegExp("([?&])" + k + "=.*?(&|$)", "i");
         var separator = res.indexOf('?') !== -1 ? "&" : "?";
         if (res.match(re)) {
