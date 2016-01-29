@@ -1234,13 +1234,27 @@ suite('protocols', function () {
           messages: {ping: {request: [], response: 'null'}}
         });
         setupFn(ptcl1, ptcl2, function (ee) {
-            ee.on('error', function () {}); // For stateful protocols.
-            ptcl1.emit('ping', {}, ee, function (err) {
-              assert(err);
+            ee.on('error', function (err) {
+              assert(/incompatible/.test(err.message));
               done();
             });
+            ptcl1.emit('ping', {}, ee);
           }
         );
+      });
+
+      test('one way message', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'ptcl',
+          messages: {ping: {request: [], response: 'null', 'one-way': true}}
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('ping', function (req, ee, cb) {
+            assert.strictEqual(cb, undefined);
+            done();
+          });
+          ptcl.emit('ping', {}, ee);
+        });
       });
 
       test('unknown message', function (done) {
@@ -1253,20 +1267,24 @@ suite('protocols', function () {
         });
       });
 
-      test('unsupported message', function (done) {
+      test('unhandled message', function (done) {
         var ptcl = createProtocol({
           protocol: 'Echo',
           messages: {
             echo: {
               request: [{name: 'id', type: 'string'}],
               response: 'string'
-            }
+            },
+            ping: {request: [], response: 'null', 'one-way': true}
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/unsupported/.test(err.string));
-            done();
+            assert(/unhandled/.test(err.string));
+            ptcl.emit('ping', {}, ee);
+            // By definition of one-way, there is no reliable way of calling
+            // done exactly when ping is done, so we add a small timeout.
+            setTimeout(done, 100);
           });
         });
       });
@@ -1332,21 +1350,6 @@ suite('protocols', function () {
 
     }
 
-  });
-
-  test('throw error', function () {
-    assert(!tryCatch(null));
-    assert.equal(tryCatch(new Error('hi')), 'hi');
-    assert.equal(tryCatch('hi'), 'hi');
-    assert.equal(tryCatch({string: 'hi'}), 'hi');
-
-    function tryCatch(err) {
-      try {
-        protocols.throwError(err);
-      } catch (err_) {
-        return err_.message;
-      }
-    }
   });
 
 });
