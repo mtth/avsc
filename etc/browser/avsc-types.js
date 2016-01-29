@@ -9,17 +9,16 @@
  *
  */
 
-var types = require('../../lib/types'),
-    schemas = require('./lib/schemas');
+var files = require('./lib/files'),
+    types = require('../../lib/types');
 
 
 function parse(schema, opts) {
-  return types.createType(schemas.load(schema), opts);
+  return types.createType(files.load(schema), opts);
 }
 
 
 module.exports = {
-  LogicalType: types.LogicalType,
   Type: types.Type,
   parse: parse,
   types: types.builtins

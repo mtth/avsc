@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "3.3.3",
+  "version": "3.3.4",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -29,7 +29,7 @@
   "main": "./lib",
   "browser": {
     "./lib": "./etc/browser/avsc.js",
-    "./lib/schemas": "./etc/browser/lib/schemas.js",
+    "./lib/files": "./etc/browser/lib/files.js",
     "crypto": "./etc/browser/lib/crypto.js"
   },
   "engines": {

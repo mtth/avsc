@@ -10,12 +10,13 @@
  */
 
 var protocols = require('../../lib/protocols'),
-    schemas = require('./lib/schemas'),
+    files = require('./lib/files'),
+    schemas = require('../../lib/schemas'),
     types = require('../../lib/types');
 
 
 function parse(schema, opts) {
-  var obj = schemas.load(schema);
+  var obj = files.load(schema);
   return obj.protocol ?
     protocols.createProtocol(obj, opts) :
     types.createType(obj, opts);
@@ -23,9 +24,9 @@ function parse(schema, opts) {
 
 
 module.exports = {
-  LogicalType: types.LogicalType,
   Protocol: protocols.Protocol,
   Type: types.Type,
+  assemble: schemas.assemble,
   parse: parse,
   types: types.builtins
 };

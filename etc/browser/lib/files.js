@@ -47,6 +47,7 @@
   };
 })();
 
+
 /**
  * Schema loader, without file-system access.
  *
@@ -66,7 +67,16 @@ function load(schema) {
   return obj;
 }
 
+/**
+ * Default (erroring) hook for assembling IDLs.
+ *
+ */
+function createImportHook() {
+  return function (fpath, kind, cb) { cb(new Error('missing import hook')); };
+}
+
 
 module.exports = {
+  createImportHook: createImportHook,
   load: load
 };
