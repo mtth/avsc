@@ -6,8 +6,8 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ [Blazingly fast and compact serialization!][benchmarks] Typically twice as
-  fast as JSON with much smaller encodings.
++ Blazingly [fast and compact][benchmarks] serialization! Typically faster than
+  JSON with much smaller encodings.
 + All the Avro goodness, including [schema evolution][schema-evolution] and
   [remote procedure calls][rpc].
 + Support for [serializing arbitrary JavaScript objects][logical-types].
@@ -67,15 +67,16 @@ var avro = require('avsc');
     .on('data', function (val) { /* Do something with the decoded value. */ });
   ```
 
-+ Respond to remote procedure calls over TCP:
++ Implement a TCP server for an [IDL-defined][idl] protocol:
 
   ```javascript
-  var protocol = avro.parse('./Ping.avpr')
-    .on('ping', function (req, ee, cb) { cb(null, 'pong'); });
-
-  require('net').createServer()
-    .on('connection', function (con) { protocol.createListener(con); })
-    .listen(8000);
+  avro.assemble('./Ping.avdl', function (err, attrs) {
+    var protocol = avro.parse(attrs);
+    protocol.on('ping', function (req, ee, cb) { cb(null, 'pong'); });
+    require('net').createServer()
+      .on('connection', function (con) { protocol.createListener(con); })
+      .listen(8000);
+  });
   ```
 
 
@@ -90,3 +91,4 @@ var avro = require('avsc');
 [home]: https://github.com/mtth/avsc/wiki
 [rpc]: https://github.com/mtth/avsc/wiki/Advanced-usage#remote-procedure-calls
 [releases]: https://github.com/mtth/avsc/releases
+[idl]: https://avro.apache.org/docs/current/idl.html

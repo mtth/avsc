@@ -345,6 +345,29 @@ suite('schemas', function () {
       });
     });
 
+    test('one way void', function (done) {
+      var hook = createImportHook({
+        '1': 'protocol A { void ping(); @foo(true) void pong(); }',
+      });
+      var opts = {importHook: hook, oneWayVoid: true};
+      assemble('1', opts, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [],
+          messages: {
+            ping: {response: 'null', request: [], 'one-way': true},
+            pong: {
+              response: {foo: true, type: 'null'},
+              request: [],
+              'one-way': true
+            }
+          }
+        });
+        done();
+      });
+    });
+
     test('reset namespace', function (done) {
       var hook = createImportHook({
         '1': 'protocol A { import idl "2"; }',
