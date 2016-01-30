@@ -1,3 +1,9 @@
 [submodule "doc"]
 	path = doc
 	url = https://github.com/mtth/avsc.wiki.git
+[submodule "etc/examples/logical-types"]
+	path = etc/examples/logical-types
+	url = git@github.com:1aec40375fbcb077aee7.git
+[submodule "etc/examples/type-hooks"]
+	path = etc/examples/type-hooks
+	url = git@github.com:c0088c745de048c4e466.git
