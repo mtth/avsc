@@ -29,7 +29,7 @@ body {
 .-textbox- {
   overflow: auto;
   text-align: left;
-  height: 75vh;
+  height: 80vh;
   padding: 10px;
   width: 300px;
   font-size: medium;
@@ -236,7 +236,6 @@ select option {
   font-family: 'Coustard', serif;
   font-size: 12px;
   position: relative;
-  margin-top: 65px;
 }
 
 #footer a {
@@ -245,12 +244,11 @@ select option {
 
 #footer p {
   text-align: center;
-  width : 70%;
+  width : 500px;
   border-top: medium solid #367FAD;
-  position: absolute;
-  left: 16%;
-  bottom: 8px;
-  padding-top: 15px;
+  margin: 0 auto;
+  margin-top: 10px;
+  padding-top: 5px;
 }
 
 #github {

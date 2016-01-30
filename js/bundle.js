@@ -12089,6 +12089,7 @@ function hasOwnProperty(obj, prop) {
     window.reverseIndexMap = [];  
 
     eventObj.on('schema-changed', function() {
+      $('#template').hide();
       runPreservingCursorPosition( 'schema', validateSchema);
     }).on('input-changed', function() {
       runPreservingCursorPosition( 'input' , function () {
