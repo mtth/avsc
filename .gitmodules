@@ -7,3 +7,6 @@
 [submodule "etc/examples/type-hooks"]
 	path = etc/examples/type-hooks
 	url = git@github.com:c0088c745de048c4e466.git
+[submodule "etc/examples/error-hooks"]
+	path = etc/examples/error-hooks
+	url = git@github.com:fe006b5b001beeaed95f.git
