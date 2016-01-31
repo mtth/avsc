@@ -21,6 +21,10 @@
         schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
+        randomElement = $('#random'),
+        uploadElement = $('#upload'),
+        firstPageElements = $('.-level1-'),
+        secondPageElements = $('.-level2-'),
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
         whiteSpacePattern = /[\s+]/g,
@@ -51,7 +55,7 @@
       decode(outputStr);
     }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
-      $('#random').removeClass('-disabled-');
+      randomElement.removeClass('-disabled-');
     }).on('invalid-schema', function (message) {
       showError(schemaErrorElement, message);
     }).on('valid-input', function () { 
@@ -64,19 +68,19 @@
       showError(outputErrorElement, message);
     }).on('update-layout', function() {
       if (window.type) {
-        $('.-level1-').each(function(i, element) {
+        firstPageElements.each(function(i, element) {
           $(element).addClass('-hidden-');
         });
-        $('.-level2-').each(function (i, element) {
+        secondPageElements.each(function (i, element) {
           $(element).removeClass('-hidden-');
         });
       }
     }).on('reset-layout', function() {
-      $('#random').addClass('-disabled-');
-      $('.-level1-').each(function(i, element) {
+      randomElement.addClass('-disabled-');
+      firstPageElements.each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
-      $('.-level2-').each(function (i, element) {
+      secondPageElements.each(function (i, element) {
         $(element).addClass('-hidden-');
       });
       schemaElement.text("");
@@ -144,7 +148,7 @@
       }
     });
 
-    $('#schema').on('keyup', function() {
+    schemaElement.on('keyup', function() {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) { 
@@ -168,7 +172,7 @@
       eventObj.trigger('schema-uploaded', files);
     });
 
-    $('#input').on('paste keyup', function(event) {
+    inputElement.on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
@@ -200,7 +204,7 @@
       clearHighlights();
     });
 
-    $('#output').on('paste keyup', function(event) {
+    outputElement.on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(outputElement)) {
@@ -238,7 +242,7 @@
       clearTimeout(typingTimer);
     });
 
-    $('#random').click(function () {   
+    randomElement.click(function () {   
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         eventObj.trigger('generate-random');
@@ -255,12 +259,12 @@
 
     $('#uploadLink').click(function(e) {
       e.preventDefault();
-      $("#upload").trigger('click');
-      return false;
+      uploadElement.trigger('click');
+      return false; // So that it doesn't show the content of the file.
     });
 
-    $('#upload').on("change", function(e) {
-      var files = $('#upload')[0].files;
+    uploadElement.on("change", function(e) {
+      var files = uploadElement.files;
       eventObj.trigger('schema-uploaded', files);
     });
 

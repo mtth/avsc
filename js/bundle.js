@@ -12079,6 +12079,10 @@ function hasOwnProperty(obj, prop) {
         schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
+        randomElement = $('#random'),
+        uploadElement = $('#upload'),
+        firstPageElements = $('.-level1-'),
+        secondPageElements = $('.-level2-'),
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
         whiteSpacePattern = /[\s+]/g,
@@ -12109,7 +12113,7 @@ function hasOwnProperty(obj, prop) {
       decode(outputStr);
     }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
-      $('#random').removeClass('-disabled-');
+      randomElement.removeClass('-disabled-');
     }).on('invalid-schema', function (message) {
       showError(schemaErrorElement, message);
     }).on('valid-input', function () { 
@@ -12122,19 +12126,19 @@ function hasOwnProperty(obj, prop) {
       showError(outputErrorElement, message);
     }).on('update-layout', function() {
       if (window.type) {
-        $('.-level1-').each(function(i, element) {
+        firstPageElements.each(function(i, element) {
           $(element).addClass('-hidden-');
         });
-        $('.-level2-').each(function (i, element) {
+        secondPageElements.each(function (i, element) {
           $(element).removeClass('-hidden-');
         });
       }
     }).on('reset-layout', function() {
-      $('#random').addClass('-disabled-');
-      $('.-level1-').each(function(i, element) {
+      randomElement.addClass('-disabled-');
+      firstPageElements.each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
-      $('.-level2-').each(function (i, element) {
+      secondPageElements.each(function (i, element) {
         $(element).addClass('-hidden-');
       });
       schemaElement.text("");
@@ -12202,7 +12206,7 @@ function hasOwnProperty(obj, prop) {
       }
     });
 
-    $('#schema').on('keyup', function() {
+    schemaElement.on('keyup', function() {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) { 
@@ -12226,7 +12230,7 @@ function hasOwnProperty(obj, prop) {
       eventObj.trigger('schema-uploaded', files);
     });
 
-    $('#input').on('paste keyup', function(event) {
+    inputElement.on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
@@ -12258,7 +12262,7 @@ function hasOwnProperty(obj, prop) {
       clearHighlights();
     });
 
-    $('#output').on('paste keyup', function(event) {
+    outputElement.on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(outputElement)) {
@@ -12296,7 +12300,7 @@ function hasOwnProperty(obj, prop) {
       clearTimeout(typingTimer);
     });
 
-    $('#random').click(function () {   
+    randomElement.click(function () {   
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         eventObj.trigger('generate-random');
@@ -12313,12 +12317,12 @@ function hasOwnProperty(obj, prop) {
 
     $('#uploadLink').click(function(e) {
       e.preventDefault();
-      $("#upload").trigger('click');
-      return false;
+      uploadElement.trigger('click');
+      return false; // So that it doesn't show the content of the file.
     });
 
-    $('#upload').on("change", function(e) {
-      var files = $('#upload')[0].files;
+    uploadElement.on("change", function(e) {
+      var files = uploadElement.files;
       eventObj.trigger('schema-uploaded', files);
     });
 
