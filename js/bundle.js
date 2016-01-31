@@ -12091,9 +12091,8 @@ function hasOwnProperty(obj, prop) {
     eventObj.on('schema-changed', function() {
       $('#template').hide();
       runPreservingCursorPosition( 'schema', validateSchema);
-    }).on('input-changed', function() {
+    }).on('input-changed', function(rawInput) {
       runPreservingCursorPosition( 'input' , function () {
-        var rawInput = $.trim($(inputElement).text());        
         try {
           // Wrap key values in <span>.
           setInputText(rawInput);
@@ -12231,7 +12230,8 @@ function hasOwnProperty(obj, prop) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
-          eventObj.trigger('input-changed');
+          var rawInput = $.trim($(inputElement).text());        
+          eventObj.trigger('input-changed', rawInput);
         };
       }, doneTypingInterval);
     }).on('keydown', function() {
@@ -12251,8 +12251,9 @@ function hasOwnProperty(obj, prop) {
         var path = getPath($(this));
         var position = findPositionOf(path);
         highlight(position); 
-      } else 
+      } else {
         console.log("No instrumented type found");
+      }
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
     });
@@ -12330,14 +12331,14 @@ function hasOwnProperty(obj, prop) {
 
     function populateFromQuery() {
       var s = urlUtils.readValue('schema');
-      if(!!s) {
+      if(s) {
         s = decodeURIComponent(s);
         $(schemaElement).text(s);
-        eventObj.trigger('schema-changed');
+        eventObj.trigger('schema-changed', s);
       }
       
       var record = urlUtils.readValue('record');
-      if(!!record) {
+      if(record) {
         record = decodeURIComponent(record);
         decode(record);
         setOutputText(record);
@@ -12595,7 +12596,7 @@ function hasOwnProperty(obj, prop) {
     }
 
     function validateInput(rawInput) {
-      if (!!window.type) {
+      if (window.type) {
         try {
           if (!rawInput) {
             rawInput = $.trim($(inputElement).text());
@@ -12645,7 +12646,7 @@ function hasOwnProperty(obj, prop) {
         var random = window.type.random();
         var randomStr = window.type.toString(random);
         setInputText(randomStr);
-        eventObj.trigger('input-changed');
+        eventObj.trigger('input-changed', randomStr);
       }
     }
 
@@ -12711,7 +12712,7 @@ function hasOwnProperty(obj, prop) {
     function readInput() {
       var rawInput = $.trim($(inputElement).text());
       // Throw more useful error if not valid.
-      if(!!window.type) {
+      if(window.type) {
         return window.type.fromString(rawInput);
       } else {
         return JSON.parse(rawInput);
