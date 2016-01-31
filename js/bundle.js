@@ -12330,6 +12330,7 @@ function hasOwnProperty(obj, prop) {
       if(!$(e.target).closest('#schema').length) {
         if (!schemaElement.text()){
           template.show();
+          hideError(schemaErrorElement);
         }
       }
     });
