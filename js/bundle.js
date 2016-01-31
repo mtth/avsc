@@ -12079,7 +12079,6 @@ function hasOwnProperty(obj, prop) {
         schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
-        body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
         typingTimer,
@@ -12092,27 +12091,21 @@ function hasOwnProperty(obj, prop) {
     eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
       var schemaStr = JSON.stringify(schemaJson, null, 2); 
-      schemaElement.text(schemaStr);
-      eventObj.trigger('update-url', {'schema':schemaStr});
-      runPreservingCursorPosition( 'schema', validateSchema, schemaJson);
+      runPreservingCursorPosition('schema', schemaElement.text, {context: schemaElement, param: schemaStr});
+      eventObj.trigger('update-url', {schema:schemaStr});
+      validateSchema(schemaJson);
     }).on('input-changed', function(rawInput) {
-      runPreservingCursorPosition( 'input' , function () {
-        try {
-          // Wrap key values in <span>.
-          setInputText(rawInput);
-          validateInput(rawInput);
-          eventObj.trigger('re-instrument');
-          
-        } catch (err) {
-          eventObj.trigger('invalid-input', err);
-        }
-      });
-      encode();
-    }).on('output-changed', function() {
-      runPreservingCursorPosition('output', function() {
-        var rawOutput = $.trim($(outputElement).text());
-      });
-      decode();
+      try {
+        runPreservingCursorPosition('input' , setInputText, {context: inputElement, param: rawInput});
+        // Wrap key values in <span>.
+        validateInput(rawInput);
+        eventObj.trigger('re-instrument', rawInput);
+        encode(rawInput);
+      } catch (err) {
+        eventObj.trigger('invalid-input', err);
+      }
+    }).on('output-changed', function(outputStr) {
+      decode(outputStr);
     }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
       $('#random').removeClass('-disabled-');
@@ -12159,8 +12152,8 @@ function hasOwnProperty(obj, prop) {
       populateFromQuery();
       eventObj.trigger('update-layout');
       
-    }).on('re-instrument', function() {
-      window.instrumented = instrumentObject(window.type, readInput());
+    }).on('re-instrument', function(rawInput) {
+      window.instrumented = instrumentObject(window.type, window.type.fromString(rawInput));
       window.reverseIndexMap = computeReverseIndex(window.instrumented);
     }).on('update-url', function(data) {
       var state = {};
@@ -12211,10 +12204,14 @@ function hasOwnProperty(obj, prop) {
     $('#schema').on('keyup', function() {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
-        if(updateContent(schemaElement)) {
-          var schemaJson = readSchemaFromInput();
-          eventObj.trigger('schema-changed', schemaJson);
-          validateInput();
+        if(updateContent(schemaElement)) { 
+          try {
+            var schemaJson = readSchemaFromInput();
+            eventObj.trigger('schema-changed', schemaJson);
+            validateInput();
+          } catch(err) {
+            eventObj.trigger('invalid-schema', err);
+          }
         }
       }, doneTypingInterval);
     }).on('click keydown', function() {
@@ -12268,7 +12265,8 @@ function hasOwnProperty(obj, prop) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(outputElement)) {
-          eventObj.trigger('output-changed');
+          var outputStr = $.trim(outputElement.text());
+          eventObj.trigger('output-changed', outputStr);
         };
       }, doneTypingInterval);
     }).on('mouseover', 'div', function(event) {
@@ -12352,17 +12350,19 @@ function hasOwnProperty(obj, prop) {
     * Will save cursor position inside element `elemId` before running callback function f,
     * and restores it after f is finished. 
     */ 
-    function runPreservingCursorPosition(elementId, f, params) {
+    function runPreservingCursorPosition(elementId, f, options) {
+      var context = options ? options.context: undefined;
+      var param = options? options.param: undefined;
      //Get current position.
       if (window.getSelection().rangeCount) {
 
         var range = window.getSelection().getRangeAt(0);
         var el = document.getElementById(elementId);
         var position = getCharacterOffsetWithin(range, el);
-        f.call(this, params);
+        f.call(context, param);
         setCharacterOffsetWithin(range, el, position);
       } else {
-        f.call(this, params);
+        f.call(context, param);
       }
     } 
     /*
@@ -12654,10 +12654,10 @@ function hasOwnProperty(obj, prop) {
     * Instrument it and update window.instrumented.
     * Encode it and set the outputElement's text to the encoded data
     */   
-    function encode() {
+    function encode(inputStr) {
       if (window.type) {
         try {
-          var input = readInput();
+          var input = window.type.fromString(inputStr);
           var output = window.type.toBuffer(input);
         
           var outputStr = output.toString('hex');
@@ -12673,11 +12673,12 @@ function hasOwnProperty(obj, prop) {
     function decode(rawInput) {
       if (window.type) {
         try {
-          var input = rawInput ? readBuffer(rawInput) : readBuffer();
+          var input = readBuffer(rawInput);
           var decoded = window.type.fromBuffer(input);
           var decodedStr = window.type.toString(decoded);
           setInputText(decodedStr);
-          eventObj.trigger('re-instrument');
+          eventObj.trigger('re-instrument', decodedStr);
+          eventObj.trigger('update-url', {'record' : rawInput});
           eventObj.trigger('valid-input');
           eventObj.trigger('valid-output');
         }catch(err) {
@@ -12699,29 +12700,16 @@ function hasOwnProperty(obj, prop) {
       }
     }
     
-    function clearText(element) {
-      element.text('');
-    }
     /* If the schema is pasted with proper json formats, simply json.parse wouldn't work.*/
     function readSchemaFromInput() {
       var trimmedInput = $.trim(schemaElement.text()).replace(/\s/g, "");
       return JSON.parse(trimmedInput);
     }
 
-    function readInput() {
-      var rawInput = $.trim(inputElement.text());
-      // Throw more useful error if not valid.
-      if(window.type) {
-        return window.type.fromString(rawInput);
-      } else {
-        return JSON.parse(rawInput);
-      }
-    }
     /*Used for decoding.
     *Read the text represented as space-seperated hex numbers in elementId
     *and construct a Buffer object*/
-    function readBuffer(str) {
-      var rawInput = str || $.trim(outputElement.text());
+    function readBuffer(rawInput) { 
       var hexArray = rawInput.split(/[\s,]+/);
       var i;
       var size = hexArray.length;
@@ -12736,7 +12724,7 @@ function hasOwnProperty(obj, prop) {
      * Will update the old value of the element to the new one, 
      * and returns true if the content changed. 
     */
-    function  updateContent(element) {
+    function updateContent(element) {
       var newText = $.trim($(element).text()).replace(/\s+/g, '');
       if (!element.data) {
         element.data = {};
