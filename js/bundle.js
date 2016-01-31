@@ -12322,7 +12322,7 @@ function hasOwnProperty(obj, prop) {
     });
 
     uploadElement.on("change", function(e) {
-      var files = uploadElement.files;
+      var files = $(uploadElement)[0].files;
       eventObj.trigger('schema-uploaded', files);
     });
 
@@ -12643,10 +12643,14 @@ function hasOwnProperty(obj, prop) {
     }
     function generateRandom() {
       if (window.type) {
-        var random = window.type.random();
-        var randomStr = window.type.toString(random);
-        setInputText(randomStr);
-        eventObj.trigger('input-changed', randomStr);
+        try{
+          var random = window.type.random();
+          var randomStr = window.type.toString(random);
+          setInputText(randomStr);
+          eventObj.trigger('input-changed', randomStr);
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
       }
     }
 
@@ -12721,7 +12725,6 @@ function hasOwnProperty(obj, prop) {
     */
     function updateContent(element) {
       var newText = $.trim($(element).text()).replace(whiteSpacePattern, '');
-      console.log(newText);
       if (!element.data) {
         element.data = {};
       }
