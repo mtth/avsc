@@ -27,7 +27,7 @@
         secondPageElements = $('.-level2-'),
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
-        whiteSpacePattern = /[\s+]/g,
+        whiteSpacePattern = /\s+/g,
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
@@ -295,8 +295,8 @@
     * and restores it after f is finished. 
     */ 
     function runPreservingCursorPosition(elementId, f, options) {
-      var context = options ? options.context: undefined;
-      var param = options? options.param: undefined;
+      var context = options && options.context;
+      var param = options && options.param;
      //Get current position.
       if (window.getSelection().rangeCount) {
 

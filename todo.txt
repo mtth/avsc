@@ -1,2 +1,0 @@
-minify stuff.
-Fix the bug when highlighting union types.
