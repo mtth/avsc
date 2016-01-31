@@ -10,3 +10,6 @@
 [submodule "etc/examples/error-hooks"]
 	path = etc/examples/error-hooks
 	url = git@github.com:fe006b5b001beeaed95f.git
+[submodule "etc/examples/meta-type"]
+	path = etc/examples/meta-type
+	url = git@github.com:fb87030c8cc142730d15.git
