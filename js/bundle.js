@@ -12075,6 +12075,7 @@ function hasOwnProperty(obj, prop) {
         schemaErrorElement = $('#schema-error'),
         schemaValidElement = $('#schema-valid'),
         schemaSelect = $('#schema-template'),
+        template = $('#template'),
         schemaElement = document.getElementById('schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
@@ -12089,7 +12090,7 @@ function hasOwnProperty(obj, prop) {
     window.reverseIndexMap = [];  
 
     eventObj.on('schema-changed', function() {
-      $('#template').hide();
+      template.hide();
       runPreservingCursorPosition( 'schema', validateSchema);
     }).on('input-changed', function(rawInput) {
       runPreservingCursorPosition( 'input' , function () {
@@ -12145,9 +12146,9 @@ function hasOwnProperty(obj, prop) {
       hideError(schemaErrorElement);
       hideError(inputErrorElement);
       hideError(outputErrorElement);
-      $('#template').show();
+      template.show();
     }).on('schema-loaded', function(rawSchema) {
-      $('#template').hide();
+      template.hide();
       var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
@@ -12212,7 +12213,7 @@ function hasOwnProperty(obj, prop) {
         }
       }, doneTypingInterval);
     }).on('click keydown', function() {
-      $('#template').hide();
+      template.hide();
     }).on('keydown', function() {
       clearTimeout(typingTimer);
     }).on('drop', function (e) {
@@ -12324,7 +12325,7 @@ function hasOwnProperty(obj, prop) {
     $(document).click(function(e) {
       if(!$(e.target).closest('#schema').length) {
         if (!$(schemaElement).text()){
-          $('#template').show();
+          template.show();
         }
       }
     });
