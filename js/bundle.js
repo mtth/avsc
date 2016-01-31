@@ -12721,11 +12721,13 @@ function hasOwnProperty(obj, prop) {
     */
     function updateContent(element) {
       var newText = $.trim($(element).text()).replace(whiteSpacePattern, '');
+      console.log(newText);
       if (!element.data) {
         element.data = {};
       }
-      if (!element.data['oldValue'] || 
-          element.data['oldValue'] != newText) {
+      if (newText !== '' && 
+        (!element.data['oldValue'] || 
+          element.data['oldValue'] != newText)) {
         element.data['oldValue'] =  newText;
         return true;
       }
