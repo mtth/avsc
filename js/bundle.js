@@ -12081,6 +12081,7 @@ function hasOwnProperty(obj, prop) {
         outputElement = $('#output'),
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
+        whiteSpacePattern = /[\s+]/g,
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
@@ -12223,10 +12224,6 @@ function hasOwnProperty(obj, prop) {
       e.stopPropagation();
       var files = e.originalEvent.dataTransfer.files;
       eventObj.trigger('schema-uploaded', files);
-    }).bind('DOMSubtreeModified', function() {
-      if($(this).hasClass('-placeholder-')) {
-        $(this).removeClass('-placeholder-');
-      }
     });
 
     $('#input').on('paste keyup', function(event) {
@@ -12710,14 +12707,8 @@ function hasOwnProperty(obj, prop) {
     *Read the text represented as space-seperated hex numbers in elementId
     *and construct a Buffer object*/
     function readBuffer(rawInput) { 
-      var hexArray = rawInput.split(/[\s,]+/);
-      var i;
-      var size = hexArray.length;
-      var buffer = [];
-      for (i =0; i < size; i++){
-        buffer.push(new Buffer(hexArray[i], 'hex'));
-      }
-      return Buffer.concat(buffer);
+      var str = rawInput.replace(whiteSpacePattern,'');
+      return new Buffer(str, 'hex');
     }
 
     /**
@@ -12725,7 +12716,7 @@ function hasOwnProperty(obj, prop) {
      * and returns true if the content changed. 
     */
     function updateContent(element) {
-      var newText = $.trim($(element).text()).replace(/\s+/g, '');
+      var newText = $.trim($(element).text()).replace(whiteSpacePattern, '');
       if (!element.data) {
         element.data = {};
       }
