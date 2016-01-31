@@ -18,10 +18,9 @@
         schemaValidElement = $('#schema-valid'),
         schemaSelect = $('#schema-template'),
         template = $('#template'),
-        schemaElement = document.getElementById('schema'),
+        schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
-        body = document.getElementsByTagName('body')[0],
         arrayKeyPattern = /(\d+)/g,
         reservedKeysPattern = /-[a-z]+-/g,
         typingTimer,
@@ -31,9 +30,12 @@
     
     window.reverseIndexMap = [];  
 
-    eventObj.on('schema-changed', function() {
+    eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
-      runPreservingCursorPosition( 'schema', validateSchema);
+      var schemaStr = JSON.stringify(schemaJson, null, 2); 
+      schemaElement.text(schemaStr);
+      eventObj.trigger('update-url', {'schema':schemaStr});
+      runPreservingCursorPosition( 'schema', validateSchema, schemaJson);
     }).on('input-changed', function(rawInput) {
       runPreservingCursorPosition( 'input' , function () {
         try {
@@ -82,9 +84,9 @@
       $('.-level2-').each(function (i, element) {
         $(element).addClass('-hidden-');
       });
-      $(schemaElement).text("");
-      $(inputElement).text("");
-      $(outputElement).text("");
+      schemaElement.text("");
+      inputElement.text("");
+      outputElement.text("");
       hideError(schemaErrorElement);
       hideError(inputErrorElement);
       hideError(outputErrorElement);
@@ -140,7 +142,8 @@
       window.document.execCommand('insertText', false, text);
       if(e.target.id === 'schema') {
         if(updateContent(schemaElement)) {
-          eventObj.trigger('schema-changed');
+          var schemaJson = readSchemaFromInput();
+          eventObj.trigger('schema-changed', schemaJson);
           eventObj.trigger('generate-random');
         };
       }
@@ -150,7 +153,8 @@
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
         if(updateContent(schemaElement)) {
-          eventObj.trigger('schema-changed');
+          var schemaJson = readSchemaFromInput();
+          eventObj.trigger('schema-changed', schemaJson);
           validateInput();
         }
       }, doneTypingInterval);
@@ -173,7 +177,7 @@
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
-          var rawInput = $.trim($(inputElement).text());        
+          var rawInput = $.trim(inputElement.text());        
           eventObj.trigger('input-changed', rawInput);
         };
       }, doneTypingInterval);
@@ -217,7 +221,7 @@
 
         //The .find() and .children() methods are similar, 
         //except that the latter only travels a single level down the DOM tree.
-        var inputCandidates = $(inputElement).find('.' + path.join(' .'));
+        var inputCandidates = inputElement.find('.' + path.join(' .'));
 
         // Go through all input candidates and make sure the `full path` matches 
         // (and in the same order) and then find its position to be highlighted.
@@ -266,7 +270,7 @@
 
     $(document).click(function(e) {
       if(!$(e.target).closest('#schema').length) {
-        if (!$(schemaElement).text()){
+        if (!schemaElement.text()){
           template.show();
         }
       }
@@ -275,14 +279,11 @@
     function populateFromQuery() {
       var s = urlUtils.readValue('schema');
       if(s) {
-        s = decodeURIComponent(s);
-        $(schemaElement).text(s);
-        eventObj.trigger('schema-changed', s);
+        eventObj.trigger('schema-changed', JSON.parse(s));
       }
       
       var record = urlUtils.readValue('record');
       if(record) {
-        record = decodeURIComponent(record);
         decode(record);
         setOutputText(record);
       }
@@ -292,17 +293,17 @@
     * Will save cursor position inside element `elemId` before running callback function f,
     * and restores it after f is finished. 
     */ 
-    function runPreservingCursorPosition(elementId, f) {
+    function runPreservingCursorPosition(elementId, f, params) {
      //Get current position.
       if (window.getSelection().rangeCount) {
 
         var range = window.getSelection().getRangeAt(0);
         var el = document.getElementById(elementId);
         var position = getCharacterOffsetWithin(range, el);
-        f();
+        f.call(this, params);
         setCharacterOffsetWithin(range, el, position);
       } else {
-        f();
+        f.call(this, params);
       }
     } 
     /*
@@ -542,7 +543,7 @@
       if (window.type) {
         try {
           if (!rawInput) {
-            rawInput = $.trim($(inputElement).text());
+            rawInput = $.trim(inputElement.text());
           }
           var attrs = JSON.parse(rawInput);
           // Throw more useful error if not valid.
@@ -570,16 +571,12 @@
       }
     }
 
-    function validateSchema() {
-      window.type = null;
+    function validateSchema(schemaJson) {
+      window.type = undefined;
       try {
-        var schemaJson = readSchemaFromInput();
-        var schemaStr = JSON.stringify(schemaJson, null, 2); 
-        $(schemaElement).text(schemaStr);
         window.type = avsc.parse(schemaJson);
         eventObj.trigger('valid-schema');
         eventObj.trigger('update-layout');
-        eventObj.trigger('update-url', {'schema':schemaStr});
       } catch (err) {
         eventObj.trigger('invalid-schema', err);
       }
@@ -648,12 +645,12 @@
     }
     /* If the schema is pasted with proper json formats, simply json.parse wouldn't work.*/
     function readSchemaFromInput() {
-      var trimmedInput = $.trim($('#schema').text()).replace(/\s/g, "");
+      var trimmedInput = $.trim(schemaElement.text()).replace(/\s/g, "");
       return JSON.parse(trimmedInput);
     }
 
     function readInput() {
-      var rawInput = $.trim($(inputElement).text());
+      var rawInput = $.trim(inputElement.text());
       // Throw more useful error if not valid.
       if(window.type) {
         return window.type.fromString(rawInput);

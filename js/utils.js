@@ -42,7 +42,7 @@ var UrlUtils = {
         query[m[1]] = m[2];
       }
     } while (m);
-    return query[key];
+    return decodeURIComponent(query[key]);
   },
 
  /**
