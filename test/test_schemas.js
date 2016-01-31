@@ -345,6 +345,27 @@ suite('schemas', function () {
       });
     });
 
+    test('inline fixed', function (done) {
+      var hook = createImportHook({
+        '1': 'protocol A { record Two { fixed One(1) one; } }',
+      });
+      assemble('1', {importHook: hook}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [{
+            name: 'Two',
+            type: 'record',
+            fields: [
+              {name: 'one', type: {name: 'One', type: 'fixed', size: 1}}
+            ]
+          }],
+          messages: {}
+        });
+        done();
+      });
+    });
+
     test('one way void', function (done) {
       var hook = createImportHook({
         '1': 'protocol A { void ping(); @foo(true) void pong(); }',
