@@ -17,43 +17,45 @@
         schemaErrorElement = $('#schema-error'),
         schemaValidElement = $('#schema-valid'),
         schemaSelect = $('#schema-template'),
-        schemaElement = document.getElementById('schema'),
+        template = $('#template'),
+        schemaElement = $('#schema'),
         inputElement = $('#input'),
         outputElement = $('#output'),
-        body = document.getElementsByTagName('body')[0],
+        randomElement = $('#random'),
+        uploadElement = $('#upload'),
+        firstPageElements = $('.-level1-'),
+        secondPageElements = $('.-level2-'),
         arrayKeyPattern = /(\d+)/g,
-        queryPattern = /[?&#]+([\w]+)=([^&#]*)/g,
         reservedKeysPattern = /-[a-z]+-/g,
-        whitespacePattern = /[\s]+/g,
+        whiteSpacePattern = /\s+/g,
         typingTimer,
         eventObj = utils.eventObj,
+        urlUtils = utils.urlUtils,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     window.reverseIndexMap = [];  
 
-    eventObj.on('schema-changed', function() {
-      runPreservingCursorPosition( 'schema', validateSchema);
-    }).on('input-changed', function() {
-      runPreservingCursorPosition( 'input' , function () {
-        var rawInput = $.trim($(inputElement).text());        
-        try {
-          // Wrap key values in <span>.
-          setInputText(rawInput);
-          eventObj.trigger('re-instrument');
-          
-        } catch (err) {
-          eventObj.trigger('invalid-input', err);
-        }
-      });
-      encode();
-    }).on('output-changed', function() {
-      runPreservingCursorPosition('output', function() {
-        var rawOutput = $.trim($(outputElement).text());
-      });
-      decode();
+    eventObj.on('schema-changed', function(schemaJson) {
+      template.hide();
+      var schemaStr = JSON.stringify(schemaJson, null, 2); 
+      runPreservingCursorPosition('schema', schemaElement.text, {context: schemaElement, param: schemaStr});
+      eventObj.trigger('update-url', {schema:schemaStr});
+      validateSchema(schemaJson);
+    }).on('input-changed', function(rawInput) {
+      try {
+        runPreservingCursorPosition('input' , setInputText, {context: inputElement, param: rawInput});
+        // Wrap key values in <span>.
+        validateInput(rawInput);
+        eventObj.trigger('re-instrument', rawInput);
+        encode(rawInput);
+      } catch (err) {
+        eventObj.trigger('invalid-input', err);
+      }
+    }).on('output-changed', function(outputStr) {
+      decode(outputStr);
     }).on('valid-schema', function() {
       hideError(schemaErrorElement, schemaValidElement);
-      $('#random').removeClass('-disabled-');
+      randomElement.removeClass('-disabled-');
     }).on('invalid-schema', function (message) {
       showError(schemaErrorElement, message);
     }).on('valid-input', function () { 
@@ -66,45 +68,60 @@
       showError(outputErrorElement, message);
     }).on('update-layout', function() {
       if (window.type) {
-        $('.-help-column-').each(function(i, element) {
+        firstPageElements.each(function(i, element) {
           $(element).addClass('-hidden-');
         });
-        $('.-to-hide-').each(function (i, element) {
+        secondPageElements.each(function (i, element) {
           $(element).removeClass('-hidden-');
         });
       }
     }).on('reset-layout', function() {
-      $('.-help-column-').each(function(i, element) {
+      randomElement.addClass('-disabled-');
+      firstPageElements.each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
-      $('.-to-hide-').each(function (i, element) {
+      secondPageElements.each(function (i, element) {
         $(element).addClass('-hidden-');
       });
-      $(schemaElement).text("");
+      schemaElement.text("");
+      inputElement.text("");
+      outputElement.text("");
+      hideError(schemaErrorElement);
+      hideError(inputErrorElement);
+      hideError(outputErrorElement);
+      template.show();
     }).on('schema-loaded', function(rawSchema) {
-      var s = location.search.split('schema=')[1];
-      s = s != undefined ? decodeURIComponent(s) : undefined;
-      if (!s || s != rawSchema) {
-        var newUrl = updateQueryStringParameter(location.href, 'schema', rawSchema);
-        // Use this so that it doesn't reload the page, but that also means that you need to manually
-        // load the schema from url
-        window.history.pushState({}, 'AVSC', newUrl);
-        populateFromQuery();
-        eventObj.trigger('update-layout');
-      }
-    }).on('re-instrument', function() {
-      window.instrumented = instrumentObject(window.type, readInput());
+      template.hide();
+      var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState({}, 'AVSC', newUrl);
+      populateFromQuery();
+      eventObj.trigger('update-layout');
+      
+    }).on('re-instrument', function(rawInput) {
+      window.instrumented = instrumentObject(window.type, window.type.fromString(rawInput));
       window.reverseIndexMap = computeReverseIndex(window.instrumented);
     }).on('update-url', function(data) {
       var state = {};
       var newUrl = location.href;
-      for (var key in data) {
-        newUrl = updateQueryStringParameter(newUrl, key, data[key]);
-      }
+      newUrl = urlUtils.updateValues(newUrl, data);
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
       window.history.pushState(state, 'AVSC', newUrl);
 
+    }).on('generate-random', function() {
+      generateRandom();
+    }).on('schema-uploaded', function(files) {
+      var file = files[0]; 
+      var reader = new FileReader();
+      reader.readAsText(file, "UTF-8");
+      reader.onload = function (evt) {
+        eventObj.trigger('schema-loaded', evt.target.result);
+      }
+      reader.onerror = function (evt) {
+        console.log("error reading file.");
+      }
     });
 
     schemaSelect.on('change', function() {
@@ -124,38 +141,43 @@
       window.document.execCommand('insertText', false, text);
       if(e.target.id === 'schema') {
         if(updateContent(schemaElement)) {
-          eventObj.trigger('schema-changed');
-          generateRandom();
+          var schemaJson = readSchemaFromInput();
+          eventObj.trigger('schema-changed', schemaJson);
+          eventObj.trigger('generate-random');
         };
       }
     });
 
-    $('#schema').on('keyup', function() {
-
+    schemaElement.on('keyup', function() {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function () {
-        if(updateContent(schemaElement)) {
-          eventObj.trigger('schema-changed');
+        if(updateContent(schemaElement)) { 
+          try {
+            var schemaJson = readSchemaFromInput();
+            eventObj.trigger('schema-changed', schemaJson);
+            validateInput();
+          } catch(err) {
+            eventObj.trigger('invalid-schema', err);
+          }
         }
       }, doneTypingInterval);
+    }).on('click keydown', function() {
+      template.hide();
     }).on('keydown', function() {
       clearTimeout(typingTimer);
-    }).on('click', function(event) {
-      if($(this).hasClass('-placeholder-')) {
-        $(this).text('');
-        $(this).removeClass('-placeholder-');
-      }
-    }).bind('DOMSubtreeModified', function() {
-      if($(this).hasClass('-placeholder-')) {
-        $(this).removeClass('-placeholder-');
-      }
+    }).on('drop', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var files = e.originalEvent.dataTransfer.files;
+      eventObj.trigger('schema-uploaded', files);
     });
 
-    $('#input').on('paste keyup', function(event) {
+    inputElement.on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(inputElement)) {
-          eventObj.trigger('input-changed');
+          var rawInput = $.trim(inputElement.text());        
+          eventObj.trigger('input-changed', rawInput);
         };
       }, doneTypingInterval);
     }).on('keydown', function() {
@@ -175,17 +197,19 @@
         var path = getPath($(this));
         var position = findPositionOf(path);
         highlight(position); 
-      } else 
+      } else {
         console.log("No instrumented type found");
+      }
     }).on('mouseleave', 'span', function(event) {
       clearHighlights();
     });
 
-    $('#output').on('paste keyup', function(event) {
+    outputElement.on('paste keyup', function(event) {
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
         if(updateContent(outputElement)) {
-          eventObj.trigger('output-changed');
+          var outputStr = $.trim(outputElement.text());
+          eventObj.trigger('output-changed', outputStr);
         };
       }, doneTypingInterval);
     }).on('mouseover', 'div', function(event) {
@@ -197,7 +221,7 @@
 
         //The .find() and .children() methods are similar, 
         //except that the latter only travels a single level down the DOM tree.
-        var inputCandidates = $(inputElement).find('.' + path.join(' .'));
+        var inputCandidates = inputElement.find('.' + path.join(' .'));
 
         // Go through all input candidates and make sure the `full path` matches 
         // (and in the same order) and then find its position to be highlighted.
@@ -218,10 +242,10 @@
       clearTimeout(typingTimer);
     });
 
-    $('#random').click(function () {   
+    randomElement.click(function () {   
       clearTimeout(typingTimer);
       typingTimer = setTimeout(function() {
-        generateRandom();
+        eventObj.trigger('generate-random');
       }, doneTypingInterval);
       return false;
     });
@@ -230,53 +254,39 @@
       eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
       eventObj.trigger('reset-layout');
       window.type = undefined;
-      $('#random').addClass('-disabled-');
       return false;
     });
 
     $('#uploadLink').click(function(e) {
-      console.log("uploading");
       e.preventDefault();
-      $("#upload").trigger('click');
-      return false;
+      uploadElement.trigger('click');
+      return false; // So that it doesn't show the content of the file.
     });
 
-    $('#upload').on("change", function(e) {
-      console.log("new file uploading");
-      var files = $('#upload')[0].files;
-      if(!!files && files.length > 0) {
-        var file = files[0]; //TODO: make sure only one file can be selected.
-        var reader = new FileReader();
-        reader.readAsText(file, "UTF-8");
-        reader.onload = function (evt) {
+    uploadElement.on("change", function(e) {
+      var files = $(uploadElement)[0].files;
+      eventObj.trigger('schema-uploaded', files);
+    });
 
-          eventObj.trigger('schema-loaded', evt.target.result);
-          console.log(evt.target.result);
-        }
-        reader.onerror = function (evt) {
-          console.log("error reading file.");
+    $(document).click(function(e) {
+      if(!$(e.target).closest('#schema').length) {
+        if (!schemaElement.text()){
+          template.show();
+          hideError(schemaErrorElement);
         }
       }
-
     });
 
     function populateFromQuery() {
-      var s = readQueryValue(location.href, 'schema');
-      if(!!s) {
-        s = decodeURIComponent(s);
-        $(schemaElement).text(s);
-        eventObj.trigger('schema-changed');
+      var s = urlUtils.readValue('schema');
+      if(s) {
+        eventObj.trigger('schema-changed', JSON.parse(s));
       }
       
-      var record = readQueryValue(location.href, 'record');
-      if(!!record) {
-        record = decodeURIComponent(record);
+      var record = urlUtils.readValue('record');
+      if(record) {
         decode(record);
         setOutputText(record);
-      }
-
-      if (!!s && !record) {
-        generateRandom();
       }
     }
     
@@ -284,17 +294,19 @@
     * Will save cursor position inside element `elemId` before running callback function f,
     * and restores it after f is finished. 
     */ 
-    function runPreservingCursorPosition(elementId, f) {
+    function runPreservingCursorPosition(elementId, f, options) {
+      var context = options && options.context;
+      var param = options && options.param;
      //Get current position.
       if (window.getSelection().rangeCount) {
 
         var range = window.getSelection().getRangeAt(0);
         var el = document.getElementById(elementId);
         var position = getCharacterOffsetWithin(range, el);
-        f();
+        f.call(context, param);
         setCharacterOffsetWithin(range, el, position);
       } else {
-        f();
+        f.call(context, param);
       }
     } 
     /*
@@ -530,26 +542,58 @@
       return res;
     }
 
-    function validateSchema() {
-      window.type = null;
+    function validateInput(rawInput) {
+      if (window.type) {
+        try {
+          if (!rawInput) {
+            rawInput = $.trim(inputElement.text());
+          }
+          var attrs = JSON.parse(rawInput);
+          // Throw more useful error if not valid.
+          window.type.isValid(attrs, {errorHook: hook});
+          eventObj.trigger('valid-input');
+          function hook(path, any, type) {
+            if (
+              typeof any == 'string' &&
+              ( 
+                type instanceof avsc.types.BytesType ||
+                (
+                  type instanceof avsc.types.FixedType &&
+                  any.length === type.getSize()
+                )
+              )
+            ) {
+              // This is a string-encoded buffer.
+              return;
+            }
+            throw new Error('invalid ' + type + ' at ' + path.join('.'));
+          }
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
+      }
+    }
+
+    function validateSchema(schemaJson) {
+      window.type = undefined;
       try {
-        var schemaJson = readSchemaFromInput();
-        var schemaStr = JSON.stringify(schemaJson, null, 2); 
-        $(schemaElement).text(schemaStr);
         window.type = avsc.parse(schemaJson);
         eventObj.trigger('valid-schema');
         eventObj.trigger('update-layout');
-        eventObj.trigger('update-url', {'schema':schemaStr});
       } catch (err) {
         eventObj.trigger('invalid-schema', err);
       }
     }
     function generateRandom() {
       if (window.type) {
-        var random = window.type.random();
-        var randomStr = window.type.toString(random);
-        setInputText(randomStr);
-        eventObj.trigger('input-changed');
+        try{
+          var random = window.type.random();
+          var randomStr = window.type.toString(random);
+          setInputText(randomStr);
+          eventObj.trigger('input-changed', randomStr);
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
       }
     }
 
@@ -558,17 +602,16 @@
     * Instrument it and update window.instrumented.
     * Encode it and set the outputElement's text to the encoded data
     */   
-    function encode() {
+    function encode(inputStr) {
       if (window.type) {
         try {
-          var input = readInput();
+          var input = window.type.fromString(inputStr);
           var output = window.type.toBuffer(input);
         
           var outputStr = output.toString('hex');
           setOutputText(outputStr);
           eventObj.trigger('update-url', {'record' : outputStr});
           eventObj.trigger('valid-output');
-          eventObj.trigger('valid-input');
         }catch(err) {
           eventObj.trigger('invalid-input', err);
         }
@@ -578,11 +621,12 @@
     function decode(rawInput) {
       if (window.type) {
         try {
-          var input = rawInput ? readBuffer(rawInput) : readBuffer();
+          var input = readBuffer(rawInput);
           var decoded = window.type.fromBuffer(input);
           var decodedStr = window.type.toString(decoded);
           setInputText(decodedStr);
-          eventObj.trigger('re-instrument');
+          eventObj.trigger('re-instrument', decodedStr);
+          eventObj.trigger('update-url', {'record' : rawInput});
           eventObj.trigger('valid-input');
           eventObj.trigger('valid-output');
         }catch(err) {
@@ -593,78 +637,43 @@
 
     function showError(errorElem, msg) {
       errorElem.text(msg);
-      errorElem.removeClass('-hidden-');
+      errorElem.show();
     };
 
     function hideError(errorElem, validElem) {
       errorElem.text("");
-      errorElem.addClass('-hidden-');
-      validElem.show('slow').delay(500).hide('slow');
+      errorElem.hide();
+      if (validElem) {
+        validElem.show('slow').delay(500).hide('slow');
+      }
     }
     
-    function clearText(element) {
-      element.text('');
-    }
     /* If the schema is pasted with proper json formats, simply json.parse wouldn't work.*/
     function readSchemaFromInput() {
-      var trimmedInput = $.trim($('#schema').text()).replace(/\s/g, "");
+      var trimmedInput = $.trim(schemaElement.text()).replace(/\s/g, "");
       return JSON.parse(trimmedInput);
     }
 
-    function readInput() {
-      var rawInput = $.trim($(inputElement).text());
-      var attrs = JSON.parse(rawInput);
-      // Throw more useful error if not valid.
-      window.type.isValid(attrs, {errorHook: hook});
-      if(!!window.type) {
-        return window.type.fromString(rawInput);
-      } else {
-        return JSON.parse(rawInput);
-      }
-
-      function hook(path, any, type) {
-        if (
-          typeof any == 'string' &&
-          ( 
-            type instanceof avsc.types.BytesType ||
-            (
-              type instanceof avsc.types.FixedType &&
-              any.length === type.getSize()
-            )
-          )
-        ) {
-          // This is a string-encoded buffer.
-          return;
-        }
-        throw new Error('invalid ' + type + ' at ' + path.join('.'));
-      }
-    }
     /*Used for decoding.
     *Read the text represented as space-seperated hex numbers in elementId
     *and construct a Buffer object*/
-    function readBuffer(str) {
-      var rawInput = str || $.trim(outputElement.text());
-      var hexArray = rawInput.split(/[\s,]+/);
-      var i;
-      var size = hexArray.length;
-      var buffer = [];
-      for (i =0; i < size; i++){
-        buffer.push(new Buffer(hexArray[i], 'hex'));
-      }
-      return Buffer.concat(buffer);
+    function readBuffer(rawInput) { 
+      var str = rawInput.replace(whiteSpacePattern,'');
+      return new Buffer(str, 'hex');
     }
 
     /**
      * Will update the old value of the element to the new one, 
      * and returns true if the content changed. 
     */
-    function  updateContent(element) {
-      var newText = $.trim($(element).text()).replace(/\s+/g, '');
+    function updateContent(element) {
+      var newText = $.trim($(element).text()).replace(whiteSpacePattern, '');
       if (!element.data) {
         element.data = {};
       }
-      if (!element.data['oldValue'] || 
-          element.data['oldValue'] != newText) {
+      if (newText !== '' && 
+        (!element.data['oldValue'] || 
+          element.data['oldValue'] != newText)) {
         element.data['oldValue'] =  newText;
         return true;
       }
@@ -775,45 +784,12 @@
             url: p,
             success: function(data){
             eventObj.trigger('schema-loaded', data);
+            eventObj.trigger('generate-random');
           }
         });
       }
     }
 
-    /**
-    * http://stackoverflow.com/a/6021027/2070194
-    */
-    function updateQueryStringParameter(uri, k1, v1, k2, v2) {
-      var val1 = v1.replace(whitespacePattern, ''); // Remove whitespaces
-      var re = new RegExp("([?&])" + k1 + "=.*?(&|$)", "i");
-      var separator = uri.indexOf('?') !== -1 ? "&" : "?";
-      var res;
-      if (uri.match(re)) {
-        res = uri.replace(re, '$1' + k1 + "=" + val1 + '$2');
-      } else {
-        res = uri + separator + k1 + "=" + val1;
-      }
-      if (!!k2) {
-        return updateQueryStringParameter(res, k2, v2);
-      }
-      return res;
-    }
-
-    function readQueryValue(uri, key) {
-      var query = {};
-      var m;
-      do {
-        m = queryPattern.exec(uri);
-        if (m) {
-          query[m[1]] = m[2];
-        }
-      } while (m);
-
-      return query[key];
-    }
-
     populateFromQuery();
  });
 })();
-
-

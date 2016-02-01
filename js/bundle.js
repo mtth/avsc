@@ -1,5944 +1,4 @@
 (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-(function (global,Buffer){
-/* jshint browser: true, browserify: true */
-
-(function () {
-  'use strict';
-  global.jQuery = require("jquery")
-  var avsc = require('avsc'),
-      buffer = require('buffer'),
-      utils = require('./utils'),
-      $ = require('jquery');
-  window.avsc = avsc;
-  $( function() {
-
-    var outputErrorElement = $('#encoded-error'),
-        inputErrorElement = $('#decoded-error'),
-        encodedValidElement = $('#output-valid'),
-        decodedValidElement = $('#input-valid'),
-        schemaErrorElement = $('#schema-error'),
-        schemaValidElement = $('#schema-valid'),
-        schemaSelect = $('#schema-template'),
-        schemaElement = document.getElementById('schema'),
-        inputElement = $('#input'),
-        outputElement = $('#output'),
-        body = document.getElementsByTagName('body')[0],
-        arrayKeyPattern = /(\d+)/g,
-        queryPattern = /[?&#]+([\w]+)=([^&#]*)/g,
-        reservedKeysPattern = /-[a-z]+-/g,
-        whitespacePattern = /[\s]+/g,
-        typingTimer,
-        eventObj = utils.eventObj,
-        doneTypingInterval = 500; // wait for some time before processing user input.
-    
-    window.reverseIndexMap = [];  
-
-    eventObj.on('schema-changed', function() {
-      runPreservingCursorPosition( 'schema', validateSchema);
-    }).on('input-changed', function() {
-      runPreservingCursorPosition( 'input' , function () {
-        var rawInput = $.trim($(inputElement).text());        
-        try {
-          // Wrap key values in <span>.
-          setInputText(rawInput);
-          eventObj.trigger('re-instrument');
-          
-        } catch (err) {
-          eventObj.trigger('invalid-input', err);
-        }
-      });
-      encode();
-    }).on('output-changed', function() {
-      runPreservingCursorPosition('output', function() {
-        var rawOutput = $.trim($(outputElement).text());
-      });
-      decode();
-    }).on('valid-schema', function() {
-      hideError(schemaErrorElement, schemaValidElement);
-      $('#random').removeClass('-disabled-');
-    }).on('invalid-schema', function (message) {
-      showError(schemaErrorElement, message);
-    }).on('valid-input', function () { 
-      hideError(inputErrorElement, decodedValidElement);
-    }).on('invalid-input', function(message) {
-      showError(inputErrorElement, message);
-    }).on('valid-output', function () { 
-      hideError(outputErrorElement, encodedValidElement);
-    }).on('invalid-output', function(message) {
-      showError(outputErrorElement, message);
-    }).on('update-layout', function() {
-      if (window.type) {
-        $('.-help-column-').each(function(i, element) {
-          $(element).addClass('-hidden-');
-        });
-        $('.-to-hide-').each(function (i, element) {
-          $(element).removeClass('-hidden-');
-        });
-      }
-    }).on('reset-layout', function() {
-      $('.-help-column-').each(function(i, element) {
-        $(element).removeClass('-hidden-');
-      });
-      $('.-to-hide-').each(function (i, element) {
-        $(element).addClass('-hidden-');
-      });
-      $(schemaElement).text("");
-    }).on('schema-loaded', function(rawSchema) {
-      var s = location.search.split('schema=')[1];
-      s = s != undefined ? decodeURIComponent(s) : undefined;
-      if (!s || s != rawSchema) {
-        var newUrl = updateQueryStringParameter(location.href, 'schema', rawSchema);
-        // Use this so that it doesn't reload the page, but that also means that you need to manually
-        // load the schema from url
-        window.history.pushState({}, 'AVSC', newUrl);
-        populateFromQuery();
-        eventObj.trigger('update-layout');
-      }
-    }).on('re-instrument', function() {
-      window.instrumented = instrumentObject(window.type, readInput());
-      window.reverseIndexMap = computeReverseIndex(window.instrumented);
-    }).on('update-url', function(data) {
-      var state = {};
-      var newUrl = location.href;
-      for (var key in data) {
-        newUrl = updateQueryStringParameter(newUrl, key, data[key]);
-      }
-      // Use this so that it doesn't reload the page, but that also means that you need to manually
-      // load the schema from url
-      window.history.pushState(state, 'AVSC', newUrl);
-
-    });
-
-    schemaSelect.on('change', function() {
-      loadTemplate(this.value);
-    });
-
-       
-    /* When pasting something into an editable div, it 
-     * pastes all the html styles with it too, which need to be cleaned up.
-     * copied from: 
-     * http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
-
-    $('[contenteditable]').on('paste',function(e) {
-      e.preventDefault();
-      //TODO: Find out why sometimes it triggers 'input-changed' twice.
-      var text = (e.originalEvent || e).clipboardData.getData('text/plain');
-      window.document.execCommand('insertText', false, text);
-      if(e.target.id === 'schema') {
-        if(updateContent(schemaElement)) {
-          eventObj.trigger('schema-changed');
-          generateRandom();
-        };
-      }
-    });
-
-    $('#schema').on('keyup', function() {
-
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(function () {
-        if(updateContent(schemaElement)) {
-          eventObj.trigger('schema-changed');
-        }
-      }, doneTypingInterval);
-    }).on('keydown', function() {
-      clearTimeout(typingTimer);
-    }).on('click', function(event) {
-      if($(this).hasClass('-placeholder-')) {
-        $(this).text('');
-        $(this).removeClass('-placeholder-');
-      }
-    }).bind('DOMSubtreeModified', function() {
-      if($(this).hasClass('-placeholder-')) {
-        $(this).removeClass('-placeholder-');
-      }
-    });
-
-    $('#input').on('paste keyup', function(event) {
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(function() {
-        if(updateContent(inputElement)) {
-          eventObj.trigger('input-changed');
-        };
-      }, doneTypingInterval);
-    }).on('keydown', function() {
-      clearTimeout(typingTimer);
-    }).on('mouseover', 'span', function(event) {
-      if (window.instrumented) {
-         /* It's important to clear it when the mouse moves from one span to another with the same parent,
-           * to clear out the parent being highlighted. */
-        clearHighlights();
-
-        /*Will also automatically highlight all nested children.*/
-        highlight($(this)); 
-
-        /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
-        event.stopPropagation(); 
-
-        var path = getPath($(this));
-        var position = findPositionOf(path);
-        highlight(position); 
-      } else 
-        console.log("No instrumented type found");
-    }).on('mouseleave', 'span', function(event) {
-      clearHighlights();
-    });
-
-    $('#output').on('paste keyup', function(event) {
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(function() {
-        if(updateContent(outputElement)) {
-          eventObj.trigger('output-changed');
-        };
-      }, doneTypingInterval);
-    }).on('mouseover', 'div', function(event) {
-      if (window.reverseIndexMap) {
-        clearHighlights();
-        event.stopPropagation();
-        
-        var path = getPath(this);
-
-        //The .find() and .children() methods are similar, 
-        //except that the latter only travels a single level down the DOM tree.
-        var inputCandidates = $(inputElement).find('.' + path.join(' .'));
-
-        // Go through all input candidates and make sure the `full path` matches 
-        // (and in the same order) and then find its position to be highlighted.
-
-        $.each(inputCandidates, (function(idx, e) { 
-          var cs = getPath(e);
-          if (utils.arraysEqual(cs, path)) {
-            highlight($(e)); // highlight input
-            var p = getPath(e); // find path
-            var position = findPositionOf(p); // find the indexes in the output
-            highlight(position); // highlight them in output
-          }
-        }));
-      }
-    }).on('mouseleave', 'div', function (event) { 
-      clearHighlights(); 
-    }).on('keydown', function(event) {
-      clearTimeout(typingTimer);
-    });
-
-    $('#random').click(function () {   
-      clearTimeout(typingTimer);
-      typingTimer = setTimeout(function() {
-        generateRandom();
-      }, doneTypingInterval);
-      return false;
-    });
-
-    $("#reset").click(function() {
-      eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
-      eventObj.trigger('reset-layout');
-      window.type = undefined;
-      $('#random').addClass('-disabled-');
-      return false;
-    });
-
-    $('#uploadLink').click(function(e) {
-      console.log("uploading");
-      e.preventDefault();
-      $("#upload").trigger('click');
-      return false;
-    });
-
-    $('#upload').on("change", function(e) {
-      console.log("new file uploading");
-      var files = $('#upload')[0].files;
-      if(!!files && files.length > 0) {
-        var file = files[0]; //TODO: make sure only one file can be selected.
-        var reader = new FileReader();
-        reader.readAsText(file, "UTF-8");
-        reader.onload = function (evt) {
-
-          eventObj.trigger('schema-loaded', evt.target.result);
-          console.log(evt.target.result);
-        }
-        reader.onerror = function (evt) {
-          console.log("error reading file.");
-        }
-      }
-
-    });
-
-    function populateFromQuery() {
-      var s = readQueryValue(location.href, 'schema');
-      if(!!s) {
-        s = decodeURIComponent(s);
-        $(schemaElement).text(s);
-        eventObj.trigger('schema-changed');
-      }
-      
-      var record = readQueryValue(location.href, 'record');
-      if(!!record) {
-        record = decodeURIComponent(record);
-        decode(record);
-        setOutputText(record);
-      }
-
-      if (!!s && !record) {
-        generateRandom();
-      }
-    }
-    
-    /**
-    * Will save cursor position inside element `elemId` before running callback function f,
-    * and restores it after f is finished. 
-    */ 
-    function runPreservingCursorPosition(elementId, f) {
-     //Get current position.
-      if (window.getSelection().rangeCount) {
-
-        var range = window.getSelection().getRangeAt(0);
-        var el = document.getElementById(elementId);
-        var position = getCharacterOffsetWithin(range, el);
-        f();
-        setCharacterOffsetWithin(range, el, position);
-      } else {
-        f();
-      }
-    } 
-    /*
-    * When the input text changes, the whole text is replaced with new <span> elements,
-    * and the previous cursor position will be lost. 
-    *
-    * This function will go through all the child elements of `node` and sets the
-    * caret to the `position`th character.
-    */ 
-
-    function setCharacterOffsetWithin(range, node, position) {
-      var treeWalker = document.createTreeWalker(
-          node,
-          NodeFilter.SHOW_TEXT
-      );
-      var charCount = 0, foundRange = false;
-      while (treeWalker.nextNode() && !foundRange) {
-          if (charCount + treeWalker.currentNode.length < position)
-            charCount += treeWalker.currentNode.length;
-          else {
-            var newRange = document.createRange();
-            newRange.setStart(treeWalker.currentNode, position - charCount);
-            newRange.setEnd(treeWalker.currentNode, position - charCount);
-            newRange.collapse(true);
-
-            var sel = window.getSelection();
-            sel.removeAllRanges();
-            sel.addRange(newRange);
-            foundRange = true;
-          }
-      }
-    }
-    
-    /**
-    * From: http://jsfiddle.net/timdown/2YcaX/
-    * http://stackoverflow.com/questions/4767848/get-caret-cursor-position-in-contenteditable-area-containing-html-content
-    */
-    function getCharacterOffsetWithin(range, node) {
-      var treeWalker = document.createTreeWalker(
-          node,
-          NodeFilter.SHOW_TEXT,
-          function(node) {
-              var nodeRange = document.createRange();
-              nodeRange.selectNode(node);
-              return nodeRange.compareBoundaryPoints(Range.END_TO_END, range) < 1 ?
-                  NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
-          },
-          false
-      );
-      var charCount = 0;
-      while (treeWalker.nextNode()) {
-          charCount += treeWalker.currentNode.length;
-      }
-      if (range.startContainer.nodeType == Node.TEXT_NODE) { 
-          charCount += range.startOffset;
-      }
-      return charCount;
-    }
-
-    /* Get full path of an element based on its css class attributes. (both inherited 
-     * or direct)*/
-    function getPath(element) {
-      var cs = [];
-      /* We can't just read the .attr() parameter, because we need the 
-       * class properties of the parents too.*/
-      $(element)
-        .parentsUntil($('.-textbox-'))
-        .andSelf()
-        .each(function() {
-          if(this.className) {
-            /* This should be a concat because the result of split is already an array */
-            cs = cs.concat($.trim(this.className.replace(reservedKeysPattern,''))
-                            .split(' '));
-          }
-      });
-      return cs;
-    }
-
-    /**
-    * find the start and end index of an entry in its encoded representation
-    * using the instrumented type already loaded in window.instrumented.
-    *
-    */
-    function findPositionOf(path) {
-      var current = window.instrumented;
-      path.forEach(function(entry) {
-        var arrayKey = arrayKeyPattern.exec(entry);
-        var nextKey = arrayKey ? arrayKey[1] : entry; // getting the first captured group from regex result if a match was found.
-        if (nextKey in current.value) {
-          current = current.value[nextKey];
-        }
-      });
-      return current;
-    }
-
-    /*
-    * Find all spans that have the same class, and highlights them,
-    * so if a key is selected, its value will be also highlighted, and vice versa.  
-    */
-    function highlightAllMatching(classesString) {
-      var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
-      rawClasses = rawClasses.replace(/ /g, ' .');
-      $(rawClasses).each( function(i) {
-        highlight($(this));
-      });
-    }
-
-    /**
-    * Add -highlight- to the input element class, 
-    * or highlight entries between 'start' and 'end' in the output text.
-    */
-    function highlight(input) {
-      if (input.start !== undefined && input.end !== undefined){
-        outputElement.children('div').each(function( index ) {
-          if (index >= input.start && index < input.end) {
-            highlight($(this));
-          }
-        });
-      } else {
-        input.addClass('-highlight-');
-      }
-    }
-
-    function addClassToOutputWithRange(cls, start, end) {
-      outputElement.children('span').each(function( index ) {
-        if (index >= start && index < end) {
-          $(this).addClass(cls);
-        }
-      });
-      for (var i = start; i < end; i++) {
-        if (reverseIndexMap[i]) {
-          reverseIndexMap[i].push(cls);
-        } else {
-          reverseIndexMap[i] = [cls];
-        }
-      }
-    }
-    
-
-    /**
-    * Remove `highlight` from all spans. 
-    */
-    function clearHighlights() {
-      $('span').removeClass('-highlight-');
-      $('div').removeClass('-highlight-');
-    }
-
-    /**
-    * set the input box's text to inputStr, 
-    * where all key, values are wrapped in <span> elements
-    * with the 'path' set as the span class. 
-    */
-    function setInputText(inputStr) {
-      var input = JSON.parse(inputStr);
-      var stringified = stringify(input, 1); 
-      inputElement.html(stringified);
-    }
-
-    /**
-    * Set the output box's text to outputStr where each byte is wrapped in <span>
-    * elements and each line contains 8 bytes.
-    */ 
-
-    function setOutputText(outputStr) { 
-      var res = '';
-      var str = outputStr.replace(/\s+/g, '');
-      var i, len;
-      for (i =0, len = str.length; i < len; i += 2){
-        res += createDiv(window.reverseIndexMap[i/2], str[i] + str[i + 1] + '&nbsp;');
-      }
-      outputElement.html(res);
-    }
-
-    /**
-    * Similar to JSON.stringify, but will wrap each key and value 
-    * with <span> tags. 
-    * Does a DFS over the obj, to propagate the parent keys to each 
-    * child element to be set in the span's class attribute.
-    * @param obj The object to stringify
-    * @param depth Current indention level.
-    */
-    function stringify(obj, depth) {
-
-      var res = '';
-      if ( obj == null ) {
-        return createDiv('-null-', 'null');
-      }
-      if (typeof obj === 'number') {
-        return  createDiv('-number-', obj + '');
-      }
-      if (typeof obj === 'boolean') {
-        return createDiv('-boolean-', obj + '');
-      }
-      if (typeof obj === 'string') {
-        // Calling json.stringify here to handle the fixed types.
-        // I have no idea why just printing them doesn't work.
-        return createDiv('-string-', JSON.stringify(obj));
-      }
-      var comma = false;
-      if (obj instanceof Array) {
-        res += '[<br/>';
-        $.each(obj, function(index, value) {
-          if (comma) res += ',<br/>';
-          // Use '-' as a special character, which can not exist in schema keys 
-          // but is a valid character for css class.
-          res += createSpan(index , indent(depth) + stringify(value, depth + 1));
-          comma = true;
-        });
-        res += '<br/>' + indent(depth - 1) + ']';
-        return res;
-      } 
-      res += '{<br/>';
-      comma = false;
-      $.each(obj, function(key, value) {
-        if (comma) res += ',<br/>';
-        res += createSpan(key, indent(depth) + '"' + key + '": ' + stringify(value, depth + 1));
-        comma = true;
-      });
-      res += '<br/>' + indent(depth - 1) + '}';
-      return res;
-    }
-
-    function createSpan(cl, str) {
-      return '<span class="' + cl + '">' + str + '</span>'; 
-    }
-
-    function createDiv(cl, str) {
-      return '<div class="-inline- ' + cl + '">' + str + '</div>';
-    }
-    function indent(depth) { 
-      var res = '';
-      for (var i = 0 ; i < 2 * depth; i++) res += ' ';
-      return res;
-    }
-
-    function validateSchema() {
-      window.type = null;
-      try {
-        var schemaJson = readSchemaFromInput();
-        var schemaStr = JSON.stringify(schemaJson, null, 2); 
-        $(schemaElement).text(schemaStr);
-        window.type = avsc.parse(schemaJson);
-        eventObj.trigger('valid-schema');
-        eventObj.trigger('update-layout');
-        eventObj.trigger('update-url', {'schema':schemaStr});
-      } catch (err) {
-        eventObj.trigger('invalid-schema', err);
-      }
-    }
-    function generateRandom() {
-      if (window.type) {
-        var random = window.type.random();
-        var randomStr = window.type.toString(random);
-        setInputText(randomStr);
-        eventObj.trigger('input-changed');
-      }
-    }
-
-    /**
-    * Read the input as text from inputElement.
-    * Instrument it and update window.instrumented.
-    * Encode it and set the outputElement's text to the encoded data
-    */   
-    function encode() {
-      if (window.type) {
-        try {
-          var input = readInput();
-          var output = window.type.toBuffer(input);
-        
-          var outputStr = output.toString('hex');
-          setOutputText(outputStr);
-          eventObj.trigger('update-url', {'record' : outputStr});
-          eventObj.trigger('valid-output');
-          eventObj.trigger('valid-input');
-        }catch(err) {
-          eventObj.trigger('invalid-input', err);
-        }
-      }
-    }
-
-    function decode(rawInput) {
-      if (window.type) {
-        try {
-          var input = rawInput ? readBuffer(rawInput) : readBuffer();
-          var decoded = window.type.fromBuffer(input);
-          var decodedStr = window.type.toString(decoded);
-          setInputText(decodedStr);
-          eventObj.trigger('re-instrument');
-          eventObj.trigger('valid-input');
-          eventObj.trigger('valid-output');
-        }catch(err) {
-          eventObj.trigger('invalid-output', err);
-        }
-      }
-    }
-
-    function showError(errorElem, msg) {
-      errorElem.text(msg);
-      errorElem.removeClass('-hidden-');
-    };
-
-    function hideError(errorElem, validElem) {
-      errorElem.text("");
-      errorElem.addClass('-hidden-');
-      validElem.show('slow').delay(500).hide('slow');
-    }
-    
-    function clearText(element) {
-      element.text('');
-    }
-    /* If the schema is pasted with proper json formats, simply json.parse wouldn't work.*/
-    function readSchemaFromInput() {
-      var trimmedInput = $.trim($('#schema').text()).replace(/\s/g, "");
-      return JSON.parse(trimmedInput);
-    }
-
-    function readInput() {
-      var rawInput = $.trim($(inputElement).text());
-      var attrs = JSON.parse(rawInput);
-      // Throw more useful error if not valid.
-      window.type.isValid(attrs, {errorHook: hook});
-      if(!!window.type) {
-        return window.type.fromString(rawInput);
-      } else {
-        return JSON.parse(rawInput);
-      }
-
-      function hook(path, any, type) {
-        if (
-          typeof any == 'string' &&
-          ( 
-            type instanceof avsc.types.BytesType ||
-            (
-              type instanceof avsc.types.FixedType &&
-              any.length === type.getSize()
-            )
-          )
-        ) {
-          // This is a string-encoded buffer.
-          return;
-        }
-        throw new Error('invalid ' + type + ' at ' + path.join('.'));
-      }
-    }
-    /*Used for decoding.
-    *Read the text represented as space-seperated hex numbers in elementId
-    *and construct a Buffer object*/
-    function readBuffer(str) {
-      var rawInput = str || $.trim(outputElement.text());
-      var hexArray = rawInput.split(/[\s,]+/);
-      var i;
-      var size = hexArray.length;
-      var buffer = [];
-      for (i =0; i < size; i++){
-        buffer.push(new Buffer(hexArray[i], 'hex'));
-      }
-      return Buffer.concat(buffer);
-    }
-
-    /**
-     * Will update the old value of the element to the new one, 
-     * and returns true if the content changed. 
-    */
-    function  updateContent(element) {
-      var newText = $.trim($(element).text()).replace(/\s+/g, '');
-      if (!element.data) {
-        element.data = {};
-      }
-      if (!element.data['oldValue'] || 
-          element.data['oldValue'] != newText) {
-        element.data['oldValue'] =  newText;
-        return true;
-      }
-      return false;
-    }
-
-    function instrument(schema) {
-      if (schema instanceof avsc.types.Type) {
-        schema = schema.getSchema();
-      }
-      var refs = [];
-      return avsc.parse(schema, {typeHook: hook});
-
-      function hook(schema, opts) {
-        if (~refs.indexOf(schema)) {
-          return;
-        }
-        refs.push(schema);
-
-        if (schema.type === 'record') {
-          schema.fields.forEach(function (f) {
-            f['default'] = undefined;
-          });
-        }
-
-        var name = schema.name;
-        if (name) {
-          schema.name = 'r' + Math.random().toString(36).substr(2, 6);
-        }
-        var wrappedSchema = {
-          name: name || (schema.type ? (schema.type + '_') : 'r' + Math.random().toString(36).substr(2, 6)),
-          namespace: schema.namespace,
-          type: 'record',
-          fields: [{name: 'value', type: schema}]
-        };
-        refs.push(wrappedSchema);
-
-        var type = avsc.parse(wrappedSchema, opts);
-        var read = type._read;
-        type._read = function (tap) {
-          var pos = tap.pos;
-          var obj = read.call(type, tap);
-          obj.start = pos;
-          obj.end = tap.pos;
-          return obj;
-        };
-        return type;
-      }
-    }
-
-    /**
-     * Convenience method to instrument a single object.
-     * 
-     * @param type {Type} The type to be instrumented.
-     * @param obj {Object} A valid instance of `type`.
-     * 
-     * Returns an representation of `obj` with start and end markers.
-     * 
-     */
-    function instrumentObject(type, obj) {
-      return instrument(type).fromBuffer(type.toBuffer(obj));
-    }
-
-    /**
-     * Creates an array of size buffer.length, 
-     * where each index will contain a string representing
-     * the path in the input record corresponding to this byte.
-     */
-    function computeReverseIndex(obj) {
-      if (!obj) {
-        return;
-      }
-      // initialize an array with all empty elements;
-      var size = obj.end;
-      var res = Array.apply(null, Array(size))
-                     .map(String.prototype.valueOf,"");
-      assignLabels('', obj, res);
-      return res;
-    }
-
-    function assignLabels(key, node, res) {
-      if (node.hasOwnProperty('start') && node.hasOwnProperty('end')) {
-        appendLabel(node.start, node.end, key, res);
-      }
-      var valueNode = node.value;
-      if (valueNode) {
-        for (var child in valueNode) {
-          if (valueNode.hasOwnProperty(child)) {
-            assignLabels(child, valueNode[child], res);
-          }
-        }
-      }
-    }
-
-    function appendLabel(start, end, label, arr) {
-      var length = label.length;
-      if (label[length - 1] == '_')
-        label = label.substr(0, length - 1);  
-      for (var i = start; i < end; i++) {
-        arr[i] += ' ' + label; 
-      }
-    }
-
-    function loadTemplate(name) { 
-      if (name != '') {
-        var p = 'schemas/' + name + '.avsc';
-        $.ajax({
-            url: p,
-            success: function(data){
-            eventObj.trigger('schema-loaded', data);
-          }
-        });
-      }
-    }
-
-    /**
-    * http://stackoverflow.com/a/6021027/2070194
-    */
-    function updateQueryStringParameter(uri, k1, v1, k2, v2) {
-      var val1 = v1.replace(whitespacePattern, ''); // Remove whitespaces
-      var re = new RegExp("([?&])" + k1 + "=.*?(&|$)", "i");
-      var separator = uri.indexOf('?') !== -1 ? "&" : "?";
-      var res;
-      if (uri.match(re)) {
-        res = uri.replace(re, '$1' + k1 + "=" + val1 + '$2');
-      } else {
-        res = uri + separator + k1 + "=" + val1;
-      }
-      if (!!k2) {
-        return updateQueryStringParameter(res, k2, v2);
-      }
-      return res;
-    }
-
-    function readQueryValue(uri, key) {
-      var query = {};
-      var m;
-      do {
-        m = queryPattern.exec(uri);
-        if (m) {
-          query[m[1]] = m[2];
-        }
-      } while (m);
-
-      return query[key];
-    }
-
-    populateFromQuery();
- });
-})();
-
-
-
-}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./utils":2,"avsc":3,"buffer":25,"jquery":51}],2:[function(require,module,exports){
-/* jshint browser: true, browserify: true */
-
-
-/* Get the associated data of `elem` from the global cache.
- * (Will create a new entry in cache the first time called for an `elem`.)
-*/
-
-var Event = {
-  on: function(event, callback) {
-    this.hasOwnProperty('events') || (this.events = {});
-    this.events.hasOwnProperty(event) || (this.events[event] = []);
-    this.events[event].push(callback);
-    return this;
-  },
-  trigger: function(event) {
-    var tail = Array.prototype.slice.call(arguments, 1),
-        callbacks = this.events[event];
-    for (var i = 0, l = callbacks.length; i < l ; i++) {
-      callbacks[i].apply(this, tail); // To pass parameters to calback not as an array, but as individual function arguments.  
-    }
-  }
-};
-
-function arraysEqual(a1, a2) {
-  if(a1.length !== a2.length) { return false; }
-  for (var i = 0; i < a1.length; i++ ) {
-    if (a1[i] !== a2[i]) { return false; }
-  }
-  return true;
-}
-
-
-module.exports = {
-  eventObj: Event,
-  arraysEqual: arraysEqual
-}
-
-
-},{}],3:[function(require,module,exports){
-/* jshint node: true */
-
-'use strict';
-
-/**
- * Main browserify entry point.
- *
- */
-
-var containers = require('../../lib/containers'),
-    protocols = require('../../lib/protocols'),
-    schemas = require('./lib/schemas'),
-    types = require('../../lib/types');
-
-
-function parse(schema, opts) {
-  var attrs = schemas.load(schema);
-  return attrs.protocol ?
-    protocols.createProtocol(attrs, opts) :
-    types.createType(attrs, opts);
-}
-
-
-module.exports = {
-  LogicalType: types.LogicalType,
-  Protocol: protocols.Protocol,
-  Type: types.Type,
-  parse: parse,
-  streams: containers.streams,
-  types: types.builtins
-};
-
-},{"../../lib/containers":6,"../../lib/protocols":7,"../../lib/types":8,"./lib/schemas":5}],4:[function(require,module,exports){
-(function (Buffer){
-/* jshint browserify: true */
-
-'use strict';
-
-/**
- * Shim to enable schema fingerprint computation.
- *
- * MD5 implementation originally from [1], used with permission from the
- * author, and lightly edited.
- *
- * [1] http://www.myersdaily.org/joseph/javascript/md5-text.html
- *
- */
-
-function createHash(algorithm) {
-  if (algorithm !== 'md5') {
-    throw new Error('only md5 is supported in the browser');
-  }
-  return new Hash();
-}
-
-function Hash() { this.data = undefined; }
-Hash.prototype.end = function (data) { this.data = data; };
-Hash.prototype.read = function () { return md5(this.data); };
-
-function md5cycle(x, k) {
-  var a = x[0], b = x[1], c = x[2], d = x[3];
-
-  a = ff(a, b, c, d, k[0], 7, -680876936);
-  d = ff(d, a, b, c, k[1], 12, -389564586);
-  c = ff(c, d, a, b, k[2], 17,  606105819);
-  b = ff(b, c, d, a, k[3], 22, -1044525330);
-  a = ff(a, b, c, d, k[4], 7, -176418897);
-  d = ff(d, a, b, c, k[5], 12,  1200080426);
-  c = ff(c, d, a, b, k[6], 17, -1473231341);
-  b = ff(b, c, d, a, k[7], 22, -45705983);
-  a = ff(a, b, c, d, k[8], 7,  1770035416);
-  d = ff(d, a, b, c, k[9], 12, -1958414417);
-  c = ff(c, d, a, b, k[10], 17, -42063);
-  b = ff(b, c, d, a, k[11], 22, -1990404162);
-  a = ff(a, b, c, d, k[12], 7,  1804603682);
-  d = ff(d, a, b, c, k[13], 12, -40341101);
-  c = ff(c, d, a, b, k[14], 17, -1502002290);
-  b = ff(b, c, d, a, k[15], 22,  1236535329);
-
-  a = gg(a, b, c, d, k[1], 5, -165796510);
-  d = gg(d, a, b, c, k[6], 9, -1069501632);
-  c = gg(c, d, a, b, k[11], 14,  643717713);
-  b = gg(b, c, d, a, k[0], 20, -373897302);
-  a = gg(a, b, c, d, k[5], 5, -701558691);
-  d = gg(d, a, b, c, k[10], 9,  38016083);
-  c = gg(c, d, a, b, k[15], 14, -660478335);
-  b = gg(b, c, d, a, k[4], 20, -405537848);
-  a = gg(a, b, c, d, k[9], 5,  568446438);
-  d = gg(d, a, b, c, k[14], 9, -1019803690);
-  c = gg(c, d, a, b, k[3], 14, -187363961);
-  b = gg(b, c, d, a, k[8], 20,  1163531501);
-  a = gg(a, b, c, d, k[13], 5, -1444681467);
-  d = gg(d, a, b, c, k[2], 9, -51403784);
-  c = gg(c, d, a, b, k[7], 14,  1735328473);
-  b = gg(b, c, d, a, k[12], 20, -1926607734);
-
-  a = hh(a, b, c, d, k[5], 4, -378558);
-  d = hh(d, a, b, c, k[8], 11, -2022574463);
-  c = hh(c, d, a, b, k[11], 16,  1839030562);
-  b = hh(b, c, d, a, k[14], 23, -35309556);
-  a = hh(a, b, c, d, k[1], 4, -1530992060);
-  d = hh(d, a, b, c, k[4], 11,  1272893353);
-  c = hh(c, d, a, b, k[7], 16, -155497632);
-  b = hh(b, c, d, a, k[10], 23, -1094730640);
-  a = hh(a, b, c, d, k[13], 4,  681279174);
-  d = hh(d, a, b, c, k[0], 11, -358537222);
-  c = hh(c, d, a, b, k[3], 16, -722521979);
-  b = hh(b, c, d, a, k[6], 23,  76029189);
-  a = hh(a, b, c, d, k[9], 4, -640364487);
-  d = hh(d, a, b, c, k[12], 11, -421815835);
-  c = hh(c, d, a, b, k[15], 16,  530742520);
-  b = hh(b, c, d, a, k[2], 23, -995338651);
-
-  a = ii(a, b, c, d, k[0], 6, -198630844);
-  d = ii(d, a, b, c, k[7], 10,  1126891415);
-  c = ii(c, d, a, b, k[14], 15, -1416354905);
-  b = ii(b, c, d, a, k[5], 21, -57434055);
-  a = ii(a, b, c, d, k[12], 6,  1700485571);
-  d = ii(d, a, b, c, k[3], 10, -1894986606);
-  c = ii(c, d, a, b, k[10], 15, -1051523);
-  b = ii(b, c, d, a, k[1], 21, -2054922799);
-  a = ii(a, b, c, d, k[8], 6,  1873313359);
-  d = ii(d, a, b, c, k[15], 10, -30611744);
-  c = ii(c, d, a, b, k[6], 15, -1560198380);
-  b = ii(b, c, d, a, k[13], 21,  1309151649);
-  a = ii(a, b, c, d, k[4], 6, -145523070);
-  d = ii(d, a, b, c, k[11], 10, -1120210379);
-  c = ii(c, d, a, b, k[2], 15,  718787259);
-  b = ii(b, c, d, a, k[9], 21, -343485551);
-
-  x[0] = add32(a, x[0]);
-  x[1] = add32(b, x[1]);
-  x[2] = add32(c, x[2]);
-  x[3] = add32(d, x[3]);
-}
-
-function cmn(q, a, b, x, s, t) {
-  a = add32(add32(a, q), add32(x, t));
-  return add32((a << s) | (a >>> (32 - s)), b);
-}
-
-function ff(a, b, c, d, x, s, t) {
-  return cmn((b & c) | ((~b) & d), a, b, x, s, t);
-}
-
-function gg(a, b, c, d, x, s, t) {
-  return cmn((b & d) | (c & (~d)), a, b, x, s, t);
-}
-
-function hh(a, b, c, d, x, s, t) {
-  return cmn(b ^ c ^ d, a, b, x, s, t);
-}
-
-function ii(a, b, c, d, x, s, t) {
-  return cmn(c ^ (b | (~d)), a, b, x, s, t);
-}
-
-function md51(s) {
-  var n = s.length,
-  state = [1732584193, -271733879, -1732584194, 271733878], i;
-  for (i=64; i<=s.length; i+=64) {
-    md5cycle(state, md5blk(s.substring(i-64, i)));
-  }
-
-  s = s.substring(i-64);
-  var tail = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];
-  for (i=0; i<s.length; i++) {
-    tail[i>>2] |= s.charCodeAt(i) << ((i%4) << 3);
-  }
-  tail[i>>2] |= 0x80 << ((i%4) << 3);
-  if (i > 55) {
-    md5cycle(state, tail);
-    for (i=0; i<16; i++) {
-      tail[i] = 0;
-    }
-  }
-  tail[14] = n*8;
-  md5cycle(state, tail);
-  return state;
-}
-
-function md5blk(s) {
-  var md5blks = [], i;
-  for (i=0; i<64; i+=4) {
-    md5blks[i>>2] = s.charCodeAt(i) +
-      (s.charCodeAt(i+1) << 8) +
-      (s.charCodeAt(i+2) << 16) +
-      (s.charCodeAt(i+3) << 24);
-  }
-  return md5blks;
-}
-
-function md5(s) {
-  var arr = md51(s);
-  var buf = new Buffer(16);
-  var i;
-  for (i = 0; i < 4; i++) {
-    buf.writeIntLE(arr[i], i * 4, 4);
-  }
-  return buf;
-}
-
-function add32(a, b) {
-  return (a + b) & 0xFFFFFFFF;
-}
-
-module.exports = {
-  createHash: createHash
-};
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":25}],5:[function(require,module,exports){
-(function (Buffer){
-/* jshint node: true */
-
-'use strict';
-
-/**
- * Shim without file-system operations.
- *
- * We also patch a few methods because of browser incompatibilities (see below
- * for more information).
- *
- */
-
-// Since there are no utf8 and binary functions on browserify's `Buffer`, we
-// must patch in tap methods using the generic slice and write methods.
-(function polyfillTap() {
-  var Tap = require('../../../lib/utils').Tap;
-
-  Tap.prototype.readString = function () {
-    var len = this.readLong();
-    var pos = this.pos;
-    var buf = this.buf;
-    this.pos += len;
-    if (this.pos > buf.length) {
-      return;
-    }
-    return this.buf.slice(pos, pos + len).toString();
-  };
-
-  Tap.prototype.writeString = function (s) {
-    var len = Buffer.byteLength(s);
-    this.writeLong(len);
-    var pos = this.pos;
-    this.pos += len;
-    if (this.pos > this.buf.length) {
-      return;
-    }
-    this.buf.write(s, pos);
-  };
-
-  Tap.prototype.writeBinary = function (s, len) {
-    var pos = this.pos;
-    this.pos += len;
-    if (this.pos > this.buf.length) {
-      return;
-    }
-    this.buf.write(s, pos, len, 'binary');
-  };
-})();
-
-/**
- * Schema loader, without file-system access.
- *
- */
-function load(schema) {
-  var obj;
-  if (typeof schema == 'string') {
-    try {
-      obj = JSON.parse(schema);
-    } catch (err) {
-      // No file loading here.
-    }
-  }
-  if (obj === undefined) {
-    obj = schema;
-  }
-  return obj;
-}
-
-
-module.exports = {
-  load: load
-};
-
-}).call(this,require("buffer").Buffer)
-},{"../../../lib/utils":9,"buffer":25}],6:[function(require,module,exports){
-(function (process,Buffer){
-/* jshint node: true */
-
-// TODO: Add `readerType` option for `RawDecoder` and `BlockDecoder`.
-
-'use strict';
-
-/**
- * This module defines custom streams to write and read Avro files.
- *
- * In particular, the `Block{En,De}coder` streams are able to deal with Avro
- * container files. None of the streams below depend on the filesystem however,
- * this way they can also be used in the browser (for example to parse HTTP
- * responses).
- *
- */
-
-var schemas = require('./schemas'),
-    types = require('./types'),
-    utils = require('./utils'),
-    stream = require('stream'),
-    util = require('util'),
-    zlib = require('zlib');
-
-
-// Type of Avro header.
-var HEADER_TYPE = types.createType({
-  namespace: 'org.apache.avro.file',
-  name: 'Header',
-  type: 'record',
-  fields : [
-    {name: 'magic', type: {type: 'fixed', name: 'Magic', size: 4}},
-    {name: 'meta', type: {type: 'map', values: 'bytes'}},
-    {name: 'sync', type: {type: 'fixed', name: 'Sync', size: 16}}
-  ]
-});
-
-// Type of each block.
-var BLOCK_TYPE = types.createType({
-  namespace: 'org.apache.avro.file',
-  name: 'Block',
-  type: 'record',
-  fields : [
-    {name: 'count', type: 'long'},
-    {name: 'data', type: 'bytes'},
-    {name: 'sync', type: {type: 'fixed', name: 'Sync', size: 16}}
-  ]
-});
-
-// Used to toBuffer each block, without having to copy all its data.
-var LONG_TYPE = types.createType('long');
-
-// First 4 bytes of an Avro object container file.
-var MAGIC_BYTES = new Buffer('Obj\x01');
-
-// Convenience.
-var f = util.format;
-var Tap = utils.Tap;
-
-
-/**
- * Duplex stream for decoding fragments.
- *
- */
-function RawDecoder(schema, opts) {
-  opts = opts || {};
-
-  var decode = opts.decode === undefined ? true : !!opts.decode;
-  stream.Duplex.call(this, {
-    readableObjectMode: decode,
-    allowHalfOpen: false
-  });
-
-  this._type = types.createType(schemas.load(schema));
-  this._tap = new Tap(new Buffer(0));
-  this._writeCb = null;
-  this._needPush = false;
-  this._readValue = createReader(decode, this._type);
-  this._finished = false;
-
-  this.on('finish', function () {
-    this._finished = true;
-    this._read();
-  });
-}
-util.inherits(RawDecoder, stream.Duplex);
-
-RawDecoder.prototype._write = function (chunk, encoding, cb) {
-  // Store the write callback and call it when we are done decoding all records
-  // in this chunk. If we call it right away, we risk loading the entire input
-  // in memory. We only need to store the latest callback since the stream API
-  // guarantees that `_write` won't be called again until we call the previous.
-  this._writeCb = cb;
-
-  var tap = this._tap;
-  tap.buf = Buffer.concat([tap.buf.slice(tap.pos), chunk]);
-  tap.pos = 0;
-  if (this._needPush) {
-    this._needPush = false;
-    this._read();
-  }
-};
-
-RawDecoder.prototype._read = function () {
-  this._needPush = false;
-
-  var tap = this._tap;
-  var pos = tap.pos;
-  var val = this._readValue(tap);
-  if (tap.isValid()) {
-    this.push(val);
-  } else if (!this._finished) {
-    tap.pos = pos;
-    this._needPush = true;
-    if (this._writeCb) {
-      // This should only ever be false on the first read, and only if it
-      // happens before the first write.
-      this._writeCb();
-    }
-  } else {
-    this.push(null);
-  }
-};
-
-
-/**
- * Duplex stream for decoding object container files.
- *
- */
-function BlockDecoder(opts) {
-  opts = opts || {};
-
-  var decode = opts.decode === undefined ? true : !!opts.decode;
-  stream.Duplex.call(this, {
-    allowHalfOpen: true, // For async decompressors.
-    readableObjectMode: decode
-  });
-
-  this._type = null;
-  this._codecs = opts.codecs;
-  this._parseOpts = opts.parseOpts;
-  this._tap = new Tap(new Buffer(0));
-  this._blockTap = new Tap(new Buffer(0));
-  this._syncMarker = null;
-  this._readValue = null;
-  this._decode = decode;
-  this._queue = new utils.OrderedQueue();
-  this._decompress = null; // Decompression function.
-  this._index = 0; // Next block index.
-  this._needPush = false;
-  this._finished = false;
-
-  this.on('finish', function () {
-    this._finished = true;
-    if (this._needPush) {
-      this._read();
-    }
-  });
-}
-util.inherits(BlockDecoder, stream.Duplex);
-
-BlockDecoder.getDefaultCodecs = function () {
-  return {
-    'null': function (buf, cb) { cb(null, buf); },
-    'deflate': zlib.inflateRaw
-  };
-};
-
-BlockDecoder.prototype._decodeHeader = function () {
-  var tap = this._tap;
-  if (tap.buf.length < MAGIC_BYTES.length) {
-    // Wait until more data arrives.
-    return false;
-  }
-
-  if (!MAGIC_BYTES.equals(tap.buf.slice(0, MAGIC_BYTES.length))) {
-    this.emit('error', new Error('invalid magic bytes'));
-    return false;
-  }
-
-  var header = HEADER_TYPE._read(tap);
-  if (!tap.isValid()) {
-    return false;
-  }
-
-  var codec = (header.meta['avro.codec'] || 'null').toString();
-  this._decompress = (this._codecs || BlockDecoder.getDefaultCodecs())[codec];
-  if (!this._decompress) {
-    this.emit('error', new Error(f('unknown codec: %s', codec)));
-    return;
-  }
-
-  try {
-    var schema = JSON.parse(header.meta['avro.schema'].toString());
-    this._type = types.createType(schema, this._parseOpts);
-  } catch (err) {
-    this.emit('error', err);
-    return;
-  }
-
-  this._readValue = createReader(this._decode, this._type);
-  this._syncMarker = header.sync;
-  this.emit('metadata', this._type, codec, header);
-  return true;
-};
-
-BlockDecoder.prototype._write = function (chunk, encoding, cb) {
-  var tap = this._tap;
-  tap.buf = Buffer.concat([tap.buf, chunk]);
-  tap.pos = 0;
-
-  if (!this._decodeHeader()) {
-    process.nextTick(cb);
-    return;
-  }
-
-  // We got the header, switch to block decoding mode. Also, call it directly
-  // in case we already have all the data (in which case `_write` wouldn't get
-  // called anymore).
-  this._write = this._writeChunk;
-  this._write(new Buffer(0), encoding, cb);
-};
-
-BlockDecoder.prototype._writeChunk = function (chunk, encoding, cb) {
-  var tap = this._tap;
-  tap.buf = Buffer.concat([tap.buf.slice(tap.pos), chunk]);
-  tap.pos = 0;
-
-  var nBlocks = 1;
-  var block;
-  while ((block = tryReadBlock(tap))) {
-    if (!this._syncMarker.equals(block.sync)) {
-      this.emit('error', new Error('invalid sync marker'));
-      return;
-    }
-    nBlocks++;
-    this._decompress(block.data, this._createBlockCallback(chunkCb));
-  }
-  chunkCb();
-
-  function chunkCb() {
-    if (!--nBlocks) {
-      cb();
-    }
-  }
-};
-
-BlockDecoder.prototype._createBlockCallback = function (cb) {
-  var self = this;
-  var index = this._index++;
-
-  return function (err, data) {
-    if (err) {
-      self.emit('error', err);
-      cb();
-    } else {
-      self._queue.push(new BlockData(index, data, cb));
-      if (self._needPush) {
-        self._read();
-      }
-    }
-  };
-};
-
-BlockDecoder.prototype._read = function () {
-  this._needPush = false;
-
-  var tap = this._blockTap;
-  if (tap.pos >= tap.buf.length) {
-    var data = this._queue.pop();
-    if (!data) {
-      if (this._finished) {
-        this.push(null);
-      } else {
-        this._needPush = true;
-      }
-      return; // Wait for more data.
-    }
-    data.cb();
-    tap.buf = data.buf;
-    tap.pos = 0;
-  }
-
-  this.push(this._readValue(tap)); // The read is guaranteed valid.
-};
-
-
-/**
- * Duplex stream for encoding.
- *
- */
-function RawEncoder(schema, opts) {
-  opts = opts || {};
-
-  stream.Transform.call(this, {
-    writableObjectMode: true,
-    allowHalfOpen: false
-  });
-
-  this._type = types.createType(schemas.load(schema));
-  this._writeValue = function (tap, val) {
-    try {
-      this._type._write(tap, val);
-    } catch (err) {
-      this.emit('error', err);
-    }
-  };
-  this._tap = new Tap(new Buffer(opts.batchSize || 65536));
-}
-util.inherits(RawEncoder, stream.Transform);
-
-RawEncoder.prototype._transform = function (val, encoding, cb) {
-  var tap = this._tap;
-  var buf = tap.buf;
-  var pos = tap.pos;
-
-  this._writeValue(tap, val);
-  if (!tap.isValid()) {
-    if (pos) {
-      // Emit any valid data.
-      this.push(copyBuffer(tap.buf, 0, pos));
-    }
-    var len = tap.pos - pos;
-    if (len > buf.length) {
-      // Not enough space for last written object, need to resize.
-      tap.buf = new Buffer(2 * len);
-    }
-    tap.pos = 0;
-    this._writeValue(tap, val); // Rewrite last failed write.
-  }
-
-  cb();
-};
-
-RawEncoder.prototype._flush = function (cb) {
-  var tap = this._tap;
-  var pos = tap.pos;
-  if (pos) {
-    // This should only ever be false if nothing is written to the stream.
-    this.push(tap.buf.slice(0, pos));
-  }
-  cb();
-};
-
-
-/**
- * Duplex stream to write object container files.
- *
- * @param schema
- * @param opts {Object}
- *
- *  + `blockSize`, uncompressed.
- *  + `codec`
- *  + `codecs`
- *  + `noCheck`
- *  + `omitHeader`, useful to append to an existing block file.
- *
- */
-function BlockEncoder(schema, opts) {
-  opts = opts || {};
-
-  stream.Duplex.call(this, {
-    allowHalfOpen: true, // To support async compressors.
-    writableObjectMode: true
-  });
-
-  var obj, type;
-  if (schema instanceof types.Type) {
-    type = schema;
-    schema = undefined;
-  } else {
-    // Keep full schema to be able to write it to the header later.
-    obj = schemas.load(schema);
-    type = types.createType(obj);
-    schema = JSON.stringify(obj);
-  }
-
-  this._schema = schema;
-  this._type = type;
-  this._writeValue = function (tap, val) {
-    try {
-      this._type._write(tap, val);
-    } catch (err) {
-      this.emit('error', err);
-    }
-  };
-  this._blockSize = opts.blockSize || 65536;
-  this._tap = new Tap(new Buffer(this._blockSize));
-  this._codecs = opts.codecs;
-  this._codec = opts.codec || 'null';
-  this._compress = null;
-  this._omitHeader = opts.omitHeader || false;
-  this._blockCount = 0;
-  this._syncMarker = opts.syncMarker || new utils.Lcg().nextBuffer(16);
-  this._queue = new utils.OrderedQueue();
-  this._pending = 0;
-  this._finished = false;
-  this._needPush = false;
-
-  this.on('finish', function () {
-    this._finished = true;
-    if (this._blockCount) {
-      this._flushChunk();
-    }
-  });
-}
-util.inherits(BlockEncoder, stream.Duplex);
-
-BlockEncoder.getDefaultCodecs = function () {
-  return {
-    'null': function (buf, cb) { cb(null, buf); },
-    'deflate': zlib.deflateRaw
-  };
-};
-
-BlockEncoder.prototype._write = function (val, encoding, cb) {
-  var codec = this._codec;
-  this._compress = (this._codecs || BlockEncoder.getDefaultCodecs())[codec];
-  if (!this._compress) {
-    this.emit('error', new Error(f('unsupported codec: %s', codec)));
-    return;
-  }
-
-  if (!this._omitHeader) {
-    var meta = {
-      'avro.schema': new Buffer(this._schema || this._type.getSchema()),
-      'avro.codec': new Buffer(this._codec)
-    };
-    var Header = HEADER_TYPE.getRecordConstructor();
-    var header = new Header(MAGIC_BYTES, meta, this._syncMarker);
-    this.push(header.toBuffer());
-  }
-
-  this._write = this._writeChunk;
-  this._write(val, encoding, cb);
-};
-
-BlockEncoder.prototype._writeChunk = function (val, encoding, cb) {
-  var tap = this._tap;
-  var pos = tap.pos;
-  var flushing = false;
-
-  this._writeValue(tap, val);
-  if (!tap.isValid()) {
-    if (pos) {
-      this._flushChunk(pos, cb);
-      flushing = true;
-    }
-    var len = tap.pos - pos;
-    if (len > this._blockSize) {
-      // Not enough space for last written object, need to resize.
-      this._blockSize = len * 2;
-    }
-    tap.buf = new Buffer(this._blockSize);
-    tap.pos = 0;
-    this._writeValue(tap, val); // Rewrite last failed write.
-  }
-  this._blockCount++;
-
-  if (!flushing) {
-    cb();
-  }
-};
-
-BlockEncoder.prototype._flushChunk = function (pos, cb) {
-  var tap = this._tap;
-  pos = pos || tap.pos;
-  this._compress(tap.buf.slice(0, pos), this._createBlockCallback(cb));
-  this._blockCount = 0;
-};
-
-BlockEncoder.prototype._read = function () {
-  var self = this;
-  var data = this._queue.pop();
-  if (!data) {
-    if (this._finished && !this._pending) {
-      process.nextTick(function () { self.push(null); });
-    } else {
-      this._needPush = true;
-    }
-    return;
-  }
-
-  this.push(LONG_TYPE.toBuffer(data.count, true));
-  this.push(LONG_TYPE.toBuffer(data.buf.length, true));
-  this.push(data.buf);
-  this.push(this._syncMarker);
-
-  if (!this._finished) {
-    data.cb();
-  }
-};
-
-BlockEncoder.prototype._createBlockCallback = function (cb) {
-  var self = this;
-  var index = this._index++;
-  var count = this._blockCount;
-  this._pending++;
-
-  return function (err, data) {
-    if (err) {
-      self.emit('error', err);
-      return;
-    }
-    self._pending--;
-    self._queue.push(new BlockData(index, data, cb, count));
-    if (self._needPush) {
-      self._needPush = false;
-      self._read();
-    }
-  };
-};
-
-
-// Helpers.
-
-/**
- * An indexed block.
- *
- * This can be used to preserve block order since compression and decompression
- * can cause some some blocks to be returned out of order. The count is only
- * used when encoding.
- *
- */
-function BlockData(index, buf, cb, count) {
-  this.index = index;
-  this.buf = buf;
-  this.cb = cb;
-  this.count = count | 0;
-}
-
-/**
- * Maybe get a block.
- *
- */
-function tryReadBlock(tap) {
-  var pos = tap.pos;
-  var block = BLOCK_TYPE._read(tap);
-  if (!tap.isValid()) {
-    tap.pos = pos;
-    return null;
-  }
-  return block;
-}
-
-/**
- * Create bytes consumer, either reading or skipping records.
- *
- */
-function createReader(decode, type) {
-  if (decode) {
-    return function (tap) { return type._read(tap); };
-  } else {
-    return (function (skipper) {
-      return function (tap) {
-        var pos = tap.pos;
-        skipper(tap);
-        return tap.buf.slice(pos, tap.pos);
-      };
-    })(type._skip);
-  }
-}
-
-/**
- * Copy a buffer.
- *
- * This avoids having to create a slice of the original buffer.
- *
- */
-function copyBuffer(buf, pos, len) {
-  var copy = new Buffer(len);
-  buf.copy(copy, 0, pos, pos + len);
-  return copy;
-}
-
-
-module.exports = {
-  HEADER_TYPE: HEADER_TYPE, // For tests.
-  MAGIC_BYTES: MAGIC_BYTES, // Idem.
-  streams: {
-    RawDecoder: RawDecoder,
-    BlockDecoder: BlockDecoder,
-    RawEncoder: RawEncoder,
-    BlockEncoder: BlockEncoder
-  }
-};
-
-}).call(this,require('_process'),require("buffer").Buffer)
-},{"./schemas":5,"./types":8,"./utils":9,"_process":33,"buffer":25,"stream":47,"util":50,"zlib":24}],7:[function(require,module,exports){
-(function (process,Buffer){
-/* jshint node: true */
-
-// TODO: Optimize MessageEncoder by avoiding the extra copy on transform.
-// TODO: Add timeout as emitter options?
-// TODO: Add error hook to allow transformation of system errors?
-// TODO: Add protocol `discover` method?
-// TODO: Add clear protocol cache method?
-
-'use strict';
-
-/**
- * This module implements Avro's IPC/RPC logic.
- *
- * This is done the Node.js way, mimicking the `EventEmitter` class.
- *
- */
-
-var types = require('./types'),
-    utils = require('./utils'),
-    events = require('events'),
-    stream = require('stream'),
-    util = require('util');
-
-
-var BOOLEAN_TYPE = types.createType('boolean');
-var STRING_TYPE = types.createType('string');
-var SYSTEM_ERROR_TYPE = types.createType(['string']);
-
-var HANDSHAKE_REQUEST_TYPE = types.createType({
-  namespace: 'org.apache.avro.ipc',
-  name: 'HandshakeRequest',
-  type: 'record',
-  fields: [
-    {name: 'clientHash', type: {name: 'MD5', type: 'fixed', size: 16}},
-    {name: 'clientProtocol', type: ['null', 'string'], 'default': null},
-    {name: 'serverHash', type: 'org.apache.avro.ipc.MD5'},
-    {
-      name: 'meta',
-      type: ['null', {type: 'map', values: 'bytes'}],
-      'default': null
-    }
-  ]
-});
-
-var HANDSHAKE_RESPONSE_TYPE = types.createType({
-  namespace: 'org.apache.avro.ipc',
-  name: 'HandshakeResponse',
-  type: 'record',
-  fields: [
-    {
-      name: 'match',
-      type: {
-        name: 'HandshakeMatch',
-        type: 'enum',
-        symbols: ['BOTH', 'CLIENT', 'NONE']
-      }
-    },
-    {name: 'serverProtocol', type: ['null', 'string'], 'default': null},
-    {
-      name: 'serverHash',
-      type: ['null', {name: 'MD5', type: 'fixed', size: 16}],
-      'default': null
-    },
-    {
-      name: 'meta',
-      type: ['null', {type: 'map', values: 'bytes'}],
-      'default': null
-    }
-  ]
-});
-
-var HandshakeRequest = HANDSHAKE_REQUEST_TYPE.getRecordConstructor();
-var HandshakeResponse = HANDSHAKE_RESPONSE_TYPE.getRecordConstructor();
-var Tap = utils.Tap;
-var f = util.format;
-
-
-/**
- * Protocol generation function.
- *
- * This should be used instead of the protocol constructor. The protocol's
- * constructor performs no logic to better support efficient protocol copy.
- *
- */
-function createProtocol(attrs, opts) {
-  opts = opts || {};
-
-  var name = attrs.protocol;
-  if (!name) {
-    throw new Error('missing protocol name');
-  }
-  opts.namespace = attrs.namespace;
-  if (opts.namespace && !~name.indexOf('.')) {
-    name = f('%s.%s', opts.namespace, name);
-  }
-
-  if (attrs.types) {
-    attrs.types.forEach(function (obj) { types.createType(obj, opts); });
-  }
-  var messages = {};
-  if (attrs.messages) {
-    Object.keys(attrs.messages).forEach(function (key) {
-      messages[key] = new Message(key, attrs.messages[key], opts);
-    });
-  }
-
-  return new Protocol(name, messages, opts.registry || {});
-}
-
-/**
- * An Avro protocol.
- *
- * It contains a cache for all remote protocols encountered by its emitters and
- * listeners. Note that a protocol can be listening to multiple listeners at a
- * given time. This can be a mix of stateful or stateless listeners.
- *
- */
-function Protocol(name, messages, types, ptcl) {
-  this._name = name;
-  this._messages = messages;
-  this._types = types;
-  this._parent = ptcl;
-
-  // Cache a string instead of the buffer to avoid retaining an entire slab.
-  this._hashString = utils.getFingerprint(this.toString()).toString('binary');
-
-  // Listener callbacks. Note the prototype used for handlers when this is a
-  // subprotocol. This lets us easily implement the desired fallback behavior.
-  var self = this;
-  this._handlers = Object.create(ptcl ? ptcl._handlers : null);
-  this._onListenerCall = function (name, req, cb) {
-    var handler = self._handlers[name];
-    if (!handler) {
-      cb(new Error(f('unsupported message: %s', name)));
-    } else {
-      handler.call(self, req, this, cb);
-    }
-  };
-
-  // Resolvers are split since we want emitters to still be able to talk to
-  // servers with more messages (which would be incompatible the other way).
-  this._emitterResolvers = ptcl ? ptcl._emitterResolvers : {};
-  this._listenerResolvers = ptcl ? ptcl._listenerResolvers : {};
-}
-
-Protocol.prototype.subprotocol = function () {
-  return new Protocol(this._name, this._messages, this._types, this);
-};
-
-Protocol.prototype.emit = function (name, req, emitter, cb) {
-  cb = cb || throwError; // To provide a more helpful error message.
-
-  if (
-    !(emitter instanceof MessageEmitter) ||
-    emitter._ptcl._hashString !== this._hashString
-  ) {
-    asyncAvroCb(this, cb, 'invalid emitter');
-    return;
-  }
-
-  var message = this._messages[name];
-  if (!message) {
-    asyncAvroCb(this, cb, f('unknown message: %s', name));
-    return;
-  }
-
-  emitter._emit(message, req, cb);
-};
-
-Protocol.prototype.createEmitter = function (transport, opts, cb) {
-  if (!cb && typeof opts == 'function') {
-    cb = opts;
-    opts = undefined;
-  }
-
-  var emitter;
-  if (typeof transport == 'function') {
-    emitter = new StatelessEmitter(this, transport, opts);
-  } else {
-    var readable, writable;
-    if (isStream(transport)) {
-      readable = writable = transport;
-    } else {
-      readable = transport.readable;
-      writable = transport.writable;
-    }
-    emitter = new StatefulEmitter(this, readable, writable, opts);
-  }
-  if (cb) {
-    emitter.once('eot', cb);
-  }
-  return emitter;
-};
-
-Protocol.prototype.on = function (name, handler) {
-  if (!this._messages[name]) {
-    throw new Error(f('unknown message: %s', name));
-  }
-  this._handlers[name] = handler;
-  return this;
-};
-
-Protocol.prototype.createListener = function (transport, opts, cb) {
-  if (!cb && typeof opts == 'function') {
-    cb = opts;
-    opts = undefined;
-  }
-
-  var listener;
-  if (typeof transport == 'function') {
-    listener = new StatelessListener(this, transport, opts);
-  } else {
-    var readable, writable;
-    if (isStream(transport)) {
-      readable = writable = transport;
-    } else {
-      readable = transport.readable;
-      writable = transport.writable;
-    }
-    listener = new StatefulListener(this, readable, writable, opts);
-  }
-  if (cb) {
-    listener.once('eot', cb);
-  }
-  return listener.on('_call', this._onListenerCall);
-};
-
-Protocol.prototype.getType = function (name) { return this._types[name]; };
-
-Protocol.prototype.getName = function () { return this._name; };
-
-Protocol.prototype.getMessages = function () { return this._messages; };
-
-Protocol.prototype.toString = function () {
-  var namedTypes = [];
-  Object.keys(this._types).forEach(function (name) {
-    var type = this._types[name];
-    if (type.getName()) {
-      namedTypes.push(type);
-    }
-  }, this);
-
-  return types.stringify({
-    protocol: this._name,
-    types: namedTypes.length ? namedTypes : undefined,
-    messages: this._messages
-  });
-};
-
-Protocol.prototype.inspect = function () {
-  return f('<Protocol %j>', this._name);
-};
-
-/**
- * Base message emitter class.
- *
- * See below for the two available variants.
- *
- */
-function MessageEmitter(ptcl, opts) {
-  events.EventEmitter.call(this);
-
-  this._ptcl = ptcl;
-  this._resolvers = ptcl._emitterResolvers;
-  this._serverHashString = ptcl._hashString;
-  this._idType = IdType.createMetadataType(opts.IdType);
-  this._bufferSize = opts.bufferSize || 2048;
-  this._frameSize = opts.frameSize || 2048;
-
-  this.once('_eot', function (pending) { this.emit('eot', pending); });
-}
-util.inherits(MessageEmitter, events.EventEmitter);
-
-MessageEmitter.prototype._generateResolvers = function (
-  hashString, serverPtcl
-) {
-  var resolvers = {};
-  var emitterMessages = this._ptcl._messages;
-  var serverMessages = serverPtcl._messages;
-  Object.keys(emitterMessages).forEach(function (name) {
-    var cm = emitterMessages[name];
-    var sm = serverMessages[name];
-    if (!sm) {
-      throw new Error(f('missing server message: %s', name));
-    }
-    if (cm.oneWay !== sm.oneWay) {
-      throw new Error(f('incompatible one-way options for message: %s', name));
-    }
-    resolvers[name] = {
-      responseType: cm.responseType.createResolver(sm.responseType),
-      errorType: cm.errorType.createResolver(sm.errorType)
-    };
-  });
-  this._resolvers[hashString] = resolvers;
-};
-
-MessageEmitter.prototype._createHandshakeRequest = function (
-  hashString, noPtcl
-) {
-  return new HandshakeRequest(
-    getHash(this._ptcl),
-    noPtcl ? null : {string: this._ptcl.toString()},
-    new Buffer(hashString, 'binary')
-  );
-};
-
-MessageEmitter.prototype._finalizeHandshake = function (tap, handshakeReq) {
-  var res = HANDSHAKE_RESPONSE_TYPE._read(tap);
-  this.emit('handshake', handshakeReq, res);
-
-  if (handshakeReq.clientProtocol && res.match === 'NONE') {
-    // If the emitter's protocol was included in the original request, this is
-    // not a failure which a retry will fix.
-    var buf = res.meta && res.meta.map.error;
-    throw new Error(buf ? buf.toString() : 'handshake error');
-  }
-
-  var hashString;
-  if (res.serverHash && res.serverProtocol) {
-    // This means the request didn't include the correct server hash. Note that
-    // we use the handshake response's hash rather than our computed one in
-    // case the server computes it differently.
-    hashString = res.serverHash['org.apache.avro.ipc.MD5'].toString('binary');
-    if (!canResolve(this, hashString)) {
-      this._generateResolvers(
-        hashString,
-        createProtocol(JSON.parse(res.serverProtocol.string))
-      );
-    }
-    // Make this hash the new default.
-    this._serverHashString = hashString;
-  } else {
-    hashString = handshakeReq.serverHash.toString('binary');
-  }
-
-  // We return the server's hash for stateless emitters. It might be that the
-  // default hash changes in between requests, in which case using the default
-  // one will fail.
-  return {match: res.match, serverHashString: hashString};
-};
-
-MessageEmitter.prototype._encodeRequest = function (tap, message, req) {
-  safeWrite(tap, STRING_TYPE, message.name);
-  safeWrite(tap, message.requestType, req);
-};
-
-MessageEmitter.prototype._decodeArguments = function (
-  tap, hashString, message
-) {
-  var resolvers = getResolvers(this, hashString, message);
-  var args = [null, null];
-  if (tap.readBoolean()) {
-    args[0] = resolvers.errorType._read(tap);
-  } else {
-    args[1] = resolvers.responseType._read(tap);
-  }
-  if (!tap.isValid()) {
-    throw new Error('truncated message');
-  }
-  return args;
-};
-
-/**
- * Factory-based emitter.
- *
- * This emitter doesn't keep a persistent connection to the server and requires
- * prepending a handshake to each message emitted. Usage examples include
- * talking to an HTTP server (where the factory returns an HTTP request).
- *
- * Since each message will use its own writable/readable stream pair, the
- * advantage of this emitter is that it is able to keep track of which response
- * corresponds to each request without relying on messages' metadata. In
- * particular, this means these emitters are compatible with any server
- * implementation.
- *
- */
-function StatelessEmitter(ptcl, writableFactory, opts) {
-  opts = opts || {};
-  MessageEmitter.call(this, ptcl, opts);
-
-  this._writableFactory = writableFactory;
-  this._id = 1;
-  this._pending = {};
-  this._destroyed = false;
-  this._interrupted = false;
-}
-util.inherits(StatelessEmitter, MessageEmitter);
-
-StatelessEmitter.prototype._emit = function (message, req, cb) {
-  // We enclose the server's hash inside this message's closure since the
-  // emitter might be emitting several message concurrently and the hash might
-  // change before the response returns (unlikely but possible if the emitter
-  // talks to multiple servers at once or the server changes protocol).
-  var serverHashString = this._serverHashString;
-  var id = this._id++;
-  var self = this;
-
-  this._pending[id] = cb;
-  if (this._destroyed) {
-    asyncAvroCb(undefined, done, 'emitter destroyed');
-    return;
-  }
-  emit(false);
-
-  function emit(retry) {
-    var tap = new Tap(new Buffer(self._bufferSize));
-
-    var handshakeReq = self._createHandshakeRequest(serverHashString, !retry);
-    safeWrite(tap, HANDSHAKE_REQUEST_TYPE, handshakeReq);
-    try {
-      safeWrite(tap, self._idType, id);
-      self._encodeRequest(tap, message, req);
-    } catch (err) {
-      asyncAvroCb(undefined, done, err);
-      return;
-    }
-
-    var writable = self._writableFactory(function onReadable(readable) {
-      if (self._interrupted) {
-        // In case this function is called asynchronously (e.g. when sending
-        // HTTP requests), it might be that we have ended since.
-        return;
-      }
-
-      readable
-        .pipe(new MessageDecoder(true))
-        .on('error', done)
-        // This will happen when the readable stream ends before a single
-        // message has been decoded (e.g. on invalid response).
-        .on('data', function (buf) {
-          readable.unpipe(this); // Single message per readable stream.
-          if (self._interrupted) {
-            return;
-          }
-
-          var tap = new Tap(buf);
-          try {
-            var info = self._finalizeHandshake(tap, handshakeReq);
-            serverHashString = info.serverHashString;
-            if (info.match === 'NONE') {
-              emit(true); // Retry, attaching emitter protocol this time.
-              return;
-            }
-            self._idType._read(tap); // Skip metadata.
-            var args = self._decodeArguments(tap, serverHashString, message);
-          } catch (err) {
-            done(err);
-            return;
-          }
-          done.apply(undefined, args);
-        });
-    });
-
-    var encoder = new MessageEncoder(self._frameSize);
-    encoder.pipe(writable);
-    encoder.end(tap.getValue());
-  }
-
-  function done(err, res) {
-    var cb = self._pending[id];
-    delete self._pending[id];
-    cb.call(self._ptcl, err, res);
-    if (self._destroyed) {
-      self.destroy();
-    }
-  }
-};
-
-StatelessEmitter.prototype.destroy = function (noWait) {
-  this._destroyed = true;
-
-  var pendingIds = Object.keys(this._pending);
-  if (noWait) {
-    this._interrupted = true;
-    pendingIds.forEach(function (id) {
-      this._pending[id]({string: 'interrupted'});
-      delete this._pending[id];
-    }, this);
-  }
-
-  if (noWait || !pendingIds.length) {
-    this.emit('_eot', pendingIds.length);
-  }
-};
-
-/**
- * Multiplexing emitter.
- *
- * These emitters reuse the same streams (both readable and writable) for all
- * messages. This avoids a lot of overhead (e.g. creating new connections,
- * re-issuing handshakes) but requires the server to include compatible
- * metadata in each response (namely forwarding each request's ID into its
- * response).
- *
- * A custom metadata format can be specified via the `idType` option. The
- * default is compatible with this package's default server (i.e. listener)
- * implementation.
- *
- */
-function StatefulEmitter(ptcl, readable, writable, opts) {
-  opts = opts || {};
-  MessageEmitter.call(this, ptcl, opts);
-
-  this._readable = readable;
-  this._writable = writable;
-  this._id = 1;
-  this._pending = {};
-  this._started = false;
-  this._destroyed = false;
-  this._ended = false; // Readable input ended.
-  this._decoder = new MessageDecoder();
-  this._encoder = new MessageEncoder(this._frameSize);
-
-  var handshakeReq = null;
-  var self = this;
-
-  process.nextTick(function () {
-    self._readable.pipe(self._decoder)
-      .on('error', function (err) { self.emit('error', err); })
-      .on('data', onHandshakeData)
-      .on('end', function () {
-        self._ended = true;
-        self.destroy();
-      });
-
-    self._encoder.pipe(self._writable);
-    emitHandshake(true);
-  });
-
-  function emitHandshake(noPtcl) {
-    handshakeReq = self._createHandshakeRequest(
-      self._serverHashString,
-      noPtcl
-    );
-    self._encoder.write(handshakeReq.toBuffer());
-  }
-
-  function onHandshakeData(buf) {
-    var tap = new Tap(buf);
-    try {
-      var info = self._finalizeHandshake(tap, handshakeReq);
-    } catch (err) {
-      self.emit('error', err);
-      self.destroy(); // This isn't a recoverable error.
-      return;
-    }
-
-    if (info.match !== 'NONE') {
-      self._decoder
-        .removeListener('data', onHandshakeData)
-        .on('data', onMessageData);
-      self._started = true;
-      self.emit('_start'); // Send any pending messages.
-    } else {
-      emitHandshake(false);
-    }
-  }
-
-  function onMessageData(buf) {
-    var tap = new Tap(buf);
-    try {
-      var id = self._idType._read(tap);
-      if (!id) {
-        throw new Error('missing ID');
-      }
-    } catch (err) {
-      self.emit('error', new Error('invalid metadata: ' + err.message));
-      return;
-    }
-
-    var info = self._pending[id];
-    if (info === undefined) {
-      self.emit('error', new Error('orphan response: ' + id));
-      return;
-    }
-
-    try {
-      var args = self._decodeArguments(
-        tap,
-        self._serverHashString,
-        info.message
-      );
-    } catch (err) {
-      info.cb({string: 'invalid response: ' + err.message});
-      return;
-    }
-    delete self._pending[id];
-    info.cb.apply(self._ptcl, args);
-    if (self._destroyed) {
-      self.destroy();
-    }
-  }
-}
-util.inherits(StatefulEmitter, MessageEmitter);
-
-StatefulEmitter.prototype._emit = function (message, req, cb) {
-  if (this._destroyed) {
-    asyncAvroCb(this._ptcl, cb, 'emitter destroyed');
-    return;
-  }
-
-  var self = this;
-  if (!this._started) {
-    this.once('_start', function () { self._emit(message, req, cb); });
-    return;
-  }
-
-  var tap = new Tap(new Buffer(this._bufferSize));
-  var id = this._id++;
-  try {
-    safeWrite(tap, this._idType, -id);
-    this._encodeRequest(tap, message, req);
-  } catch (err) {
-    asyncAvroCb(this._ptcl, cb, err);
-    return;
-  }
-
-  if (!message.oneWay) {
-    this._pending[id] = {message: message, cb: cb};
-  }
-  this._encoder.write(tap.getValue());
-};
-
-StatefulEmitter.prototype.destroy = function (noWait) {
-  this._destroyed = true;
-  if (!this._started) {
-    this.emit('_start'); // Error out any pending calls.
-  }
-
-  var pendingIds = Object.keys(this._pending);
-  if (pendingIds.length && !(noWait || this._ended)) {
-    return; // Wait for pending requests.
-  }
-  pendingIds.forEach(function (id) {
-    var cb = this._pending[id].cb;
-    delete this._pending[id];
-    cb({string: 'interrupted'});
-  }, this);
-
-  this._readable.unpipe(this._decoder);
-  this._encoder.unpipe(this._writable);
-  this.emit('_eot', pendingIds.length);
-};
-
-/**
- * The server-side emitter equivalent.
- *
- * In particular it is responsible for handling handshakes appropriately.
- *
- */
-function MessageListener(ptcl, opts) {
-  events.EventEmitter.call(this);
-  opts = opts || {};
-
-  this._ptcl = ptcl;
-  this._resolvers = ptcl._listenerResolvers;
-  this._emitterHashString = null;
-  this._idType = IdType.createMetadataType(opts.IdType);
-  this._bufferSize = opts.bufferSize || 2048;
-  this._frameSize = opts.frameSize || 2048;
-  this._decoder = new MessageDecoder();
-  this._encoder = new MessageEncoder(this._frameSize);
-  this._destroyed = false;
-  this._pending = 0;
-
-  this.once('_eot', function (pending) { this.emit('eot', pending); });
-}
-util.inherits(MessageListener, events.EventEmitter);
-
-MessageListener.prototype._generateResolvers = function (
-  hashString, emitterPtcl
-) {
-  var resolvers = {};
-  var clientMessages = emitterPtcl._messages;
-  var serverMessages = this._ptcl._messages;
-  Object.keys(clientMessages).forEach(function (name) {
-    var sm = serverMessages[name];
-    if (!sm) {
-      throw new Error(f('missing server message: %s', name));
-    }
-    var cm = clientMessages[name];
-    if (cm.oneWay !== sm.oneWay) {
-      throw new Error(f('incompatible one-way options for message: %s', name));
-    }
-    resolvers[name] = {
-      requestType: sm.requestType.createResolver(cm.requestType)
-    };
-  });
-  this._resolvers[hashString] = resolvers;
-};
-
-MessageListener.prototype._validateHandshake = function (reqTap, resTap) {
-  // Reads handshake request and write corresponding response out. If an error
-  // occurs when parsing the request, a response with match NONE will be sent.
-  // Also emits 'handshake' event with both the request and the response.
-  var validationErr = null;
-  try {
-    var handshakeReq = HANDSHAKE_REQUEST_TYPE._read(reqTap);
-    var serverHashString = handshakeReq.serverHash.toString('binary');
-  } catch (err) {
-    validationErr = err;
-  }
-
-  if (!validationErr) {
-    this._emitterHashString = handshakeReq.clientHash.toString('binary');
-    if (!canResolve(this, this._emitterHashString)) {
-      var emitterPtclString = handshakeReq.clientProtocol;
-      if (emitterPtclString) {
-        try {
-          this._generateResolvers(
-            this._emitterHashString,
-            createProtocol(JSON.parse(emitterPtclString.string))
-          );
-        } catch (err) {
-          validationErr = err;
-        }
-      } else {
-        validationErr = new Error('unknown client protocol hash');
-      }
-    }
-  }
-
-  // We use the handshake response's meta field to transmit an eventual error
-  // to the client. This will let us display a more useful message later on.
-  var serverMatch = serverHashString === this._ptcl._hashString;
-  var handshakeRes = new HandshakeResponse(
-    validationErr ? 'NONE' : serverMatch ? 'BOTH' : 'CLIENT',
-    serverMatch ? null : {string: this._ptcl.toString()},
-    serverMatch ? null : {'org.apache.avro.ipc.MD5': getHash(this._ptcl)},
-    validationErr ? {map: {error: new Buffer(validationErr.message)}} : null
-  );
-
-  this.emit('handshake', handshakeReq, handshakeRes);
-  safeWrite(resTap, HANDSHAKE_RESPONSE_TYPE, handshakeRes);
-  return validationErr === null;
-};
-
-MessageListener.prototype._decodeRequest = function (tap, message) {
-  var resolvers = getResolvers(this, this._emitterHashString, message);
-  var val = resolvers.requestType._read(tap);
-  if (!tap.isValid()) {
-    throw new Error('invalid request');
-  }
-  return val;
-};
-
-MessageListener.prototype._encodeSystemError = function (tap, err) {
-  safeWrite(tap, BOOLEAN_TYPE, true);
-  safeWrite(tap, SYSTEM_ERROR_TYPE, avroError(err));
-};
-
-MessageListener.prototype._encodeArguments = function (
-  tap, message, err, res
-) {
-  var noError = err === null;
-  var pos = tap.pos;
-  safeWrite(tap, BOOLEAN_TYPE, !noError);
-  try {
-    if (noError) {
-      safeWrite(tap, message.responseType, res);
-    } else {
-      if (err instanceof Error) {
-        // Convenience to allow emitter to use JS errors inside handlers.
-        err = avroError(err);
-      }
-      safeWrite(tap, message.errorType, err);
-    }
-  } catch (err) {
-    tap.pos = pos;
-    this._encodeSystemError(tap, err);
-  }
-};
-
-MessageListener.prototype.destroy = function (noWait) {
-  if (!this._destroyed) {
-    // Stop listening. This will also correctly push back any unused bytes into
-    // the readable stream (via `MessageDecoder`'s `unpipe` handler).
-    this._readable.unpipe(this._decoder);
-  }
-
-  this._destroyed = true;
-  if (noWait || !this._pending) {
-    this._encoder.unpipe(this._writable);
-    this.emit('_eot', this._pending);
-  }
-};
-
-/**
- * Listener for stateless transport.
- *
- * This listener expect a handshake to precede each message.
- *
- */
-function StatelessListener(ptcl, readableFactory, opts) {
-  MessageListener.call(this, ptcl, opts);
-
-  this._tap = new Tap(new Buffer(this._bufferSize));
-  this._message = undefined;
-
-  var self = this;
-  this._readable = readableFactory(function (writable) {
-    // The encoder will buffer writes that happen before this function is
-    // called, so we don't need to do any special handling.
-    self._writable = self._encoder
-      .pipe(writable)
-      .on('finish', onEnd);
-  });
-
-  this._readable.pipe(this._decoder)
-    .on('data', onRequestData)
-    .on('end', onEnd);
-
-  function onRequestData(buf) {
-    self._pending++;
-    self.destroy(); // Only one message per stateless listener.
-
-    var reqTap = new Tap(buf);
-    if (!self._validateHandshake(reqTap, self._tap)) {
-      onResponse(new Error('invalid handshake'));
-      return;
-    }
-
-    try {
-      self._idType._read(reqTap); // Skip metadata.
-      var name = STRING_TYPE._read(reqTap);
-      self._message = self._ptcl._messages[name];
-      if (!self._message) {
-        throw new Error(f('unknown message: %s', name));
-      }
-      var req = self._decodeRequest(reqTap, self._message);
-    } catch (err) {
-      onResponse(err);
-      return;
-    }
-
-    self.emit('_call', name, req, onResponse);
-  }
-
-  function onResponse(err, res) {
-    safeWrite(self._tap, self._idType, 0);
-    if (!self._message) {
-      self._encodeSystemError(self._tap, err);
-    } else {
-      self._encodeArguments(self._tap, self._message, err, res);
-    }
-    self._pending--;
-    self._encoder.end(self._tap.getValue());
-  }
-
-  function onEnd() { self.destroy(); }
-}
-util.inherits(StatelessListener, MessageListener);
-
-/**
- * Stateful transport listener.
- *
- * A handshake is done when the listener is first opened, then all messages are
- * sent without.
- *
- */
-function StatefulListener(ptcl, readable, writable, opts) {
-  MessageListener.call(this, ptcl, opts);
-
-  this._readable = readable;
-  this._writable = writable;
-
-  var self = this;
-
-  this._readable
-    .pipe(this._decoder)
-    .on('data', onHandshakeData)
-    .on('end', function () { self.destroy(); });
-
-  this._encoder
-    .pipe(this._writable)
-    .on('finish', function () { self.destroy(); });
-
-  function onHandshakeData(buf) {
-    var reqTap = new Tap(buf);
-    var resTap = new Tap(new Buffer(self._bufferSize));
-    if (self._validateHandshake(reqTap, resTap)) {
-      self._decoder
-        .removeListener('data', onHandshakeData)
-        .on('data', onRequestData);
-    }
-    self._encoder.write(resTap.getValue());
-  }
-
-  function onRequestData(buf) {
-    var reqTap = new Tap(buf);
-    var resTap = new Tap(new Buffer(self._bufferSize));
-    var id = 0;
-    try {
-      id = -self._idType._read(reqTap) | 0;
-      if (!id) {
-        throw new Error('missing ID');
-      }
-    } catch (err) {
-      self.emit('error', new Error('invalid metadata: ' + err.message));
-      return;
-    }
-
-    self._pending++;
-    try {
-      var name = STRING_TYPE._read(reqTap);
-      var message = self._ptcl._messages[name];
-      if (!message) {
-        throw new Error('unknown message: ' + name);
-      }
-      var req = self._decodeRequest(reqTap, message);
-    } catch (err) {
-      onResponse(err);
-      return;
-    }
-
-    if (message.oneWay) {
-      self.emit('_call', name, req);
-      self._pending--;
-    } else {
-      self.emit('_call', name, req, onResponse);
-    }
-
-    function onResponse(err, res) {
-      self._pending--;
-      safeWrite(resTap, self._idType, id);
-      if (!message) {
-        self._encodeSystemError(resTap, err);
-      } else {
-        self._encodeArguments(resTap, message, err, res);
-      }
-      self._encoder.write(resTap.getValue(), undefined, function () {
-        if (!self._pending && self._destroyed) {
-          self.destroy(); // For real this time.
-        }
-      });
-    }
-  }
-}
-util.inherits(StatefulListener, MessageListener);
-
-// Helpers.
-
-/**
- * An Avro message.
- *
- */
-function Message(name, attrs, opts) {
-  this.name = name;
-
-  this.requestType = types.createType({
-    name: name,
-    type: 'request',
-    fields: attrs.request
-  }, opts);
-
-  if (!attrs.response) {
-    throw new Error('missing response');
-  }
-  this.responseType = types.createType(attrs.response, opts);
-
-  var errors = attrs.errors || [];
-  errors.unshift('string');
-  this.errorType = types.createType(errors, opts);
-
-  this.oneWay = !!attrs['one-way'];
-  if (this.oneWay) {
-    if (
-      !(this.responseType instanceof types.builtins.NullType) ||
-      errors.length > 1
-    ) {
-      throw new Error('unapplicable one-way parameter');
-    }
-  }
-}
-
-Message.prototype.toJSON = function () {
-  var obj = {
-    request: this.requestType.getFields(),
-    response: this.responseType
-  };
-  var errorTypes = this.errorType.getTypes();
-  if (errorTypes.length > 1) {
-    obj.errors = types.createType(errorTypes.slice(1));
-  }
-  if (this.oneWay) {
-    obj['one-way'] = true;
-  }
-  return obj;
-};
-
-/**
- * "Framing" stream.
- *
- * @param frameSize {Number} (Maximum) size in bytes of each frame. The last
- * frame might be shorter.
- *
- */
-function MessageEncoder(frameSize) {
-  stream.Transform.call(this);
-  this._frameSize = frameSize | 0;
-  if (this._frameSize <= 0) {
-    throw new Error('invalid frame size');
-  }
-}
-util.inherits(MessageEncoder, stream.Transform);
-
-MessageEncoder.prototype._transform = function (buf, encoding, cb) {
-  var frames = [];
-  var length = buf.length;
-  var start = 0;
-  var end;
-  do {
-    end = start + this._frameSize;
-    if (end > length) {
-      end = length;
-    }
-    frames.push(intBuffer(end - start));
-    frames.push(buf.slice(start, end));
-  } while ((start = end) < length);
-  frames.push(intBuffer(0));
-  cb(null, Buffer.concat(frames));
-};
-
-/**
- * "Un-framing" stream.
- *
- * @param noEmpty {Boolean} Emit an error if the decoder ends before emitting a
- * single frame.
- *
- * This stream should only be used by being piped/unpiped to. Otherwise there
- * is a risk that too many bytes get consumed from the source stream (i.e.
- * data corresponding to a partial message might be lost).
- *
- */
-function MessageDecoder(noEmpty) {
-  stream.Transform.call(this);
-  this._buf = new Buffer(0);
-  this._bufs = [];
-  this._length = 0;
-  this._empty = !!noEmpty;
-
-  this
-    .on('finish', function () { this.push(null); })
-    .on('unpipe', function (src) {
-      if (~this._length && !src._readableState.ended) {
-        // Not ideal to rely on this to check whether we can unshift, but the
-        // official documentation mentions it (in the context of the read
-        // buffers) so it should be stable. Alternatives are more complex,
-        // costly (e.g. attaching a handler on pipe), and not as fool-proof
-        // (the stream might have ended earlier).
-        this._bufs.push(this._buf);
-        src.unshift(Buffer.concat(this._bufs));
-      }
-    });
-}
-util.inherits(MessageDecoder, stream.Transform);
-
-MessageDecoder.prototype._transform = function (buf, encoding, cb) {
-  buf = Buffer.concat([this._buf, buf]);
-  var frameLength;
-  while (
-    buf.length >= 4 &&
-    buf.length >= (frameLength = buf.readInt32BE(0)) + 4
-  ) {
-    if (frameLength) {
-      this._bufs.push(buf.slice(4, frameLength + 4));
-      this._length += frameLength;
-    } else {
-      var frame = Buffer.concat(this._bufs, this._length);
-      this._empty = false;
-      this._length = 0;
-      this._bufs = [];
-      this.push(frame);
-    }
-    buf = buf.slice(frameLength + 4);
-  }
-  this._buf = buf;
-  cb();
-};
-
-MessageDecoder.prototype._flush = function () {
-  if (this._length || this._buf.length) {
-    this._length = -1; // Don't unshift data on incoming unpipe.
-    this.emit('error', new Error('trailing data'));
-  } else if (this._empty) {
-    this.emit('error', new Error('no message decoded'));
-  }
-};
-
-/**
- * Default ID generator, using Avro messages' metadata field.
- *
- * This is required for stateful emitters to work and can be overridden to read
- * or write arbitrary metadata. Note that the message contents are
- * (intentionally) not available when updating this metadata.
- *
- */
-function IdType(attrs, opts) {
-  types.builtins.LogicalType.call(this, attrs, opts);
-}
-util.inherits(IdType, types.builtins.LogicalType);
-
-IdType.prototype._fromValue = function (val) {
-  var buf = val.id;
-  return buf && buf.length === 4 ? buf.readInt32BE(0) : 0;
-};
-
-IdType.prototype._toValue = function (any) {
-  return {id: intBuffer(any | 0)};
-};
-
-IdType.createMetadataType = function (Type) {
-  Type = Type || IdType;
-  return new Type({type: 'map', values: 'bytes'});
-};
-
-/**
- * Returns a buffer containing an integer's big-endian representation.
- *
- * @param n {Number} Integer.
- *
- */
-function intBuffer(n) {
-  var buf = new Buffer(4);
-  buf.writeInt32BE(n);
-  return buf;
-}
-
-/**
- * Write and maybe resize.
- *
- * @param tap {Tap} Tap written to.
- * @param type {Type} Avro type.
- * @param val {...} Corresponding Avro value.
- *
- */
-function safeWrite(tap, type, val) {
-  var pos = tap.pos;
-  type._write(tap, val);
-
-  if (!tap.isValid()) {
-    var buf = new Buffer(tap.pos);
-    tap.buf.copy(buf, 0, 0, pos);
-    tap.buf = buf;
-    tap.pos = pos;
-    type._write(tap, val);
-  }
-}
-
-/**
- * Default callback when not provided.
- *
- */
-function throwError(err) {
-  if (!err) {
-    return;
-  }
-  if (typeof err == 'object' && err.string) {
-    err = err.string;
-  }
-  if (typeof err == 'string') {
-    err = new Error(err);
-  }
-  throw err;
-}
-
-/**
- * Convert an error message into a format suitable for RPC.
- *
- * @param err {Error|String} Error message. It will be converted into valid
- * format for Avro.
- *
- */
-function avroError(err) {
-  if (err instanceof Error) {
-    err = err.message;
-  }
-  return {string: err};
-}
-
-/**
- * Asynchronous error handling.
- *
- * @param cb {Function} Callback.
- * @param err {...} Error, passed as first argument to `cb.` If an `Error`
- * instance or a string, it will be converted into valid format for Avro.
- * @param res {...} Response. Passed as second argument to `cb`.
- *
- */
-function asyncAvroCb(ctx, cb, err, res) {
-  process.nextTick(function () { cb.call(ctx, avroError(err), res); });
-}
-
-/**
- * Convenience function to get a protocol's hash.
- *
- * @param ptcl {Protocol} Any protocol.
- *
- */
-function getHash(ptcl) {
-  return new Buffer(ptcl._hashString, 'binary');
-}
-
-/**
- * Whether a emitter or listener can resolve messages from a hash string.
- *
- * @param emitter {MessageEmitter|MessageListener}
- * @param hashString {String}
- *
- */
-function canResolve(emitter, hashString) {
-  var resolvers = emitter._resolvers[hashString];
-  return !!resolvers || hashString === emitter._ptcl._hashString;
-}
-
-/**
- * Retrieve resolvers for a given hash string.
- *
- * @param emitter {MessageEmitter|MessageListener}
- * @param hashString {String}
- * @param message {Message}
- *
- */
-function getResolvers(emitter, hashString, message) {
-  if (hashString === emitter._ptcl._hashString) {
-    return message;
-  }
-  var resolvers = emitter._resolvers[hashString];
-  return resolvers && resolvers[message.name];
-}
-
-/**
- * Check whether something is a stream.
- *
- * @param any {Object} Any object.
- *
- */
-function isStream(any) {
-  // This is a hacky way of checking that the transport is a stream-like
-  // object. We unfortunately can't use `instanceof Stream` checks since
-  // some libraries (e.g. websocket-stream) return streams which don't
-  // inherit from it.
-  return !!any.pipe;
-}
-
-
-module.exports = {
-  HANDSHAKE_REQUEST_TYPE: HANDSHAKE_REQUEST_TYPE,
-  HANDSHAKE_RESPONSE_TYPE: HANDSHAKE_RESPONSE_TYPE,
-  IdType: IdType,
-  Message: Message,
-  Protocol: Protocol,
-  createProtocol: createProtocol,
-  emitters: {
-    StatefulEmitter: StatefulEmitter,
-    StatelessEmitter: StatelessEmitter
-  },
-  listeners: {
-    StatefulListener: StatefulListener,
-    StatelessListener: StatelessListener
-  },
-  streams: {
-    MessageDecoder: MessageDecoder,
-    MessageEncoder: MessageEncoder
-  },
-  throwError: throwError
-};
-
-}).call(this,require('_process'),require("buffer").Buffer)
-},{"./types":8,"./utils":9,"_process":33,"buffer":25,"events":29,"stream":47,"util":50}],8:[function(require,module,exports){
-(function (Buffer){
-/* jshint node: true */
-
-// TODO: Remove Type from types map on next major version.
-// TODO: Use toFastProperties on type reverse indices.
-// TODO: Allow configuring when to write the size when writing arrays and maps,
-// and customizing their block size.
-// TODO: Add schema inference capabilities (as writable stream?).
-// TODO: Code-generate `compare` and `clone` record and union methods.
-
-'use strict';
-
-/**
- * This module defines all Avro data types and their serialization logic.
- *
- */
-
-var utils = require('./utils'),
-    buffer = require('buffer'), // For `SlowBuffer`.
-    util = require('util');
-
-
-// Convenience imports.
-var Tap = utils.Tap;
-var f = util.format;
-
-// All Avro types.
-var TYPES = {
-  'array': ArrayType,
-  'boolean': BooleanType,
-  'bytes': BytesType,
-  'double': DoubleType,
-  'enum': EnumType,
-  'error': RecordType,
-  'fixed': FixedType,
-  'float': FloatType,
-  'int': IntType,
-  'long': LongType,
-  'map': MapType,
-  'null': NullType,
-  'record': RecordType,
-  'request': RecordType,
-  'string': StringType,
-  'union': UnionType
-};
-
-// Valid (field, type, and symbol) name regex.
-var NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-// Random generator.
-var RANDOM = new utils.Lcg();
-
-// Encoding tap (shared for performance).
-var TAP = new Tap(new buffer.SlowBuffer(1024));
-
-// Path prefix for validity checks (shared for performance).
-var PATH = [];
-
-// Currently active logical type, used for name redirection.
-var LOGICAL_TYPE = null;
-
-
-/**
- * Schema parsing entry point.
- *
- * It isn't exposed directly but called from `parse` inside `index.js` (node)
- * or `avsc.js` (browserify) which each add convenience functionality.
- *
- */
-function createType(attrs, opts) {
-  if (attrs === null) {
-    // Let's be helpful for this common error.
-    throw new Error('invalid type: null (did you mean "null"?)');
-  }
-  if (attrs instanceof Type) {
-    return attrs;
-  }
-
-  // Initialize registry, etc. if necessary.
-  opts = updateOpts(opts);
-
-  var type;
-  if (typeof attrs == 'string') { // Type reference.
-    if (opts.namespace && !~attrs.indexOf('.') && !isPrimitive(attrs)) {
-      attrs = opts.namespace + '.' + attrs;
-    }
-    type = opts.registry[attrs];
-    if (type) {
-      // Type was already defined, return it.
-      return type;
-    }
-    if (isPrimitive(attrs)) {
-      // Reference to a primitive type. These are also defined names by default
-      // so we create the appropriate type and it to the registry for future
-      // reference.
-      return opts.registry[attrs] = createType({type: attrs}, opts);
-    }
-    throw new Error(f('undefined type name: %s', attrs));
-  }
-
-  if (opts.typeHook && (type = opts.typeHook(attrs, opts))) {
-    if (!(type instanceof Type)) {
-      throw new Error(f('invalid typehook return value: %j', type));
-    }
-    return type;
-  }
-
-  if (attrs.logicalType && !LOGICAL_TYPE) {
-    var DerivedType = opts.logicalTypes[attrs.logicalType];
-    if (DerivedType) {
-      var namespace = opts.namespace;
-      var registry = {};
-      Object.keys(opts.registry).forEach(function (key) {
-        registry[key] = opts.registry[key];
-      });
-      try {
-        return new DerivedType(attrs, opts);
-      } catch (err) {
-        if (opts.assertLogicalTypes) {
-          // The spec mandates that we fall through to the underlying type if
-          // the logical type is invalid. We provide this option to ease
-          // debugging.
-          throw err;
-        }
-        LOGICAL_TYPE = null;
-        opts.namespace = namespace;
-        opts.registry = registry;
-      }
-    }
-  }
-
-  if (attrs instanceof Array) { // Union.
-    type = new UnionType(attrs, opts);
-  } else { // New type definition.
-    type = (function (typeName) {
-      var Type = TYPES[typeName];
-      if (Type === undefined) {
-        throw new Error(f('unknown type: %j', typeName));
-      }
-      return new Type(attrs, opts);
-    })(attrs.type);
-  }
-  return type;
-}
-
-/**
- * "Abstract" base Avro type class.
- *
- * This class' constructor will register any named types to support
- * recursive schemas.
- *
- * All type values are represented in memory similarly to their JSON
- * representation, except for `bytes` and `fixed` which are represented as
- * `Buffer`s. See individual subclasses for details.
- *
- */
-function Type(registry) {
-  var name = this._name;
-  var type = LOGICAL_TYPE || this;
-  LOGICAL_TYPE = null;
-
-  if (registry === undefined || name === undefined) {
-    return;
-  }
-
-  var prev = registry[name];
-  if (prev !== undefined) {
-    throw new Error(f('duplicate type name: %s', name));
-  }
-  registry[name] = type;
-}
-
-Type.__reset = function (size) { TAP.buf = new buffer.SlowBuffer(size); };
-
-Type.prototype.createResolver = function (type, opts) {
-  if (!(type instanceof Type)) {
-    // More explicit error message than the "incompatible type" thrown
-    // otherwise (especially because of the overridden `toJSON` method).
-    throw new Error(f('not a type: %j', type));
-  }
-
-  if (type instanceof LogicalType && !(this instanceof LogicalType)) {
-    // Trying to read a logical type as a built-in: unwrap the logical type.
-    return this.createResolver(type._underlyingType, opts);
-  }
-
-  opts = opts || {};
-  opts.registry = opts.registry || {};
-
-  var resolver, key;
-  if (this instanceof RecordType && type instanceof RecordType) {
-    key = this._name + ':' + type._name; // ':' is illegal in Avro type names.
-    resolver = opts.registry[key];
-    if (resolver) {
-      return resolver;
-    }
-  }
-
-  resolver = new Resolver(this);
-  if (key) { // Register resolver early for recursive schemas.
-    opts.registry[key] = resolver;
-  }
-
-  if (type instanceof UnionType) {
-    var resolvers = type._types.map(function (t) {
-      return this.createResolver(t, opts);
-    }, this);
-    resolver._read = function (tap) {
-      var index = tap.readLong();
-      var resolver = resolvers[index];
-      if (resolver === undefined) {
-        throw new Error(f('invalid union index: %s', index));
-      }
-      return resolvers[index]._read(tap);
-    };
-  } else {
-    this._updateResolver(resolver, type, opts);
-  }
-
-  if (!resolver._read) {
-    throw new Error(f('cannot read %s as %s', type, this));
-  }
-  return resolver;
-};
-
-Type.prototype.decode = function (buf, pos, resolver) {
-  var tap = new Tap(buf);
-  tap.pos = pos | 0;
-  var val = readValue(this, tap, resolver);
-  if (!tap.isValid()) {
-    return {value: undefined, offset: -1};
-  }
-  return {value: val, offset: tap.pos};
-};
-
-Type.prototype.encode = function (val, buf, pos) {
-  var tap = new Tap(buf);
-  tap.pos = pos | 0;
-  this._write(tap, val);
-  if (!tap.isValid()) {
-    // Don't throw as there is no way to predict this. We also return the
-    // number of missing bytes to ease resizing.
-    return buf.length - tap.pos;
-  }
-  return tap.pos;
-};
-
-Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
-  var tap = new Tap(buf);
-  var val = readValue(this, tap, resolver, noCheck);
-  if (!tap.isValid()) {
-    throw new Error('truncated buffer');
-  }
-  if (!noCheck && tap.pos < buf.length) {
-    throw new Error('trailing data');
-  }
-  return val;
-};
-
-Type.prototype.toBuffer = function (val) {
-  TAP.pos = 0;
-  this._write(TAP, val);
-  if (!TAP.isValid()) {
-    Type.__reset(2 * TAP.pos);
-    TAP.pos = 0;
-    this._write(TAP, val);
-  }
-  var buf = new Buffer(TAP.pos);
-  TAP.buf.copy(buf, 0, 0, TAP.pos);
-  return buf;
-};
-
-Type.prototype.fromString = function (str) {
-  return this._copy(JSON.parse(str), {coerce: 2});
-};
-
-Type.prototype.toString = function (val) {
-  if (val === undefined) {
-    // Consistent behavior with standard `toString` expectations.
-    return this.getSchema(true);
-  }
-  return JSON.stringify(this._copy(val, {coerce: 3}));
-};
-
-Type.prototype.clone = function (val, opts) {
-  if (opts) {
-    opts = {
-      coerce: !!opts.coerceBuffers | 0, // Coerce JSON to Buffer.
-      fieldHook: opts.fieldHook,
-      qualifyNames: !!opts.qualifyNames,
-      wrap: !!opts.wrapUnions | 0 // Wrap first match into union.
-    };
-    return this._copy(val, opts);
-  } else {
-    // If no modifications are required, we can get by with a serialization
-    // roundtrip (generally much faster than a standard deep copy).
-    return this.fromBuffer(this.toBuffer(val));
-  }
-};
-
-Type.prototype.isValid = function (val, opts) {
-  while (PATH.length) {
-    // In case the previous `isValid` call didn't complete successfully (e.g.
-    // if an exception was thrown, but then caught in client code), `PATH`
-    // might be non-empty, we must manually clear it.
-    PATH.pop();
-  }
-  return this._check(val, opts && opts.errorHook);
-};
-
-Type.prototype.compareBuffers = function (buf1, buf2) {
-  return this._match(new Tap(buf1), new Tap(buf2));
-};
-
-Type.prototype.getName = function (noRef) {
-  return noRef ? getTypeName(this) : this._name;
-};
-
-Type.prototype.getSchema = function (noDeref) {
-  return stringify(this, noDeref);
-};
-
-Type.prototype.getFingerprint = function (algorithm) {
-  return utils.getFingerprint(this.getSchema(), algorithm);
-};
-
-Type.prototype.inspect = function () {
-  if (this instanceof PrimitiveType) {
-    return f('<%s>', this.constructor.name_);
-  } else {
-    var obj = JSON.parse(this.getSchema(true)); // Slow, only for debugging.
-    if (typeof obj == 'object') {
-      obj.type = undefined; // Would be redundant with constructor name.
-    }
-    return f('<%s %j>', this.constructor.name_, obj);
-  }
-};
-
-Type.prototype._check = utils.abstractFunction;
-Type.prototype._copy = utils.abstractFunction;
-Type.prototype._match = utils.abstractFunction;
-Type.prototype._read = utils.abstractFunction;
-Type.prototype._skip = utils.abstractFunction;
-Type.prototype._updateResolver = utils.abstractFunction;
-Type.prototype._write = utils.abstractFunction;
-Type.prototype.compare = utils.abstractFunction;
-Type.prototype.random = utils.abstractFunction;
-
-// Implementations.
-
-/**
- * Base primitive Avro type.
- *
- * Most of the primitive types share the same cloning and resolution
- * mechanisms, provided by this class. This class also lets us conveniently
- * check whether a type is a primitive using `instanceof`.
- *
- */
-function PrimitiveType() { Type.call(this); }
-util.inherits(PrimitiveType, Type);
-PrimitiveType.prototype._updateResolver = function (resolver, type) {
-  if (type.constructor === this.constructor) {
-    resolver._read = this._read;
-  }
-};
-PrimitiveType.prototype._copy = function (val) {
-  this._check(val, throwInvalidError);
-  return val;
-};
-PrimitiveType.prototype.compare = utils.compare;
-
-/**
- * Nulls.
- *
- */
-function NullType() { PrimitiveType.call(this); }
-util.inherits(NullType, PrimitiveType);
-NullType.name_ = 'NullType';
-NullType.prototype._check = function (val, cb) {
-  var b = val === null;
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-NullType.prototype._read = function () { return null; };
-NullType.prototype._skip = function () {};
-NullType.prototype._write = function (tap, val) {
-  if (val !== null) {
-    throwInvalidError(null, val, this);
-  }
-};
-NullType.prototype._match = function () { return 0; };
-NullType.prototype.compare = NullType.prototype._match;
-NullType.prototype.random = NullType.prototype._read;
-NullType.prototype.toJSON = function () { return 'null'; };
-
-/**
- * Booleans.
- *
- */
-function BooleanType() { PrimitiveType.call(this); }
-util.inherits(BooleanType, PrimitiveType);
-BooleanType.name_ = 'BooleanType';
-BooleanType.prototype._check = function (val, cb) {
-  var b = typeof val == 'boolean';
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-BooleanType.prototype._read = function (tap) { return tap.readBoolean(); };
-BooleanType.prototype._skip = function (tap) { tap.skipBoolean(); };
-BooleanType.prototype._write = function (tap, val) {
-  if (typeof val != 'boolean') {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeBoolean(val);
-};
-BooleanType.prototype._match = function (tap1, tap2) {
-  return tap1.matchBoolean(tap2);
-};
-BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
-BooleanType.prototype.toJSON = function () { return 'boolean'; };
-
-/**
- * Integers.
- *
- */
-function IntType() { PrimitiveType.call(this); }
-util.inherits(IntType, PrimitiveType);
-IntType.name_ = 'IntType';
-IntType.prototype._check = function (val, cb) {
-  var b = val === (val | 0);
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-IntType.prototype._read = function (tap) { return tap.readInt(); };
-IntType.prototype._skip = function (tap) { tap.skipInt(); };
-IntType.prototype._write = function (tap, val) {
-  if (val !== (val | 0)) {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeInt(val);
-};
-IntType.prototype._match = function (tap1, tap2) {
-  return tap1.matchInt(tap2);
-};
-IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
-IntType.prototype.toJSON = function () { return 'int'; };
-
-/**
- * Longs.
- *
- * We can't capture all the range unfortunately since JavaScript represents all
- * numbers internally as `double`s, so the default implementation plays safe
- * and throws rather than potentially silently change the data. See `using` or
- * `AbstractLongType` below for a way to implement a custom long type.
- *
- */
-function LongType() { PrimitiveType.call(this); }
-util.inherits(LongType, PrimitiveType);
-LongType.name_ = 'LongType';
-LongType.prototype._check = function (val, cb) {
-  var b = typeof val == 'number' && val % 1 === 0 && isSafeLong(val);
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-LongType.prototype._read = function (tap) {
-  var n = tap.readLong();
-  if (!isSafeLong(n)) {
-    throw new Error('potential precision loss');
-  }
-  return n;
-};
-LongType.prototype._skip = function (tap) { tap.skipLong(); };
-LongType.prototype._write = function (tap, val) {
-  if (typeof val != 'number' || val % 1 || !isSafeLong(val)) {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeLong(val);
-};
-LongType.prototype._match = function (tap1, tap2) {
-  return tap1.matchLong(tap2);
-};
-LongType.prototype._updateResolver = function (resolver, type) {
-  if (type instanceof LongType || type instanceof IntType) {
-    resolver._read = type._read;
-  }
-};
-LongType.prototype.random = function () { return RANDOM.nextInt(); };
-LongType.prototype.toJSON = function () { return 'long'; };
-LongType.using = function (methods, noUnpack) {
-  methods = methods || {}; // Will give a more helpful error message.
-  // We map some of the methods to a different name to be able to intercept
-  // their input and output (otherwise we wouldn't be able to perform any
-  // unpacking logic, and the type wouldn't work when nested).
-  var mapping = {
-    toBuffer: '_toBuffer',
-    fromBuffer: '_fromBuffer',
-    fromJSON: '_fromJSON',
-    toJSON: '_toJSON',
-    isValid: '_isValid',
-    compare: 'compare'
-  };
-  var type = new AbstractLongType(noUnpack);
-  Object.keys(mapping).forEach(function (name) {
-    if (methods[name] === undefined) {
-      throw new Error(f('missing method implementation: %s', name));
-    }
-    type[mapping[name]] = methods[name];
-  });
-  return type;
-};
-
-/**
- * Floats.
- *
- */
-function FloatType() { PrimitiveType.call(this); }
-util.inherits(FloatType, PrimitiveType);
-FloatType.name_ = 'FloatType';
-FloatType.prototype._check = function (val, cb) {
-  var b = typeof val == 'number';
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-FloatType.prototype._read = function (tap) { return tap.readFloat(); };
-FloatType.prototype._skip = function (tap) { tap.skipFloat(); };
-FloatType.prototype._write = function (tap, val) {
-  if (typeof val != 'number') {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeFloat(val);
-};
-FloatType.prototype._match = function (tap1, tap2) {
-  return tap1.matchFloat(tap2);
-};
-FloatType.prototype._updateResolver = function (resolver, type) {
-  if (
-    type instanceof FloatType ||
-    type instanceof LongType ||
-    type instanceof IntType
-  ) {
-    resolver._read = type._read;
-  }
-};
-FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
-FloatType.prototype.toJSON = function () { return 'float'; };
-
-/**
- * Doubles.
- *
- */
-function DoubleType() { PrimitiveType.call(this); }
-util.inherits(DoubleType, PrimitiveType);
-DoubleType.name_ = 'DoubleType';
-DoubleType.prototype._check = function (val, cb) {
-  var b = typeof val == 'number';
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-DoubleType.prototype._read = function (tap) { return tap.readDouble(); };
-DoubleType.prototype._skip = function (tap) { tap.skipDouble(); };
-DoubleType.prototype._write = function (tap, val) {
-  if (typeof val != 'number') {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeDouble(val);
-};
-DoubleType.prototype._match = function (tap1, tap2) {
-  return tap1.matchDouble(tap2);
-};
-DoubleType.prototype._updateResolver = function (resolver, type) {
-  if (
-    type instanceof DoubleType ||
-    type instanceof FloatType ||
-    type instanceof LongType ||
-    type instanceof IntType
-  ) {
-    resolver._read = type._read;
-  }
-};
-DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
-DoubleType.prototype.toJSON = function () { return 'double'; };
-
-/**
- * Strings.
- *
- */
-function StringType() { PrimitiveType.call(this); }
-util.inherits(StringType, PrimitiveType);
-StringType.name_ = 'StringType';
-StringType.prototype._check = function (val, cb) {
-  var b = typeof val == 'string';
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-StringType.prototype._read = function (tap) { return tap.readString(); };
-StringType.prototype._skip = function (tap) { tap.skipString(); };
-StringType.prototype._write = function (tap, val) {
-  if (typeof val != 'string') {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeString(val);
-};
-StringType.prototype._match = function (tap1, tap2) {
-  return tap1.matchString(tap2);
-};
-StringType.prototype._updateResolver = function (resolver, type) {
-  if (type instanceof StringType || type instanceof BytesType) {
-    resolver._read = this._read;
-  }
-};
-StringType.prototype.random = function () {
-  return RANDOM.nextString(RANDOM.nextInt(32));
-};
-StringType.prototype.toJSON = function () { return 'string'; };
-
-/**
- * Bytes.
- *
- * These are represented in memory as `Buffer`s rather than binary-encoded
- * strings. This is more efficient (when decoding/encoding from bytes, the
- * common use-case), idiomatic, and convenient.
- *
- * Note the coercion in `_copy`.
- *
- */
-function BytesType() { PrimitiveType.call(this); }
-util.inherits(BytesType, PrimitiveType);
-BytesType.name_ = 'BytesType';
-BytesType.prototype._check = function (val, cb) {
-  var b = Buffer.isBuffer(val);
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-BytesType.prototype._read = function (tap) { return tap.readBytes(); };
-BytesType.prototype._skip = function (tap) { tap.skipBytes(); };
-BytesType.prototype._write = function (tap, val) {
-  if (!Buffer.isBuffer(val)) {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeBytes(val);
-};
-BytesType.prototype._match = function (tap1, tap2) {
-  return tap1.matchBytes(tap2);
-};
-BytesType.prototype._updateResolver = StringType.prototype._updateResolver;
-BytesType.prototype._copy = function (obj, opts) {
-  var buf;
-  switch ((opts && opts.coerce) | 0) {
-    case 3: // Coerce buffers to strings.
-      this._check(obj, throwInvalidError);
-      return obj.toString('binary');
-    case 2: // Coerce strings to buffers.
-      if (typeof obj != 'string') {
-        throw new Error(f('cannot coerce to buffer: %j', obj));
-      }
-      buf = new Buffer(obj, 'binary');
-      this._check(buf, throwInvalidError);
-      return buf;
-    case 1: // Coerce buffer JSON representation to buffers.
-      if (!obj || obj.type !== 'Buffer' || !(obj.data instanceof Array)) {
-        throw new Error(f('cannot coerce to buffer: %j', obj));
-      }
-      buf = new Buffer(obj.data);
-      this._check(buf, throwInvalidError);
-      return buf;
-    default: // Copy buffer.
-      this._check(obj, throwInvalidError);
-      return new Buffer(obj);
-  }
-};
-BytesType.prototype.compare = Buffer.compare;
-BytesType.prototype.random = function () {
-  return RANDOM.nextBuffer(RANDOM.nextInt(32));
-};
-BytesType.prototype.toJSON = function () { return 'bytes'; };
-
-/**
- * Avro unions.
- *
- * Unions are represented in memory similarly to their JSON representation
- * (i.e. inside an object with single key the name of the contained type).
- *
- * This is not ideal, but is the most efficient way to unambiguously support
- * all unions. Here are a few reasons why the wrapping object is necessary:
- *
- * + Unions with multiple number types would have undefined behavior, unless
- *   numbers are wrapped (either everywhere, leading to large performance and
- *   convenience costs; or only when necessary inside unions, making it hard to
- *   understand when numbers are wrapped or not).
- * + Fixed types would have to be wrapped to be distinguished from bytes.
- * + Using record's constructor names would work (after a slight change to use
- *   the fully qualified name), but would mean that generic objects could no
- *   longer be valid records (making it inconvenient to do simple things like
- *   creating new records).
- *
- * Lore: In the past (until d304cab), there used to be an "unwrapped union
- * type" which directly exposed its values, without the wrapping object
- * (similarly to Avro's python implementation). It was removed to keep all
- * representations consistent and make this library simpler to understand
- * (conversions, e.g. for schema evolution, between representations were
- * particularly confusing). Encoding was also much slower (worst case
- * complexity linear in the number of types in the union).
- *
- */
-function UnionType(attrs, opts) {
-  if (!(attrs instanceof Array)) {
-    throw new Error(f('non-array union schema: %j', attrs));
-  }
-  if (!attrs.length) {
-    throw new Error('empty union');
-  }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  Type.call(this);
-  this._types = attrs.map(function (obj) { return createType(obj, opts); });
-
-  this._indices = {};
-  this._types.forEach(function (type, i) {
-    if (type instanceof UnionType) {
-      throw new Error('unions cannot be directly nested');
-    }
-    var name = type._name || getTypeName(type);
-    if (this._indices[name] !== undefined) {
-      throw new Error(f('duplicate union name: %j', name));
-    }
-    this._indices[name] = i;
-  }, this);
-
-  this._constructors = this._types.map(function (type) {
-    // jshint -W054
-    var name = type._name || getTypeName(type);
-    if (name === 'null') {
-      return null;
-    }
-    var body;
-    if (~name.indexOf('.')) { // Qualified name.
-      body = 'this[\'' + name + '\'] = val;';
-    } else {
-      body = 'this.' + name + ' = val;';
-    }
-    var constructor = new Function('val', body);
-    constructor.prototype.getBranchType = function () { return type; };
-    return constructor;
-  });
-
-  opts.namespace = namespace;
-}
-util.inherits(UnionType, Type);
-UnionType.name_ = 'UnionType';
-
-UnionType.prototype._check = function (val, cb) {
-  var b = false;
-  if (val === null) {
-    // Shortcut type lookup in this case.
-    b = this._indices['null'] !== undefined;
-  } else if (typeof val == 'object') {
-    var keys = Object.keys(val);
-    if (keys.length === 1) {
-      // We require a single key here to ensure that writes are correct and
-      // efficient as soon as a record passes this check.
-      var name = keys[0];
-      var index = this._indices[name];
-      if (index !== undefined) {
-        PATH.push(name);
-        b = this._types[index]._check(val[name], cb);
-        PATH.pop();
-        return b;
-      }
-    }
-  }
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-
-UnionType.prototype._read = function (tap) {
-  var index = tap.readLong();
-  var Class = this._constructors[index];
-  if (Class) {
-    return new Class(this._types[index]._read(tap));
-  } else if (Class === null) {
-    return null;
-  } else {
-    throw new Error(f('invalid union index: %s', index));
-  }
-};
-
-UnionType.prototype._skip = function (tap) {
-  this._types[tap.readLong()]._skip(tap);
-};
-
-UnionType.prototype._write = function (tap, val) {
-  var index, keys, name;
-  if (val === null) {
-    index = this._indices['null'];
-    if (index === undefined) {
-      throwInvalidError(null, val, this);
-    }
-    tap.writeLong(index);
-  } else {
-    keys = Object.keys(val);
-    if (keys.length === 1) {
-      name = keys[0];
-      index = this._indices[name];
-    }
-    if (index === undefined) {
-      throwInvalidError(null, val, this);
-    }
-    tap.writeLong(index);
-    this._types[index]._write(tap, val[name]);
-  }
-};
-
-UnionType.prototype._match = function (tap1, tap2) {
-  var n1 = tap1.readLong();
-  var n2 = tap2.readLong();
-  if (n1 === n2) {
-    return this._types[n1]._match(tap1, tap2);
-  } else {
-    return n1 < n2 ? -1 : 1;
-  }
-};
-
-UnionType.prototype._updateResolver = function (resolver, type, opts) {
-  // jshint -W083
-  // (The loop exits after the first function is created.)
-  var i, l, typeResolver, Class;
-  for (i = 0, l = this._types.length; i < l; i++) {
-    try {
-      typeResolver = this._types[i].createResolver(type, opts);
-    } catch (err) {
-      continue;
-    }
-    Class = this._constructors[i];
-    if (Class) {
-      resolver._read = function (tap) {
-        return new Class(typeResolver._read(tap));
-      };
-    } else {
-      resolver._read = function () { return null; };
-    }
-    return;
-  }
-};
-
-UnionType.prototype._copy = function (val, opts) {
-  var wrap = opts && opts.wrap | 0;
-  if (wrap === 2) {
-    // Promote into first type (used for schema defaults).
-    if (val === null && this._constructors[0] === null) {
-      return null;
-    }
-    return new this._constructors[0](this._types[0]._copy(val, opts));
-  }
-  if (val === null && this._indices['null'] !== undefined) {
-    return null;
-  }
-
-  var i, l, obj;
-  if (typeof val == 'object') {
-    var keys = Object.keys(val);
-    if (keys.length === 1) {
-      var name = keys[0];
-      i = this._indices[name];
-      if (i === undefined && opts.qualifyNames) {
-        // We are a bit more flexible than in `_check` here since we have
-        // to deal with other serializers being less strict, so we fall
-        // back to looking up unqualified names.
-        var j, type;
-        for (j = 0, l = this._types.length; j < l; j++) {
-          type = this._types[j];
-          if (type._name && name === unqualify(type._name)) {
-            i = j;
-            break;
-          }
-        }
-      }
-      if (i !== undefined) {
-        obj = this._types[i]._copy(val[name], opts);
-      }
-    }
-  }
-  if (wrap === 1 && obj === undefined) {
-    // Try promoting into first match (convenience, slow).
-    i = 0;
-    l = this._types.length;
-    while (i < l && obj === undefined) {
-      try {
-        obj = this._types[i]._copy(val, opts);
-      } catch (err) {
-        i++;
-      }
-    }
-  }
-  if (obj !== undefined) {
-    return new this._constructors[i](obj);
-  }
-  throwInvalidError(null, val, this);
-};
-
-UnionType.prototype.compare = function (val1, val2) {
-  var name1 = val1 === null ? 'null' : Object.keys(val1)[0];
-  var name2 = val2 === null ? 'null' : Object.keys(val2)[0];
-  var index = this._indices[name1];
-  if (name1 === name2) {
-    return name1 === 'null' ?
-      0 :
-      this._types[index].compare(val1[name1], val2[name1]);
-  } else {
-    return utils.compare(index, this._indices[name2]);
-  }
-};
-
-UnionType.prototype.getTypes = function () { return this._types.slice(); };
-
-UnionType.prototype.random = function () {
-  var index = RANDOM.nextInt(this._types.length);
-  var Class = this._constructors[index];
-  if (!Class) {
-    return null;
-  }
-  return new Class(this._types[index].random());
-};
-
-UnionType.prototype.toJSON = function () { return this._types; };
-
-/**
- * Avro enum type.
- *
- * Represented as strings (with allowed values from the set of symbols). Using
- * integers would be a reasonable option, but the performance boost is arguably
- * offset by the legibility cost and the extra deviation from the JSON encoding
- * convention.
- *
- * An integer representation can still be used (e.g. for compatibility with
- * TypeScript `enum`s) by overriding the `EnumType` with a `LongType` (e.g. via
- * `parse`'s registry).
- *
- */
-function EnumType(attrs, opts) {
-  if (!(attrs.symbols instanceof Array) || !attrs.symbols.length) {
-    throw new Error(f('invalid %j enum symbols: %j', attrs.name, attrs));
-  }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
-  this._symbols = attrs.symbols;
-  this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
-
-  this._indices = {};
-  this._symbols.forEach(function (symbol, i) {
-    if (!NAME_PATTERN.test(symbol)) {
-      throw new Error(f('invalid %s symbol: %j', this, symbol));
-    }
-    if (this._indices[symbol] !== undefined) {
-      throw new Error(f('duplicate %s symbol: %j', this, symbol));
-    }
-    this._indices[symbol] = i;
-  }, this);
-
-  opts.namespace = namespace;
-}
-util.inherits(EnumType, Type);
-EnumType.name_ = 'EnumType';
-
-EnumType.prototype._check = function (val, cb) {
-  var b = this._indices[val] !== undefined;
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-
-EnumType.prototype._read = function (tap) {
-  var index = tap.readLong();
-  var symbol = this._symbols[index];
-  if (symbol === undefined) {
-    throw new Error(f('invalid %s enum index: %s', this._name, index));
-  }
-  return symbol;
-};
-
-EnumType.prototype._skip = function (tap) { tap.skipLong(); };
-
-EnumType.prototype._write = function (tap, val) {
-  var index = this._indices[val];
-  if (index === undefined) {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeLong(index);
-};
-
-EnumType.prototype._match = function (tap1, tap2) {
-  return tap1.matchLong(tap2);
-};
-
-EnumType.prototype.compare = function (val1, val2) {
-  return utils.compare(this._indices[val1], this._indices[val2]);
-};
-
-EnumType.prototype._updateResolver = function (resolver, type) {
-  var symbols = this._symbols;
-  if (
-    type instanceof EnumType &&
-    ~getAliases(this).indexOf(type._name) &&
-    type._symbols.every(function (s) { return ~symbols.indexOf(s); })
-  ) {
-    resolver._symbols = type._symbols;
-    resolver._read = type._read;
-  }
-};
-
-EnumType.prototype._copy = function (val) {
-  this._check(val, throwInvalidError);
-  return val;
-};
-
-EnumType.prototype.getAliases = function () { return this._aliases; };
-
-EnumType.prototype.getSymbols = function () { return this._symbols.slice(); };
-
-EnumType.prototype.random = function () {
-  return RANDOM.choice(this._symbols);
-};
-
-EnumType.prototype.toJSON = function () {
-  return {name: this._name, type: 'enum', symbols: this._symbols};
-};
-
-/**
- * Avro fixed type.
- *
- * Represented simply as a `Buffer`.
- *
- */
-function FixedType(attrs, opts) {
-  if (attrs.size !== (attrs.size | 0) || attrs.size < 1) {
-    throw new Error(f('invalid %j fixed size: %j', attrs.name, attrs.size));
-  }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
-  this._size = attrs.size | 0;
-  this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
-
-  opts.namespace = namespace;
-}
-util.inherits(FixedType, Type);
-FixedType.name_ = 'FixedType';
-
-FixedType.prototype._check = function (val, cb) {
-  var b = Buffer.isBuffer(val) && val.length === this._size;
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-
-FixedType.prototype._read = function (tap) {
-  return tap.readFixed(this._size);
-};
-
-FixedType.prototype._skip = function (tap) {
-  tap.skipFixed(this._size);
-};
-
-FixedType.prototype._write = function (tap, val) {
-  if (!Buffer.isBuffer(val) || val.length !== this._size) {
-    throwInvalidError(null, val, this);
-  }
-  tap.writeFixed(val, this._size);
-};
-
-FixedType.prototype._match = function (tap1, tap2) {
-  return tap1.matchFixed(tap2, this._size);
-};
-
-FixedType.prototype.compare = Buffer.compare;
-
-FixedType.prototype._updateResolver = function (resolver, type) {
-  if (
-    type instanceof FixedType &&
-    this._size === type._size &&
-    ~getAliases(this).indexOf(type._name)
-  ) {
-    resolver._size = this._size;
-    resolver._read = this._read;
-  }
-};
-
-FixedType.prototype._copy = BytesType.prototype._copy;
-
-FixedType.prototype.getAliases = function () { return this._aliases; };
-
-FixedType.prototype.getSize = function () { return this._size; };
-
-FixedType.prototype.random = function () {
-  return RANDOM.nextBuffer(this._size);
-};
-
-FixedType.prototype.toJSON = function () {
-  return {name: this._name, type: 'fixed', size: this._size};
-};
-
-/**
- * Avro map.
- *
- * Represented as vanilla objects.
- *
- */
-function MapType(attrs, opts) {
-  if (!attrs.values) {
-    throw new Error(f('missing map values: %j', attrs));
-  }
-
-  Type.call(this);
-  this._values = createType(attrs.values, opts);
-}
-util.inherits(MapType, Type);
-MapType.name_ = 'MapType';
-
-MapType.prototype.getValuesType = function () { return this._values; };
-
-MapType.prototype._check = function (val, cb) {
-  if (!val || typeof val != 'object' || val instanceof Array) {
-    if (cb) {
-      cb(PATH.slice(), val, this);
-    }
-    return false;
-  }
-
-  var keys = Object.keys(val);
-  var b = true;
-  var i, l, j, key;
-  if (cb) {
-    // Slow path.
-    j = PATH.length;
-    PATH.push('');
-    for (i = 0, l = keys.length; i < l; i++) {
-      key = PATH[j] = keys[i];
-      if (!this._values._check(val[key], cb)) {
-        b = false;
-      }
-    }
-    PATH.pop();
-  } else {
-    for (i = 0, l = keys.length; i < l; i++) {
-      if (!this._values._check(val[keys[i]], cb)) {
-        return false;
-      }
-    }
-  }
-  return b;
-};
-
-MapType.prototype._read = function (tap) {
-  var values = this._values;
-  var val = {};
-  var n;
-  while ((n = readArraySize(tap))) {
-    while (n--) {
-      var key = tap.readString();
-      val[key] = values._read(tap);
-    }
-  }
-  return val;
-};
-
-MapType.prototype._skip = function (tap) {
-  var values = this._values;
-  var len, n;
-  while ((n = tap.readLong())) {
-    if (n < 0) {
-      len = tap.readLong();
-      tap.pos += len;
-    } else {
-      while (n--) {
-        tap.skipString();
-        values._skip(tap);
-      }
-    }
-  }
-};
-
-MapType.prototype._write = function (tap, val) {
-  if (!val || typeof val != 'object' || val instanceof Array) {
-    throwInvalidError(null, val, this);
-  }
-
-  var values = this._values;
-  var keys = Object.keys(val);
-  var n = keys.length;
-  var i, key;
-  if (n) {
-    tap.writeLong(n);
-    for (i = 0; i < n; i++) {
-      key = keys[i];
-      tap.writeString(key);
-      values._write(tap, val[key]);
-    }
-  }
-  tap.writeLong(0);
-};
-
-MapType.prototype._match = function () {
-  throw new Error('maps cannot be compared');
-};
-
-MapType.prototype._updateResolver = function (resolver, type, opts) {
-  if (type instanceof MapType) {
-    resolver._values = this._values.createResolver(type._values, opts);
-    resolver._read = this._read;
-  }
-};
-
-MapType.prototype._copy = function (val, opts) {
-  if (val && typeof val == 'object' && !(val instanceof Array)) {
-    var values = this._values;
-    var keys = Object.keys(val);
-    var i, l, key;
-    var copy = {};
-    for (i = 0, l = keys.length; i < l; i++) {
-      key = keys[i];
-      copy[key] = values._copy(val[key], opts);
-    }
-    return copy;
-  }
-  throwInvalidError(null, val, this);
-};
-
-MapType.prototype.compare = MapType.prototype._match;
-
-MapType.prototype.random = function () {
-  var val = {};
-  var i, l;
-  for (i = 0, l = RANDOM.nextInt(10); i < l; i++) {
-    val[RANDOM.nextString(RANDOM.nextInt(20))] = this._values.random();
-  }
-  return val;
-};
-
-MapType.prototype.toJSON = function () {
-  return {type: 'map', values: this._values};
-};
-
-/**
- * Avro array.
- *
- * Represented as vanilla arrays.
- *
- */
-function ArrayType(attrs, opts) {
-  if (!attrs.items) {
-    throw new Error(f('missing array items: %j', attrs));
-  }
-
-  this._items = createType(attrs.items, opts);
-  Type.call(this);
-}
-util.inherits(ArrayType, Type);
-ArrayType.name_ = 'ArrayType';
-
-ArrayType.prototype._check = function (val, cb) {
-  if (!(val instanceof Array)) {
-    if (cb) {
-      cb(PATH.slice(), val, this);
-    }
-    return false;
-  }
-
-  var b = true;
-  var i, l, j;
-  if (cb) {
-    // Slow path.
-    j = PATH.length;
-    PATH.push('');
-    for (i = 0, l = val.length; i < l; i++) {
-      PATH[j] = '' + i;
-      if (!this._items._check(val[i], cb)) {
-        b = false;
-      }
-    }
-    PATH.pop();
-  } else {
-    for (i = 0, l = val.length; i < l; i++) {
-      if (!this._items._check(val[i], cb)) {
-        return false;
-      }
-    }
-  }
-  return b;
-};
-
-ArrayType.prototype._read = function (tap) {
-  var items = this._items;
-  var val = [];
-  var n;
-  while ((n = tap.readLong())) {
-    if (n < 0) {
-      n = -n;
-      tap.skipLong(); // Skip size.
-    }
-    while (n--) {
-      val.push(items._read(tap));
-    }
-  }
-  return val;
-};
-
-ArrayType.prototype._skip = function (tap) {
-  var len, n;
-  while ((n = tap.readLong())) {
-    if (n < 0) {
-      len = tap.readLong();
-      tap.pos += len;
-    } else {
-      while (n--) {
-        this._items._skip(tap);
-      }
-    }
-  }
-};
-
-ArrayType.prototype._write = function (tap, val) {
-  if (!(val instanceof Array)) {
-    throwInvalidError(null, val, this);
-  }
-
-  var n = val.length;
-  var i;
-  if (n) {
-    tap.writeLong(n);
-    for (i = 0; i < n; i++) {
-      this._items._write(tap, val[i]);
-    }
-  }
-  tap.writeLong(0);
-};
-
-ArrayType.prototype._match = function (tap1, tap2) {
-  var n1 = tap1.readLong();
-  var n2 = tap2.readLong();
-  var f;
-  while (n1 && n2) {
-    f = this._items._match(tap1, tap2);
-    if (f) {
-      return f;
-    }
-    if (!--n1) {
-      n1 = readArraySize(tap1);
-    }
-    if (!--n2) {
-      n2 = readArraySize(tap2);
-    }
-  }
-  return utils.compare(n1, n2);
-};
-
-ArrayType.prototype._updateResolver = function (resolver, type, opts) {
-  if (type instanceof ArrayType) {
-    resolver._items = this._items.createResolver(type._items, opts);
-    resolver._read = this._read;
-  }
-};
-
-ArrayType.prototype._copy = function (val, opts) {
-  if (!(val instanceof Array)) {
-    throwInvalidError(null, val, this);
-  }
-  var items = [];
-  var i, l;
-  for (i = 0, l = val.length; i < l; i++) {
-    items.push(this._items._copy(val[i], opts));
-  }
-  return items;
-};
-
-ArrayType.prototype.compare = function (val1, val2) {
-  var n1 = val1.length;
-  var n2 = val2.length;
-  var i, l, f;
-  for (i = 0, l = Math.min(n1, n2); i < l; i++) {
-    if ((f = this._items.compare(val1[i], val2[i]))) {
-      return f;
-    }
-  }
-  return utils.compare(n1, n2);
-};
-
-ArrayType.prototype.getItemsType = function () { return this._items; };
-
-ArrayType.prototype.random = function () {
-  var arr = [];
-  var i, l;
-  for (i = 0, l = RANDOM.nextInt(10); i < l; i++) {
-    arr.push(this._items.random());
-  }
-  return arr;
-};
-
-ArrayType.prototype.toJSON = function () {
-  return {type: 'array', items: this._items};
-};
-
-/**
- * Avro record.
- *
- * Values are represented as instances of a programmatically generated
- * constructor (similar to a "specific record"), available via the
- * `getRecordConstructor` method. This "specific record class" gives
- * significant speedups over using generics objects.
- *
- * Note that vanilla objects are still accepted as valid as long as their
- * fields match (this makes it much more convenient to do simple things like
- * update nested records).
- *
- * This type is also used for errors (similar, except for the extra `Error`
- * constructor call) and for messages (see comment below).
- *
- */
-function RecordType(attrs, opts) {
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
-  this._aliases = resolutions.aliases;
-  this._type = attrs.type;
-  // Requests shouldn't be registered since their name is only a placeholder.
-  Type.call(this, this._type === 'request' ? undefined : opts.registry);
-
-  if (!(attrs.fields instanceof Array)) {
-    throw new Error(f('non-array %s fields', this._name));
-  }
-  this._fields = attrs.fields.map(function (f) {
-    return new Field(f, opts);
-  });
-  if (utils.hasDuplicates(attrs.fields, function (f) { return f.name; })) {
-    throw new Error(f('duplicate %s field name', this._name));
-  }
-
-  this._constructor = this._createConstructor(this._type === 'error');
-  this._read = this._createReader();
-  this._skip = this._createSkipper();
-  this._write = this._createWriter();
-  this._check = this._createChecker();
-
-  opts.namespace = namespace;
-}
-util.inherits(RecordType, Type);
-RecordType.name_ = 'RecordType';
-
-RecordType.prototype._createConstructor = function (isError) {
-  // jshint -W054
-  var outerArgs = [];
-  var innerArgs = [];
-  var ds = []; // Defaults.
-  var innerBody = isError ? '  Error.call(this);\n' : '';
-  // Not calling `Error.captureStackTrace` because this wouldn't be compatible
-  // with browsers other than Chrome.
-  var i, l, field, name, getDefault;
-  for (i = 0, l = this._fields.length; i < l; i++) {
-    field = this._fields[i];
-    getDefault = field.getDefault;
-    name = field._name;
-    innerArgs.push('v' + i);
-    innerBody += '  ';
-    if (getDefault() === undefined) {
-      innerBody += 'this.' + name + ' = v' + i + ';\n';
-    } else {
-      innerBody += 'if (v' + i + ' === undefined) { ';
-      innerBody += 'this.' + name + ' = d' + ds.length + '(); ';
-      innerBody += '} else { this.' + name + ' = v' + i + '; }\n';
-      outerArgs.push('d' + ds.length);
-      ds.push(getDefault);
-    }
-  }
-  var outerBody = 'return function ' + unqualify(this._name) + '(';
-  outerBody += innerArgs.join() + ') {\n' + innerBody + '};';
-  var Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
-
-  var self = this;
-  var msg = 'deprecated: please use method without the $ prefix instead';
-  Record.getType = getType;
-  Record.prototype = {
-    constructor: Record,
-    clone: clone,
-    compare: compare,
-    getType: getType,
-    isValid: isValid,
-    toBuffer: toBuffer,
-    toString: toString,
-    // Legacy names. These were prefixed with `$` because it is an invalid
-    // property name in Avro but not in JavaScript (and therefore are
-    // guaranteed not to collide with field names). However, the prefixed name
-    // was not as unintuitive (e.g. `$toString`) so these will be removed in
-    // the next major release.
-    $clone: util.deprecate(clone, msg),
-    $compare: util.deprecate(compare, msg),
-    $getType: util.deprecate(getType, msg),
-    $isValid: util.deprecate(isValid, msg),
-    $toBuffer: util.deprecate(toBuffer, msg),
-    $toString: util.deprecate(toString, msg)
-  };
-  if (isError) {
-    util.inherits(Record, Error);
-    // Not setting the error's name on the prototype to be consistent with how
-    // object fields are mapped to (only if defined in the schema as a field).
-  }
-  return Record;
-
-  // Convenience functions, attached to records' prototype.
-  function clone(o) { /* jshint -W040 */ return self.clone(this, o); }
-  function compare(v) { /* jshint -W040 */ return self.compare(this, v); }
-  function getType() { /* jshint -W040 */ return self; }
-  function isValid(o) { /* jshint -W040 */ return self.isValid(this, o); }
-  function toBuffer() { /* jshint -W040 */ return self.toBuffer(this); }
-  function toString() { /* jshint -W040 */ return self.toString(this); }
-};
-
-RecordType.prototype._createChecker = function () {
-  // jshint -W054
-  var names = ['t', 'P'];
-  var values = [this, PATH];
-  var body = 'return function check' + unqualify(this._name) + '(val, cb) {\n';
-  body += '  if (val === null || typeof val != \'object\') {\n';
-  body += '    if (cb) { cb(P.slice(), val, t); }\n';
-  body += '    return false;\n';
-  body += '  }\n';
-  if (!this._fields.length) {
-    // Special case, empty record. We handle this directly.
-    body += '  return true;\n';
-  } else {
-    for (i = 0, l = this._fields.length; i < l; i++) {
-      field = this._fields[i];
-      names.push('t' + i);
-      values.push(field._type);
-      if (field.getDefault() !== undefined) {
-        body += '  var v' + i + ' = val.' + field._name + ';\n';
-      }
-    }
-    body += '  if (cb) {\n';
-    body += '    var b = 1;\n';
-    body += '    var j = P.length;\n';
-    body += '    P.push(\'\');\n';
-    var i, l, field;
-    for (i = 0, l = this._fields.length; i < l; i++) {
-      field = this._fields[i];
-      body += '    P[j] = \'' + field._name + '\';\n';
-      if (field.getDefault() === undefined) {
-        body += '    b &= t' + i + '._check(val.' + field._name + ', cb);\n';
-      } else {
-        body += '    b &= v' + i + ' === undefined || ';
-        body += 't' + i + '._check(v' + i + ', cb);\n';
-      }
-    }
-    body += '    P.pop();\n';
-    body += '    return !!b;\n';
-    body += '  } else {\n    return (\n      ';
-    body += this._fields.map(function (field, i) {
-      if (field.getDefault() === undefined) {
-        return 't' + i + '._check(val.' + field._name + ')';
-      } else {
-        return '(v' + i + ' === undefined || t' + i + '._check(v' + i + '))';
-      }
-    }).join(' &&\n      ');
-    body += '\n    );\n  }\n';
-  }
-  body += '};';
-  return new Function(names.join(), body).apply(undefined, values);
-};
-
-RecordType.prototype._createReader = function () {
-  // jshint -W054
-  var uname = unqualify(this._name);
-  var names = [];
-  var values = [this._constructor];
-  var i, l;
-  for (i = 0, l = this._fields.length; i < l; i++) {
-    names.push('t' + i);
-    values.push(this._fields[i]._type);
-  }
-  var body = 'return function read' + uname + '(tap) {\n';
-  body += '  return new ' + uname + '(';
-  body += names.map(function (t) { return t + '._read(tap)'; }).join();
-  body += ');\n};';
-  names.unshift(uname);
-  // We can do this since the JS spec guarantees that function arguments are
-  // evaluated from left to right.
-  return new Function(names.join(), body).apply(undefined, values);
-};
-
-RecordType.prototype._createSkipper = function () {
-  // jshint -W054
-  var args = [];
-  var body = 'return function skip' + unqualify(this._name) + '(tap) {\n';
-  var values = [];
-  var i, l;
-  for (i = 0, l = this._fields.length; i < l; i++) {
-    args.push('t' + i);
-    values.push(this._fields[i]._type);
-    body += '  t' + i + '._skip(tap);\n';
-  }
-  body += '}';
-  return new Function(args.join(), body).apply(undefined, values);
-};
-
-RecordType.prototype._createWriter = function () {
-  // jshint -W054
-  // We still do default handling here, in case a normal JS object is passed.
-  var args = [];
-  var body = 'return function write' + unqualify(this._name) + '(tap, val) {\n';
-  var values = [];
-  var i, l, field, value;
-  for (i = 0, l = this._fields.length; i < l; i++) {
-    field = this._fields[i];
-    args.push('t' + i);
-    values.push(field._type);
-    body += '  ';
-    if (field.getDefault() === undefined) {
-      body += 't' + i + '._write(tap, val.' + field._name + ');\n';
-    } else {
-      value = field._type.toBuffer(field.getDefault()).toString('binary');
-      // Convert the default value to a binary string ahead of time. We aren't
-      // converting it to a buffer to avoid retaining too much memory. If we
-      // had our own buffer pool, this could be an idea in the future.
-      args.push('d' + i);
-      values.push(value);
-      body += 'var v' + i + ' = val.' + field._name + '; ';
-      body += 'if (v' + i + ' === undefined) { ';
-      body += 'tap.writeBinary(d' + i + ', ' + value.length + ');';
-      body += ' } else { t' + i + '._write(tap, v' + i + '); }\n';
-    }
-  }
-  body += '}';
-  return new Function(args.join(), body).apply(undefined, values);
-};
-
-RecordType.prototype._updateResolver = function (resolver, type, opts) {
-  // jshint -W054
-  if (!~getAliases(this).indexOf(type._name)) {
-    throw new Error(f('no alias for %s in %s', type._name, this._name));
-  }
-
-  var rFields = this._fields;
-  var wFields = type._fields;
-  var wFieldsMap = utils.toMap(wFields, function (f) { return f._name; });
-
-  var innerArgs = []; // Arguments for reader constructor.
-  var resolvers = {}; // Resolvers keyed by writer field name.
-  var i, j, field, name, names, matches;
-  for (i = 0; i < rFields.length; i++) {
-    field = rFields[i];
-    names = getAliases(field);
-    matches = [];
-    for (j = 0; j < names.length; j++) {
-      name = names[j];
-      if (wFieldsMap[name]) {
-        matches.push(name);
-      }
-    }
-    if (matches.length > 1) {
-      throw new Error(f('multiple matches for %s', field.name));
-    }
-    if (!matches.length) {
-      if (field.getDefault() === undefined) {
-        throw new Error(f('no match for default-less %s', field.name));
-      }
-      innerArgs.push('undefined');
-    } else {
-      name = matches[0];
-      resolvers[name] = {
-        resolver: field._type.createResolver(wFieldsMap[name]._type, opts),
-        name: field._name // Reader field name.
-      };
-      innerArgs.push(field._name);
-    }
-  }
-
-  // See if we can add a bypass for unused fields at the end of the record.
-  var lazyIndex = -1;
-  i = wFields.length;
-  while (i && resolvers[wFields[--i]._name] === undefined) {
-    lazyIndex = i;
-  }
-
-  var uname = unqualify(this._name);
-  var args = [uname];
-  var values = [this._constructor];
-  var body = '  return function read' + uname + '(tap,lazy) {\n';
-  for (i = 0; i < wFields.length; i++) {
-    if (i === lazyIndex) {
-      body += '  if (!lazy) {\n';
-    }
-    field = type._fields[i];
-    name = field._name;
-    body += (~lazyIndex && i >= lazyIndex) ? '    ' : '  ';
-    if (resolvers[name] === undefined) {
-      args.push('t' + i);
-      values.push(field._type);
-      body += 't' + i + '._skip(tap);\n';
-    } else {
-      args.push('t' + i);
-      values.push(resolvers[name].resolver);
-      body += 'var ' + resolvers[name].name + ' = ';
-      body += 't' + i + '._read(tap);\n';
-    }
-  }
-  if (~lazyIndex) {
-    body += '  }\n';
-  }
-  body +=  '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
-
-  resolver._read = new Function(args.join(), body).apply(undefined, values);
-};
-
-RecordType.prototype._match = function (tap1, tap2) {
-  var fields = this._fields;
-  var i, l, field, order, type;
-  for (i = 0, l = fields.length; i < l; i++) {
-    field = fields[i];
-    order = field._order;
-    type = field._type;
-    if (order) {
-      order *= type._match(tap1, tap2);
-      if (order) {
-        return order;
-      }
-    } else {
-      type._skip(tap1);
-      type._skip(tap2);
-    }
-  }
-  return 0;
-};
-
-RecordType.prototype._copy = function (val, opts) {
-  // jshint -W058
-  var hook = opts && opts.fieldHook;
-  var values = [undefined];
-  var i, l, field, value;
-  for (i = 0, l = this._fields.length; i < l; i++) {
-    field = this._fields[i];
-    value = val[field._name];
-    if (value === undefined && field.hasOwnProperty('getDefault')) {
-      value = field.getDefault();
-    } else {
-      value = field._type._copy(val[field._name], opts);
-    }
-    if (hook) {
-      value = hook(field, value, this);
-    }
-    values.push(value);
-  }
-  return new (this._constructor.bind.apply(this._constructor, values));
-};
-
-RecordType.prototype.compare = function (val1, val2) {
-  var fields = this._fields;
-  var i, l, field, name, order, type;
-  for (i = 0, l = fields.length; i < l; i++) {
-    field = fields[i];
-    name = field._name;
-    order = field._order;
-    type = field._type;
-    if (order) {
-      order *= type.compare(val1[name], val2[name]);
-      if (order) {
-        return order;
-      }
-    }
-  }
-  return 0;
-};
-
-RecordType.prototype.random = function () {
-  // jshint -W058
-  var fields = this._fields.map(function (f) { return f._type.random(); });
-  fields.unshift(undefined);
-  return new (this._constructor.bind.apply(this._constructor, fields));
-};
-
-RecordType.prototype.getAliases = function () { return this._aliases; };
-
-RecordType.prototype.getFields = function () { return this._fields.slice(); };
-
-RecordType.prototype.getRecordConstructor = function () {
-  return this._constructor;
-};
-
-RecordType.prototype.toJSON = function () {
-  return {name: this._name, type: this._type, fields: this._fields};
-};
-
-/**
- * Derived type abstract class.
- *
- */
-function LogicalType(attrs, opts, Types) {
-  Type.call(this);
-  LOGICAL_TYPE = this;
-  this._underlyingType = createType(attrs, opts);
-
-  // Convenience type check.
-  if (Types && !~Types.indexOf(this._underlyingType.constructor)) {
-    var lType = attrs.logicalType;
-    var uType = this._underlyingType;
-    throw new Error(f('invalid underlying type for %s: %s', lType, uType));
-  }
-}
-util.inherits(LogicalType, Type);
-
-LogicalType.prototype.getUnderlyingType = function () {
-  return this._underlyingType;
-};
-
-LogicalType.prototype._read = function (tap) {
-  return this._fromValue(this._underlyingType._read(tap));
-};
-
-LogicalType.prototype._write = function (tap, any) {
-  this._underlyingType._write(tap, this._toValue(any));
-};
-
-LogicalType.prototype._check = function (any, cb) {
-  try {
-    var val = this._toValue(any);
-  } catch (err) {
-    if (cb) {
-      cb(PATH.slice(), any, this);
-    }
-    return false;
-  }
-  return this._underlyingType._check(val, cb);
-};
-
-LogicalType.prototype._copy = function (any, opts) {
-  var type = this._underlyingType;
-  switch (opts && opts.coerce) {
-    case 3: // To string.
-      return type._copy(this._toValue(any), opts);
-    case 2: // From string.
-      return this._fromValue(type._copy(any, opts));
-    default: // Normal copy.
-      return this._fromValue(type._copy(this._toValue(any), opts));
-  }
-};
-
-LogicalType.prototype._updateResolver = function (resolver, type, opts) {
-  var _fromValue = this._resolve(type, opts);
-  if (_fromValue) {
-    resolver._read = function (tap) { return _fromValue(type._read(tap)); };
-  }
-};
-
-LogicalType.prototype.random = function () {
-  return this._fromValue(this._underlyingType.random());
-};
-
-LogicalType.prototype.compare = function (obj1, obj2) {
-  var val1 = this._toValue(obj1);
-  var val2 = this._toValue(obj2);
-  return this._underlyingType.compare(val1, val2);
-};
-
-LogicalType.prototype.toJSON = function () {
-  return this._underlyingType.toJSON();
-};
-
-// Methods to be implemented.
-LogicalType.prototype._fromValue = utils.abstractFunction;
-LogicalType.prototype._toValue = utils.abstractFunction;
-LogicalType.prototype._resolve = utils.abstractFunction;
-
-
-// General helpers.
-
-/**
- * Customizable long.
- *
- * This allows support of arbitrarily large long (e.g. larger than
- * `Number.MAX_SAFE_INTEGER`). See `LongType.using` method above.
- *
- */
-function AbstractLongType(noUnpack) {
-  LongType.call(this);
-  this._noUnpack = !!noUnpack;
-}
-util.inherits(AbstractLongType, LongType);
-
-AbstractLongType.prototype._check = function (val, cb) {
-  var b = this._isValid(val);
-  if (!b && cb) {
-    cb(PATH.slice(), val, this);
-  }
-  return b;
-};
-
-AbstractLongType.prototype._read = function (tap) {
-  var buf, pos;
-  if (this._noUnpack) {
-    pos = tap.pos;
-    tap.skipLong();
-    buf = tap.buf.slice(pos, tap.pos);
-  } else {
-    buf = tap.unpackLongBytes(tap);
-  }
-  if (tap.isValid()) {
-    return this._fromBuffer(buf);
-  }
-};
-
-AbstractLongType.prototype._write = function (tap, val) {
-  if (!this._isValid(val)) {
-    throwInvalidError(null, val, this);
-  }
-  var buf = this._toBuffer(val);
-  if (this._noUnpack) {
-    tap.writeFixed(buf);
-  } else {
-    tap.packLongBytes(buf);
-  }
-};
-
-AbstractLongType.prototype._copy = function (val, opts) {
-  switch (opts && opts.coerce) {
-    case 3: // To string.
-      return this._toJSON(val);
-    case 2: // From string.
-      return this._fromJSON(val);
-    default: // Normal copy.
-      // Slow but guarantees most consistent results. Faster alternatives would
-      // require assumptions on the long class used (e.g. immutability).
-      return this._fromJSON(JSON.parse(JSON.stringify(this._toJSON(val))));
-  }
-};
-
-AbstractLongType.prototype.random = function () {
-  return this._fromJSON(LongType.prototype.random());
-};
-
-// Methods to be implemented by the user.
-AbstractLongType.prototype._fromBuffer = utils.abstractFunction;
-AbstractLongType.prototype._toBuffer = utils.abstractFunction;
-AbstractLongType.prototype._fromJSON = utils.abstractFunction;
-AbstractLongType.prototype._toJSON = utils.abstractFunction;
-AbstractLongType.prototype._isValid = utils.abstractFunction;
-AbstractLongType.prototype.compare = utils.abstractFunction;
-
-/**
- * Field.
- *
- * @param attrs {Object} The field's schema.
- * @para opts {Object} Schema parsing options (the same as `Type`s').
- *
- */
-function Field(attrs, opts) {
-  var name = attrs.name;
-  if (typeof name != 'string' || !NAME_PATTERN.test(name)) {
-    throw new Error(f('invalid field name: %s', name));
-  }
-
-  this._name = name;
-  this._type = createType(attrs.type, opts);
-  this._aliases = attrs.aliases || [];
-
-  this._order = (function (order) {
-    switch (order) {
-      case 'ascending':
-        return 1;
-      case 'descending':
-        return -1;
-      case 'ignore':
-        return 0;
-      default:
-        throw new Error(f('invalid order: %j', order));
-    }
-  })(attrs.order === undefined ? 'ascending' : attrs.order);
-
-  var value = attrs['default'];
-  if (value !== undefined) {
-    // We need to convert defaults back to a valid format (unions are
-    // disallowed in default definitions, only the first type of each union is
-    // allowed instead).
-    // http://apache-avro.679487.n3.nabble.com/field-union-default-in-Java-td1175327.html
-    var type = this._type;
-    var val = type._copy(value, {coerce: 2, wrap: 2});
-    // The clone call above will throw an error if the default is invalid.
-    if (type instanceof PrimitiveType && !(type instanceof BytesType)) {
-      // These are immutable.
-      this.getDefault = function () { return val; };
-    } else {
-      this.getDefault = function () { return type._copy(val); };
-    }
-  }
-}
-
-Field.prototype.getAliases = function () { return this._aliases; };
-
-Field.prototype.getDefault = function () {}; // Undefined default.
-
-Field.prototype.getName = function () { return this._name; };
-
-Field.prototype.getOrder = function () {
-  return ['descending', 'ignore', 'ascending'][this._order + 1];
-};
-
-Field.prototype.getType = function () { return this._type; };
-
-Field.prototype.inspect = function () { return f('<Field %j>', this._name); };
-
-/**
- * Resolver to read a writer's schema as a new schema.
- *
- * @param readerType {Type} The type to convert to.
- *
- */
-function Resolver(readerType) {
-  // Add all fields here so that all resolvers share the same hidden class.
-  this._readerType = readerType;
-  this._items = null;
-  this._read = null;
-  this._size = 0;
-  this._symbols = null;
-  this._values = null;
-}
-
-Resolver.prototype.inspect = function () { return '<Resolver>'; };
-
-/**
- * Read a value from a tap.
- *
- * @param type {Type} The type to decode.
- * @param tap {Tap} The tap to read from. No checks are performed here.
- * @param resolver {Resolver} Optional resolver. It must match the input type.
- * @param lazy {Boolean} Skip trailing fields when using a resolver.
- *
- */
-function readValue(type, tap, resolver, lazy) {
-  if (resolver) {
-    if (resolver._readerType !== type) {
-      throw new Error('invalid resolver');
-    }
-    return resolver._read(tap, lazy);
-  } else {
-    return type._read(tap);
-  }
-}
-
-/**
- * Create default parsing options.
- *
- * @param attrs {Object} Schema to populate options with.
- * @param opts {Object} Base options.
- *
- */
-function updateOpts(opts, attrs) {
-  var namespace = attrs && attrs.namespace;
-
-  opts = opts || {};
-  opts.namespace = namespace !== undefined ? namespace : opts.namespace;
-  opts.registry = opts.registry || {};
-  opts.logicalTypes = opts.logicalTypes || {};
-  return opts;
-}
-
-/**
- * Resolve a schema's name and aliases.
- *
- * @param attrs {Object} True schema (can't be a string).
- * @param namespace {String} Optional parent namespace.
- * @param key {String} Key where the name should be looked up (defaults to
- * `name`).
- *
- */
-function resolveNames(attrs, namespace) {
-  namespace = attrs.namespace || namespace;
-
-  var name = attrs.name;
-  if (!name) {
-    throw new Error(f('missing name property in schema: %j', attrs));
-  }
-  return {
-    name: qualify(name),
-    aliases: attrs.aliases ? attrs.aliases.map(qualify) : []
-  };
-
-  function qualify(name) {
-    if (!~name.indexOf('.') && namespace) {
-      name = namespace + '.' + name;
-    }
-    var tail = unqualify(name);
-    if (isPrimitive(tail)) {
-      // Primitive types cannot be defined in any namespace.
-      throw new Error(f('cannot rename primitive type: %j', tail));
-    }
-    name.split('.').forEach(function (part) {
-      if (!NAME_PATTERN.test(part)) {
-        throw new Error(f('invalid name: %j', name));
-      }
-    });
-    return name;
-  }
-}
-
-/**
- * Remove namespace from a name.
- *
- * @param name {String} Full or short name.
- *
- */
-function unqualify(name) {
-  var parts = name.split('.');
-  return parts[parts.length - 1];
-}
-
-/**
- * Get all aliases for a type (including its name).
- *
- * @param obj {Type|Object} Typically a type or a field. Its aliases property
- * must exist and be an array.
- *
- */
-function getAliases(obj) {
-  var names = [obj._name];
-  var aliases = obj._aliases;
-  var i, l;
-  for (i = 0, l = aliases.length; i < l; i++) {
-    names.push(aliases[i]);
-  }
-  return names;
-}
-
-/**
- * Get a type's "type" (as a string, e.g. `'record'`, `'string'`).
- *
- * @param type {Type} Any type.
- *
- */
-function getTypeName(type) {
-  var obj = type.toJSON();
-  return typeof obj == 'string' ? obj : obj.type;
-}
-
-/**
- * Check whether a type's name is a primitive.
- *
- * @param name {String} Type name (e.g. `'string'`, `'array'`).
- *
- */
-function isPrimitive(name) {
-  var type = TYPES[name];
-  return type !== undefined && type.prototype instanceof PrimitiveType;
-}
-
-/**
- * Get the number of elements in an array block.
- *
- * @param tap {Tap} A tap positioned at the beginning of an array block.
- *
- */
-function readArraySize(tap) {
-  var n = tap.readLong();
-  if (n < 0) {
-    n = -n;
-    tap.skipLong(); // Skip size.
-  }
-  return n;
-}
-
-/**
- * Correctly stringify an object which contains types.
- *
- * @param obj {Object} The object to stringify. Typically, a type itself or an
- * object containing types. Any types inside will be expanded only once then
- * referenced by name.
- * @param noDeref {Boolean} Always reference types by name when possible,
- * rather than expand it the first time it is encountered.
- *
- */
-function stringify(obj, noDeref) {
-  // Since JS objects are unordered, this implementation (unfortunately)
-  // relies on engines returning properties in the same order that they are
-  // inserted in. This is not in the JS spec, but can be "somewhat" safely
-  // assumed (more here: http://stackoverflow.com/q/5525795/1062617).
-  return (function (registry) {
-    return JSON.stringify(obj, function (key, value) {
-      if (value instanceof Field) {
-        return {name: value._name, type: value._type};
-      } else if (value && value.name) {
-        var name = value.name;
-        if (noDeref || registry[name]) {
-          return name;
-        }
-        registry[name] = true;
-      }
-      return value;
-    });
-  })({});
-}
-
-/**
- * Check whether a long can be represented without precision loss.
- *
- * @param n {Number} The number.
- *
- * Two things to note:
- *
- * + We are not using the `Number` constants for compatibility with older
- *   browsers.
- * + We must remove one from each bound because of rounding errors.
- *
- */
-function isSafeLong(n) {
-  return n >= -9007199254740990 && n <= 9007199254740990;
-}
-
-/**
- * Throw a somewhat helpful error on invalid object.
- *
- * @param path {Array} Passed from hook, but unused (because empty where this
- * function is used, since we aren't keeping track of it for effiency).
- * @param val {...} The object to reject.
- * @param type {Type} The type to check against.
- *
- * This method is mostly used from `_write` to signal an invalid object for a
- * given type. Note that this provides less information than calling `isValid`
- * with a hook since the path is not propagated (for efficiency reasons).
- *
- */
-function throwInvalidError(path, val, type) {
-  throw new Error(f('invalid %s: %j', type, val));
-}
-
-
-module.exports = {
-  Type: Type,
-  createType: createType,
-  stringify: stringify,
-  builtins: (function () {
-    // Base types are redundant but exported for backwards compatibility.
-    var obj = {Type: Type, LogicalType: LogicalType};
-    var types = Object.keys(TYPES);
-    var i, l, Class;
-    for (i = 0, l = types.length; i < l; i++) {
-      Class = TYPES[types[i]];
-      obj[Class.name_] = Class;
-    }
-    return obj;
-  })()
-};
-
-}).call(this,require("buffer").Buffer)
-},{"./utils":9,"buffer":25,"util":50}],9:[function(require,module,exports){
-(function (Buffer){
-/* jshint node: true */
-
-// TODO: Make long comparison impervious to precision loss.
-// TODO: Optimize binary comparison methods.
-
-'use strict';
-
-/**
- * Various utilities used accross this library.
- *
- */
-
-var crypto = require('crypto');
-
-
-/**
- * Uppercase the first letter of a string.
- *
- * @param s {String} The string.
- *
- */
-function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-
-/**
- * Compare two numbers.
- *
- * @param n1 {Number} The first one.
- * @param n2 {Number} The second one.
- *
- */
-function compare(n1, n2) { return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1); }
-
-/**
- * Compute a string's hash.
- *
- * @param str {String} The string to hash.
- * @param algorithm {String} The algorithm used. Defaults to MD5.
- *
- */
-function getFingerprint(str, algorithm) {
-  algorithm = algorithm || 'md5';
-  var hash = crypto.createHash(algorithm);
-  hash.end(str);
-  return hash.read();
-}
-
-/**
- * Find index of value in array.
- *
- * @param arr {Array} Can also be a false-ish value.
- * @param v {Object} Value to find.
- *
- * Returns -1 if not found, -2 if found multiple times.
- *
- */
-function singleIndexOf(arr, v) {
-  var pos = -1;
-  var i, l;
-  if (!arr) {
-    return -1;
-  }
-  for (i = 0, l = arr.length; i < l; i++) {
-    if (arr[i] === v) {
-      if (pos >= 0) {
-        return -2;
-      }
-      pos = i;
-    }
-  }
-  return pos;
-}
-
-/**
- * Convert array to map.
- *
- * @param arr {Array} Elements.
- * @param fn {Function} Function returning an element's key.
- *
- */
-function toMap(arr, fn) {
-  var obj = {};
-  var i, elem;
-  for (i = 0; i < arr.length; i++) {
-    elem = arr[i];
-    obj[fn(elem)] = elem;
-  }
-  return obj;
-}
-
-/**
- * Check whether an array has duplicates.
- *
- * @param arr {Array} The array.
- * @param fn {Function} Optional function to apply to each element.
- *
- */
-function hasDuplicates(arr, fn) {
-  var obj = {};
-  var i, l, elem;
-  for (i = 0, l = arr.length; i < l; i++) {
-    elem = arr[i];
-    if (fn) {
-      elem = fn(elem);
-    }
-    if (obj[elem]) {
-      return true;
-    }
-    obj[elem] = true;
-  }
-  return false;
-}
-
-/**
- * "Abstract" function to help with "subclassing".
- *
- */
-function abstractFunction() { throw new Error('abstract'); }
-
-/**
- * Generator of random things.
- *
- * Inspired by: http://stackoverflow.com/a/424445/1062617
- *
- */
-function Lcg(seed) {
-  var a = 1103515245;
-  var c = 12345;
-  var m = Math.pow(2, 31);
-  var state = Math.floor(seed || Math.random() * (m - 1));
-
-  this._max = m;
-  this._nextInt = function () { return state = (a * state + c) % m; };
-}
-
-Lcg.prototype.nextBoolean = function () {
-  // jshint -W018
-  return !!(this._nextInt() % 2);
-};
-
-Lcg.prototype.nextInt = function (start, end) {
-  if (end === undefined) {
-    end = start;
-    start = 0;
-  }
-  end = end === undefined ? this._max : end;
-  return start + Math.floor(this.nextFloat() * (end - start));
-};
-
-Lcg.prototype.nextFloat = function (start, end) {
-  if (end === undefined) {
-    end = start;
-    start = 0;
-  }
-  end = end === undefined ? 1 : end;
-  return start + (end - start) * this._nextInt() / this._max;
-};
-
-Lcg.prototype.nextString = function(len, flags) {
-  len |= 0;
-  flags = flags || 'aA';
-  var mask = '';
-  if (flags.indexOf('a') > -1) {
-    mask += 'abcdefghijklmnopqrstuvwxyz';
-  }
-  if (flags.indexOf('A') > -1) {
-    mask += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  }
-  if (flags.indexOf('#') > -1) {
-    mask += '0123456789';
-  }
-  if (flags.indexOf('!') > -1) {
-    mask += '~`!@#$%^&*()_+-={}[]:";\'<>?,./|\\';
-  }
-  var result = [];
-  for (var i = 0; i < len; i++) {
-    result.push(this.choice(mask));
-  }
-  return result.join('');
-};
-
-Lcg.prototype.nextBuffer = function (len) {
-  var arr = [];
-  var i;
-  for (i = 0; i < len; i++) {
-    arr.push(this.nextInt(256));
-  }
-  return new Buffer(arr);
-};
-
-Lcg.prototype.choice = function (arr) {
-  var len = arr.length;
-  if (!len) {
-    throw new Error('choosing from empty array');
-  }
-  return arr[this.nextInt(len)];
-};
-
-/**
- * Ordered queue which returns items consecutively.
- *
- * This is actually a heap by index, with the added requirements that elements
- * can only be retrieved consecutively.
- *
- */
-function OrderedQueue() {
-  this._index = 0;
-  this._items = [];
-}
-
-OrderedQueue.prototype.push = function (item) {
-  var items = this._items;
-  var i = items.length | 0;
-  var j;
-  items.push(item);
-  while (i > 0 && items[i].index < items[j = ((i - 1) >> 1)].index) {
-    item = items[i];
-    items[i] = items[j];
-    items[j] = item;
-    i = j;
-  }
-};
-
-OrderedQueue.prototype.pop = function () {
-  var items = this._items;
-  var len = (items.length - 1) | 0;
-  var first = items[0];
-  if (!first || first.index > this._index) {
-    return null;
-  }
-  this._index++;
-  if (!len) {
-    items.pop();
-    return first;
-  }
-  items[0] = items.pop();
-  var mid = len >> 1;
-  var i = 0;
-  var i1, i2, j, item, c, c1, c2;
-  while (i < mid) {
-    item = items[i];
-    i1 = (i << 1) + 1;
-    i2 = (i + 1) << 1;
-    c1 = items[i1];
-    c2 = items[i2];
-    if (!c2 || c1.index <= c2.index) {
-      c = c1;
-      j = i1;
-    } else {
-      c = c2;
-      j = i2;
-    }
-    if (c.index >= item.index) {
-      break;
-    }
-    items[j] = item;
-    items[i] = c;
-    i = j;
-  }
-  return first;
-};
-
-/**
- * A tap is a buffer which remembers what has been already read.
- *
- * It is optimized for performance, at the cost of failing silently when
- * overflowing the buffer. This is a purposeful trade-off given the expected
- * rarity of this case and the large performance hit necessary to enforce
- * validity. See `isValid` below for more information.
- *
- */
-function Tap(buf, pos) {
-  this.buf = buf;
-  this.pos = pos | 0;
-}
-
-/**
- * Check that the tap is in a valid state.
- *
- * For efficiency reasons, none of the methods below will fail if an overflow
- * occurs (either read, skip, or write). For this reason, it is up to the
- * caller to always check that the read, skip, or write was valid by calling
- * this method.
- *
- */
-Tap.prototype.isValid = function () { return this.pos <= this.buf.length; };
-
-/**
- * Returns the contents of the tap up to the current position.
- *
- */
-Tap.prototype.getValue = function () { return this.buf.slice(0, this.pos); };
-
-// Read, skip, write methods.
-//
-// These should fail silently when the buffer overflows. Note this is only
-// required to be true when the functions are decoding valid objects. For
-// example errors will still be thrown if a bad count is read, leading to a
-// negative position offset (which will typically cause a failure in
-// `readFixed`).
-
-Tap.prototype.readBoolean = function () { return !!this.buf[this.pos++]; };
-
-Tap.prototype.skipBoolean = function () { this.pos++; };
-
-Tap.prototype.writeBoolean = function (b) { this.buf[this.pos++] = !!b; };
-
-Tap.prototype.readInt = Tap.prototype.readLong = function () {
-  var n = 0;
-  var k = 0;
-  var buf = this.buf;
-  var b, h, f, fk;
-
-  do {
-    b = buf[this.pos++];
-    h = b & 0x80;
-    n |= (b & 0x7f) << k;
-    k += 7;
-  } while (h && k < 28);
-
-  if (h) {
-    // Switch to float arithmetic, otherwise we might overflow.
-    f = n;
-    fk = 268435456; // 2 ** 28.
-    do {
-      b = buf[this.pos++];
-      f += (b & 0x7f) * fk;
-      fk *= 128;
-    } while (b & 0x80);
-    return (f % 2 ? -(f + 1) : f) / 2;
-  }
-
-  return (n >> 1) ^ -(n & 1);
-};
-
-Tap.prototype.skipInt = Tap.prototype.skipLong = function () {
-  var buf = this.buf;
-  while (buf[this.pos++] & 0x80) {}
-};
-
-Tap.prototype.writeInt = Tap.prototype.writeLong = function (n) {
-  var buf = this.buf;
-  var f, m;
-
-  if (n >= -1073741824 && n < 1073741824) {
-    // Won't overflow, we can use integer arithmetic.
-    m = n >= 0 ? n << 1 : (~n << 1) | 1;
-    do {
-      buf[this.pos] = m & 0x7f;
-      m >>= 7;
-    } while (m && (buf[this.pos++] |= 0x80));
-  } else {
-    // We have to use slower floating arithmetic.
-    f = n >= 0 ? n * 2 : (-n * 2) - 1;
-    do {
-      buf[this.pos] = f & 0x7f;
-      f /= 128;
-    } while (f >= 1 && (buf[this.pos++] |= 0x80));
-  }
-  this.pos++;
-};
-
-Tap.prototype.readFloat = function () {
-  var buf = this.buf;
-  var pos = this.pos;
-  this.pos += 4;
-  if (this.pos > buf.length) {
-    return;
-  }
-  return this.buf.readFloatLE(pos);
-};
-
-Tap.prototype.skipFloat = function () { this.pos += 4; };
-
-Tap.prototype.writeFloat = function (f) {
-  var buf = this.buf;
-  var pos = this.pos;
-  this.pos += 4;
-  if (this.pos > buf.length) {
-    return;
-  }
-  return this.buf.writeFloatLE(f, pos);
-};
-
-Tap.prototype.readDouble = function () {
-  var buf = this.buf;
-  var pos = this.pos;
-  this.pos += 8;
-  if (this.pos > buf.length) {
-    return;
-  }
-  return this.buf.readDoubleLE(pos);
-};
-
-Tap.prototype.skipDouble = function () { this.pos += 8; };
-
-Tap.prototype.writeDouble = function (d) {
-  var buf = this.buf;
-  var pos = this.pos;
-  this.pos += 8;
-  if (this.pos > buf.length) {
-    return;
-  }
-  return this.buf.writeDoubleLE(d, pos);
-};
-
-Tap.prototype.readFixed = function (len) {
-  var pos = this.pos;
-  this.pos += len;
-  if (this.pos > this.buf.length) {
-    return;
-  }
-  var fixed = new Buffer(len);
-  this.buf.copy(fixed, 0, pos, pos + len);
-  return fixed;
-};
-
-Tap.prototype.skipFixed = function (len) { this.pos += len; };
-
-Tap.prototype.writeFixed = function (buf, len) {
-  len = len || buf.length;
-  var pos = this.pos;
-  this.pos += len;
-  if (this.pos > this.buf.length) {
-    return;
-  }
-  buf.copy(this.buf, pos, 0, len);
-};
-
-Tap.prototype.readBytes = function () {
-  return this.readFixed(this.readLong());
-};
-
-Tap.prototype.skipBytes = function () {
-  var len = this.readLong();
-  this.pos += len;
-};
-
-Tap.prototype.writeBytes = function (buf) {
-  var len = buf.length;
-  this.writeLong(len);
-  this.writeFixed(buf, len);
-};
-
-Tap.prototype.readString = function () {
-  var len = this.readLong();
-  var pos = this.pos;
-  var buf = this.buf;
-  this.pos += len;
-  if (this.pos > buf.length) {
-    return;
-  }
-  return this.buf.utf8Slice(pos, pos + len);
-};
-
-Tap.prototype.skipString = function () {
-  var len = this.readLong();
-  this.pos += len;
-};
-
-Tap.prototype.writeString = function (s) {
-  var len = Buffer.byteLength(s);
-  this.writeLong(len);
-  var pos = this.pos;
-  this.pos += len;
-  if (this.pos > this.buf.length) {
-    return;
-  }
-  this.buf.utf8Write(s, pos, len);
-};
-
-// Helper used to speed up writing defaults.
-
-Tap.prototype.writeBinary = function (str, len) {
-  var pos = this.pos;
-  this.pos += len;
-  if (this.pos > this.buf.length) {
-    return;
-  }
-  this.buf.binaryWrite(str, pos, len);
-};
-
-// Binary comparison methods.
-//
-// These are not guaranteed to consume the objects they are comparing when
-// returning a non-zero result (allowing for performance benefits), so no other
-// operations should be done on either tap after a compare returns a non-zero
-// value. Also, these methods do not have the same silent failure requirement
-// as read, skip, and write since they are assumed to be called on valid
-// buffers.
-
-Tap.prototype.matchBoolean = function (tap) {
-  return this.buf[this.pos++] - tap.buf[tap.pos++];
-};
-
-Tap.prototype.matchInt = Tap.prototype.matchLong = function (tap) {
-  var n1 = this.readLong();
-  var n2 = tap.readLong();
-  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-};
-
-Tap.prototype.matchFloat = function (tap) {
-  var n1 = this.readFloat();
-  var n2 = tap.readFloat();
-  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-};
-
-Tap.prototype.matchDouble = function (tap) {
-  var n1 = this.readDouble();
-  var n2 = tap.readDouble();
-  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
-};
-
-Tap.prototype.matchFixed = function (tap, len) {
-  return this.readFixed(len).compare(tap.readFixed(len));
-};
-
-Tap.prototype.matchBytes = Tap.prototype.matchString = function (tap) {
-  var l1 = this.readLong();
-  var p1 = this.pos;
-  this.pos += l1;
-  var l2 = tap.readLong();
-  var p2 = tap.pos;
-  tap.pos += l2;
-  var b1 = this.buf.slice(p1, this.pos);
-  var b2 = tap.buf.slice(p2, tap.pos);
-  return b1.compare(b2);
-};
-
-// Functions for supporting custom long classes.
-//
-// The two following methods allow the long implementations to not have to
-// worry about Avro's zigzag encoding, we directly expose longs as unpacked.
-
-Tap.prototype.unpackLongBytes = function () {
-  var res = new Buffer(8);
-  var n = 0;
-  var i = 0; // Byte index in target buffer.
-  var j = 6; // Bit offset in current target buffer byte.
-  var buf = this.buf;
-  var b, neg;
-
-  b = buf[this.pos++];
-  neg = b & 1;
-  res.fill(0);
-
-  n |= (b & 0x7f) >> 1;
-  while (b & 0x80) {
-    b = buf[this.pos++];
-    n |= (b & 0x7f) << j;
-    j += 7;
-    if (j >= 8) {
-      // Flush byte.
-      j -= 8;
-      res[i++] = n;
-      n >>= 8;
-    }
-  }
-  res[i] = n;
-
-  if (neg) {
-    invert(res, 8);
-  }
-
-  return res;
-};
-
-Tap.prototype.packLongBytes = function (buf) {
-  var neg = (buf[7] & 0x80) >> 7;
-  var res = this.buf;
-  var j = 1;
-  var k = 0;
-  var m = 3;
-  var n;
-
-  if (neg) {
-    invert(buf, 8);
-    n = 1;
-  } else {
-    n = 0;
-  }
-
-  var parts = [
-    buf.readUIntLE(0, 3),
-    buf.readUIntLE(3, 3),
-    buf.readUIntLE(6, 2)
-  ];
-  // Not reading more than 24 bits because we need to be able to combine the
-  // "carry" bits from the previous part and JavaScript only supports bitwise
-  // operations on 32 bit integers.
-  while (m && !parts[--m]) {} // Skip trailing 0s.
-
-  // Leading parts (if any), we never bail early here since we need the
-  // continuation bit to be set.
-  while (k < m) {
-    n |= parts[k++] << j;
-    j += 24;
-    while (j > 7) {
-      res[this.pos++] = (n & 0x7f) | 0x80;
-      n >>= 7;
-      j -= 7;
-    }
-  }
-
-  // Final part, similar to normal packing aside from the initial offset.
-  n |= parts[m] << j;
-  do {
-    res[this.pos] = n & 0x7f;
-    n >>= 7;
-  } while (n && (res[this.pos++] |= 0x80));
-  this.pos++;
-
-  // Restore original buffer (could make this optional?).
-  if (neg) {
-    invert(buf, 8);
-  }
-};
-
-// Helpers.
-
-/**
- * Invert all bits in a buffer.
- *
- * @param buf {Buffer} Non-empty buffer to invert.
- * @param len {Number} Buffer length (must be positive).
- *
- */
-function invert(buf, len) {
-  while (len--) {
-    buf[len] = ~buf[len];
-  }
-}
-
-
-module.exports = {
-  abstractFunction: abstractFunction,
-  capitalize: capitalize,
-  getFingerprint: getFingerprint,
-  compare: compare,
-  toMap: toMap,
-  singleIndexOf: singleIndexOf,
-  hasDuplicates: hasDuplicates,
-  Lcg: Lcg,
-  OrderedQueue: OrderedQueue,
-  Tap: Tap
-};
-
-}).call(this,require("buffer").Buffer)
-},{"buffer":25,"crypto":4}],10:[function(require,module,exports){
 // http://wiki.commonjs.org/wiki/Unit_Testing/1.0
 //
 // THIS IS NOT TESTED NOR LIKELY TO WORK OUTSIDE V8!
@@ -6299,9 +359,9 @@ var objectKeys = Object.keys || function (obj) {
   return keys;
 };
 
-},{"util/":50}],11:[function(require,module,exports){
+},{"util/":42}],2:[function(require,module,exports){
 
-},{}],12:[function(require,module,exports){
+},{}],3:[function(require,module,exports){
 'use strict';
 
 
@@ -6405,7 +465,7 @@ exports.setTyped = function (on) {
 
 exports.setTyped(TYPED_OK);
 
-},{}],13:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 'use strict';
 
 // Note: adler32 takes 12% for level 0 and 2% for level 6.
@@ -6439,7 +499,7 @@ function adler32(adler, buf, len, pos) {
 
 module.exports = adler32;
 
-},{}],14:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 module.exports = {
 
   /* Allowed flush values; see deflate() and inflate() below for details */
@@ -6488,7 +548,7 @@ module.exports = {
   //Z_NULL:                 null // Use -1 or null inline, depending on var type
 };
 
-},{}],15:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 'use strict';
 
 // Note: we can't get significant speed boost here.
@@ -6531,7 +591,7 @@ function crc32(crc, buf, len, pos) {
 
 module.exports = crc32;
 
-},{}],16:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 'use strict';
 
 var utils   = require('../utils/common');
@@ -8298,7 +2358,7 @@ exports.deflatePrime = deflatePrime;
 exports.deflateTune = deflateTune;
 */
 
-},{"../utils/common":12,"./adler32":13,"./crc32":15,"./messages":20,"./trees":21}],17:[function(require,module,exports){
+},{"../utils/common":3,"./adler32":4,"./crc32":6,"./messages":11,"./trees":12}],8:[function(require,module,exports){
 'use strict';
 
 // See state defs from inflate.js
@@ -8626,7 +2686,7 @@ module.exports = function inflate_fast(strm, start) {
   return;
 };
 
-},{}],18:[function(require,module,exports){
+},{}],9:[function(require,module,exports){
 'use strict';
 
 
@@ -10131,7 +4191,7 @@ exports.inflateSyncPoint = inflateSyncPoint;
 exports.inflateUndermine = inflateUndermine;
 */
 
-},{"../utils/common":12,"./adler32":13,"./crc32":15,"./inffast":17,"./inftrees":19}],19:[function(require,module,exports){
+},{"../utils/common":3,"./adler32":4,"./crc32":6,"./inffast":8,"./inftrees":10}],10:[function(require,module,exports){
 'use strict';
 
 
@@ -10460,7 +4520,7 @@ module.exports = function inflate_table(type, lens, lens_index, codes, table, ta
   return 0;
 };
 
-},{"../utils/common":12}],20:[function(require,module,exports){
+},{"../utils/common":3}],11:[function(require,module,exports){
 'use strict';
 
 module.exports = {
@@ -10475,7 +4535,7 @@ module.exports = {
   '-6':   'incompatible version' /* Z_VERSION_ERROR (-6) */
 };
 
-},{}],21:[function(require,module,exports){
+},{}],12:[function(require,module,exports){
 'use strict';
 
 
@@ -11676,7 +5736,7 @@ exports._tr_flush_block  = _tr_flush_block;
 exports._tr_tally = _tr_tally;
 exports._tr_align = _tr_align;
 
-},{"../utils/common":12}],22:[function(require,module,exports){
+},{"../utils/common":3}],13:[function(require,module,exports){
 'use strict';
 
 
@@ -11707,7 +5767,7 @@ function ZStream() {
 
 module.exports = ZStream;
 
-},{}],23:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 (function (process,Buffer){
 var msg = require('pako/lib/zlib/messages');
 var zstream = require('pako/lib/zlib/zstream');
@@ -11947,7 +6007,7 @@ Zlib.prototype._error = function(status) {
 exports.Zlib = Zlib;
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"_process":33,"buffer":25,"pako/lib/zlib/constants":14,"pako/lib/zlib/deflate.js":16,"pako/lib/zlib/inflate.js":18,"pako/lib/zlib/messages":20,"pako/lib/zlib/zstream":22}],24:[function(require,module,exports){
+},{"_process":25,"buffer":16,"pako/lib/zlib/constants":5,"pako/lib/zlib/deflate.js":7,"pako/lib/zlib/inflate.js":9,"pako/lib/zlib/messages":11,"pako/lib/zlib/zstream":13}],15:[function(require,module,exports){
 (function (process,Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -12561,7 +6621,7 @@ util.inherits(InflateRaw, Zlib);
 util.inherits(Unzip, Zlib);
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./binding":23,"_process":33,"_stream_transform":45,"assert":10,"buffer":25,"util":50}],25:[function(require,module,exports){
+},{"./binding":14,"_process":25,"_stream_transform":37,"assert":1,"buffer":16,"util":42}],16:[function(require,module,exports){
 (function (global){
 /*!
  * The buffer module from node.js, for the browser.
@@ -12631,16 +6691,13 @@ function kMaxLength () {
 }
 
 /**
- * Class: Buffer
- * =============
+ * The Buffer constructor returns instances of `Uint8Array` that have their
+ * prototype changed to `Buffer.prototype`. Furthermore, `Buffer` is a subclass of
+ * `Uint8Array`, so the returned instances will have all the node `Buffer` methods
+ * and the `Uint8Array` methods. Square bracket notation works as expected -- it
+ * returns a single octet.
  *
- * The Buffer constructor returns instances of `Uint8Array` that are augmented
- * with function properties for all the node `Buffer` API functions. We use
- * `Uint8Array` so that square bracket notation works as expected -- it returns
- * a single octet.
- *
- * By augmenting the instances, we can avoid modifying the `Uint8Array`
- * prototype.
+ * The `Uint8Array` prototype remains unmodified.
  */
 function Buffer (arg) {
   if (!(this instanceof Buffer)) {
@@ -12666,6 +6723,12 @@ function Buffer (arg) {
 
   // Unusual.
   return fromObject(this, arg)
+}
+
+// TODO: Legacy, not needed anymore. Remove in next major version.
+Buffer._augment = function (arr) {
+  arr.__proto__ = Buffer.prototype
+  return arr
 }
 
 function fromNumber (that, length) {
@@ -12981,8 +7044,8 @@ function slowToString (encoding, start, end) {
   }
 }
 
-// Even though this property is private, it shouldn't be removed because it is
-// used by `is-buffer` to detect buffer instances in Safari 5-7.
+// The property is used by `Buffer.isBuffer` and `is-buffer` (in Safari 5-7) to detect
+// Buffer instances.
 Buffer.prototype._isBuffer = true
 
 Buffer.prototype.toString = function toString () {
@@ -13755,7 +7818,6 @@ Buffer.prototype.writeInt32BE = function writeInt32BE (value, offset, noAssert) 
 }
 
 function checkIEEE754 (buf, value, offset, ext, max, min) {
-  if (value > max || value < min) throw new RangeError('value is out of bounds')
   if (offset + ext > buf.length) throw new RangeError('index out of range')
   if (offset < 0) throw new RangeError('index out of range')
 }
@@ -14017,7 +8079,7 @@ function blitBuffer (src, dst, offset, length) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"base64-js":26,"ieee754":27,"isarray":28}],26:[function(require,module,exports){
+},{"base64-js":17,"ieee754":18,"isarray":19}],17:[function(require,module,exports){
 ;(function (exports) {
   'use strict'
 
@@ -14137,7 +8199,7 @@ function blitBuffer (src, dst, offset, length) {
   exports.fromByteArray = uint8ToBase64
 }(typeof exports === 'undefined' ? (this.base64js = {}) : exports))
 
-},{}],27:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 exports.read = function (buffer, offset, isLE, mLen, nBytes) {
   var e, m
   var eLen = nBytes * 8 - mLen - 1
@@ -14223,14 +8285,14 @@ exports.write = function (buffer, value, offset, isLE, mLen, nBytes) {
   buffer[offset + i - d] |= s * 128
 }
 
-},{}],28:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 var toString = {}.toString;
 
 module.exports = Array.isArray || function (arr) {
   return toString.call(arr) == '[object Array]';
 };
 
-},{}],29:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -14530,7 +8592,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],30:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -14555,7 +8617,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],31:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /**
  * Determine if an object is Buffer
  *
@@ -14574,12 +8636,240 @@ module.exports = function (obj) {
     ))
 }
 
-},{}],32:[function(require,module,exports){
+},{}],23:[function(require,module,exports){
 module.exports = Array.isArray || function (arr) {
   return Object.prototype.toString.call(arr) == '[object Array]';
 };
 
-},{}],33:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
+(function (process){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+// resolves . and .. elements in a path array with directory names there
+// must be no slashes, empty elements, or device names (c:\) in the array
+// (so also no leading and trailing slashes - it does not distinguish
+// relative and absolute paths)
+function normalizeArray(parts, allowAboveRoot) {
+  // if the path tries to go above the root, `up` ends up > 0
+  var up = 0;
+  for (var i = parts.length - 1; i >= 0; i--) {
+    var last = parts[i];
+    if (last === '.') {
+      parts.splice(i, 1);
+    } else if (last === '..') {
+      parts.splice(i, 1);
+      up++;
+    } else if (up) {
+      parts.splice(i, 1);
+      up--;
+    }
+  }
+
+  // if the path is allowed to go above the root, restore leading ..s
+  if (allowAboveRoot) {
+    for (; up--; up) {
+      parts.unshift('..');
+    }
+  }
+
+  return parts;
+}
+
+// Split a filename into [root, dir, basename, ext], unix version
+// 'root' is just a slash, or nothing.
+var splitPathRe =
+    /^(\/?|)([\s\S]*?)((?:\.{1,2}|[^\/]+?|)(\.[^.\/]*|))(?:[\/]*)$/;
+var splitPath = function(filename) {
+  return splitPathRe.exec(filename).slice(1);
+};
+
+// path.resolve([from ...], to)
+// posix version
+exports.resolve = function() {
+  var resolvedPath = '',
+      resolvedAbsolute = false;
+
+  for (var i = arguments.length - 1; i >= -1 && !resolvedAbsolute; i--) {
+    var path = (i >= 0) ? arguments[i] : process.cwd();
+
+    // Skip empty and invalid entries
+    if (typeof path !== 'string') {
+      throw new TypeError('Arguments to path.resolve must be strings');
+    } else if (!path) {
+      continue;
+    }
+
+    resolvedPath = path + '/' + resolvedPath;
+    resolvedAbsolute = path.charAt(0) === '/';
+  }
+
+  // At this point the path should be resolved to a full absolute path, but
+  // handle relative paths to be safe (might happen when process.cwd() fails)
+
+  // Normalize the path
+  resolvedPath = normalizeArray(filter(resolvedPath.split('/'), function(p) {
+    return !!p;
+  }), !resolvedAbsolute).join('/');
+
+  return ((resolvedAbsolute ? '/' : '') + resolvedPath) || '.';
+};
+
+// path.normalize(path)
+// posix version
+exports.normalize = function(path) {
+  var isAbsolute = exports.isAbsolute(path),
+      trailingSlash = substr(path, -1) === '/';
+
+  // Normalize the path
+  path = normalizeArray(filter(path.split('/'), function(p) {
+    return !!p;
+  }), !isAbsolute).join('/');
+
+  if (!path && !isAbsolute) {
+    path = '.';
+  }
+  if (path && trailingSlash) {
+    path += '/';
+  }
+
+  return (isAbsolute ? '/' : '') + path;
+};
+
+// posix version
+exports.isAbsolute = function(path) {
+  return path.charAt(0) === '/';
+};
+
+// posix version
+exports.join = function() {
+  var paths = Array.prototype.slice.call(arguments, 0);
+  return exports.normalize(filter(paths, function(p, index) {
+    if (typeof p !== 'string') {
+      throw new TypeError('Arguments to path.join must be strings');
+    }
+    return p;
+  }).join('/'));
+};
+
+
+// path.relative(from, to)
+// posix version
+exports.relative = function(from, to) {
+  from = exports.resolve(from).substr(1);
+  to = exports.resolve(to).substr(1);
+
+  function trim(arr) {
+    var start = 0;
+    for (; start < arr.length; start++) {
+      if (arr[start] !== '') break;
+    }
+
+    var end = arr.length - 1;
+    for (; end >= 0; end--) {
+      if (arr[end] !== '') break;
+    }
+
+    if (start > end) return [];
+    return arr.slice(start, end - start + 1);
+  }
+
+  var fromParts = trim(from.split('/'));
+  var toParts = trim(to.split('/'));
+
+  var length = Math.min(fromParts.length, toParts.length);
+  var samePartsLength = length;
+  for (var i = 0; i < length; i++) {
+    if (fromParts[i] !== toParts[i]) {
+      samePartsLength = i;
+      break;
+    }
+  }
+
+  var outputParts = [];
+  for (var i = samePartsLength; i < fromParts.length; i++) {
+    outputParts.push('..');
+  }
+
+  outputParts = outputParts.concat(toParts.slice(samePartsLength));
+
+  return outputParts.join('/');
+};
+
+exports.sep = '/';
+exports.delimiter = ':';
+
+exports.dirname = function(path) {
+  var result = splitPath(path),
+      root = result[0],
+      dir = result[1];
+
+  if (!root && !dir) {
+    // No dirname whatsoever
+    return '.';
+  }
+
+  if (dir) {
+    // It has a dirname, strip trailing slash
+    dir = dir.substr(0, dir.length - 1);
+  }
+
+  return root + dir;
+};
+
+
+exports.basename = function(path, ext) {
+  var f = splitPath(path)[2];
+  // TODO: make this comparison case-insensitive on windows?
+  if (ext && f.substr(-1 * ext.length) === ext) {
+    f = f.substr(0, f.length - ext.length);
+  }
+  return f;
+};
+
+
+exports.extname = function(path) {
+  return splitPath(path)[3];
+};
+
+function filter (xs, f) {
+    if (xs.filter) return xs.filter(f);
+    var res = [];
+    for (var i = 0; i < xs.length; i++) {
+        if (f(xs[i], i, xs)) res.push(xs[i]);
+    }
+    return res;
+}
+
+// String.prototype.substr - negative index don't work in IE8
+var substr = 'ab'.substr(-1) === 'b'
+    ? function (str, start, len) { return str.substr(start, len) }
+    : function (str, start, len) {
+        if (start < 0) start = str.length + start;
+        return str.substr(start, len);
+    }
+;
+
+}).call(this,require('_process'))
+},{"_process":25}],25:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -14672,10 +8962,10 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],34:[function(require,module,exports){
+},{}],26:[function(require,module,exports){
 module.exports = require("./lib/_stream_duplex.js")
 
-},{"./lib/_stream_duplex.js":35}],35:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":27}],27:[function(require,module,exports){
 // a duplex stream is just a stream that is both readable and writable.
 // Since JS doesn't have multiple prototypal inheritance, this class
 // prototypally inherits from Readable, and then parasitically from
@@ -14759,7 +9049,7 @@ function forEach (xs, f) {
   }
 }
 
-},{"./_stream_readable":37,"./_stream_writable":39,"core-util-is":40,"inherits":30,"process-nextick-args":41}],36:[function(require,module,exports){
+},{"./_stream_readable":29,"./_stream_writable":31,"core-util-is":32,"inherits":21,"process-nextick-args":33}],28:[function(require,module,exports){
 // a passthrough stream.
 // basically just the most minimal sort of Transform stream.
 // Every written chunk gets output as-is.
@@ -14788,7 +9078,7 @@ PassThrough.prototype._transform = function(chunk, encoding, cb) {
   cb(null, chunk);
 };
 
-},{"./_stream_transform":38,"core-util-is":40,"inherits":30}],37:[function(require,module,exports){
+},{"./_stream_transform":30,"core-util-is":32,"inherits":21}],29:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -15767,7 +10057,7 @@ function indexOf (xs, x) {
 }
 
 }).call(this,require('_process'))
-},{"./_stream_duplex":35,"_process":33,"buffer":25,"core-util-is":40,"events":29,"inherits":30,"isarray":32,"process-nextick-args":41,"string_decoder/":48,"util":11}],38:[function(require,module,exports){
+},{"./_stream_duplex":27,"_process":25,"buffer":16,"core-util-is":32,"events":20,"inherits":21,"isarray":23,"process-nextick-args":33,"string_decoder/":40,"util":2}],30:[function(require,module,exports){
 // a transform stream is a readable/writable stream where you do
 // something with the data.  Sometimes it's called a "filter",
 // but that's not a great name for it, since that implies a thing where
@@ -15966,7 +10256,7 @@ function done(stream, er) {
   return stream.push(null);
 }
 
-},{"./_stream_duplex":35,"core-util-is":40,"inherits":30}],39:[function(require,module,exports){
+},{"./_stream_duplex":27,"core-util-is":32,"inherits":21}],31:[function(require,module,exports){
 // A bit simpler than readable streams.
 // Implement an async ._write(chunk, encoding, cb), and it'll handle all
 // the drain event emission and buffering.
@@ -16497,7 +10787,7 @@ function endWritable(stream, state, cb) {
   state.ended = true;
 }
 
-},{"./_stream_duplex":35,"buffer":25,"core-util-is":40,"events":29,"inherits":30,"process-nextick-args":41,"util-deprecate":42}],40:[function(require,module,exports){
+},{"./_stream_duplex":27,"buffer":16,"core-util-is":32,"events":20,"inherits":21,"process-nextick-args":33,"util-deprecate":34}],32:[function(require,module,exports){
 (function (Buffer){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -16608,7 +10898,7 @@ function objectToString(o) {
 }
 
 }).call(this,{"isBuffer":require("../../../../insert-module-globals/node_modules/is-buffer/index.js")})
-},{"../../../../insert-module-globals/node_modules/is-buffer/index.js":31}],41:[function(require,module,exports){
+},{"../../../../insert-module-globals/node_modules/is-buffer/index.js":22}],33:[function(require,module,exports){
 (function (process){
 'use strict';
 
@@ -16632,7 +10922,7 @@ function nextTick(fn) {
 }
 
 }).call(this,require('_process'))
-},{"_process":33}],42:[function(require,module,exports){
+},{"_process":25}],34:[function(require,module,exports){
 (function (global){
 
 /**
@@ -16703,10 +10993,10 @@ function config (name) {
 }
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],43:[function(require,module,exports){
+},{}],35:[function(require,module,exports){
 module.exports = require("./lib/_stream_passthrough.js")
 
-},{"./lib/_stream_passthrough.js":36}],44:[function(require,module,exports){
+},{"./lib/_stream_passthrough.js":28}],36:[function(require,module,exports){
 var Stream = (function (){
   try {
     return require('st' + 'ream'); // hack to fix a circular dependency issue when used with browserify
@@ -16720,13 +11010,13 @@ exports.Duplex = require('./lib/_stream_duplex.js');
 exports.Transform = require('./lib/_stream_transform.js');
 exports.PassThrough = require('./lib/_stream_passthrough.js');
 
-},{"./lib/_stream_duplex.js":35,"./lib/_stream_passthrough.js":36,"./lib/_stream_readable.js":37,"./lib/_stream_transform.js":38,"./lib/_stream_writable.js":39}],45:[function(require,module,exports){
+},{"./lib/_stream_duplex.js":27,"./lib/_stream_passthrough.js":28,"./lib/_stream_readable.js":29,"./lib/_stream_transform.js":30,"./lib/_stream_writable.js":31}],37:[function(require,module,exports){
 module.exports = require("./lib/_stream_transform.js")
 
-},{"./lib/_stream_transform.js":38}],46:[function(require,module,exports){
+},{"./lib/_stream_transform.js":30}],38:[function(require,module,exports){
 module.exports = require("./lib/_stream_writable.js")
 
-},{"./lib/_stream_writable.js":39}],47:[function(require,module,exports){
+},{"./lib/_stream_writable.js":31}],39:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -16855,7 +11145,7 @@ Stream.prototype.pipe = function(dest, options) {
   return dest;
 };
 
-},{"events":29,"inherits":30,"readable-stream/duplex.js":34,"readable-stream/passthrough.js":43,"readable-stream/readable.js":44,"readable-stream/transform.js":45,"readable-stream/writable.js":46}],48:[function(require,module,exports){
+},{"events":20,"inherits":21,"readable-stream/duplex.js":26,"readable-stream/passthrough.js":35,"readable-stream/readable.js":36,"readable-stream/transform.js":37,"readable-stream/writable.js":38}],40:[function(require,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -17078,14 +11368,14 @@ function base64DetectIncompleteChar(buffer) {
   this.charLength = this.charReceived ? 3 : 0;
 }
 
-},{"buffer":25}],49:[function(require,module,exports){
+},{"buffer":16}],41:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],50:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -17675,7 +11965,6616 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":49,"_process":33,"inherits":30}],51:[function(require,module,exports){
+},{"./support/isBuffer":41,"_process":25,"inherits":21}],43:[function(require,module,exports){
+(function (global,Buffer){
+/* jshint browser: true, browserify: true */
+
+(function () {
+  'use strict';
+  global.jQuery = require("jquery")
+  var avsc = require('avsc'),
+      buffer = require('buffer'),
+      utils = require('./utils'),
+      $ = require('jquery');
+  window.avsc = avsc;
+  $( function() {
+
+    var outputErrorElement = $('#encoded-error'),
+        inputErrorElement = $('#decoded-error'),
+        encodedValidElement = $('#output-valid'),
+        decodedValidElement = $('#input-valid'),
+        schemaErrorElement = $('#schema-error'),
+        schemaValidElement = $('#schema-valid'),
+        schemaSelect = $('#schema-template'),
+        template = $('#template'),
+        schemaElement = $('#schema'),
+        inputElement = $('#input'),
+        outputElement = $('#output'),
+        randomElement = $('#random'),
+        uploadElement = $('#upload'),
+        firstPageElements = $('.-level1-'),
+        secondPageElements = $('.-level2-'),
+        arrayKeyPattern = /(\d+)/g,
+        reservedKeysPattern = /-[a-z]+-/g,
+        whiteSpacePattern = /\s+/g,
+        typingTimer,
+        eventObj = utils.eventObj,
+        urlUtils = utils.urlUtils,
+        doneTypingInterval = 500; // wait for some time before processing user input.
+    
+    window.reverseIndexMap = [];  
+
+    eventObj.on('schema-changed', function(schemaJson) {
+      template.hide();
+      var schemaStr = JSON.stringify(schemaJson, null, 2); 
+      runPreservingCursorPosition('schema', schemaElement.text, {context: schemaElement, param: schemaStr});
+      eventObj.trigger('update-url', {schema:schemaStr});
+      validateSchema(schemaJson);
+    }).on('input-changed', function(rawInput) {
+      try {
+        runPreservingCursorPosition('input' , setInputText, {context: inputElement, param: rawInput});
+        // Wrap key values in <span>.
+        validateInput(rawInput);
+        eventObj.trigger('re-instrument', rawInput);
+        encode(rawInput);
+      } catch (err) {
+        eventObj.trigger('invalid-input', err);
+      }
+    }).on('output-changed', function(outputStr) {
+      decode(outputStr);
+    }).on('valid-schema', function() {
+      hideError(schemaErrorElement, schemaValidElement);
+      randomElement.removeClass('-disabled-');
+    }).on('invalid-schema', function (message) {
+      showError(schemaErrorElement, message);
+    }).on('valid-input', function () { 
+      hideError(inputErrorElement, decodedValidElement);
+    }).on('invalid-input', function(message) {
+      showError(inputErrorElement, message);
+    }).on('valid-output', function () { 
+      hideError(outputErrorElement, encodedValidElement);
+    }).on('invalid-output', function(message) {
+      showError(outputErrorElement, message);
+    }).on('update-layout', function() {
+      if (window.type) {
+        firstPageElements.each(function(i, element) {
+          $(element).addClass('-hidden-');
+        });
+        secondPageElements.each(function (i, element) {
+          $(element).removeClass('-hidden-');
+        });
+      }
+    }).on('reset-layout', function() {
+      randomElement.addClass('-disabled-');
+      firstPageElements.each(function(i, element) {
+        $(element).removeClass('-hidden-');
+      });
+      secondPageElements.each(function (i, element) {
+        $(element).addClass('-hidden-');
+      });
+      schemaElement.text("");
+      inputElement.text("");
+      outputElement.text("");
+      hideError(schemaErrorElement);
+      hideError(inputErrorElement);
+      hideError(outputErrorElement);
+      template.show();
+    }).on('schema-loaded', function(rawSchema) {
+      template.hide();
+      var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState({}, 'AVSC', newUrl);
+      populateFromQuery();
+      eventObj.trigger('update-layout');
+      
+    }).on('re-instrument', function(rawInput) {
+      window.instrumented = instrumentObject(window.type, window.type.fromString(rawInput));
+      window.reverseIndexMap = computeReverseIndex(window.instrumented);
+    }).on('update-url', function(data) {
+      var state = {};
+      var newUrl = location.href;
+      newUrl = urlUtils.updateValues(newUrl, data);
+      // Use this so that it doesn't reload the page, but that also means that you need to manually
+      // load the schema from url
+      window.history.pushState(state, 'AVSC', newUrl);
+
+    }).on('generate-random', function() {
+      generateRandom();
+    }).on('schema-uploaded', function(files) {
+      var file = files[0]; 
+      var reader = new FileReader();
+      reader.readAsText(file, "UTF-8");
+      reader.onload = function (evt) {
+        eventObj.trigger('schema-loaded', evt.target.result);
+      }
+      reader.onerror = function (evt) {
+        console.log("error reading file.");
+      }
+    });
+
+    schemaSelect.on('change', function() {
+      loadTemplate(this.value);
+    });
+
+       
+    /* When pasting something into an editable div, it 
+     * pastes all the html styles with it too, which need to be cleaned up.
+     * copied from: 
+     * http://stackoverflow.com/questions/2176861/javascript-get-clipboard-data-on-paste-event-cross-browser */
+
+    $('[contenteditable]').on('paste',function(e) {
+      e.preventDefault();
+      //TODO: Find out why sometimes it triggers 'input-changed' twice.
+      var text = (e.originalEvent || e).clipboardData.getData('text/plain');
+      window.document.execCommand('insertText', false, text);
+      if(e.target.id === 'schema') {
+        if(updateContent(schemaElement)) {
+          var schemaJson = readSchemaFromInput();
+          eventObj.trigger('schema-changed', schemaJson);
+          eventObj.trigger('generate-random');
+        };
+      }
+    });
+
+    schemaElement.on('keyup', function() {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function () {
+        if(updateContent(schemaElement)) { 
+          try {
+            var schemaJson = readSchemaFromInput();
+            eventObj.trigger('schema-changed', schemaJson);
+            validateInput();
+          } catch(err) {
+            eventObj.trigger('invalid-schema', err);
+          }
+        }
+      }, doneTypingInterval);
+    }).on('click keydown', function() {
+      template.hide();
+    }).on('keydown', function() {
+      clearTimeout(typingTimer);
+    }).on('drop', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      var files = e.originalEvent.dataTransfer.files;
+      eventObj.trigger('schema-uploaded', files);
+    });
+
+    inputElement.on('paste keyup', function(event) {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
+        if(updateContent(inputElement)) {
+          var rawInput = $.trim(inputElement.text());        
+          eventObj.trigger('input-changed', rawInput);
+        };
+      }, doneTypingInterval);
+    }).on('keydown', function() {
+      clearTimeout(typingTimer);
+    }).on('mouseover', 'span', function(event) {
+      if (window.instrumented) {
+         /* It's important to clear it when the mouse moves from one span to another with the same parent,
+           * to clear out the parent being highlighted. */
+        clearHighlights();
+
+        /*Will also automatically highlight all nested children.*/
+        highlight($(this)); 
+
+        /*So that the parent won't be highlighted (because we are using mouseover and not mouseenter)*/
+        event.stopPropagation(); 
+
+        var path = getPath($(this));
+        var position = findPositionOf(path);
+        highlight(position); 
+      } else {
+        console.log("No instrumented type found");
+      }
+    }).on('mouseleave', 'span', function(event) {
+      clearHighlights();
+    });
+
+    outputElement.on('paste keyup', function(event) {
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
+        if(updateContent(outputElement)) {
+          var outputStr = $.trim(outputElement.text());
+          eventObj.trigger('output-changed', outputStr);
+        };
+      }, doneTypingInterval);
+    }).on('mouseover', 'div', function(event) {
+      if (window.reverseIndexMap) {
+        clearHighlights();
+        event.stopPropagation();
+        
+        var path = getPath(this);
+
+        //The .find() and .children() methods are similar, 
+        //except that the latter only travels a single level down the DOM tree.
+        var inputCandidates = inputElement.find('.' + path.join(' .'));
+
+        // Go through all input candidates and make sure the `full path` matches 
+        // (and in the same order) and then find its position to be highlighted.
+
+        $.each(inputCandidates, (function(idx, e) { 
+          var cs = getPath(e);
+          if (utils.arraysEqual(cs, path)) {
+            highlight($(e)); // highlight input
+            var p = getPath(e); // find path
+            var position = findPositionOf(p); // find the indexes in the output
+            highlight(position); // highlight them in output
+          }
+        }));
+      }
+    }).on('mouseleave', 'div', function (event) { 
+      clearHighlights(); 
+    }).on('keydown', function(event) {
+      clearTimeout(typingTimer);
+    });
+
+    randomElement.click(function () {   
+      clearTimeout(typingTimer);
+      typingTimer = setTimeout(function() {
+        eventObj.trigger('generate-random');
+      }, doneTypingInterval);
+      return false;
+    });
+
+    $("#reset").click(function() {
+      eventObj.trigger('update-url', {'schema' : '' , 'record' : ''});
+      eventObj.trigger('reset-layout');
+      window.type = undefined;
+      return false;
+    });
+
+    $('#uploadLink').click(function(e) {
+      e.preventDefault();
+      uploadElement.trigger('click');
+      return false; // So that it doesn't show the content of the file.
+    });
+
+    uploadElement.on("change", function(e) {
+      var files = $(uploadElement)[0].files;
+      eventObj.trigger('schema-uploaded', files);
+    });
+
+    $(document).click(function(e) {
+      if(!$(e.target).closest('#schema').length) {
+        if (!schemaElement.text()){
+          template.show();
+          hideError(schemaErrorElement);
+        }
+      }
+    });
+
+    function populateFromQuery() {
+      var s = urlUtils.readValue('schema');
+      if(s) {
+        eventObj.trigger('schema-changed', JSON.parse(s));
+      }
+      
+      var record = urlUtils.readValue('record');
+      if(record) {
+        decode(record);
+        setOutputText(record);
+      }
+    }
+    
+    /**
+    * Will save cursor position inside element `elemId` before running callback function f,
+    * and restores it after f is finished. 
+    */ 
+    function runPreservingCursorPosition(elementId, f, options) {
+      var context = options && options.context;
+      var param = options && options.param;
+     //Get current position.
+      if (window.getSelection().rangeCount) {
+
+        var range = window.getSelection().getRangeAt(0);
+        var el = document.getElementById(elementId);
+        var position = getCharacterOffsetWithin(range, el);
+        f.call(context, param);
+        setCharacterOffsetWithin(range, el, position);
+      } else {
+        f.call(context, param);
+      }
+    } 
+    /*
+    * When the input text changes, the whole text is replaced with new <span> elements,
+    * and the previous cursor position will be lost. 
+    *
+    * This function will go through all the child elements of `node` and sets the
+    * caret to the `position`th character.
+    */ 
+
+    function setCharacterOffsetWithin(range, node, position) {
+      var treeWalker = document.createTreeWalker(
+          node,
+          NodeFilter.SHOW_TEXT
+      );
+      var charCount = 0, foundRange = false;
+      while (treeWalker.nextNode() && !foundRange) {
+          if (charCount + treeWalker.currentNode.length < position)
+            charCount += treeWalker.currentNode.length;
+          else {
+            var newRange = document.createRange();
+            newRange.setStart(treeWalker.currentNode, position - charCount);
+            newRange.setEnd(treeWalker.currentNode, position - charCount);
+            newRange.collapse(true);
+
+            var sel = window.getSelection();
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            foundRange = true;
+          }
+      }
+    }
+    
+    /**
+    * From: http://jsfiddle.net/timdown/2YcaX/
+    * http://stackoverflow.com/questions/4767848/get-caret-cursor-position-in-contenteditable-area-containing-html-content
+    */
+    function getCharacterOffsetWithin(range, node) {
+      var treeWalker = document.createTreeWalker(
+          node,
+          NodeFilter.SHOW_TEXT,
+          function(node) {
+              var nodeRange = document.createRange();
+              nodeRange.selectNode(node);
+              return nodeRange.compareBoundaryPoints(Range.END_TO_END, range) < 1 ?
+                  NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+          },
+          false
+      );
+      var charCount = 0;
+      while (treeWalker.nextNode()) {
+          charCount += treeWalker.currentNode.length;
+      }
+      if (range.startContainer.nodeType == Node.TEXT_NODE) { 
+          charCount += range.startOffset;
+      }
+      return charCount;
+    }
+
+    /* Get full path of an element based on its css class attributes. (both inherited 
+     * or direct)*/
+    function getPath(element) {
+      var cs = [];
+      /* We can't just read the .attr() parameter, because we need the 
+       * class properties of the parents too.*/
+      $(element)
+        .parentsUntil($('.-textbox-'))
+        .andSelf()
+        .each(function() {
+          if(this.className) {
+            /* This should be a concat because the result of split is already an array */
+            cs = cs.concat($.trim(this.className.replace(reservedKeysPattern,''))
+                            .split(' '));
+          }
+      });
+      return cs;
+    }
+
+    /**
+    * find the start and end index of an entry in its encoded representation
+    * using the instrumented type already loaded in window.instrumented.
+    *
+    */
+    function findPositionOf(path) {
+      var current = window.instrumented;
+      path.forEach(function(entry) {
+        var arrayKey = arrayKeyPattern.exec(entry);
+        var nextKey = arrayKey ? arrayKey[1] : entry; // getting the first captured group from regex result if a match was found.
+        if (nextKey in current.value) {
+          current = current.value[nextKey];
+        }
+      });
+      return current;
+    }
+
+    /*
+    * Find all spans that have the same class, and highlights them,
+    * so if a key is selected, its value will be also highlighted, and vice versa.  
+    */
+    function highlightAllMatching(classesString) {
+      var rawClasses = classesString[0] == ' ' ? classesString : ' ' + classesString;
+      rawClasses = rawClasses.replace(/ /g, ' .');
+      $(rawClasses).each( function(i) {
+        highlight($(this));
+      });
+    }
+
+    /**
+    * Add -highlight- to the input element class, 
+    * or highlight entries between 'start' and 'end' in the output text.
+    */
+    function highlight(input) {
+      if (input.start !== undefined && input.end !== undefined){
+        outputElement.children('div').each(function( index ) {
+          if (index >= input.start && index < input.end) {
+            highlight($(this));
+          }
+        });
+      } else {
+        input.addClass('-highlight-');
+      }
+    }
+
+    function addClassToOutputWithRange(cls, start, end) {
+      outputElement.children('span').each(function( index ) {
+        if (index >= start && index < end) {
+          $(this).addClass(cls);
+        }
+      });
+      for (var i = start; i < end; i++) {
+        if (reverseIndexMap[i]) {
+          reverseIndexMap[i].push(cls);
+        } else {
+          reverseIndexMap[i] = [cls];
+        }
+      }
+    }
+    
+
+    /**
+    * Remove `highlight` from all spans. 
+    */
+    function clearHighlights() {
+      $('span').removeClass('-highlight-');
+      $('div').removeClass('-highlight-');
+    }
+
+    /**
+    * set the input box's text to inputStr, 
+    * where all key, values are wrapped in <span> elements
+    * with the 'path' set as the span class. 
+    */
+    function setInputText(inputStr) {
+      var input = JSON.parse(inputStr);
+      var stringified = stringify(input, 1); 
+      inputElement.html(stringified);
+    }
+
+    /**
+    * Set the output box's text to outputStr where each byte is wrapped in <span>
+    * elements and each line contains 8 bytes.
+    */ 
+
+    function setOutputText(outputStr) { 
+      var res = '';
+      var str = outputStr.replace(/\s+/g, '');
+      var i, len;
+      for (i =0, len = str.length; i < len; i += 2){
+        res += createDiv(window.reverseIndexMap[i/2], str[i] + str[i + 1] + '&nbsp;');
+      }
+      outputElement.html(res);
+    }
+
+    /**
+    * Similar to JSON.stringify, but will wrap each key and value 
+    * with <span> tags. 
+    * Does a DFS over the obj, to propagate the parent keys to each 
+    * child element to be set in the span's class attribute.
+    * @param obj The object to stringify
+    * @param depth Current indention level.
+    */
+    function stringify(obj, depth) {
+
+      var res = '';
+      if ( obj == null ) {
+        return createDiv('-null-', 'null');
+      }
+      if (typeof obj === 'number') {
+        return  createDiv('-number-', obj + '');
+      }
+      if (typeof obj === 'boolean') {
+        return createDiv('-boolean-', obj + '');
+      }
+      if (typeof obj === 'string') {
+        // Calling json.stringify here to handle the fixed types.
+        // I have no idea why just printing them doesn't work.
+        return createDiv('-string-', JSON.stringify(obj));
+      }
+      var comma = false;
+      if (obj instanceof Array) {
+        res += '[<br/>';
+        $.each(obj, function(index, value) {
+          if (comma) res += ',<br/>';
+          // Use '-' as a special character, which can not exist in schema keys 
+          // but is a valid character for css class.
+          res += createSpan(index , indent(depth) + stringify(value, depth + 1));
+          comma = true;
+        });
+        res += '<br/>' + indent(depth - 1) + ']';
+        return res;
+      } 
+      res += '{<br/>';
+      comma = false;
+      $.each(obj, function(key, value) {
+        if (comma) res += ',<br/>';
+        res += createSpan(key, indent(depth) + '"' + key + '": ' + stringify(value, depth + 1));
+        comma = true;
+      });
+      res += '<br/>' + indent(depth - 1) + '}';
+      return res;
+    }
+
+    function createSpan(cl, str) {
+      return '<span class="' + cl + '">' + str + '</span>'; 
+    }
+
+    function createDiv(cl, str) {
+      return '<div class="-inline- ' + cl + '">' + str + '</div>';
+    }
+    function indent(depth) { 
+      var res = '';
+      for (var i = 0 ; i < 2 * depth; i++) res += ' ';
+      return res;
+    }
+
+    function validateInput(rawInput) {
+      if (window.type) {
+        try {
+          if (!rawInput) {
+            rawInput = $.trim(inputElement.text());
+          }
+          var attrs = JSON.parse(rawInput);
+          // Throw more useful error if not valid.
+          window.type.isValid(attrs, {errorHook: hook});
+          eventObj.trigger('valid-input');
+          function hook(path, any, type) {
+            if (
+              typeof any == 'string' &&
+              ( 
+                type instanceof avsc.types.BytesType ||
+                (
+                  type instanceof avsc.types.FixedType &&
+                  any.length === type.getSize()
+                )
+              )
+            ) {
+              // This is a string-encoded buffer.
+              return;
+            }
+            throw new Error('invalid ' + type + ' at ' + path.join('.'));
+          }
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
+      }
+    }
+
+    function validateSchema(schemaJson) {
+      window.type = undefined;
+      try {
+        window.type = avsc.parse(schemaJson);
+        eventObj.trigger('valid-schema');
+        eventObj.trigger('update-layout');
+      } catch (err) {
+        eventObj.trigger('invalid-schema', err);
+      }
+    }
+    function generateRandom() {
+      if (window.type) {
+        try{
+          var random = window.type.random();
+          var randomStr = window.type.toString(random);
+          setInputText(randomStr);
+          eventObj.trigger('input-changed', randomStr);
+        } catch (err) {
+          eventObj.trigger('invalid-input', err);
+        }
+      }
+    }
+
+    /**
+    * Read the input as text from inputElement.
+    * Instrument it and update window.instrumented.
+    * Encode it and set the outputElement's text to the encoded data
+    */   
+    function encode(inputStr) {
+      if (window.type) {
+        try {
+          var input = window.type.fromString(inputStr);
+          var output = window.type.toBuffer(input);
+        
+          var outputStr = output.toString('hex');
+          setOutputText(outputStr);
+          eventObj.trigger('update-url', {'record' : outputStr});
+          eventObj.trigger('valid-output');
+        }catch(err) {
+          eventObj.trigger('invalid-input', err);
+        }
+      }
+    }
+
+    function decode(rawInput) {
+      if (window.type) {
+        try {
+          var input = readBuffer(rawInput);
+          var decoded = window.type.fromBuffer(input);
+          var decodedStr = window.type.toString(decoded);
+          setInputText(decodedStr);
+          eventObj.trigger('re-instrument', decodedStr);
+          eventObj.trigger('update-url', {'record' : rawInput});
+          eventObj.trigger('valid-input');
+          eventObj.trigger('valid-output');
+        }catch(err) {
+          eventObj.trigger('invalid-output', err);
+        }
+      }
+    }
+
+    function showError(errorElem, msg) {
+      errorElem.text(msg);
+      errorElem.show();
+    };
+
+    function hideError(errorElem, validElem) {
+      errorElem.text("");
+      errorElem.hide();
+      if (validElem) {
+        validElem.show('slow').delay(500).hide('slow');
+      }
+    }
+    
+    /* If the schema is pasted with proper json formats, simply json.parse wouldn't work.*/
+    function readSchemaFromInput() {
+      var trimmedInput = $.trim(schemaElement.text()).replace(/\s/g, "");
+      return JSON.parse(trimmedInput);
+    }
+
+    /*Used for decoding.
+    *Read the text represented as space-seperated hex numbers in elementId
+    *and construct a Buffer object*/
+    function readBuffer(rawInput) { 
+      var str = rawInput.replace(whiteSpacePattern,'');
+      return new Buffer(str, 'hex');
+    }
+
+    /**
+     * Will update the old value of the element to the new one, 
+     * and returns true if the content changed. 
+    */
+    function updateContent(element) {
+      var newText = $.trim($(element).text()).replace(whiteSpacePattern, '');
+      if (!element.data) {
+        element.data = {};
+      }
+      if (newText !== '' && 
+        (!element.data['oldValue'] || 
+          element.data['oldValue'] != newText)) {
+        element.data['oldValue'] =  newText;
+        return true;
+      }
+      return false;
+    }
+
+    function instrument(schema) {
+      if (schema instanceof avsc.types.Type) {
+        schema = schema.getSchema();
+      }
+      var refs = [];
+      return avsc.parse(schema, {typeHook: hook});
+
+      function hook(schema, opts) {
+        if (~refs.indexOf(schema)) {
+          return;
+        }
+        refs.push(schema);
+
+        if (schema.type === 'record') {
+          schema.fields.forEach(function (f) {
+            f['default'] = undefined;
+          });
+        }
+
+        var name = schema.name;
+        if (name) {
+          schema.name = 'r' + Math.random().toString(36).substr(2, 6);
+        }
+        var wrappedSchema = {
+          name: name || (schema.type ? (schema.type + '_') : 'r' + Math.random().toString(36).substr(2, 6)),
+          namespace: schema.namespace,
+          type: 'record',
+          fields: [{name: 'value', type: schema}]
+        };
+        refs.push(wrappedSchema);
+
+        var type = avsc.parse(wrappedSchema, opts);
+        var read = type._read;
+        type._read = function (tap) {
+          var pos = tap.pos;
+          var obj = read.call(type, tap);
+          obj.start = pos;
+          obj.end = tap.pos;
+          return obj;
+        };
+        return type;
+      }
+    }
+
+    /**
+     * Convenience method to instrument a single object.
+     * 
+     * @param type {Type} The type to be instrumented.
+     * @param obj {Object} A valid instance of `type`.
+     * 
+     * Returns an representation of `obj` with start and end markers.
+     * 
+     */
+    function instrumentObject(type, obj) {
+      return instrument(type).fromBuffer(type.toBuffer(obj));
+    }
+
+    /**
+     * Creates an array of size buffer.length, 
+     * where each index will contain a string representing
+     * the path in the input record corresponding to this byte.
+     */
+    function computeReverseIndex(obj) {
+      if (!obj) {
+        return;
+      }
+      // initialize an array with all empty elements;
+      var size = obj.end;
+      var res = Array.apply(null, Array(size))
+                     .map(String.prototype.valueOf,"");
+      assignLabels('', obj, res);
+      return res;
+    }
+
+    function assignLabels(key, node, res) {
+      if (node.hasOwnProperty('start') && node.hasOwnProperty('end')) {
+        appendLabel(node.start, node.end, key, res);
+      }
+      var valueNode = node.value;
+      if (valueNode) {
+        for (var child in valueNode) {
+          if (valueNode.hasOwnProperty(child)) {
+            assignLabels(child, valueNode[child], res);
+          }
+        }
+      }
+    }
+
+    function appendLabel(start, end, label, arr) {
+      var length = label.length;
+      if (label[length - 1] == '_')
+        label = label.substr(0, length - 1);  
+      for (var i = start; i < end; i++) {
+        arr[i] += ' ' + label; 
+      }
+    }
+
+    function loadTemplate(name) { 
+      if (name != '') {
+        var p = 'schemas/' + name + '.avsc';
+        $.ajax({
+            url: p,
+            success: function(data){
+            eventObj.trigger('schema-loaded', data);
+            eventObj.trigger('generate-random');
+          }
+        });
+      }
+    }
+
+    populateFromQuery();
+ });
+})();
+
+}).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
+},{"./utils":44,"avsc":45,"buffer":16,"jquery":53}],44:[function(require,module,exports){
+/* jshint browser: true, browserify: true */
+
+
+/* Get the associated data of `elem` from the global cache.
+ * (Will create a new entry in cache the first time called for an `elem`.)
+*/
+
+var Event = {
+  on: function(event, callback) {
+    this.hasOwnProperty('events') || (this.events = {});
+    this.events.hasOwnProperty(event) || (this.events[event] = []);
+    this.events[event].push(callback);
+    return this;
+  },
+  trigger: function(event) {
+    var tail = Array.prototype.slice.call(arguments, 1),
+        callbacks = this.events[event];
+    for (var i = 0, l = callbacks.length; i < l ; i++) {
+      callbacks[i].apply(this, tail); // To pass parameters to calback not as an array, but as individual function arguments.  
+    }
+  }
+};
+
+function arraysEqual(a1, a2) {
+  if(a1.length !== a2.length) { return false; }
+  for (var i = 0; i < a1.length; i++ ) {
+    if (a1[i] !== a2[i]) { return false; }
+  }
+  return true;
+};
+
+var UrlUtils = {
+
+  readValue : function (key) {
+    var queryPattern = /[?&#]+([\w]+)=([^&#]*)/g;
+    var query = {};
+    var m;
+    do {
+
+      m = queryPattern.exec(window.location.href);
+      if (m) {
+        query[m[1]] = m[2];
+      }
+    } while (m);
+    return decodeURIComponent(query[key]);
+  },
+
+ /**
+  * Will add or update the uri based on the key,value pairs provided in params object.
+  * http://stackoverflow.com/a/6021027/2070194
+  */
+  updateValues: function(uri, paramsObj) {
+    var whitespacePattern = /[\s]+/g; 
+    var res = uri;
+    for (var k in paramsObj) {
+      if (paramsObj.hasOwnProperty(k)) {
+        var val = paramsObj[k].replace(whitespacePattern, ''); // Remove whitespaces
+        var re = new RegExp("([?&])" + k + "=.*?(&|$)", "i");
+        var separator = res.indexOf('?') !== -1 ? "&" : "?";
+        if (res.match(re)) {
+          res = res.replace(re, '$1' + k + "=" + val + '$2');
+        } else {
+          res = res + separator + k + "=" + val;
+        }
+      }
+    }
+    
+    return res;
+  }
+}
+
+module.exports = {
+  eventObj: Event,
+  arraysEqual: arraysEqual,
+  urlUtils: UrlUtils
+}
+
+
+},{}],45:[function(require,module,exports){
+/* jshint node: true */
+
+'use strict';
+
+/**
+ * Main browserify entry point.
+ *
+ */
+
+var containers = require('../../lib/containers'),
+    files = require('./lib/files'),
+    protocols = require('../../lib/protocols'),
+    schemas = require('../../lib/schemas'),
+    types = require('../../lib/types');
+
+
+function parse(schema, opts) {
+  var attrs = files.load(schema);
+  return attrs.protocol ?
+    protocols.createProtocol(attrs, opts) :
+    types.createType(attrs, opts);
+}
+
+
+module.exports = {
+  Protocol: protocols.Protocol,
+  Type: types.Type,
+  assemble: schemas.assemble,
+  messages: protocols.messages,
+  parse: parse,
+  streams: containers.streams,
+  types: types.builtins
+};
+
+},{"../../lib/containers":48,"../../lib/protocols":49,"../../lib/schemas":50,"../../lib/types":51,"./lib/files":47}],46:[function(require,module,exports){
+(function (Buffer){
+/* jshint browserify: true */
+
+'use strict';
+
+/**
+ * Shim to enable schema fingerprint computation.
+ *
+ * MD5 implementation originally from [1], used with permission from the
+ * author, and lightly edited.
+ *
+ * [1] http://www.myersdaily.org/joseph/javascript/md5-text.html
+ *
+ */
+
+function createHash(algorithm) {
+  if (algorithm !== 'md5') {
+    throw new Error('only md5 is supported in the browser');
+  }
+  return new Hash();
+}
+
+function Hash() { this.data = undefined; }
+Hash.prototype.end = function (data) { this.data = data; };
+Hash.prototype.read = function () { return md5(this.data); };
+
+function md5cycle(x, k) {
+  var a = x[0], b = x[1], c = x[2], d = x[3];
+
+  a = ff(a, b, c, d, k[0], 7, -680876936);
+  d = ff(d, a, b, c, k[1], 12, -389564586);
+  c = ff(c, d, a, b, k[2], 17,  606105819);
+  b = ff(b, c, d, a, k[3], 22, -1044525330);
+  a = ff(a, b, c, d, k[4], 7, -176418897);
+  d = ff(d, a, b, c, k[5], 12,  1200080426);
+  c = ff(c, d, a, b, k[6], 17, -1473231341);
+  b = ff(b, c, d, a, k[7], 22, -45705983);
+  a = ff(a, b, c, d, k[8], 7,  1770035416);
+  d = ff(d, a, b, c, k[9], 12, -1958414417);
+  c = ff(c, d, a, b, k[10], 17, -42063);
+  b = ff(b, c, d, a, k[11], 22, -1990404162);
+  a = ff(a, b, c, d, k[12], 7,  1804603682);
+  d = ff(d, a, b, c, k[13], 12, -40341101);
+  c = ff(c, d, a, b, k[14], 17, -1502002290);
+  b = ff(b, c, d, a, k[15], 22,  1236535329);
+
+  a = gg(a, b, c, d, k[1], 5, -165796510);
+  d = gg(d, a, b, c, k[6], 9, -1069501632);
+  c = gg(c, d, a, b, k[11], 14,  643717713);
+  b = gg(b, c, d, a, k[0], 20, -373897302);
+  a = gg(a, b, c, d, k[5], 5, -701558691);
+  d = gg(d, a, b, c, k[10], 9,  38016083);
+  c = gg(c, d, a, b, k[15], 14, -660478335);
+  b = gg(b, c, d, a, k[4], 20, -405537848);
+  a = gg(a, b, c, d, k[9], 5,  568446438);
+  d = gg(d, a, b, c, k[14], 9, -1019803690);
+  c = gg(c, d, a, b, k[3], 14, -187363961);
+  b = gg(b, c, d, a, k[8], 20,  1163531501);
+  a = gg(a, b, c, d, k[13], 5, -1444681467);
+  d = gg(d, a, b, c, k[2], 9, -51403784);
+  c = gg(c, d, a, b, k[7], 14,  1735328473);
+  b = gg(b, c, d, a, k[12], 20, -1926607734);
+
+  a = hh(a, b, c, d, k[5], 4, -378558);
+  d = hh(d, a, b, c, k[8], 11, -2022574463);
+  c = hh(c, d, a, b, k[11], 16,  1839030562);
+  b = hh(b, c, d, a, k[14], 23, -35309556);
+  a = hh(a, b, c, d, k[1], 4, -1530992060);
+  d = hh(d, a, b, c, k[4], 11,  1272893353);
+  c = hh(c, d, a, b, k[7], 16, -155497632);
+  b = hh(b, c, d, a, k[10], 23, -1094730640);
+  a = hh(a, b, c, d, k[13], 4,  681279174);
+  d = hh(d, a, b, c, k[0], 11, -358537222);
+  c = hh(c, d, a, b, k[3], 16, -722521979);
+  b = hh(b, c, d, a, k[6], 23,  76029189);
+  a = hh(a, b, c, d, k[9], 4, -640364487);
+  d = hh(d, a, b, c, k[12], 11, -421815835);
+  c = hh(c, d, a, b, k[15], 16,  530742520);
+  b = hh(b, c, d, a, k[2], 23, -995338651);
+
+  a = ii(a, b, c, d, k[0], 6, -198630844);
+  d = ii(d, a, b, c, k[7], 10,  1126891415);
+  c = ii(c, d, a, b, k[14], 15, -1416354905);
+  b = ii(b, c, d, a, k[5], 21, -57434055);
+  a = ii(a, b, c, d, k[12], 6,  1700485571);
+  d = ii(d, a, b, c, k[3], 10, -1894986606);
+  c = ii(c, d, a, b, k[10], 15, -1051523);
+  b = ii(b, c, d, a, k[1], 21, -2054922799);
+  a = ii(a, b, c, d, k[8], 6,  1873313359);
+  d = ii(d, a, b, c, k[15], 10, -30611744);
+  c = ii(c, d, a, b, k[6], 15, -1560198380);
+  b = ii(b, c, d, a, k[13], 21,  1309151649);
+  a = ii(a, b, c, d, k[4], 6, -145523070);
+  d = ii(d, a, b, c, k[11], 10, -1120210379);
+  c = ii(c, d, a, b, k[2], 15,  718787259);
+  b = ii(b, c, d, a, k[9], 21, -343485551);
+
+  x[0] = add32(a, x[0]);
+  x[1] = add32(b, x[1]);
+  x[2] = add32(c, x[2]);
+  x[3] = add32(d, x[3]);
+}
+
+function cmn(q, a, b, x, s, t) {
+  a = add32(add32(a, q), add32(x, t));
+  return add32((a << s) | (a >>> (32 - s)), b);
+}
+
+function ff(a, b, c, d, x, s, t) {
+  return cmn((b & c) | ((~b) & d), a, b, x, s, t);
+}
+
+function gg(a, b, c, d, x, s, t) {
+  return cmn((b & d) | (c & (~d)), a, b, x, s, t);
+}
+
+function hh(a, b, c, d, x, s, t) {
+  return cmn(b ^ c ^ d, a, b, x, s, t);
+}
+
+function ii(a, b, c, d, x, s, t) {
+  return cmn(c ^ (b | (~d)), a, b, x, s, t);
+}
+
+function md51(s) {
+  var n = s.length,
+  state = [1732584193, -271733879, -1732584194, 271733878], i;
+  for (i=64; i<=s.length; i+=64) {
+    md5cycle(state, md5blk(s.substring(i-64, i)));
+  }
+
+  s = s.substring(i-64);
+  var tail = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];
+  for (i=0; i<s.length; i++) {
+    tail[i>>2] |= s.charCodeAt(i) << ((i%4) << 3);
+  }
+  tail[i>>2] |= 0x80 << ((i%4) << 3);
+  if (i > 55) {
+    md5cycle(state, tail);
+    for (i=0; i<16; i++) {
+      tail[i] = 0;
+    }
+  }
+  tail[14] = n*8;
+  md5cycle(state, tail);
+  return state;
+}
+
+function md5blk(s) {
+  var md5blks = [], i;
+  for (i=0; i<64; i+=4) {
+    md5blks[i>>2] = s.charCodeAt(i) +
+      (s.charCodeAt(i+1) << 8) +
+      (s.charCodeAt(i+2) << 16) +
+      (s.charCodeAt(i+3) << 24);
+  }
+  return md5blks;
+}
+
+function md5(s) {
+  var arr = md51(s);
+  var buf = new Buffer(16);
+  var i;
+  for (i = 0; i < 4; i++) {
+    buf.writeIntLE(arr[i], i * 4, 4);
+  }
+  return buf;
+}
+
+function add32(a, b) {
+  return (a + b) & 0xFFFFFFFF;
+}
+
+module.exports = {
+  createHash: createHash
+};
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":16}],47:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+'use strict';
+
+/**
+ * Shim without file-system operations.
+ *
+ * We also patch a few methods because of browser incompatibilities (see below
+ * for more information).
+ *
+ */
+
+// Since there are no utf8 and binary functions on browserify's `Buffer`, we
+// must patch in tap methods using the generic slice and write methods.
+(function polyfillTap() {
+  var Tap = require('../../../lib/utils').Tap;
+
+  Tap.prototype.readString = function () {
+    var len = this.readLong();
+    var pos = this.pos;
+    var buf = this.buf;
+    this.pos += len;
+    if (this.pos > buf.length) {
+      return;
+    }
+    return this.buf.slice(pos, pos + len).toString();
+  };
+
+  Tap.prototype.writeString = function (s) {
+    var len = Buffer.byteLength(s);
+    this.writeLong(len);
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
+      return;
+    }
+    this.buf.write(s, pos);
+  };
+
+  Tap.prototype.writeBinary = function (s, len) {
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
+      return;
+    }
+    this.buf.write(s, pos, len, 'binary');
+  };
+})();
+
+
+/**
+ * Schema loader, without file-system access.
+ *
+ */
+function load(schema) {
+  var obj;
+  if (typeof schema == 'string') {
+    try {
+      obj = JSON.parse(schema);
+    } catch (err) {
+      // No file loading here.
+    }
+  }
+  if (obj === undefined) {
+    obj = schema;
+  }
+  return obj;
+}
+
+/**
+ * Default (erroring) hook for assembling IDLs.
+ *
+ */
+function createImportHook() {
+  return function (fpath, kind, cb) { cb(new Error('missing import hook')); };
+}
+
+
+module.exports = {
+  createImportHook: createImportHook,
+  load: load
+};
+
+}).call(this,require("buffer").Buffer)
+},{"../../../lib/utils":52,"buffer":16}],48:[function(require,module,exports){
+(function (process,Buffer){
+/* jshint node: true */
+
+// TODO: Add `readerType` option for `RawDecoder` and `BlockDecoder`.
+
+'use strict';
+
+/**
+ * This module defines custom streams to write and read Avro files.
+ *
+ * In particular, the `Block{En,De}coder` streams are able to deal with Avro
+ * container files. None of the streams below depend on the filesystem however,
+ * this way they can also be used in the browser (for example to parse HTTP
+ * responses).
+ *
+ */
+
+var files = require('./files'),
+    types = require('./types'),
+    utils = require('./utils'),
+    stream = require('stream'),
+    util = require('util'),
+    zlib = require('zlib');
+
+
+// Type of Avro header.
+var HEADER_TYPE = types.createType({
+  namespace: 'org.apache.avro.file',
+  name: 'Header',
+  type: 'record',
+  fields : [
+    {name: 'magic', type: {type: 'fixed', name: 'Magic', size: 4}},
+    {name: 'meta', type: {type: 'map', values: 'bytes'}},
+    {name: 'sync', type: {type: 'fixed', name: 'Sync', size: 16}}
+  ]
+});
+
+// Type of each block.
+var BLOCK_TYPE = types.createType({
+  namespace: 'org.apache.avro.file',
+  name: 'Block',
+  type: 'record',
+  fields : [
+    {name: 'count', type: 'long'},
+    {name: 'data', type: 'bytes'},
+    {name: 'sync', type: {type: 'fixed', name: 'Sync', size: 16}}
+  ]
+});
+
+// Used to toBuffer each block, without having to copy all its data.
+var LONG_TYPE = types.createType('long');
+
+// First 4 bytes of an Avro object container file.
+var MAGIC_BYTES = new Buffer('Obj\x01');
+
+// Convenience.
+var f = util.format;
+var Tap = utils.Tap;
+
+
+/**
+ * Duplex stream for decoding fragments.
+ *
+ */
+function RawDecoder(schema, opts) {
+  opts = opts || {};
+
+  var decode = opts.decode === undefined ? true : !!opts.decode;
+  stream.Duplex.call(this, {
+    readableObjectMode: decode,
+    allowHalfOpen: false
+  });
+
+  this._type = types.createType(files.load(schema));
+  this._tap = new Tap(new Buffer(0));
+  this._writeCb = null;
+  this._needPush = false;
+  this._readValue = createReader(decode, this._type);
+  this._finished = false;
+
+  this.on('finish', function () {
+    this._finished = true;
+    this._read();
+  });
+}
+util.inherits(RawDecoder, stream.Duplex);
+
+RawDecoder.prototype._write = function (chunk, encoding, cb) {
+  // Store the write callback and call it when we are done decoding all records
+  // in this chunk. If we call it right away, we risk loading the entire input
+  // in memory. We only need to store the latest callback since the stream API
+  // guarantees that `_write` won't be called again until we call the previous.
+  this._writeCb = cb;
+
+  var tap = this._tap;
+  tap.buf = Buffer.concat([tap.buf.slice(tap.pos), chunk]);
+  tap.pos = 0;
+  if (this._needPush) {
+    this._needPush = false;
+    this._read();
+  }
+};
+
+RawDecoder.prototype._read = function () {
+  this._needPush = false;
+
+  var tap = this._tap;
+  var pos = tap.pos;
+  var val = this._readValue(tap);
+  if (tap.isValid()) {
+    this.push(val);
+  } else if (!this._finished) {
+    tap.pos = pos;
+    this._needPush = true;
+    if (this._writeCb) {
+      // This should only ever be false on the first read, and only if it
+      // happens before the first write.
+      this._writeCb();
+    }
+  } else {
+    this.push(null);
+  }
+};
+
+
+/**
+ * Duplex stream for decoding object container files.
+ *
+ */
+function BlockDecoder(opts) {
+  opts = opts || {};
+
+  var decode = opts.decode === undefined ? true : !!opts.decode;
+  stream.Duplex.call(this, {
+    allowHalfOpen: true, // For async decompressors.
+    readableObjectMode: decode
+  });
+
+  this._type = null;
+  this._codecs = opts.codecs;
+  this._parseOpts = opts.parseOpts;
+  this._tap = new Tap(new Buffer(0));
+  this._blockTap = new Tap(new Buffer(0));
+  this._syncMarker = null;
+  this._readValue = null;
+  this._decode = decode;
+  this._queue = new utils.OrderedQueue();
+  this._decompress = null; // Decompression function.
+  this._index = 0; // Next block index.
+  this._needPush = false;
+  this._finished = false;
+
+  this.on('finish', function () {
+    this._finished = true;
+    if (this._needPush) {
+      this._read();
+    }
+  });
+}
+util.inherits(BlockDecoder, stream.Duplex);
+
+BlockDecoder.getDefaultCodecs = function () {
+  return {
+    'null': function (buf, cb) { cb(null, buf); },
+    'deflate': zlib.inflateRaw
+  };
+};
+
+BlockDecoder.prototype._decodeHeader = function () {
+  var tap = this._tap;
+  if (tap.buf.length < MAGIC_BYTES.length) {
+    // Wait until more data arrives.
+    return false;
+  }
+
+  if (!MAGIC_BYTES.equals(tap.buf.slice(0, MAGIC_BYTES.length))) {
+    this.emit('error', new Error('invalid magic bytes'));
+    return false;
+  }
+
+  var header = HEADER_TYPE._read(tap);
+  if (!tap.isValid()) {
+    return false;
+  }
+
+  var codec = (header.meta['avro.codec'] || 'null').toString();
+  this._decompress = (this._codecs || BlockDecoder.getDefaultCodecs())[codec];
+  if (!this._decompress) {
+    this.emit('error', new Error(f('unknown codec: %s', codec)));
+    return;
+  }
+
+  try {
+    var schema = JSON.parse(header.meta['avro.schema'].toString());
+    this._type = types.createType(schema, this._parseOpts);
+  } catch (err) {
+    this.emit('error', err);
+    return;
+  }
+
+  this._readValue = createReader(this._decode, this._type);
+  this._syncMarker = header.sync;
+  this.emit('metadata', this._type, codec, header);
+  return true;
+};
+
+BlockDecoder.prototype._write = function (chunk, encoding, cb) {
+  var tap = this._tap;
+  tap.buf = Buffer.concat([tap.buf, chunk]);
+  tap.pos = 0;
+
+  if (!this._decodeHeader()) {
+    process.nextTick(cb);
+    return;
+  }
+
+  // We got the header, switch to block decoding mode. Also, call it directly
+  // in case we already have all the data (in which case `_write` wouldn't get
+  // called anymore).
+  this._write = this._writeChunk;
+  this._write(new Buffer(0), encoding, cb);
+};
+
+BlockDecoder.prototype._writeChunk = function (chunk, encoding, cb) {
+  var tap = this._tap;
+  tap.buf = Buffer.concat([tap.buf.slice(tap.pos), chunk]);
+  tap.pos = 0;
+
+  var nBlocks = 1;
+  var block;
+  while ((block = tryReadBlock(tap))) {
+    if (!this._syncMarker.equals(block.sync)) {
+      this.emit('error', new Error('invalid sync marker'));
+      return;
+    }
+    nBlocks++;
+    this._decompress(block.data, this._createBlockCallback(chunkCb));
+  }
+  chunkCb();
+
+  function chunkCb() {
+    if (!--nBlocks) {
+      cb();
+    }
+  }
+};
+
+BlockDecoder.prototype._createBlockCallback = function (cb) {
+  var self = this;
+  var index = this._index++;
+
+  return function (err, data) {
+    if (err) {
+      self.emit('error', err);
+      cb();
+    } else {
+      self._queue.push(new BlockData(index, data, cb));
+      if (self._needPush) {
+        self._read();
+      }
+    }
+  };
+};
+
+BlockDecoder.prototype._read = function () {
+  this._needPush = false;
+
+  var tap = this._blockTap;
+  if (tap.pos >= tap.buf.length) {
+    var data = this._queue.pop();
+    if (!data) {
+      if (this._finished) {
+        this.push(null);
+      } else {
+        this._needPush = true;
+      }
+      return; // Wait for more data.
+    }
+    data.cb();
+    tap.buf = data.buf;
+    tap.pos = 0;
+  }
+
+  this.push(this._readValue(tap)); // The read is guaranteed valid.
+};
+
+
+/**
+ * Duplex stream for encoding.
+ *
+ */
+function RawEncoder(schema, opts) {
+  opts = opts || {};
+
+  stream.Transform.call(this, {
+    writableObjectMode: true,
+    allowHalfOpen: false
+  });
+
+  this._type = types.createType(files.load(schema));
+  this._writeValue = function (tap, val) {
+    try {
+      this._type._write(tap, val);
+    } catch (err) {
+      this.emit('error', err);
+    }
+  };
+  this._tap = new Tap(new Buffer(opts.batchSize || 65536));
+}
+util.inherits(RawEncoder, stream.Transform);
+
+RawEncoder.prototype._transform = function (val, encoding, cb) {
+  var tap = this._tap;
+  var buf = tap.buf;
+  var pos = tap.pos;
+
+  this._writeValue(tap, val);
+  if (!tap.isValid()) {
+    if (pos) {
+      // Emit any valid data.
+      this.push(copyBuffer(tap.buf, 0, pos));
+    }
+    var len = tap.pos - pos;
+    if (len > buf.length) {
+      // Not enough space for last written object, need to resize.
+      tap.buf = new Buffer(2 * len);
+    }
+    tap.pos = 0;
+    this._writeValue(tap, val); // Rewrite last failed write.
+  }
+
+  cb();
+};
+
+RawEncoder.prototype._flush = function (cb) {
+  var tap = this._tap;
+  var pos = tap.pos;
+  if (pos) {
+    // This should only ever be false if nothing is written to the stream.
+    this.push(tap.buf.slice(0, pos));
+  }
+  cb();
+};
+
+
+/**
+ * Duplex stream to write object container files.
+ *
+ * @param schema
+ * @param opts {Object}
+ *
+ *  + `blockSize`, uncompressed.
+ *  + `codec`
+ *  + `codecs`
+ *  + `noCheck`
+ *  + `omitHeader`, useful to append to an existing block file.
+ *
+ */
+function BlockEncoder(schema, opts) {
+  opts = opts || {};
+
+  stream.Duplex.call(this, {
+    allowHalfOpen: true, // To support async compressors.
+    writableObjectMode: true
+  });
+
+  var obj, type;
+  if (schema instanceof types.Type) {
+    type = schema;
+    schema = undefined;
+  } else {
+    // Keep full schema to be able to write it to the header later.
+    obj = files.load(schema);
+    type = types.createType(obj);
+    schema = JSON.stringify(obj);
+  }
+
+  this._schema = schema;
+  this._type = type;
+  this._writeValue = function (tap, val) {
+    try {
+      this._type._write(tap, val);
+    } catch (err) {
+      this.emit('error', err);
+    }
+  };
+  this._blockSize = opts.blockSize || 65536;
+  this._tap = new Tap(new Buffer(this._blockSize));
+  this._codecs = opts.codecs;
+  this._codec = opts.codec || 'null';
+  this._compress = null;
+  this._omitHeader = opts.omitHeader || false;
+  this._blockCount = 0;
+  this._syncMarker = opts.syncMarker || new utils.Lcg().nextBuffer(16);
+  this._queue = new utils.OrderedQueue();
+  this._pending = 0;
+  this._finished = false;
+  this._needPush = false;
+
+  this.on('finish', function () {
+    this._finished = true;
+    if (this._blockCount) {
+      this._flushChunk();
+    }
+  });
+}
+util.inherits(BlockEncoder, stream.Duplex);
+
+BlockEncoder.getDefaultCodecs = function () {
+  return {
+    'null': function (buf, cb) { cb(null, buf); },
+    'deflate': zlib.deflateRaw
+  };
+};
+
+BlockEncoder.prototype._write = function (val, encoding, cb) {
+  var codec = this._codec;
+  this._compress = (this._codecs || BlockEncoder.getDefaultCodecs())[codec];
+  if (!this._compress) {
+    this.emit('error', new Error(f('unsupported codec: %s', codec)));
+    return;
+  }
+
+  if (!this._omitHeader) {
+    var meta = {
+      'avro.schema': new Buffer(this._schema || this._type.getSchema()),
+      'avro.codec': new Buffer(this._codec)
+    };
+    var Header = HEADER_TYPE.getRecordConstructor();
+    var header = new Header(MAGIC_BYTES, meta, this._syncMarker);
+    this.push(header.toBuffer());
+  }
+
+  this._write = this._writeChunk;
+  this._write(val, encoding, cb);
+};
+
+BlockEncoder.prototype._writeChunk = function (val, encoding, cb) {
+  var tap = this._tap;
+  var pos = tap.pos;
+  var flushing = false;
+
+  this._writeValue(tap, val);
+  if (!tap.isValid()) {
+    if (pos) {
+      this._flushChunk(pos, cb);
+      flushing = true;
+    }
+    var len = tap.pos - pos;
+    if (len > this._blockSize) {
+      // Not enough space for last written object, need to resize.
+      this._blockSize = len * 2;
+    }
+    tap.buf = new Buffer(this._blockSize);
+    tap.pos = 0;
+    this._writeValue(tap, val); // Rewrite last failed write.
+  }
+  this._blockCount++;
+
+  if (!flushing) {
+    cb();
+  }
+};
+
+BlockEncoder.prototype._flushChunk = function (pos, cb) {
+  var tap = this._tap;
+  pos = pos || tap.pos;
+  this._compress(tap.buf.slice(0, pos), this._createBlockCallback(cb));
+  this._blockCount = 0;
+};
+
+BlockEncoder.prototype._read = function () {
+  var self = this;
+  var data = this._queue.pop();
+  if (!data) {
+    if (this._finished && !this._pending) {
+      process.nextTick(function () { self.push(null); });
+    } else {
+      this._needPush = true;
+    }
+    return;
+  }
+
+  this.push(LONG_TYPE.toBuffer(data.count, true));
+  this.push(LONG_TYPE.toBuffer(data.buf.length, true));
+  this.push(data.buf);
+  this.push(this._syncMarker);
+
+  if (!this._finished) {
+    data.cb();
+  }
+};
+
+BlockEncoder.prototype._createBlockCallback = function (cb) {
+  var self = this;
+  var index = this._index++;
+  var count = this._blockCount;
+  this._pending++;
+
+  return function (err, data) {
+    if (err) {
+      self.emit('error', err);
+      return;
+    }
+    self._pending--;
+    self._queue.push(new BlockData(index, data, cb, count));
+    if (self._needPush) {
+      self._needPush = false;
+      self._read();
+    }
+  };
+};
+
+
+// Helpers.
+
+/**
+ * An indexed block.
+ *
+ * This can be used to preserve block order since compression and decompression
+ * can cause some some blocks to be returned out of order. The count is only
+ * used when encoding.
+ *
+ */
+function BlockData(index, buf, cb, count) {
+  this.index = index;
+  this.buf = buf;
+  this.cb = cb;
+  this.count = count | 0;
+}
+
+/**
+ * Maybe get a block.
+ *
+ */
+function tryReadBlock(tap) {
+  var pos = tap.pos;
+  var block = BLOCK_TYPE._read(tap);
+  if (!tap.isValid()) {
+    tap.pos = pos;
+    return null;
+  }
+  return block;
+}
+
+/**
+ * Create bytes consumer, either reading or skipping records.
+ *
+ */
+function createReader(decode, type) {
+  if (decode) {
+    return function (tap) { return type._read(tap); };
+  } else {
+    return (function (skipper) {
+      return function (tap) {
+        var pos = tap.pos;
+        skipper(tap);
+        return tap.buf.slice(pos, tap.pos);
+      };
+    })(type._skip);
+  }
+}
+
+/**
+ * Copy a buffer.
+ *
+ * This avoids having to create a slice of the original buffer.
+ *
+ */
+function copyBuffer(buf, pos, len) {
+  var copy = new Buffer(len);
+  buf.copy(copy, 0, pos, pos + len);
+  return copy;
+}
+
+
+module.exports = {
+  HEADER_TYPE: HEADER_TYPE, // For tests.
+  MAGIC_BYTES: MAGIC_BYTES, // Idem.
+  streams: {
+    RawDecoder: RawDecoder,
+    BlockDecoder: BlockDecoder,
+    RawEncoder: RawEncoder,
+    BlockEncoder: BlockEncoder
+  }
+};
+
+}).call(this,require('_process'),require("buffer").Buffer)
+},{"./files":47,"./types":51,"./utils":52,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],49:[function(require,module,exports){
+(function (process,Buffer){
+/* jshint node: true */
+
+// TODO: Optimize MessageEncoder by avoiding the extra copy on transform.
+// TODO: Add timeout as emitter options?
+// TODO: Add error hook to allow transformation of system errors?
+// TODO: Add protocol `discover` method?
+// TODO: Add clear protocol cache method?
+// TODO: Return something useful when emitting a message (e.g. number of
+// pending messages).
+
+'use strict';
+
+/**
+ * This module implements Avro's IPC/RPC logic.
+ *
+ * This is done the Node.js way, mimicking the `EventEmitter` class.
+ *
+ */
+
+var types = require('./types'),
+    utils = require('./utils'),
+    events = require('events'),
+    stream = require('stream'),
+    util = require('util');
+
+
+var BOOLEAN_TYPE = types.createType('boolean');
+var STRING_TYPE = types.createType('string');
+var SYSTEM_ERROR_TYPE = types.createType(['string']);
+
+var HANDSHAKE_REQUEST_TYPE = types.createType({
+  namespace: 'org.apache.avro.ipc',
+  name: 'HandshakeRequest',
+  type: 'record',
+  fields: [
+    {name: 'clientHash', type: {name: 'MD5', type: 'fixed', size: 16}},
+    {name: 'clientProtocol', type: ['null', 'string'], 'default': null},
+    {name: 'serverHash', type: 'org.apache.avro.ipc.MD5'},
+    {
+      name: 'meta',
+      type: ['null', {type: 'map', values: 'bytes'}],
+      'default': null
+    }
+  ]
+});
+
+var HANDSHAKE_RESPONSE_TYPE = types.createType({
+  namespace: 'org.apache.avro.ipc',
+  name: 'HandshakeResponse',
+  type: 'record',
+  fields: [
+    {
+      name: 'match',
+      type: {
+        name: 'HandshakeMatch',
+        type: 'enum',
+        symbols: ['BOTH', 'CLIENT', 'NONE']
+      }
+    },
+    {name: 'serverProtocol', type: ['null', 'string'], 'default': null},
+    {
+      name: 'serverHash',
+      type: ['null', {name: 'MD5', type: 'fixed', size: 16}],
+      'default': null
+    },
+    {
+      name: 'meta',
+      type: ['null', {type: 'map', values: 'bytes'}],
+      'default': null
+    }
+  ]
+});
+
+var HandshakeRequest = HANDSHAKE_REQUEST_TYPE.getRecordConstructor();
+var HandshakeResponse = HANDSHAKE_RESPONSE_TYPE.getRecordConstructor();
+var Tap = utils.Tap;
+var f = util.format;
+
+
+/**
+ * Protocol generation function.
+ *
+ * This should be used instead of the protocol constructor. The protocol's
+ * constructor performs no logic to better support efficient protocol copy.
+ *
+ */
+function createProtocol(attrs, opts) {
+  opts = opts || {};
+
+  var name = attrs.protocol;
+  if (!name) {
+    throw new Error('missing protocol name');
+  }
+  opts.namespace = attrs.namespace;
+  if (opts.namespace && !~name.indexOf('.')) {
+    name = f('%s.%s', opts.namespace, name);
+  }
+
+  if (attrs.types) {
+    attrs.types.forEach(function (obj) { types.createType(obj, opts); });
+  }
+  var messages = {};
+  if (attrs.messages) {
+    Object.keys(attrs.messages).forEach(function (key) {
+      messages[key] = new Message(key, attrs.messages[key], opts);
+    });
+  }
+
+  return new Protocol(name, messages, opts.registry || {});
+}
+
+/**
+ * An Avro protocol.
+ *
+ * It contains a cache for all remote protocols encountered by its emitters and
+ * listeners. Note that a protocol can be listening to multiple listeners at a
+ * given time. This can be a mix of stateful or stateless listeners.
+ *
+ */
+function Protocol(name, messages, types, ptcl) {
+  this._name = name;
+  this._messages = messages;
+  this._types = types;
+  this._parent = ptcl;
+
+  // Cache a string instead of the buffer to avoid retaining an entire slab.
+  this._hashString = utils.getFingerprint(this.toString()).toString('binary');
+
+  // Listener callbacks. Note the prototype used for handlers when this is a
+  // subprotocol. This lets us easily implement the desired fallback behavior.
+  var self = this;
+  this._handlers = Object.create(ptcl ? ptcl._handlers : null);
+  this._onListenerCall = function (name, req, cb) {
+    var handler = self._handlers[name];
+    if (handler) {
+      handler.call(self, req, this, cb);
+    } else if (cb) {
+      // This (listening) protocol hasn't implemented this message.
+      cb(new Error(f('unhandled message: %s', name)));
+    }
+  };
+
+  // Resolvers are split since we want emitters to still be able to talk to
+  // servers with more messages (which would be incompatible the other way).
+  this._emitterResolvers = ptcl ? ptcl._emitterResolvers : {};
+  this._listenerResolvers = ptcl ? ptcl._listenerResolvers : {};
+}
+
+Protocol.prototype.subprotocol = function () {
+  return new Protocol(this._name, this._messages, this._types, this);
+};
+
+Protocol.prototype.emit = function (name, req, emitter, cb) {
+  cb = cb || function (err) { emitter.emit('error', err); };
+
+  if (
+    !(emitter instanceof MessageEmitter) ||
+    emitter._ptcl._hashString !== this._hashString
+  ) {
+    asyncAvroCb(this, cb, 'invalid emitter');
+    return;
+  }
+
+  var message = this._messages[name];
+  if (!message) {
+    asyncAvroCb(this, cb, f('unknown message: %s', name));
+    return;
+  }
+
+  emitter._emit(message, req, cb);
+};
+
+Protocol.prototype.createEmitter = function (transport, opts, cb) {
+  if (!cb && typeof opts == 'function') {
+    cb = opts;
+    opts = undefined;
+  }
+
+  var emitter;
+  if (typeof transport == 'function') {
+    emitter = new StatelessEmitter(this, transport, opts);
+  } else {
+    var readable, writable;
+    if (isStream(transport)) {
+      readable = writable = transport;
+    } else {
+      readable = transport.readable;
+      writable = transport.writable;
+    }
+    emitter = new StatefulEmitter(this, readable, writable, opts);
+  }
+  if (cb) {
+    emitter.once('eot', cb);
+  }
+  return emitter;
+};
+
+Protocol.prototype.on = function (name, handler) {
+  if (!this._messages[name]) {
+    throw new Error(f('unknown message: %s', name));
+  }
+  this._handlers[name] = handler;
+  return this;
+};
+
+Protocol.prototype.createListener = function (transport, opts, cb) {
+  if (!cb && typeof opts == 'function') {
+    cb = opts;
+    opts = undefined;
+  }
+
+  var listener;
+  if (typeof transport == 'function') {
+    listener = new StatelessListener(this, transport, opts);
+  } else {
+    var readable, writable;
+    if (isStream(transport)) {
+      readable = writable = transport;
+    } else {
+      readable = transport.readable;
+      writable = transport.writable;
+    }
+    listener = new StatefulListener(this, readable, writable, opts);
+  }
+  if (cb) {
+    listener.once('eot', cb);
+  }
+  return listener.on('_call', this._onListenerCall);
+};
+
+Protocol.prototype.getType = function (name) { return this._types[name]; };
+
+Protocol.prototype.getName = function () { return this._name; };
+
+Protocol.prototype.getMessages = function () { return this._messages; };
+
+Protocol.prototype.toString = function () {
+  var namedTypes = [];
+  Object.keys(this._types).forEach(function (name) {
+    var type = this._types[name];
+    if (type.getName()) {
+      namedTypes.push(type);
+    }
+  }, this);
+
+  return types.stringify({
+    protocol: this._name,
+    types: namedTypes.length ? namedTypes : undefined,
+    messages: this._messages
+  });
+};
+
+Protocol.prototype.inspect = function () {
+  return f('<Protocol %j>', this._name);
+};
+
+/**
+ * Base message emitter class.
+ *
+ * See below for the two available variants.
+ *
+ */
+function MessageEmitter(ptcl, opts) {
+  events.EventEmitter.call(this);
+
+  this._ptcl = ptcl;
+  this._resolvers = ptcl._emitterResolvers;
+  this._serverHashString = ptcl._hashString;
+  this._idType = IdType.createMetadataType(opts.IdType);
+  this._bufferSize = opts.bufferSize || 2048;
+  this._frameSize = opts.frameSize || 2048;
+
+  this.once('_eot', function (pending) { this.emit('eot', pending); });
+}
+util.inherits(MessageEmitter, events.EventEmitter);
+
+MessageEmitter.prototype._generateResolvers = function (
+  hashString, serverPtcl
+) {
+  var resolvers = {};
+  var emitterMessages = this._ptcl._messages;
+  var serverMessages = serverPtcl._messages;
+  Object.keys(emitterMessages).forEach(function (name) {
+    var cm = emitterMessages[name];
+    var sm = serverMessages[name];
+    if (!sm) {
+      throw new Error(f('missing server message: %s', name));
+    }
+    if (cm.oneWay !== sm.oneWay) {
+      throw new Error(f('incompatible one-way options for message: %s', name));
+    }
+    resolvers[name] = {
+      responseType: cm.responseType.createResolver(sm.responseType),
+      errorType: cm.errorType.createResolver(sm.errorType)
+    };
+  });
+  this._resolvers[hashString] = resolvers;
+};
+
+MessageEmitter.prototype._createHandshakeRequest = function (
+  hashString, noPtcl
+) {
+  return new HandshakeRequest(
+    getHash(this._ptcl),
+    noPtcl ? null : {string: this._ptcl.toString()},
+    new Buffer(hashString, 'binary')
+  );
+};
+
+MessageEmitter.prototype._finalizeHandshake = function (tap, handshakeReq) {
+  var res = HANDSHAKE_RESPONSE_TYPE._read(tap);
+  this.emit('handshake', handshakeReq, res);
+
+  if (handshakeReq.clientProtocol && res.match === 'NONE') {
+    // If the emitter's protocol was included in the original request, this is
+    // not a failure which a retry will fix.
+    var buf = res.meta && res.meta.map.error;
+    throw new Error(buf ? buf.toString() : 'handshake error');
+  }
+
+  var hashString;
+  if (res.serverHash && res.serverProtocol) {
+    // This means the request didn't include the correct server hash. Note that
+    // we use the handshake response's hash rather than our computed one in
+    // case the server computes it differently.
+    hashString = res.serverHash['org.apache.avro.ipc.MD5'].toString('binary');
+    if (!canResolve(this, hashString)) {
+      this._generateResolvers(
+        hashString,
+        createProtocol(JSON.parse(res.serverProtocol.string))
+      );
+    }
+    // Make this hash the new default.
+    this._serverHashString = hashString;
+  } else {
+    hashString = handshakeReq.serverHash.toString('binary');
+  }
+
+  // We return the server's hash for stateless emitters. It might be that the
+  // default hash changes in between requests, in which case using the default
+  // one will fail.
+  return {match: res.match, serverHashString: hashString};
+};
+
+MessageEmitter.prototype._encodeRequest = function (tap, message, req) {
+  safeWrite(tap, STRING_TYPE, message.name);
+  safeWrite(tap, message.requestType, req);
+};
+
+MessageEmitter.prototype._decodeArguments = function (
+  tap, hashString, message
+) {
+  var resolvers = getResolvers(this, hashString, message);
+  var args = [null, null];
+  if (tap.readBoolean()) {
+    args[0] = resolvers.errorType._read(tap);
+  } else {
+    args[1] = resolvers.responseType._read(tap);
+  }
+  if (!tap.isValid()) {
+    throw new Error('truncated message');
+  }
+  return args;
+};
+
+/**
+ * Factory-based emitter.
+ *
+ * This emitter doesn't keep a persistent connection to the server and requires
+ * prepending a handshake to each message emitted. Usage examples include
+ * talking to an HTTP server (where the factory returns an HTTP request).
+ *
+ * Since each message will use its own writable/readable stream pair, the
+ * advantage of this emitter is that it is able to keep track of which response
+ * corresponds to each request without relying on messages' metadata. In
+ * particular, this means these emitters are compatible with any server
+ * implementation.
+ *
+ */
+function StatelessEmitter(ptcl, writableFactory, opts) {
+  opts = opts || {};
+  MessageEmitter.call(this, ptcl, opts);
+
+  this._writableFactory = writableFactory;
+  this._id = 1;
+  this._pending = {};
+  this._destroyed = false;
+  this._interrupted = false;
+}
+util.inherits(StatelessEmitter, MessageEmitter);
+
+StatelessEmitter.prototype._emit = function (message, req, cb) {
+  // We enclose the server's hash inside this message's closure since the
+  // emitter might be emitting several message concurrently and the hash might
+  // change before the response returns (unlikely but possible if the emitter
+  // talks to multiple servers at once or the server changes protocol).
+  var serverHashString = this._serverHashString;
+  var id = this._id++;
+  var self = this;
+
+  this._pending[id] = cb;
+  if (this._destroyed) {
+    asyncAvroCb(undefined, done, 'emitter destroyed');
+    return;
+  }
+  emit(false);
+
+  function emit(retry) {
+    var tap = new Tap(new Buffer(self._bufferSize));
+
+    var handshakeReq = self._createHandshakeRequest(serverHashString, !retry);
+    safeWrite(tap, HANDSHAKE_REQUEST_TYPE, handshakeReq);
+    try {
+      safeWrite(tap, self._idType, id);
+      self._encodeRequest(tap, message, req);
+    } catch (err) {
+      asyncAvroCb(undefined, done, err);
+      return;
+    }
+
+    var writable = self._writableFactory(function onReadable(readable) {
+      if (self._interrupted) {
+        // In case this function is called asynchronously (e.g. when sending
+        // HTTP requests), it might be that we have ended since.
+        return;
+      }
+
+      readable
+        .pipe(new MessageDecoder(!message.oneWay))
+        .on('error', done)
+        // This will happen when the message isn't one way and the readable
+        // stream ends before a single message has been decoded (e.g. on
+        // invalid response).
+        .on('data', function (buf) {
+          readable.unpipe(this); // Single message per readable stream.
+          if (self._interrupted) {
+            return;
+          }
+
+          var tap = new Tap(buf);
+          try {
+            var info = self._finalizeHandshake(tap, handshakeReq);
+            serverHashString = info.serverHashString;
+            if (info.match === 'NONE') {
+              emit(true); // Retry, attaching emitter protocol this time.
+              return;
+            }
+            self._idType._read(tap); // Skip metadata.
+            var args = self._decodeArguments(tap, serverHashString, message);
+          } catch (err) {
+            done(err);
+            return;
+          }
+          if (!message.oneWay) {
+            done.apply(undefined, args);
+          }
+        });
+    });
+
+    var encoder = new MessageEncoder(self._frameSize);
+    encoder.pipe(writable);
+    encoder.end(tap.getValue());
+  }
+
+  function done(err, res) {
+    var cb = self._pending[id];
+    delete self._pending[id];
+    cb.call(self._ptcl, err, res);
+    if (self._destroyed) {
+      self.destroy();
+    }
+  }
+};
+
+StatelessEmitter.prototype.destroy = function (noWait) {
+  this._destroyed = true;
+
+  var pendingIds = Object.keys(this._pending);
+  if (noWait) {
+    this._interrupted = true;
+    pendingIds.forEach(function (id) {
+      this._pending[id]({string: 'interrupted'});
+      delete this._pending[id];
+    }, this);
+  }
+
+  if (noWait || !pendingIds.length) {
+    this.emit('_eot', pendingIds.length);
+  }
+};
+
+/**
+ * Multiplexing emitter.
+ *
+ * These emitters reuse the same streams (both readable and writable) for all
+ * messages. This avoids a lot of overhead (e.g. creating new connections,
+ * re-issuing handshakes) but requires the server to include compatible
+ * metadata in each response (namely forwarding each request's ID into its
+ * response).
+ *
+ * A custom metadata format can be specified via the `idType` option. The
+ * default is compatible with this package's default server (i.e. listener)
+ * implementation.
+ *
+ */
+function StatefulEmitter(ptcl, readable, writable, opts) {
+  opts = opts || {};
+  MessageEmitter.call(this, ptcl, opts);
+
+  this._readable = readable;
+  this._writable = writable;
+  this._id = 1;
+  this._pending = {};
+  this._started = false;
+  this._destroyed = false;
+  this._ended = false; // Readable input ended.
+  this._decoder = new MessageDecoder();
+  this._encoder = new MessageEncoder(this._frameSize);
+
+  var handshakeReq = null;
+  var self = this;
+
+  process.nextTick(function () {
+    self._readable.pipe(self._decoder)
+      .on('error', function (err) { self.emit('error', err); })
+      .on('data', onHandshakeData)
+      .on('end', function () {
+        self._ended = true;
+        self.destroy();
+      });
+
+    self._encoder.pipe(self._writable);
+    emitHandshake(true);
+  });
+
+  function emitHandshake(noPtcl) {
+    handshakeReq = self._createHandshakeRequest(
+      self._serverHashString,
+      noPtcl
+    );
+    self._encoder.write(handshakeReq.toBuffer());
+  }
+
+  function onHandshakeData(buf) {
+    var tap = new Tap(buf);
+    try {
+      var info = self._finalizeHandshake(tap, handshakeReq);
+    } catch (err) {
+      self.emit('error', err);
+      self.destroy(); // This isn't a recoverable error.
+      return;
+    }
+
+    if (info.match !== 'NONE') {
+      self._decoder
+        .removeListener('data', onHandshakeData)
+        .on('data', onMessageData);
+      self._started = true;
+      self.emit('_start'); // Send any pending messages.
+    } else {
+      emitHandshake(false);
+    }
+  }
+
+  function onMessageData(buf) {
+    var tap = new Tap(buf);
+    try {
+      var id = self._idType._read(tap);
+      if (!id) {
+        throw new Error('missing ID');
+      }
+    } catch (err) {
+      self.emit('error', new Error('invalid metadata: ' + err.message));
+      return;
+    }
+
+    var info = self._pending[id];
+    if (info === undefined) {
+      self.emit('error', new Error('orphan response: ' + id));
+      return;
+    }
+
+    try {
+      var args = self._decodeArguments(
+        tap,
+        self._serverHashString,
+        info.message
+      );
+    } catch (err) {
+      info.cb({string: 'invalid response: ' + err.message});
+      return;
+    }
+    delete self._pending[id];
+    info.cb.apply(self._ptcl, args);
+    if (self._destroyed) {
+      self.destroy();
+    }
+  }
+}
+util.inherits(StatefulEmitter, MessageEmitter);
+
+StatefulEmitter.prototype._emit = function (message, req, cb) {
+  if (this._destroyed) {
+    asyncAvroCb(this._ptcl, cb, 'emitter destroyed');
+    return;
+  }
+
+  var self = this;
+  if (!this._started) {
+    this.once('_start', function () { self._emit(message, req, cb); });
+    return;
+  }
+
+  var tap = new Tap(new Buffer(this._bufferSize));
+  var id = this._id++;
+  try {
+    safeWrite(tap, this._idType, -id);
+    this._encodeRequest(tap, message, req);
+  } catch (err) {
+    asyncAvroCb(this._ptcl, cb, err);
+    return;
+  }
+
+  if (!message.oneWay) {
+    this._pending[id] = {message: message, cb: cb};
+  }
+  this._encoder.write(tap.getValue());
+};
+
+StatefulEmitter.prototype.destroy = function (noWait) {
+  this._destroyed = true;
+  if (!this._started) {
+    this.emit('_start'); // Error out any pending calls.
+  }
+
+  var pendingIds = Object.keys(this._pending);
+  if (pendingIds.length && !(noWait || this._ended)) {
+    return; // Wait for pending requests.
+  }
+  pendingIds.forEach(function (id) {
+    var cb = this._pending[id].cb;
+    delete this._pending[id];
+    cb({string: 'interrupted'});
+  }, this);
+
+  this._readable.unpipe(this._decoder);
+  this._encoder.unpipe(this._writable);
+  this.emit('_eot', pendingIds.length);
+};
+
+/**
+ * The server-side emitter equivalent.
+ *
+ * In particular it is responsible for handling handshakes appropriately.
+ *
+ */
+function MessageListener(ptcl, opts) {
+  events.EventEmitter.call(this);
+  opts = opts || {};
+
+  this._ptcl = ptcl;
+  this._resolvers = ptcl._listenerResolvers;
+  this._emitterHashString = null;
+  this._idType = IdType.createMetadataType(opts.IdType);
+  this._bufferSize = opts.bufferSize || 2048;
+  this._frameSize = opts.frameSize || 2048;
+  this._decoder = new MessageDecoder();
+  this._encoder = new MessageEncoder(this._frameSize);
+  this._destroyed = false;
+  this._pending = 0;
+
+  this.once('_eot', function (pending) { this.emit('eot', pending); });
+}
+util.inherits(MessageListener, events.EventEmitter);
+
+MessageListener.prototype._generateResolvers = function (
+  hashString, emitterPtcl
+) {
+  var resolvers = {};
+  var clientMessages = emitterPtcl._messages;
+  var serverMessages = this._ptcl._messages;
+  Object.keys(clientMessages).forEach(function (name) {
+    var sm = serverMessages[name];
+    if (!sm) {
+      throw new Error(f('missing server message: %s', name));
+    }
+    var cm = clientMessages[name];
+    if (cm.oneWay !== sm.oneWay) {
+      throw new Error(f('incompatible one-way options for message: %s', name));
+    }
+    resolvers[name] = {
+      requestType: sm.requestType.createResolver(cm.requestType)
+    };
+  });
+  this._resolvers[hashString] = resolvers;
+};
+
+MessageListener.prototype._validateHandshake = function (reqTap, resTap) {
+  // Reads handshake request and write corresponding response out. If an error
+  // occurs when parsing the request, a response with match NONE will be sent.
+  // Also emits 'handshake' event with both the request and the response.
+  var validationErr = null;
+  try {
+    var handshakeReq = HANDSHAKE_REQUEST_TYPE._read(reqTap);
+    var serverHashString = handshakeReq.serverHash.toString('binary');
+  } catch (err) {
+    validationErr = err;
+  }
+
+  if (!validationErr) {
+    this._emitterHashString = handshakeReq.clientHash.toString('binary');
+    if (!canResolve(this, this._emitterHashString)) {
+      var emitterPtclString = handshakeReq.clientProtocol;
+      if (emitterPtclString) {
+        try {
+          this._generateResolvers(
+            this._emitterHashString,
+            createProtocol(JSON.parse(emitterPtclString.string))
+          );
+        } catch (err) {
+          validationErr = err;
+        }
+      } else {
+        validationErr = new Error('unknown client protocol hash');
+      }
+    }
+  }
+
+  // We use the handshake response's meta field to transmit an eventual error
+  // to the client. This will let us display a more useful message later on.
+  var serverMatch = serverHashString === this._ptcl._hashString;
+  var handshakeRes = new HandshakeResponse(
+    validationErr ? 'NONE' : serverMatch ? 'BOTH' : 'CLIENT',
+    serverMatch ? null : {string: this._ptcl.toString()},
+    serverMatch ? null : {'org.apache.avro.ipc.MD5': getHash(this._ptcl)},
+    validationErr ? {map: {error: new Buffer(validationErr.message)}} : null
+  );
+
+  this.emit('handshake', handshakeReq, handshakeRes);
+  safeWrite(resTap, HANDSHAKE_RESPONSE_TYPE, handshakeRes);
+  return validationErr === null;
+};
+
+MessageListener.prototype._decodeRequest = function (tap, message) {
+  var resolvers = getResolvers(this, this._emitterHashString, message);
+  var val = resolvers.requestType._read(tap);
+  if (!tap.isValid()) {
+    throw new Error('invalid request');
+  }
+  return val;
+};
+
+MessageListener.prototype._encodeSystemError = function (tap, err) {
+  safeWrite(tap, BOOLEAN_TYPE, true);
+  safeWrite(tap, SYSTEM_ERROR_TYPE, avroError(err));
+};
+
+MessageListener.prototype._encodeArguments = function (
+  tap, message, err, res
+) {
+  var noError = err === null;
+  var pos = tap.pos;
+  safeWrite(tap, BOOLEAN_TYPE, !noError);
+  try {
+    if (noError) {
+      safeWrite(tap, message.responseType, res);
+    } else {
+      if (err instanceof Error) {
+        // Convenience to allow emitter to use JS errors inside handlers.
+        err = avroError(err);
+      }
+      safeWrite(tap, message.errorType, err);
+    }
+  } catch (err) {
+    tap.pos = pos;
+    this._encodeSystemError(tap, err);
+  }
+};
+
+MessageListener.prototype.destroy = function (noWait) {
+  if (!this._destroyed) {
+    // Stop listening. This will also correctly push back any unused bytes into
+    // the readable stream (via `MessageDecoder`'s `unpipe` handler).
+    this._readable.unpipe(this._decoder);
+  }
+
+  this._destroyed = true;
+  if (noWait || !this._pending) {
+    this._encoder.unpipe(this._writable);
+    this.emit('_eot', this._pending);
+  }
+};
+
+/**
+ * Listener for stateless transport.
+ *
+ * This listener expect a handshake to precede each message.
+ *
+ */
+function StatelessListener(ptcl, readableFactory, opts) {
+  MessageListener.call(this, ptcl, opts);
+
+  this._tap = new Tap(new Buffer(this._bufferSize));
+  this._message = undefined;
+
+  var self = this;
+  this._readable = readableFactory(function (writable) {
+    // The encoder will buffer writes that happen before this function is
+    // called, so we don't need to do any special handling.
+    self._writable = self._encoder
+      .pipe(writable)
+      .on('finish', onEnd);
+  });
+
+  this._readable.pipe(this._decoder)
+    .on('data', onRequestData)
+    .on('end', onEnd);
+
+  function onRequestData(buf) {
+    self._pending++;
+    self.destroy(); // Only one message per stateless listener.
+
+    var reqTap = new Tap(buf);
+    if (!self._validateHandshake(reqTap, self._tap)) {
+      onResponse(new Error('invalid handshake'));
+      return;
+    }
+
+    try {
+      self._idType._read(reqTap); // Skip metadata.
+      var name = STRING_TYPE._read(reqTap);
+      self._message = self._ptcl._messages[name];
+      if (!self._message) {
+        throw new Error(f('unknown message: %s', name));
+      }
+      var req = self._decodeRequest(reqTap, self._message);
+    } catch (err) {
+      onResponse(err);
+      return;
+    }
+
+    if (self._message.oneWay) {
+      self.emit('_call', name, req);
+      onResponse(null, null);
+    } else {
+      self.emit('_call', name, req, onResponse);
+    }
+  }
+
+  function onResponse(err, res) {
+    safeWrite(self._tap, self._idType, 0);
+    if (!self._message) {
+      self._encodeSystemError(self._tap, err);
+    } else {
+      self._encodeArguments(self._tap, self._message, err, res);
+    }
+    self._pending--;
+    self._encoder.end(self._tap.getValue());
+  }
+
+  function onEnd() { self.destroy(); }
+}
+util.inherits(StatelessListener, MessageListener);
+
+/**
+ * Stateful transport listener.
+ *
+ * A handshake is done when the listener is first opened, then all messages are
+ * sent without.
+ *
+ */
+function StatefulListener(ptcl, readable, writable, opts) {
+  MessageListener.call(this, ptcl, opts);
+
+  this._readable = readable;
+  this._writable = writable;
+
+  var self = this;
+
+  this._readable
+    .pipe(this._decoder)
+    .on('data', onHandshakeData)
+    .on('end', function () { self.destroy(); });
+
+  this._encoder
+    .pipe(this._writable)
+    .on('finish', function () { self.destroy(); });
+
+  function onHandshakeData(buf) {
+    var reqTap = new Tap(buf);
+    var resTap = new Tap(new Buffer(self._bufferSize));
+    if (self._validateHandshake(reqTap, resTap)) {
+      self._decoder
+        .removeListener('data', onHandshakeData)
+        .on('data', onRequestData);
+    }
+    self._encoder.write(resTap.getValue());
+  }
+
+  function onRequestData(buf) {
+    var reqTap = new Tap(buf);
+    var resTap = new Tap(new Buffer(self._bufferSize));
+    var id = 0;
+    try {
+      id = -self._idType._read(reqTap) | 0;
+      if (!id) {
+        throw new Error('missing ID');
+      }
+    } catch (err) {
+      self.emit('error', new Error('invalid metadata: ' + err.message));
+      return;
+    }
+
+    self._pending++;
+    try {
+      var name = STRING_TYPE._read(reqTap);
+      var message = self._ptcl._messages[name];
+      if (!message) {
+        throw new Error('unknown message: ' + name);
+      }
+      var req = self._decodeRequest(reqTap, message);
+    } catch (err) {
+      onResponse(err);
+      return;
+    }
+
+    if (message.oneWay) {
+      self.emit('_call', name, req);
+      self._pending--;
+    } else {
+      self.emit('_call', name, req, onResponse);
+    }
+
+    function onResponse(err, res) {
+      self._pending--;
+      safeWrite(resTap, self._idType, id);
+      if (!message) {
+        self._encodeSystemError(resTap, err);
+      } else {
+        self._encodeArguments(resTap, message, err, res);
+      }
+      self._encoder.write(resTap.getValue(), undefined, function () {
+        if (!self._pending && self._destroyed) {
+          self.destroy(); // For real this time.
+        }
+      });
+    }
+  }
+}
+util.inherits(StatefulListener, MessageListener);
+
+// Helpers.
+
+/**
+ * An Avro message.
+ *
+ */
+function Message(name, attrs, opts) {
+  this.name = name;
+
+  this.requestType = types.createType({
+    name: name,
+    type: 'request',
+    fields: attrs.request
+  }, opts);
+
+  if (!attrs.response) {
+    throw new Error('missing response');
+  }
+  this.responseType = types.createType(attrs.response, opts);
+
+  var errors = attrs.errors || [];
+  errors.unshift('string');
+  this.errorType = types.createType(errors, opts);
+
+  this.oneWay = !!attrs['one-way'];
+  if (this.oneWay) {
+    if (
+      !(this.responseType instanceof types.builtins.NullType) ||
+      errors.length > 1
+    ) {
+      throw new Error('unapplicable one-way parameter');
+    }
+  }
+}
+
+Message.prototype.toJSON = function () {
+  var obj = {
+    request: this.requestType.getFields(),
+    response: this.responseType
+  };
+  var errorTypes = this.errorType.getTypes();
+  if (errorTypes.length > 1) {
+    obj.errors = types.createType(errorTypes.slice(1));
+  }
+  if (this.oneWay) {
+    obj['one-way'] = true;
+  }
+  return obj;
+};
+
+/**
+ * "Framing" stream.
+ *
+ * @param frameSize {Number} (Maximum) size in bytes of each frame. The last
+ * frame might be shorter.
+ *
+ */
+function MessageEncoder(frameSize) {
+  stream.Transform.call(this);
+  this._frameSize = frameSize | 0;
+  if (this._frameSize <= 0) {
+    throw new Error('invalid frame size');
+  }
+}
+util.inherits(MessageEncoder, stream.Transform);
+
+MessageEncoder.prototype._transform = function (buf, encoding, cb) {
+  var frames = [];
+  var length = buf.length;
+  var start = 0;
+  var end;
+  do {
+    end = start + this._frameSize;
+    if (end > length) {
+      end = length;
+    }
+    frames.push(intBuffer(end - start));
+    frames.push(buf.slice(start, end));
+  } while ((start = end) < length);
+  frames.push(intBuffer(0));
+  cb(null, Buffer.concat(frames));
+};
+
+/**
+ * "Un-framing" stream.
+ *
+ * @param noEmpty {Boolean} Emit an error if the decoder ends before emitting a
+ * single frame.
+ *
+ * This stream should only be used by being piped/unpiped to. Otherwise there
+ * is a risk that too many bytes get consumed from the source stream (i.e.
+ * data corresponding to a partial message might be lost).
+ *
+ */
+function MessageDecoder(noEmpty) {
+  stream.Transform.call(this);
+  this._buf = new Buffer(0);
+  this._bufs = [];
+  this._length = 0;
+  this._empty = !!noEmpty;
+
+  this
+    .on('finish', function () { this.push(null); })
+    .on('unpipe', function (src) {
+      if (~this._length && !src._readableState.ended) {
+        // Not ideal to rely on this to check whether we can unshift, but the
+        // official documentation mentions it (in the context of the read
+        // buffers) so it should be stable. Alternatives are more complex,
+        // costly (e.g. attaching a handler on pipe), and not as fool-proof
+        // (the stream might have ended earlier).
+        this._bufs.push(this._buf);
+        src.unshift(Buffer.concat(this._bufs));
+      }
+    });
+}
+util.inherits(MessageDecoder, stream.Transform);
+
+MessageDecoder.prototype._transform = function (buf, encoding, cb) {
+  buf = Buffer.concat([this._buf, buf]);
+  var frameLength;
+  while (
+    buf.length >= 4 &&
+    buf.length >= (frameLength = buf.readInt32BE(0)) + 4
+  ) {
+    if (frameLength) {
+      this._bufs.push(buf.slice(4, frameLength + 4));
+      this._length += frameLength;
+    } else {
+      var frame = Buffer.concat(this._bufs, this._length);
+      this._empty = false;
+      this._length = 0;
+      this._bufs = [];
+      this.push(frame);
+    }
+    buf = buf.slice(frameLength + 4);
+  }
+  this._buf = buf;
+  cb();
+};
+
+MessageDecoder.prototype._flush = function () {
+  if (this._length || this._buf.length) {
+    this._length = -1; // Don't unshift data on incoming unpipe.
+    this.emit('error', new Error('trailing data'));
+  } else if (this._empty) {
+    this.emit('error', new Error('no message decoded'));
+  }
+};
+
+/**
+ * Default ID generator, using Avro messages' metadata field.
+ *
+ * This is required for stateful emitters to work and can be overridden to read
+ * or write arbitrary metadata. Note that the message contents are
+ * (intentionally) not available when updating this metadata.
+ *
+ */
+function IdType(attrs, opts) {
+  types.builtins.LogicalType.call(this, attrs, opts);
+}
+util.inherits(IdType, types.builtins.LogicalType);
+
+IdType.prototype._fromValue = function (val) {
+  var buf = val.id;
+  return buf && buf.length === 4 ? buf.readInt32BE(0) : 0;
+};
+
+IdType.prototype._toValue = function (any) {
+  return {id: intBuffer(any | 0)};
+};
+
+IdType.createMetadataType = function (Type) {
+  Type = Type || IdType;
+  return new Type({type: 'map', values: 'bytes'});
+};
+
+/**
+ * Returns a buffer containing an integer's big-endian representation.
+ *
+ * @param n {Number} Integer.
+ *
+ */
+function intBuffer(n) {
+  var buf = new Buffer(4);
+  buf.writeInt32BE(n);
+  return buf;
+}
+
+/**
+ * Write and maybe resize.
+ *
+ * @param tap {Tap} Tap written to.
+ * @param type {Type} Avro type.
+ * @param val {...} Corresponding Avro value.
+ *
+ */
+function safeWrite(tap, type, val) {
+  var pos = tap.pos;
+  type._write(tap, val);
+
+  if (!tap.isValid()) {
+    var buf = new Buffer(tap.pos);
+    tap.buf.copy(buf, 0, 0, pos);
+    tap.buf = buf;
+    tap.pos = pos;
+    type._write(tap, val);
+  }
+}
+
+/**
+ * Convert an error message into a format suitable for RPC.
+ *
+ * @param err {Error|String} Error message. It will be converted into valid
+ * format for Avro.
+ *
+ */
+function avroError(err) {
+  if (err instanceof Error) {
+    err = err.message;
+  }
+  return {string: err};
+}
+
+/**
+ * Asynchronous error handling.
+ *
+ * @param cb {Function} Callback.
+ * @param err {...} Error, passed as first argument to `cb.` If an `Error`
+ * instance or a string, it will be converted into valid format for Avro.
+ * @param res {...} Response. Passed as second argument to `cb`.
+ *
+ */
+function asyncAvroCb(ctx, cb, err, res) {
+  process.nextTick(function () { cb.call(ctx, avroError(err), res); });
+}
+
+/**
+ * Convenience function to get a protocol's hash.
+ *
+ * @param ptcl {Protocol} Any protocol.
+ *
+ */
+function getHash(ptcl) {
+  return new Buffer(ptcl._hashString, 'binary');
+}
+
+/**
+ * Whether a emitter or listener can resolve messages from a hash string.
+ *
+ * @param emitter {MessageEmitter|MessageListener}
+ * @param hashString {String}
+ *
+ */
+function canResolve(emitter, hashString) {
+  var resolvers = emitter._resolvers[hashString];
+  return !!resolvers || hashString === emitter._ptcl._hashString;
+}
+
+/**
+ * Retrieve resolvers for a given hash string.
+ *
+ * @param emitter {MessageEmitter|MessageListener}
+ * @param hashString {String}
+ * @param message {Message}
+ *
+ */
+function getResolvers(emitter, hashString, message) {
+  if (hashString === emitter._ptcl._hashString) {
+    return message;
+  }
+  var resolvers = emitter._resolvers[hashString];
+  return resolvers && resolvers[message.name];
+}
+
+/**
+ * Check whether something is a stream.
+ *
+ * @param any {Object} Any object.
+ *
+ */
+function isStream(any) {
+  // This is a hacky way of checking that the transport is a stream-like
+  // object. We unfortunately can't use `instanceof Stream` checks since
+  // some libraries (e.g. websocket-stream) return streams which don't
+  // inherit from it.
+  return !!any.pipe;
+}
+
+
+module.exports = {
+  HANDSHAKE_REQUEST_TYPE: HANDSHAKE_REQUEST_TYPE,
+  HANDSHAKE_RESPONSE_TYPE: HANDSHAKE_RESPONSE_TYPE,
+  IdType: IdType,
+  Message: Message,
+  Protocol: Protocol,
+  createProtocol: createProtocol,
+  emitters: {
+    StatefulEmitter: StatefulEmitter,
+    StatelessEmitter: StatelessEmitter
+  },
+  listeners: {
+    StatefulListener: StatefulListener,
+    StatelessListener: StatelessListener
+  },
+  messages: {
+    MessageEmitter: MessageEmitter,
+    MessageListener: MessageListener,
+  },
+  streams: {
+    MessageDecoder: MessageDecoder,
+    MessageEncoder: MessageEncoder
+  }
+};
+
+}).call(this,require('_process'),require("buffer").Buffer)
+},{"./types":51,"./utils":52,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],50:[function(require,module,exports){
+/* jshint node: true */
+
+// TODO: Remove legacy import hook in next major release.
+// TODO: Add `extends` logic?
+
+'use strict';
+
+/**
+ * IDL to schema parsing logic.
+ *
+ */
+
+var files = require('./files'),
+    path = require('path'),
+    util = require('util');
+
+
+var f = util.format;
+
+/**
+ * Assemble an IDL file into a decoded schema.
+ *
+ */
+function assemble(fpath, opts, cb) {
+  if (!cb && typeof opts == 'function') {
+    cb = opts;
+    opts = undefined;
+  }
+
+  opts = opts || {};
+
+  // Legacy hook name. (Also not as flexible since it didn't expose the kind.)
+  /* istanbul ignore next */
+  if (opts.reader) {
+    opts.importHook = wrapReader(opts.reader);
+  } else if (!opts.importHook) {
+    opts.importHook = files.createImportHook();
+  }
+
+  var attrs = {types: [], messages: {}}; // Final result.
+  var importedTypes = []; // Imported types, kept separate for ordering.
+  var imports = []; // List of paths inside this file to import.
+  var tk; // Tokenizer.
+
+  opts.importHook(fpath, 'idl', function (err, str) {
+    if (err) {
+      cb(err);
+      return;
+    }
+
+    if (!str) {
+      // Skipped import (likely already imported).
+      cb(null, {});
+      return;
+    }
+
+    try {
+      tk = new Tokenizer(str);
+      tk.next(); // Prime tokenizer.
+      readProtocol();
+    } catch (err) {
+      err.path = fpath; // To help debug which file caused the error.
+      cb(err);
+      return;
+    }
+
+    assembleImports();
+  });
+
+  function assembleImports(err, importAttrs) {
+    if (err) {
+      cb(err);
+      return;
+    }
+
+    if (importAttrs) {
+      // Merge in any imported attributes, first the types (where we don't need
+      // to check for duplicates since `parse` will take care of it), then the
+      // messages (where we need to, as duplicates will overwrite each other).
+      (importAttrs.types || []).forEach(function (typeAttrs) {
+        // Ensure the imported protocol's namespace is inherited correctly (it
+        // might be different from the current one). Thanks to the IDLs
+        // limitation of not allowing inline definition of named types, we are
+        // also guaranteed to be correct (we don't need to walk the type's
+        // attributes for named type declarations, they are all top level).
+        if (typeAttrs.namespace === undefined) {
+          typeAttrs.namespace = importAttrs.namespace || '';
+        }
+        importedTypes.push(typeAttrs);
+      });
+      try {
+        Object.keys(importAttrs.messages || {}).forEach(function (name) {
+          if (attrs.messages[name]) {
+            throw new Error(f('duplicate message: %s', name));
+          }
+          attrs.messages[name] = importAttrs.messages[name];
+        });
+      } catch (err) {
+        cb(err);
+        return;
+      }
+    }
+
+    var info = imports.shift();
+    if (!info) {
+      // We are done with this file. We prepend all imported types to this
+      // file's and we can return the final result.
+      attrs.types = importedTypes.concat(attrs.types);
+      cb(null, attrs);
+    } else if (info.kind === 'idl') {
+      assemble(info.path, opts, assembleImports);
+    } else {
+      // We are importing a protocol or schema file.
+      opts.importHook(info.path, info.kind, function (err, str) {
+        if (err) {
+          cb(err);
+          return;
+        }
+        switch (info.kind) {
+        case 'protocol':
+        case 'schema':
+          try {
+            var obj = JSON.parse(str);
+          } catch (err) {
+            err.path = info.path;
+            cb(err);
+            return;
+          }
+          assembleImports(null, info.kind === 'schema' ? {types: [obj]} : obj);
+          break;
+        default:
+          assembleImports(new Error(f('invalid import kind: %s', info.kind)));
+        }
+      });
+    }
+  }
+
+  function readProtocol() {
+    while (tk.get().val === 'import') {
+      readImport();
+    }
+    while (tk.get().val === '@') {
+      readAnnotation(attrs);
+    }
+    tk.get({val: 'protocol'});
+    attrs.protocol = tk.next({id: 'name'}).val;
+    tk.next({val: '{'});
+    tk.next();
+    while (tk.get().val !== '}') {
+      if (tk.get().val === 'import') {
+        readImport();
+      } else {
+        var typeAttrs = readType();
+        if (typeAttrs.name) {
+          // This was a named type declaration. Not very clean to rely on this,
+          // but since the IDL spec doesn't consistently delimit type
+          // declaration (e.g. fixed end with `;` but other bracketed types
+          // don't) we aren't able to tell whether this is the start of a
+          // message otherwise.
+          attrs.types.push(typeAttrs);
+        } else {
+          var oneWay = false;
+          if (typeAttrs === 'void' || typeAttrs.type === 'void') {
+            if (opts.oneWayVoid) {
+              oneWay = true;
+            }
+            if (typeAttrs === 'void') {
+              typeAttrs = 'null';
+            } else {
+              typeAttrs.type = 'null';
+            }
+          }
+          readMessage(attrs, typeAttrs, oneWay);
+        }
+      }
+    }
+    tk.next({id: '(eof)'});
+  }
+
+  function readImport() {
+    tk.get({val: 'import'});
+    var kind = tk.next({id: 'name'}).val;
+    var fname = JSON.parse(tk.next({id: 'string'}).val);
+    imports.push({kind: kind, path: path.join(path.dirname(fpath), fname)});
+    tk.next({val: ';'});
+    tk.next();
+  }
+
+  function readAnnotation(attrs) {
+    tk.get({val: '@'});
+    // Annotations are allowed to have names which aren't valid Avro names,
+    // we must advance until we hit the first left parenthesis.
+    var parts = [];
+    while (tk.next().val !== '(') {
+      parts.push(tk.get().val);
+    }
+    attrs[parts.join('')] = tk.next({id: 'json'}).val;
+    tk.next({val: ')'});
+    tk.next();
+  }
+
+  function readMessage(protocolAttrs, responseAttrs, oneWay) {
+    var messageAttrs = {response: responseAttrs};
+    if (oneWay) {
+      messageAttrs['one-way'] = true;
+    }
+    while (tk.get().val === '@') {
+      readAnnotation(messageAttrs);
+    }
+
+    var name = tk.get({id: 'name'}).val;
+    if (protocolAttrs.messages[name]) {
+      // We have to do this check here otherwise the duplicate will be
+      // overwritten (and `parse` won't be able to catch it).
+      throw new Error(f('duplicate message: %s', name));
+    }
+
+    messageAttrs.request = [];
+    tk.next({val: '('});
+    if (tk.next().val !== ')') {
+      tk.prev();
+      do {
+        tk.next(); // Skip `(` or `,`.
+        messageAttrs.request.push(readField());
+      } while (tk.get().val !== ')');
+    }
+    if (tk.next().val === 'throws') {
+      // It doesn't seem like the IDL allows multiple error types, even though
+      // the spec always prescribes a union (or they don't indicate which
+      // syntax to use). To be safe, we'll only allow one custom error type.
+      tk.next();
+      messageAttrs.errors = [readType()];
+    } else if (tk.get().val === 'oneway') {
+      tk.next();
+      messageAttrs['one-way'] = true;
+    }
+    tk.get({val: ';'});
+    protocolAttrs.messages[name] = messageAttrs;
+    tk.next();
+  }
+
+  function readField() {
+    var attrs = {type: readType()};
+    // The spec somehow breaks consistency by allowing the `order` annotation
+    // to be placed before the type's name rather than before the field's name.
+    // We must manually place it correctly and fix up the type.
+    if (attrs.type.order) {
+      attrs.order = attrs.type.order;
+      delete attrs.type.order;
+      if (Object.keys(attrs.type).length === 1) {
+        attrs.type = attrs.type.type;
+      }
+    }
+    while (tk.get().val === '@') {
+      readAnnotation(attrs);
+    }
+    attrs.name = tk.get({id: 'name'}).val;
+    if (tk.next().val === '=') {
+      attrs['default'] = tk.next({id: 'json'}).val;
+      tk.next();
+    }
+    return attrs;
+  }
+
+  function readType() {
+    var attrs = {};
+    while (tk.get().val === '@') {
+      readAnnotation(attrs);
+    }
+
+    switch (tk.get().val) {
+    case 'record':
+    case 'error':
+      return readRecord(attrs);
+    case 'fixed':
+      return readFixed(attrs);
+    case 'enum':
+      return readEnum(attrs);
+    case 'map':
+      return readMap(attrs);
+    case 'array':
+      return readArray(attrs);
+    case 'union':
+      if (Object.keys(attrs).length) {
+        throw new Error('unions cannot be annotated');
+      }
+      return readUnion();
+    default:
+      var type = tk.get().val;
+      tk.next();
+      if (Object.keys(attrs).length) {
+        attrs.type = type;
+        return attrs;
+      } else {
+        return type;
+      }
+    }
+  }
+
+  function readFixed(attrs) {
+    attrs.type = tk.get({val: 'fixed'}).val;
+    attrs.name = tk.next({id: 'name'}).val;
+    tk.next({val: '('});
+    attrs.size = parseInt(tk.next({id: 'number'}).val);
+    tk.next({val: ')'});
+    if (tk.next().val === ';') {
+      tk.next();
+    }
+    return attrs;
+  }
+
+  function readMap(attrs) {
+    attrs.type = tk.get({val: 'map'}).val;
+    tk.next({val: '<'});
+    tk.next();
+    attrs.values = readType();
+    tk.get({val: '>'});
+    tk.next();
+    return attrs;
+  }
+
+  function readArray(attrs) {
+    attrs.type = tk.get({val: 'array'}).val;
+    tk.next({val: '<'});
+    tk.next();
+    attrs.items = readType();
+    tk.get({val: '>'});
+    tk.next();
+    return attrs;
+  }
+
+  function readEnum(attrs) {
+    attrs.type = tk.get({val: 'enum'}).val;
+    attrs.name = tk.next({id: 'name'}).val;
+    tk.next({val: '{'});
+    attrs.symbols = [];
+    do {
+      attrs.symbols.push(tk.next().val);
+    } while (tk.next().val !== '}');
+    tk.next();
+    return attrs;
+  }
+
+  function readUnion() {
+    var attrs = [];
+    tk.get({val: 'union'});
+    tk.next({val: '{'});
+    do {
+      tk.next();
+      attrs.push(readType());
+    } while (tk.get().val !== '}');
+    tk.next();
+    return attrs;
+  }
+
+  function readRecord(attrs) {
+    attrs.type = tk.get({id: 'name'}).val;
+    attrs.name = tk.next({id: 'name'}).val;
+    attrs.fields = [];
+    tk.next({val: '{'});
+    while (tk.next().val !== '}') {
+      attrs.fields.push(readField());
+      tk.get({val: ';'});
+    }
+    tk.next();
+    return attrs;
+  }
+}
+
+// Helpers.
+
+/**
+ * Legacy import hook.
+ *
+ */
+/* istanbul ignore next */ var wrapReader = util.deprecate(function (reader) {
+  return function (fpath, kind, cb) { reader(fpath, cb); };
+}, '`reader` option is deprecated please use `importHook` instead');
+
+/**
+ * Simple class to split an input string into tokens.
+ *
+ * There are different types of tokens, characterized by their `id`:
+ *
+ * + `number` numbers.
+ * + `name` references.
+ * + `string` double-quoted.
+ * + `operator`, anything else, always single character.
+ * + `json`, special, must be asked for (the tokenizer doesn't have enough
+ *   context to predict these).
+ *
+ */
+function Tokenizer(str) {
+  this._str = str;
+  this._pos = 0;
+  this._queue = new BoundedQueue(3); // Bounded queue of last emitted tokens.
+  this._token = undefined; // Current token.
+}
+
+Tokenizer.prototype.get = function (opts) {
+  if (opts && opts.id && opts.id !== this._token.id) {
+    throw this.error(f('expected %s but got %s', opts.id, this._token.val));
+  } else if (opts && opts.val && opts.val !== this._token.val) {
+    throw this.error(f('expected %s but got %s', opts.val, this._token.val));
+  } else {
+    return this._token;
+  }
+};
+
+Tokenizer.prototype.next = function (opts) {
+  this._skip();
+  this._queue.push(this._pos);
+  var pos = this._pos;
+  var str = this._str;
+  var c = str.charAt(pos);
+  var id;
+
+  if (!c) {
+    if (opts && opts.id === '(eof)') {
+      return {id: '(eof)'};
+    } else {
+      throw this.error('unexpected end of input');
+    }
+  }
+
+  if (opts && opts.id === 'json') {
+    id = 'json';
+    this._pos = this._endOfJson();
+  } else if (c === '"') {
+    id = 'string';
+    this._pos = this._endOfString();
+  } else if (/[0-9]/.test(c)) {
+    id = 'number';
+    this._pos = this._endOf(/[0-9]/);
+  } else if (/[`A-Za-z_]/.test(c)) {
+    id = 'name';
+    this._pos = this._endOf(/[`A-Za-z0-9_.]/);
+  } else {
+    id = 'operator';
+    this._pos = pos + 1;
+  }
+
+  this._token = {id: id, val: str.slice(pos, this._pos)};
+  if (id === 'json') {
+    // Let's be nice and give a more helpful error message when this occurs
+    // (JSON parsing errors wouldn't let us find the location otherwise).
+    try {
+      this._token.val = JSON.parse(this._token.val);
+    } catch (err) {
+      throw this.error('invalid JSON');
+    }
+  } else if (id === 'name') {
+    // Unescape names (our parser doesn't need them).
+    this._token.val = this._token.val.replace(/`/g, '');
+  }
+  return this.get(opts);
+};
+
+Tokenizer.prototype.prev = function (opts) {
+  var pos = this._queue.pop();
+  if (pos === undefined) {
+    throw new Error('cannot backtrack more');
+  }
+  this._pos = pos;
+  return this.get(opts);
+};
+
+Tokenizer.prototype.error = function (msg) {
+  var pos = this._queue.peek() || 1; // Use after whitespace position.
+  var str = this._str;
+  var lineNum = 1;
+  var lineStart = 0;
+  var i;
+  for (i = 0; i < pos; i++) {
+    if (str.charAt(i) === '\n') {
+      lineNum++;
+      lineStart = i;
+    }
+  }
+  return new Error(f('%s at %d:%d', msg, lineNum, pos - lineStart));
+};
+
+/**
+ * Skip whitespace and comments.
+ *
+ */
+Tokenizer.prototype._skip = function () {
+  var str = this._str;
+  var c;
+
+  while ((c = str.charAt(this._pos)) && /\s/.test(c)) {
+    this._pos++;
+  }
+  if (c === '/') {
+    switch (str.charAt(this._pos + 1)) {
+    case '/':
+      this._pos += 2;
+      while ((c = str.charAt(this._pos)) && c !== '\n') {
+        this._pos++;
+      }
+      return this._skip();
+    case '*':
+      this._pos += 2;
+      while ((c = str.charAt(this._pos++))) {
+        if (c === '*' && str.charAt(this._pos) === '/') {
+          this._pos++;
+          return this._skip();
+        }
+      }
+      throw this.error('unterminated comment');
+    }
+  }
+};
+
+/**
+ * Generic end of method.
+ *
+ */
+Tokenizer.prototype._endOf = function (pat) {
+  var pos = this._pos;
+  var str = this._str;
+  while (pat.test(str.charAt(pos))) {
+    pos++;
+  }
+  return pos;
+};
+
+/**
+ * Find end of a string.
+ *
+ * The specification doesn't explicitly say so, but IDLs likely only allow
+ * double quotes for strings (C- and Java-style).
+ *
+ */
+Tokenizer.prototype._endOfString = function () {
+  var pos = this._pos + 1; // Skip first double quote.
+  var str = this._str;
+  var c;
+  while ((c = str.charAt(pos))) {
+    if (c === '"') {
+      return pos + 1;
+    }
+    if (c === '\\') {
+      pos += 2;
+    } else {
+      pos++;
+    }
+  }
+  this.throwError('unterminated string at ' + this._pos);
+};
+
+/**
+ * Returns end of JSON object, -1 if the end of the string is reached first.
+ *
+ * To keep the implementation simple, this function isn't a JSON validator. It
+ * will gladly return a result for invalid JSON (which is OK since that will be
+ * promptly rejected by the JSON parser). What matters is that it is guaranteed
+ * to return the correct end when presented with valid JSON.
+ *
+ */
+Tokenizer.prototype._endOfJson = function () {
+  var pos = this._pos;
+  var str = this._str;
+
+  // Handle the case of a simple literal separately.
+  var c = str.charAt(pos++);
+  if (/[\d-]/.test(c)) {
+    while (/[eE\d.+-]/.test(str.charAt(pos))) {
+      pos++;
+    }
+    return pos;
+  } else if (/true|null/.test(str.slice(pos - 1, pos + 3))) {
+    return pos + 3;
+  } else if (/false/.test(str.slice(pos - 1, pos + 4))) {
+    return pos + 4;
+  }
+
+  // String, object, or array.
+  var depth = 0;
+  var literal = false;
+  do {
+    switch (c) {
+    case '{':
+    case '[':
+      if (!literal) { depth++; }
+      break;
+    case '}':
+    case ']':
+      if (!literal && !--depth) {
+        return pos;
+      }
+      break;
+    case '"':
+      literal = !literal;
+      if (!depth && !literal) {
+        return pos;
+      }
+      break;
+    case '\\':
+      pos++; // Skip the next character.
+    }
+  } while ((c = str.charAt(pos++)));
+
+  throw new Error('invalid JSON at ' + this._pos);
+};
+
+/**
+ * Simple bounded queue.
+ *
+ * Not the fastest, but will definitely do.
+ *
+ */
+function BoundedQueue(length) {
+  this._length = length | 0;
+  this._data = [];
+}
+
+BoundedQueue.prototype.push = function (val) {
+  this._data.push(val);
+  if (this._data.length > this._length) {
+    this._data.shift();
+  }
+};
+
+BoundedQueue.prototype.peek = function () {
+  return this._data[this._data.length - 1];
+};
+
+BoundedQueue.prototype.pop = function () { return this._data.pop(); };
+
+
+module.exports = {
+  BoundedQueue: BoundedQueue,
+  Tokenizer: Tokenizer,
+  assemble: assemble
+};
+
+},{"./files":47,"path":24,"util":42}],51:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+// TODO: Remove Type from types map on next major version.
+// TODO: Remove third logical type argument in next major version?
+// TODO: Use toFastProperties on type reverse indices.
+// TODO: Allow configuring when to write the size when writing arrays and maps,
+// and customizing their block size.
+// TODO: Add schema inference capabilities (as writable stream?).
+// TODO: Code-generate `compare` and `clone` record and union methods.
+
+'use strict';
+
+/**
+ * This module defines all Avro data types and their serialization logic.
+ *
+ */
+
+var utils = require('./utils'),
+    buffer = require('buffer'), // For `SlowBuffer`.
+    util = require('util');
+
+
+// Convenience imports.
+var Tap = utils.Tap;
+var f = util.format;
+
+// All Avro types.
+var TYPES = {
+  'array': ArrayType,
+  'boolean': BooleanType,
+  'bytes': BytesType,
+  'double': DoubleType,
+  'enum': EnumType,
+  'error': RecordType,
+  'fixed': FixedType,
+  'float': FloatType,
+  'int': IntType,
+  'long': LongType,
+  'map': MapType,
+  'null': NullType,
+  'record': RecordType,
+  'request': RecordType,
+  'string': StringType,
+  'union': UnionType
+};
+
+// Valid (field, type, and symbol) name regex.
+var NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+// Random generator.
+var RANDOM = new utils.Lcg();
+
+// Encoding tap (shared for performance).
+var TAP = new Tap(new buffer.SlowBuffer(1024));
+
+// Path prefix for validity checks (shared for performance).
+var PATH = [];
+
+// Currently active logical type, used for name redirection.
+var LOGICAL_TYPE = null;
+
+
+/**
+ * Schema parsing entry point.
+ *
+ * It isn't exposed directly but called from `parse` inside `index.js` (node)
+ * or `avsc.js` (browserify) which each add convenience functionality.
+ *
+ */
+function createType(attrs, opts) {
+  if (attrs === null) {
+    // Let's be helpful for this common error.
+    throw new Error('invalid type: null (did you mean "null"?)');
+  }
+  if (attrs instanceof Type) {
+    return attrs;
+  }
+
+  // Initialize registry, etc. if necessary.
+  opts = updateOpts(opts);
+
+  var type;
+  if (typeof attrs == 'string') { // Type reference.
+    if (opts.namespace && !~attrs.indexOf('.') && !isPrimitive(attrs)) {
+      attrs = opts.namespace + '.' + attrs;
+    }
+    type = opts.registry[attrs];
+    if (type) {
+      // Type was already defined, return it.
+      return type;
+    }
+    if (isPrimitive(attrs)) {
+      // Reference to a primitive type. These are also defined names by default
+      // so we create the appropriate type and it to the registry for future
+      // reference.
+      return opts.registry[attrs] = createType({type: attrs}, opts);
+    }
+    throw new Error(f('undefined type name: %s', attrs));
+  }
+
+  if (opts.typeHook && (type = opts.typeHook(attrs, opts))) {
+    if (!(type instanceof Type)) {
+      throw new Error(f('invalid typehook return value: %j', type));
+    }
+    return type;
+  }
+
+  if (attrs.logicalType && !LOGICAL_TYPE) {
+    var DerivedType = opts.logicalTypes[attrs.logicalType];
+    if (DerivedType) {
+      var namespace = opts.namespace;
+      var registry = {};
+      Object.keys(opts.registry).forEach(function (key) {
+        registry[key] = opts.registry[key];
+      });
+      try {
+        return new DerivedType(attrs, opts);
+      } catch (err) {
+        if (opts.assertLogicalTypes) {
+          // The spec mandates that we fall through to the underlying type if
+          // the logical type is invalid. We provide this option to ease
+          // debugging.
+          throw err;
+        }
+        LOGICAL_TYPE = null;
+        opts.namespace = namespace;
+        opts.registry = registry;
+      }
+    }
+  }
+
+  if (attrs instanceof Array) { // Union.
+    type = new UnionType(attrs, opts);
+  } else { // New type definition.
+    type = (function (typeName) {
+      var Type = TYPES[typeName];
+      if (Type === undefined) {
+        throw new Error(f('unknown type: %j', typeName));
+      }
+      return new Type(attrs, opts);
+    })(attrs.type);
+  }
+  return type;
+}
+
+/**
+ * "Abstract" base Avro type class.
+ *
+ * This class' constructor will register any named types to support
+ * recursive schemas.
+ *
+ * All type values are represented in memory similarly to their JSON
+ * representation, except for `bytes` and `fixed` which are represented as
+ * `Buffer`s. See individual subclasses for details.
+ *
+ */
+function Type(registry) {
+  var name = this._name;
+  var type = LOGICAL_TYPE || this;
+  LOGICAL_TYPE = null;
+
+  if (registry === undefined || name === undefined) {
+    return;
+  }
+
+  var prev = registry[name];
+  if (prev !== undefined) {
+    throw new Error(f('duplicate type name: %s', name));
+  }
+  registry[name] = type;
+}
+
+Type.__reset = function (size) { TAP.buf = new buffer.SlowBuffer(size); };
+
+Type.prototype.createResolver = function (type, opts) {
+  if (!(type instanceof Type)) {
+    // More explicit error message than the "incompatible type" thrown
+    // otherwise (especially because of the overridden `toJSON` method).
+    throw new Error(f('not a type: %j', type));
+  }
+
+  if (type instanceof LogicalType && !(this instanceof LogicalType)) {
+    // Trying to read a logical type as a built-in: unwrap the logical type.
+    return this.createResolver(type._underlyingType, opts);
+  }
+
+  opts = opts || {};
+  opts.registry = opts.registry || {};
+
+  var resolver, key;
+  if (this instanceof RecordType && type instanceof RecordType) {
+    key = this._name + ':' + type._name; // ':' is illegal in Avro type names.
+    resolver = opts.registry[key];
+    if (resolver) {
+      return resolver;
+    }
+  }
+
+  resolver = new Resolver(this);
+  if (key) { // Register resolver early for recursive schemas.
+    opts.registry[key] = resolver;
+  }
+
+  if (type instanceof UnionType) {
+    var resolvers = type._types.map(function (t) {
+      return this.createResolver(t, opts);
+    }, this);
+    resolver._read = function (tap) {
+      var index = tap.readLong();
+      var resolver = resolvers[index];
+      if (resolver === undefined) {
+        throw new Error(f('invalid union index: %s', index));
+      }
+      return resolvers[index]._read(tap);
+    };
+  } else {
+    this._updateResolver(resolver, type, opts);
+  }
+
+  if (!resolver._read) {
+    throw new Error(f('cannot read %s as %s', type, this));
+  }
+  return resolver;
+};
+
+Type.prototype.decode = function (buf, pos, resolver) {
+  var tap = new Tap(buf);
+  tap.pos = pos | 0;
+  var val = readValue(this, tap, resolver);
+  if (!tap.isValid()) {
+    return {value: undefined, offset: -1};
+  }
+  return {value: val, offset: tap.pos};
+};
+
+Type.prototype.encode = function (val, buf, pos) {
+  var tap = new Tap(buf);
+  tap.pos = pos | 0;
+  this._write(tap, val);
+  if (!tap.isValid()) {
+    // Don't throw as there is no way to predict this. We also return the
+    // number of missing bytes to ease resizing.
+    return buf.length - tap.pos;
+  }
+  return tap.pos;
+};
+
+Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
+  var tap = new Tap(buf);
+  var val = readValue(this, tap, resolver, noCheck);
+  if (!tap.isValid()) {
+    throw new Error('truncated buffer');
+  }
+  if (!noCheck && tap.pos < buf.length) {
+    throw new Error('trailing data');
+  }
+  return val;
+};
+
+Type.prototype.toBuffer = function (val) {
+  TAP.pos = 0;
+  this._write(TAP, val);
+  if (!TAP.isValid()) {
+    Type.__reset(2 * TAP.pos);
+    TAP.pos = 0;
+    this._write(TAP, val);
+  }
+  var buf = new Buffer(TAP.pos);
+  TAP.buf.copy(buf, 0, 0, TAP.pos);
+  return buf;
+};
+
+Type.prototype.fromString = function (str) {
+  return this._copy(JSON.parse(str), {coerce: 2});
+};
+
+Type.prototype.toString = function (val) {
+  if (val === undefined) {
+    // Consistent behavior with standard `toString` expectations.
+    return this.getSchema(true);
+  }
+  return JSON.stringify(this._copy(val, {coerce: 3}));
+};
+
+Type.prototype.clone = function (val, opts) {
+  if (opts) {
+    opts = {
+      coerce: !!opts.coerceBuffers | 0, // Coerce JSON to Buffer.
+      fieldHook: opts.fieldHook,
+      qualifyNames: !!opts.qualifyNames,
+      wrap: !!opts.wrapUnions | 0 // Wrap first match into union.
+    };
+    return this._copy(val, opts);
+  } else {
+    // If no modifications are required, we can get by with a serialization
+    // roundtrip (generally much faster than a standard deep copy).
+    return this.fromBuffer(this.toBuffer(val));
+  }
+};
+
+Type.prototype.isValid = function (val, opts) {
+  while (PATH.length) {
+    // In case the previous `isValid` call didn't complete successfully (e.g.
+    // if an exception was thrown, but then caught in client code), `PATH`
+    // might be non-empty, we must manually clear it.
+    PATH.pop();
+  }
+  return this._check(val, opts && opts.errorHook);
+};
+
+Type.prototype.compareBuffers = function (buf1, buf2) {
+  return this._match(new Tap(buf1), new Tap(buf2));
+};
+
+Type.prototype.getName = function (noRef) {
+  return noRef ? getTypeName(this) : this._name;
+};
+
+Type.prototype.getSchema = function (noDeref) {
+  return stringify(this, noDeref);
+};
+
+Type.prototype.getFingerprint = function (algorithm) {
+  return utils.getFingerprint(this.getSchema(), algorithm);
+};
+
+Type.prototype.inspect = function () {
+  if (this instanceof PrimitiveType) {
+    return f('<%s>', this.constructor.name_);
+  } else {
+    var obj = JSON.parse(this.getSchema(true)); // Slow, only for debugging.
+    if (typeof obj == 'object') {
+      obj.type = undefined; // Would be redundant with constructor name.
+    }
+    return f('<%s %j>', this.constructor.name_, obj);
+  }
+};
+
+Type.prototype._check = utils.abstractFunction;
+Type.prototype._copy = utils.abstractFunction;
+Type.prototype._match = utils.abstractFunction;
+Type.prototype._read = utils.abstractFunction;
+Type.prototype._skip = utils.abstractFunction;
+Type.prototype._updateResolver = utils.abstractFunction;
+Type.prototype._write = utils.abstractFunction;
+Type.prototype.compare = utils.abstractFunction;
+Type.prototype.random = utils.abstractFunction;
+
+// Implementations.
+
+/**
+ * Base primitive Avro type.
+ *
+ * Most of the primitive types share the same cloning and resolution
+ * mechanisms, provided by this class. This class also lets us conveniently
+ * check whether a type is a primitive using `instanceof`.
+ *
+ */
+function PrimitiveType() { Type.call(this); }
+util.inherits(PrimitiveType, Type);
+PrimitiveType.prototype._updateResolver = function (resolver, type) {
+  if (type.constructor === this.constructor) {
+    resolver._read = this._read;
+  }
+};
+PrimitiveType.prototype._copy = function (val) {
+  this._check(val, throwInvalidError);
+  return val;
+};
+PrimitiveType.prototype.compare = utils.compare;
+
+/**
+ * Nulls.
+ *
+ */
+function NullType() { PrimitiveType.call(this); }
+util.inherits(NullType, PrimitiveType);
+NullType.name_ = 'NullType';
+NullType.prototype._check = function (val, cb) {
+  var b = val === null;
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+NullType.prototype._read = function () { return null; };
+NullType.prototype._skip = function () {};
+NullType.prototype._write = function (tap, val) {
+  if (val !== null) {
+    throwInvalidError(null, val, this);
+  }
+};
+NullType.prototype._match = function () { return 0; };
+NullType.prototype.compare = NullType.prototype._match;
+NullType.prototype.random = NullType.prototype._read;
+NullType.prototype.toJSON = function () { return 'null'; };
+
+/**
+ * Booleans.
+ *
+ */
+function BooleanType() { PrimitiveType.call(this); }
+util.inherits(BooleanType, PrimitiveType);
+BooleanType.name_ = 'BooleanType';
+BooleanType.prototype._check = function (val, cb) {
+  var b = typeof val == 'boolean';
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+BooleanType.prototype._read = function (tap) { return tap.readBoolean(); };
+BooleanType.prototype._skip = function (tap) { tap.skipBoolean(); };
+BooleanType.prototype._write = function (tap, val) {
+  if (typeof val != 'boolean') {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeBoolean(val);
+};
+BooleanType.prototype._match = function (tap1, tap2) {
+  return tap1.matchBoolean(tap2);
+};
+BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
+BooleanType.prototype.toJSON = function () { return 'boolean'; };
+
+/**
+ * Integers.
+ *
+ */
+function IntType() { PrimitiveType.call(this); }
+util.inherits(IntType, PrimitiveType);
+IntType.name_ = 'IntType';
+IntType.prototype._check = function (val, cb) {
+  var b = val === (val | 0);
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+IntType.prototype._read = function (tap) { return tap.readInt(); };
+IntType.prototype._skip = function (tap) { tap.skipInt(); };
+IntType.prototype._write = function (tap, val) {
+  if (val !== (val | 0)) {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeInt(val);
+};
+IntType.prototype._match = function (tap1, tap2) {
+  return tap1.matchInt(tap2);
+};
+IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
+IntType.prototype.toJSON = function () { return 'int'; };
+
+/**
+ * Longs.
+ *
+ * We can't capture all the range unfortunately since JavaScript represents all
+ * numbers internally as `double`s, so the default implementation plays safe
+ * and throws rather than potentially silently change the data. See `using` or
+ * `AbstractLongType` below for a way to implement a custom long type.
+ *
+ */
+function LongType() { PrimitiveType.call(this); }
+util.inherits(LongType, PrimitiveType);
+LongType.name_ = 'LongType';
+LongType.prototype._check = function (val, cb) {
+  var b = typeof val == 'number' && val % 1 === 0 && isSafeLong(val);
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+LongType.prototype._read = function (tap) {
+  var n = tap.readLong();
+  if (!isSafeLong(n)) {
+    throw new Error('potential precision loss');
+  }
+  return n;
+};
+LongType.prototype._skip = function (tap) { tap.skipLong(); };
+LongType.prototype._write = function (tap, val) {
+  if (typeof val != 'number' || val % 1 || !isSafeLong(val)) {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeLong(val);
+};
+LongType.prototype._match = function (tap1, tap2) {
+  return tap1.matchLong(tap2);
+};
+LongType.prototype._updateResolver = function (resolver, type) {
+  if (type instanceof LongType || type instanceof IntType) {
+    resolver._read = type._read;
+  }
+};
+LongType.prototype.random = function () { return RANDOM.nextInt(); };
+LongType.prototype.toJSON = function () { return 'long'; };
+LongType.using = function (methods, noUnpack) {
+  methods = methods || {}; // Will give a more helpful error message.
+  // We map some of the methods to a different name to be able to intercept
+  // their input and output (otherwise we wouldn't be able to perform any
+  // unpacking logic, and the type wouldn't work when nested).
+  var mapping = {
+    toBuffer: '_toBuffer',
+    fromBuffer: '_fromBuffer',
+    fromJSON: '_fromJSON',
+    toJSON: '_toJSON',
+    isValid: '_isValid',
+    compare: 'compare'
+  };
+  var type = new AbstractLongType(noUnpack);
+  Object.keys(mapping).forEach(function (name) {
+    if (methods[name] === undefined) {
+      throw new Error(f('missing method implementation: %s', name));
+    }
+    type[mapping[name]] = methods[name];
+  });
+  return type;
+};
+
+/**
+ * Floats.
+ *
+ */
+function FloatType() { PrimitiveType.call(this); }
+util.inherits(FloatType, PrimitiveType);
+FloatType.name_ = 'FloatType';
+FloatType.prototype._check = function (val, cb) {
+  var b = typeof val == 'number';
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+FloatType.prototype._read = function (tap) { return tap.readFloat(); };
+FloatType.prototype._skip = function (tap) { tap.skipFloat(); };
+FloatType.prototype._write = function (tap, val) {
+  if (typeof val != 'number') {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeFloat(val);
+};
+FloatType.prototype._match = function (tap1, tap2) {
+  return tap1.matchFloat(tap2);
+};
+FloatType.prototype._updateResolver = function (resolver, type) {
+  if (
+    type instanceof FloatType ||
+    type instanceof LongType ||
+    type instanceof IntType
+  ) {
+    resolver._read = type._read;
+  }
+};
+FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
+FloatType.prototype.toJSON = function () { return 'float'; };
+
+/**
+ * Doubles.
+ *
+ */
+function DoubleType() { PrimitiveType.call(this); }
+util.inherits(DoubleType, PrimitiveType);
+DoubleType.name_ = 'DoubleType';
+DoubleType.prototype._check = function (val, cb) {
+  var b = typeof val == 'number';
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+DoubleType.prototype._read = function (tap) { return tap.readDouble(); };
+DoubleType.prototype._skip = function (tap) { tap.skipDouble(); };
+DoubleType.prototype._write = function (tap, val) {
+  if (typeof val != 'number') {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeDouble(val);
+};
+DoubleType.prototype._match = function (tap1, tap2) {
+  return tap1.matchDouble(tap2);
+};
+DoubleType.prototype._updateResolver = function (resolver, type) {
+  if (
+    type instanceof DoubleType ||
+    type instanceof FloatType ||
+    type instanceof LongType ||
+    type instanceof IntType
+  ) {
+    resolver._read = type._read;
+  }
+};
+DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
+DoubleType.prototype.toJSON = function () { return 'double'; };
+
+/**
+ * Strings.
+ *
+ */
+function StringType() { PrimitiveType.call(this); }
+util.inherits(StringType, PrimitiveType);
+StringType.name_ = 'StringType';
+StringType.prototype._check = function (val, cb) {
+  var b = typeof val == 'string';
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+StringType.prototype._read = function (tap) { return tap.readString(); };
+StringType.prototype._skip = function (tap) { tap.skipString(); };
+StringType.prototype._write = function (tap, val) {
+  if (typeof val != 'string') {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeString(val);
+};
+StringType.prototype._match = function (tap1, tap2) {
+  return tap1.matchString(tap2);
+};
+StringType.prototype._updateResolver = function (resolver, type) {
+  if (type instanceof StringType || type instanceof BytesType) {
+    resolver._read = this._read;
+  }
+};
+StringType.prototype.random = function () {
+  return RANDOM.nextString(RANDOM.nextInt(32));
+};
+StringType.prototype.toJSON = function () { return 'string'; };
+
+/**
+ * Bytes.
+ *
+ * These are represented in memory as `Buffer`s rather than binary-encoded
+ * strings. This is more efficient (when decoding/encoding from bytes, the
+ * common use-case), idiomatic, and convenient.
+ *
+ * Note the coercion in `_copy`.
+ *
+ */
+function BytesType() { PrimitiveType.call(this); }
+util.inherits(BytesType, PrimitiveType);
+BytesType.name_ = 'BytesType';
+BytesType.prototype._check = function (val, cb) {
+  var b = Buffer.isBuffer(val);
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+BytesType.prototype._read = function (tap) { return tap.readBytes(); };
+BytesType.prototype._skip = function (tap) { tap.skipBytes(); };
+BytesType.prototype._write = function (tap, val) {
+  if (!Buffer.isBuffer(val)) {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeBytes(val);
+};
+BytesType.prototype._match = function (tap1, tap2) {
+  return tap1.matchBytes(tap2);
+};
+BytesType.prototype._updateResolver = StringType.prototype._updateResolver;
+BytesType.prototype._copy = function (obj, opts) {
+  var buf;
+  switch ((opts && opts.coerce) | 0) {
+    case 3: // Coerce buffers to strings.
+      this._check(obj, throwInvalidError);
+      return obj.toString('binary');
+    case 2: // Coerce strings to buffers.
+      if (typeof obj != 'string') {
+        throw new Error(f('cannot coerce to buffer: %j', obj));
+      }
+      buf = new Buffer(obj, 'binary');
+      this._check(buf, throwInvalidError);
+      return buf;
+    case 1: // Coerce buffer JSON representation to buffers.
+      if (!obj || obj.type !== 'Buffer' || !(obj.data instanceof Array)) {
+        throw new Error(f('cannot coerce to buffer: %j', obj));
+      }
+      buf = new Buffer(obj.data);
+      this._check(buf, throwInvalidError);
+      return buf;
+    default: // Copy buffer.
+      this._check(obj, throwInvalidError);
+      return new Buffer(obj);
+  }
+};
+BytesType.prototype.compare = Buffer.compare;
+BytesType.prototype.random = function () {
+  return RANDOM.nextBuffer(RANDOM.nextInt(32));
+};
+BytesType.prototype.toJSON = function () { return 'bytes'; };
+
+/**
+ * Avro unions.
+ *
+ * Unions are represented in memory similarly to their JSON representation
+ * (i.e. inside an object with single key the name of the contained type).
+ *
+ * This is not ideal, but is the most efficient way to unambiguously support
+ * all unions. Here are a few reasons why the wrapping object is necessary:
+ *
+ * + Unions with multiple number types would have undefined behavior, unless
+ *   numbers are wrapped (either everywhere, leading to large performance and
+ *   convenience costs; or only when necessary inside unions, making it hard to
+ *   understand when numbers are wrapped or not).
+ * + Fixed types would have to be wrapped to be distinguished from bytes.
+ * + Using record's constructor names would work (after a slight change to use
+ *   the fully qualified name), but would mean that generic objects could no
+ *   longer be valid records (making it inconvenient to do simple things like
+ *   creating new records).
+ *
+ * Lore: In the past (until d304cab), there used to be an "unwrapped union
+ * type" which directly exposed its values, without the wrapping object
+ * (similarly to Avro's python implementation). It was removed to keep all
+ * representations consistent and make this library simpler to understand
+ * (conversions, e.g. for schema evolution, between representations were
+ * particularly confusing). Encoding was also much slower (worst case
+ * complexity linear in the number of types in the union).
+ *
+ */
+function UnionType(attrs, opts) {
+  if (!(attrs instanceof Array)) {
+    throw new Error(f('non-array union schema: %j', attrs));
+  }
+  if (!attrs.length) {
+    throw new Error('empty union');
+  }
+
+  var namespace = opts && opts.namespace;
+  opts = updateOpts(opts, attrs);
+
+  Type.call(this);
+  this._types = attrs.map(function (obj) { return createType(obj, opts); });
+
+  this._indices = {};
+  this._types.forEach(function (type, i) {
+    if (type instanceof UnionType) {
+      throw new Error('unions cannot be directly nested');
+    }
+    var name = type._name || getTypeName(type);
+    if (this._indices[name] !== undefined) {
+      throw new Error(f('duplicate union name: %j', name));
+    }
+    this._indices[name] = i;
+  }, this);
+
+  this._constructors = this._types.map(function (type) {
+    // jshint -W054
+    var name = type._name || getTypeName(type);
+    if (name === 'null') {
+      return null;
+    }
+    var body;
+    if (~name.indexOf('.')) { // Qualified name.
+      body = 'this[\'' + name + '\'] = val;';
+    } else {
+      body = 'this.' + name + ' = val;';
+    }
+    var constructor = new Function('val', body);
+    constructor.getBranchType = function () { return type; };
+    constructor.prototype.getBranchType = util.deprecate(
+      constructor.getBranchType,
+      'deprecated: use constructor.getBranchType'
+    );
+    return constructor;
+  });
+
+  opts.namespace = namespace;
+}
+util.inherits(UnionType, Type);
+UnionType.name_ = 'UnionType';
+
+UnionType.prototype._check = function (val, cb) {
+  var b = false;
+  if (val === null) {
+    // Shortcut type lookup in this case.
+    b = this._indices['null'] !== undefined;
+  } else if (typeof val == 'object') {
+    var keys = Object.keys(val);
+    if (keys.length === 1) {
+      // We require a single key here to ensure that writes are correct and
+      // efficient as soon as a record passes this check.
+      var name = keys[0];
+      var index = this._indices[name];
+      if (index !== undefined) {
+        PATH.push(name);
+        b = this._types[index]._check(val[name], cb);
+        PATH.pop();
+        return b;
+      }
+    }
+  }
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+
+UnionType.prototype._read = function (tap) {
+  var index = tap.readLong();
+  var Class = this._constructors[index];
+  if (Class) {
+    return new Class(this._types[index]._read(tap));
+  } else if (Class === null) {
+    return null;
+  } else {
+    throw new Error(f('invalid union index: %s', index));
+  }
+};
+
+UnionType.prototype._skip = function (tap) {
+  this._types[tap.readLong()]._skip(tap);
+};
+
+UnionType.prototype._write = function (tap, val) {
+  var index, keys, name;
+  if (val === null) {
+    index = this._indices['null'];
+    if (index === undefined) {
+      throwInvalidError(null, val, this);
+    }
+    tap.writeLong(index);
+  } else {
+    keys = Object.keys(val);
+    if (keys.length === 1) {
+      name = keys[0];
+      index = this._indices[name];
+    }
+    if (index === undefined) {
+      throwInvalidError(null, val, this);
+    }
+    tap.writeLong(index);
+    this._types[index]._write(tap, val[name]);
+  }
+};
+
+UnionType.prototype._match = function (tap1, tap2) {
+  var n1 = tap1.readLong();
+  var n2 = tap2.readLong();
+  if (n1 === n2) {
+    return this._types[n1]._match(tap1, tap2);
+  } else {
+    return n1 < n2 ? -1 : 1;
+  }
+};
+
+UnionType.prototype._updateResolver = function (resolver, type, opts) {
+  // jshint -W083
+  // (The loop exits after the first function is created.)
+  var i, l, typeResolver, Class;
+  for (i = 0, l = this._types.length; i < l; i++) {
+    try {
+      typeResolver = this._types[i].createResolver(type, opts);
+    } catch (err) {
+      continue;
+    }
+    Class = this._constructors[i];
+    if (Class) {
+      resolver._read = function (tap) {
+        return new Class(typeResolver._read(tap));
+      };
+    } else {
+      resolver._read = function () { return null; };
+    }
+    return;
+  }
+};
+
+UnionType.prototype._copy = function (val, opts) {
+  var wrap = opts && opts.wrap | 0;
+  if (wrap === 2) {
+    // Promote into first type (used for schema defaults).
+    if (val === null && this._constructors[0] === null) {
+      return null;
+    }
+    return new this._constructors[0](this._types[0]._copy(val, opts));
+  }
+  if (val === null && this._indices['null'] !== undefined) {
+    return null;
+  }
+
+  var i, l, obj;
+  if (typeof val == 'object') {
+    var keys = Object.keys(val);
+    if (keys.length === 1) {
+      var name = keys[0];
+      i = this._indices[name];
+      if (i === undefined && opts.qualifyNames) {
+        // We are a bit more flexible than in `_check` here since we have
+        // to deal with other serializers being less strict, so we fall
+        // back to looking up unqualified names.
+        var j, type;
+        for (j = 0, l = this._types.length; j < l; j++) {
+          type = this._types[j];
+          if (type._name && name === unqualify(type._name)) {
+            i = j;
+            break;
+          }
+        }
+      }
+      if (i !== undefined) {
+        obj = this._types[i]._copy(val[name], opts);
+      }
+    }
+  }
+  if (wrap === 1 && obj === undefined) {
+    // Try promoting into first match (convenience, slow).
+    i = 0;
+    l = this._types.length;
+    while (i < l && obj === undefined) {
+      try {
+        obj = this._types[i]._copy(val, opts);
+      } catch (err) {
+        i++;
+      }
+    }
+  }
+  if (obj !== undefined) {
+    return new this._constructors[i](obj);
+  }
+  throwInvalidError(null, val, this);
+};
+
+UnionType.prototype.compare = function (val1, val2) {
+  var name1 = val1 === null ? 'null' : Object.keys(val1)[0];
+  var name2 = val2 === null ? 'null' : Object.keys(val2)[0];
+  var index = this._indices[name1];
+  if (name1 === name2) {
+    return name1 === 'null' ?
+      0 :
+      this._types[index].compare(val1[name1], val2[name1]);
+  } else {
+    return utils.compare(index, this._indices[name2]);
+  }
+};
+
+UnionType.prototype.getTypes = function () { return this._types.slice(); };
+
+UnionType.prototype.random = function () {
+  var index = RANDOM.nextInt(this._types.length);
+  var Class = this._constructors[index];
+  if (!Class) {
+    return null;
+  }
+  return new Class(this._types[index].random());
+};
+
+UnionType.prototype.toJSON = function () { return this._types; };
+
+/**
+ * Avro enum type.
+ *
+ * Represented as strings (with allowed values from the set of symbols). Using
+ * integers would be a reasonable option, but the performance boost is arguably
+ * offset by the legibility cost and the extra deviation from the JSON encoding
+ * convention.
+ *
+ * An integer representation can still be used (e.g. for compatibility with
+ * TypeScript `enum`s) by overriding the `EnumType` with a `LongType` (e.g. via
+ * `parse`'s registry).
+ *
+ */
+function EnumType(attrs, opts) {
+  if (!(attrs.symbols instanceof Array) || !attrs.symbols.length) {
+    throw new Error(f('invalid %j enum symbols: %j', attrs.name, attrs));
+  }
+
+  var namespace = opts && opts.namespace;
+  opts = updateOpts(opts, attrs);
+
+  var resolutions = resolveNames(attrs, opts.namespace);
+  this._name = resolutions.name;
+  this._symbols = attrs.symbols;
+  this._aliases = resolutions.aliases;
+  Type.call(this, opts.registry);
+
+  this._indices = {};
+  this._symbols.forEach(function (symbol, i) {
+    if (!NAME_PATTERN.test(symbol)) {
+      throw new Error(f('invalid %s symbol: %j', this, symbol));
+    }
+    if (this._indices[symbol] !== undefined) {
+      throw new Error(f('duplicate %s symbol: %j', this, symbol));
+    }
+    this._indices[symbol] = i;
+  }, this);
+
+  opts.namespace = namespace;
+}
+util.inherits(EnumType, Type);
+EnumType.name_ = 'EnumType';
+
+EnumType.prototype._check = function (val, cb) {
+  var b = this._indices[val] !== undefined;
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+
+EnumType.prototype._read = function (tap) {
+  var index = tap.readLong();
+  var symbol = this._symbols[index];
+  if (symbol === undefined) {
+    throw new Error(f('invalid %s enum index: %s', this._name, index));
+  }
+  return symbol;
+};
+
+EnumType.prototype._skip = function (tap) { tap.skipLong(); };
+
+EnumType.prototype._write = function (tap, val) {
+  var index = this._indices[val];
+  if (index === undefined) {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeLong(index);
+};
+
+EnumType.prototype._match = function (tap1, tap2) {
+  return tap1.matchLong(tap2);
+};
+
+EnumType.prototype.compare = function (val1, val2) {
+  return utils.compare(this._indices[val1], this._indices[val2]);
+};
+
+EnumType.prototype._updateResolver = function (resolver, type) {
+  var symbols = this._symbols;
+  if (
+    type instanceof EnumType &&
+    ~getAliases(this).indexOf(type._name) &&
+    type._symbols.every(function (s) { return ~symbols.indexOf(s); })
+  ) {
+    resolver._symbols = type._symbols;
+    resolver._read = type._read;
+  }
+};
+
+EnumType.prototype._copy = function (val) {
+  this._check(val, throwInvalidError);
+  return val;
+};
+
+EnumType.prototype.getAliases = function () { return this._aliases; };
+
+EnumType.prototype.getSymbols = function () { return this._symbols.slice(); };
+
+EnumType.prototype.random = function () {
+  return RANDOM.choice(this._symbols);
+};
+
+EnumType.prototype.toJSON = function () {
+  return {name: this._name, type: 'enum', symbols: this._symbols};
+};
+
+/**
+ * Avro fixed type.
+ *
+ * Represented simply as a `Buffer`.
+ *
+ */
+function FixedType(attrs, opts) {
+  if (attrs.size !== (attrs.size | 0) || attrs.size < 1) {
+    throw new Error(f('invalid %j fixed size: %j', attrs.name, attrs.size));
+  }
+
+  var namespace = opts && opts.namespace;
+  opts = updateOpts(opts, attrs);
+
+  var resolutions = resolveNames(attrs, opts.namespace);
+  this._name = resolutions.name;
+  this._size = attrs.size | 0;
+  this._aliases = resolutions.aliases;
+  Type.call(this, opts.registry);
+
+  opts.namespace = namespace;
+}
+util.inherits(FixedType, Type);
+FixedType.name_ = 'FixedType';
+
+FixedType.prototype._check = function (val, cb) {
+  var b = Buffer.isBuffer(val) && val.length === this._size;
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+
+FixedType.prototype._read = function (tap) {
+  return tap.readFixed(this._size);
+};
+
+FixedType.prototype._skip = function (tap) {
+  tap.skipFixed(this._size);
+};
+
+FixedType.prototype._write = function (tap, val) {
+  if (!Buffer.isBuffer(val) || val.length !== this._size) {
+    throwInvalidError(null, val, this);
+  }
+  tap.writeFixed(val, this._size);
+};
+
+FixedType.prototype._match = function (tap1, tap2) {
+  return tap1.matchFixed(tap2, this._size);
+};
+
+FixedType.prototype.compare = Buffer.compare;
+
+FixedType.prototype._updateResolver = function (resolver, type) {
+  if (
+    type instanceof FixedType &&
+    this._size === type._size &&
+    ~getAliases(this).indexOf(type._name)
+  ) {
+    resolver._size = this._size;
+    resolver._read = this._read;
+  }
+};
+
+FixedType.prototype._copy = BytesType.prototype._copy;
+
+FixedType.prototype.getAliases = function () { return this._aliases; };
+
+FixedType.prototype.getSize = function () { return this._size; };
+
+FixedType.prototype.random = function () {
+  return RANDOM.nextBuffer(this._size);
+};
+
+FixedType.prototype.toJSON = function () {
+  return {name: this._name, type: 'fixed', size: this._size};
+};
+
+/**
+ * Avro map.
+ *
+ * Represented as vanilla objects.
+ *
+ */
+function MapType(attrs, opts) {
+  if (!attrs.values) {
+    throw new Error(f('missing map values: %j', attrs));
+  }
+
+  Type.call(this);
+  this._values = createType(attrs.values, opts);
+}
+util.inherits(MapType, Type);
+MapType.name_ = 'MapType';
+
+MapType.prototype.getValuesType = function () { return this._values; };
+
+MapType.prototype._check = function (val, cb) {
+  if (!val || typeof val != 'object' || val instanceof Array) {
+    if (cb) {
+      cb(PATH.slice(), val, this);
+    }
+    return false;
+  }
+
+  var keys = Object.keys(val);
+  var b = true;
+  var i, l, j, key;
+  if (cb) {
+    // Slow path.
+    j = PATH.length;
+    PATH.push('');
+    for (i = 0, l = keys.length; i < l; i++) {
+      key = PATH[j] = keys[i];
+      if (!this._values._check(val[key], cb)) {
+        b = false;
+      }
+    }
+    PATH.pop();
+  } else {
+    for (i = 0, l = keys.length; i < l; i++) {
+      if (!this._values._check(val[keys[i]], cb)) {
+        return false;
+      }
+    }
+  }
+  return b;
+};
+
+MapType.prototype._read = function (tap) {
+  var values = this._values;
+  var val = {};
+  var n;
+  while ((n = readArraySize(tap))) {
+    while (n--) {
+      var key = tap.readString();
+      val[key] = values._read(tap);
+    }
+  }
+  return val;
+};
+
+MapType.prototype._skip = function (tap) {
+  var values = this._values;
+  var len, n;
+  while ((n = tap.readLong())) {
+    if (n < 0) {
+      len = tap.readLong();
+      tap.pos += len;
+    } else {
+      while (n--) {
+        tap.skipString();
+        values._skip(tap);
+      }
+    }
+  }
+};
+
+MapType.prototype._write = function (tap, val) {
+  if (!val || typeof val != 'object' || val instanceof Array) {
+    throwInvalidError(null, val, this);
+  }
+
+  var values = this._values;
+  var keys = Object.keys(val);
+  var n = keys.length;
+  var i, key;
+  if (n) {
+    tap.writeLong(n);
+    for (i = 0; i < n; i++) {
+      key = keys[i];
+      tap.writeString(key);
+      values._write(tap, val[key]);
+    }
+  }
+  tap.writeLong(0);
+};
+
+MapType.prototype._match = function () {
+  throw new Error('maps cannot be compared');
+};
+
+MapType.prototype._updateResolver = function (resolver, type, opts) {
+  if (type instanceof MapType) {
+    resolver._values = this._values.createResolver(type._values, opts);
+    resolver._read = this._read;
+  }
+};
+
+MapType.prototype._copy = function (val, opts) {
+  if (val && typeof val == 'object' && !(val instanceof Array)) {
+    var values = this._values;
+    var keys = Object.keys(val);
+    var i, l, key;
+    var copy = {};
+    for (i = 0, l = keys.length; i < l; i++) {
+      key = keys[i];
+      copy[key] = values._copy(val[key], opts);
+    }
+    return copy;
+  }
+  throwInvalidError(null, val, this);
+};
+
+MapType.prototype.compare = MapType.prototype._match;
+
+MapType.prototype.random = function () {
+  var val = {};
+  var i, l;
+  for (i = 0, l = RANDOM.nextInt(10); i < l; i++) {
+    val[RANDOM.nextString(RANDOM.nextInt(20))] = this._values.random();
+  }
+  return val;
+};
+
+MapType.prototype.toJSON = function () {
+  return {type: 'map', values: this._values};
+};
+
+/**
+ * Avro array.
+ *
+ * Represented as vanilla arrays.
+ *
+ */
+function ArrayType(attrs, opts) {
+  if (!attrs.items) {
+    throw new Error(f('missing array items: %j', attrs));
+  }
+
+  this._items = createType(attrs.items, opts);
+  Type.call(this);
+}
+util.inherits(ArrayType, Type);
+ArrayType.name_ = 'ArrayType';
+
+ArrayType.prototype._check = function (val, cb) {
+  if (!(val instanceof Array)) {
+    if (cb) {
+      cb(PATH.slice(), val, this);
+    }
+    return false;
+  }
+
+  var b = true;
+  var i, l, j;
+  if (cb) {
+    // Slow path.
+    j = PATH.length;
+    PATH.push('');
+    for (i = 0, l = val.length; i < l; i++) {
+      PATH[j] = '' + i;
+      if (!this._items._check(val[i], cb)) {
+        b = false;
+      }
+    }
+    PATH.pop();
+  } else {
+    for (i = 0, l = val.length; i < l; i++) {
+      if (!this._items._check(val[i], cb)) {
+        return false;
+      }
+    }
+  }
+  return b;
+};
+
+ArrayType.prototype._read = function (tap) {
+  var items = this._items;
+  var val = [];
+  var n;
+  while ((n = tap.readLong())) {
+    if (n < 0) {
+      n = -n;
+      tap.skipLong(); // Skip size.
+    }
+    while (n--) {
+      val.push(items._read(tap));
+    }
+  }
+  return val;
+};
+
+ArrayType.prototype._skip = function (tap) {
+  var len, n;
+  while ((n = tap.readLong())) {
+    if (n < 0) {
+      len = tap.readLong();
+      tap.pos += len;
+    } else {
+      while (n--) {
+        this._items._skip(tap);
+      }
+    }
+  }
+};
+
+ArrayType.prototype._write = function (tap, val) {
+  if (!(val instanceof Array)) {
+    throwInvalidError(null, val, this);
+  }
+
+  var n = val.length;
+  var i;
+  if (n) {
+    tap.writeLong(n);
+    for (i = 0; i < n; i++) {
+      this._items._write(tap, val[i]);
+    }
+  }
+  tap.writeLong(0);
+};
+
+ArrayType.prototype._match = function (tap1, tap2) {
+  var n1 = tap1.readLong();
+  var n2 = tap2.readLong();
+  var f;
+  while (n1 && n2) {
+    f = this._items._match(tap1, tap2);
+    if (f) {
+      return f;
+    }
+    if (!--n1) {
+      n1 = readArraySize(tap1);
+    }
+    if (!--n2) {
+      n2 = readArraySize(tap2);
+    }
+  }
+  return utils.compare(n1, n2);
+};
+
+ArrayType.prototype._updateResolver = function (resolver, type, opts) {
+  if (type instanceof ArrayType) {
+    resolver._items = this._items.createResolver(type._items, opts);
+    resolver._read = this._read;
+  }
+};
+
+ArrayType.prototype._copy = function (val, opts) {
+  if (!(val instanceof Array)) {
+    throwInvalidError(null, val, this);
+  }
+  var items = [];
+  var i, l;
+  for (i = 0, l = val.length; i < l; i++) {
+    items.push(this._items._copy(val[i], opts));
+  }
+  return items;
+};
+
+ArrayType.prototype.compare = function (val1, val2) {
+  var n1 = val1.length;
+  var n2 = val2.length;
+  var i, l, f;
+  for (i = 0, l = Math.min(n1, n2); i < l; i++) {
+    if ((f = this._items.compare(val1[i], val2[i]))) {
+      return f;
+    }
+  }
+  return utils.compare(n1, n2);
+};
+
+ArrayType.prototype.getItemsType = function () { return this._items; };
+
+ArrayType.prototype.random = function () {
+  var arr = [];
+  var i, l;
+  for (i = 0, l = RANDOM.nextInt(10); i < l; i++) {
+    arr.push(this._items.random());
+  }
+  return arr;
+};
+
+ArrayType.prototype.toJSON = function () {
+  return {type: 'array', items: this._items};
+};
+
+/**
+ * Avro record.
+ *
+ * Values are represented as instances of a programmatically generated
+ * constructor (similar to a "specific record"), available via the
+ * `getRecordConstructor` method. This "specific record class" gives
+ * significant speedups over using generics objects.
+ *
+ * Note that vanilla objects are still accepted as valid as long as their
+ * fields match (this makes it much more convenient to do simple things like
+ * update nested records).
+ *
+ * This type is also used for errors (similar, except for the extra `Error`
+ * constructor call) and for messages (see comment below).
+ *
+ */
+function RecordType(attrs, opts) {
+  var namespace = opts && opts.namespace;
+  opts = updateOpts(opts, attrs);
+
+  var resolutions = resolveNames(attrs, opts.namespace);
+  this._name = resolutions.name;
+  this._aliases = resolutions.aliases;
+  this._type = attrs.type;
+  // Requests shouldn't be registered since their name is only a placeholder.
+  Type.call(this, this._type === 'request' ? undefined : opts.registry);
+
+  if (!(attrs.fields instanceof Array)) {
+    throw new Error(f('non-array %s fields', this._name));
+  }
+  this._fields = attrs.fields.map(function (f) {
+    return new Field(f, opts);
+  });
+  if (utils.hasDuplicates(attrs.fields, function (f) { return f.name; })) {
+    throw new Error(f('duplicate %s field name', this._name));
+  }
+
+  this._constructor = this._createConstructor(this._type === 'error');
+  this._read = this._createReader();
+  this._skip = this._createSkipper();
+  this._write = this._createWriter();
+  this._check = this._createChecker();
+
+  opts.namespace = namespace;
+}
+util.inherits(RecordType, Type);
+RecordType.name_ = 'RecordType';
+
+RecordType.prototype._createConstructor = function (isError) {
+  // jshint -W054
+  var outerArgs = [];
+  var innerArgs = [];
+  var ds = []; // Defaults.
+  var innerBody = isError ? '  Error.call(this);\n' : '';
+  // Not calling `Error.captureStackTrace` because this wouldn't be compatible
+  // with browsers other than Chrome.
+  var i, l, field, name, getDefault;
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    field = this._fields[i];
+    getDefault = field.getDefault;
+    name = field._name;
+    innerArgs.push('v' + i);
+    innerBody += '  ';
+    if (getDefault() === undefined) {
+      innerBody += 'this.' + name + ' = v' + i + ';\n';
+    } else {
+      innerBody += 'if (v' + i + ' === undefined) { ';
+      innerBody += 'this.' + name + ' = d' + ds.length + '(); ';
+      innerBody += '} else { this.' + name + ' = v' + i + '; }\n';
+      outerArgs.push('d' + ds.length);
+      ds.push(getDefault);
+    }
+  }
+  var outerBody = 'return function ' + unqualify(this._name) + '(';
+  outerBody += innerArgs.join() + ') {\n' + innerBody + '};';
+  var Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
+
+  var self = this;
+  var msg = 'deprecated: please use method without the $ prefix instead';
+  Record.getType = getType;
+  Record.prototype = {
+    constructor: Record,
+    clone: clone,
+    compare: compare,
+    // This might clash with other outside defined getters.
+    getType: util.deprecate(getType, 'deprecated: use constructor.getType'),
+    isValid: isValid,
+    toBuffer: toBuffer,
+    toString: toString,
+    // Legacy names. These were prefixed with `$` because it is an invalid
+    // property name in Avro but not in JavaScript (and therefore are
+    // guaranteed not to collide with field names). However, the prefixed name
+    // was not as unintuitive (e.g. `$toString`) so these will be removed in
+    // the next major release.
+    $clone: util.deprecate(clone, msg),
+    $compare: util.deprecate(compare, msg),
+    $getType: util.deprecate(getType, msg),
+    $isValid: util.deprecate(isValid, msg),
+    $toBuffer: util.deprecate(toBuffer, msg),
+    $toString: util.deprecate(toString, msg)
+  };
+  if (isError) {
+    util.inherits(Record, Error);
+    // Not setting the error's name on the prototype to be consistent with how
+    // object fields are mapped to (only if defined in the schema as a field).
+  }
+  return Record;
+
+  // Convenience functions, attached to records' prototype.
+  function clone(o) { /* jshint -W040 */ return self.clone(this, o); }
+  function compare(v) { /* jshint -W040 */ return self.compare(this, v); }
+  function getType() { /* jshint -W040 */ return self; }
+  function isValid(o) { /* jshint -W040 */ return self.isValid(this, o); }
+  function toBuffer() { /* jshint -W040 */ return self.toBuffer(this); }
+  function toString() { /* jshint -W040 */ return self.toString(this); }
+};
+
+RecordType.prototype._createChecker = function () {
+  // jshint -W054
+  var names = ['t', 'P'];
+  var values = [this, PATH];
+  var body = 'return function check' + unqualify(this._name) + '(val, cb) {\n';
+  body += '  if (val === null || typeof val != \'object\') {\n';
+  body += '    if (cb) { cb(P.slice(), val, t); }\n';
+  body += '    return false;\n';
+  body += '  }\n';
+  if (!this._fields.length) {
+    // Special case, empty record. We handle this directly.
+    body += '  return true;\n';
+  } else {
+    for (i = 0, l = this._fields.length; i < l; i++) {
+      field = this._fields[i];
+      names.push('t' + i);
+      values.push(field._type);
+      if (field.getDefault() !== undefined) {
+        body += '  var v' + i + ' = val.' + field._name + ';\n';
+      }
+    }
+    body += '  if (cb) {\n';
+    body += '    var b = 1;\n';
+    body += '    var j = P.length;\n';
+    body += '    P.push(\'\');\n';
+    var i, l, field;
+    for (i = 0, l = this._fields.length; i < l; i++) {
+      field = this._fields[i];
+      body += '    P[j] = \'' + field._name + '\';\n';
+      if (field.getDefault() === undefined) {
+        body += '    b &= t' + i + '._check(val.' + field._name + ', cb);\n';
+      } else {
+        body += '    b &= v' + i + ' === undefined || ';
+        body += 't' + i + '._check(v' + i + ', cb);\n';
+      }
+    }
+    body += '    P.pop();\n';
+    body += '    return !!b;\n';
+    body += '  } else {\n    return (\n      ';
+    body += this._fields.map(function (field, i) {
+      if (field.getDefault() === undefined) {
+        return 't' + i + '._check(val.' + field._name + ')';
+      } else {
+        return '(v' + i + ' === undefined || t' + i + '._check(v' + i + '))';
+      }
+    }).join(' &&\n      ');
+    body += '\n    );\n  }\n';
+  }
+  body += '};';
+  return new Function(names.join(), body).apply(undefined, values);
+};
+
+RecordType.prototype._createReader = function () {
+  // jshint -W054
+  var uname = unqualify(this._name);
+  var names = [];
+  var values = [this._constructor];
+  var i, l;
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    names.push('t' + i);
+    values.push(this._fields[i]._type);
+  }
+  var body = 'return function read' + uname + '(tap) {\n';
+  body += '  return new ' + uname + '(';
+  body += names.map(function (t) { return t + '._read(tap)'; }).join();
+  body += ');\n};';
+  names.unshift(uname);
+  // We can do this since the JS spec guarantees that function arguments are
+  // evaluated from left to right.
+  return new Function(names.join(), body).apply(undefined, values);
+};
+
+RecordType.prototype._createSkipper = function () {
+  // jshint -W054
+  var args = [];
+  var body = 'return function skip' + unqualify(this._name) + '(tap) {\n';
+  var values = [];
+  var i, l;
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    args.push('t' + i);
+    values.push(this._fields[i]._type);
+    body += '  t' + i + '._skip(tap);\n';
+  }
+  body += '}';
+  return new Function(args.join(), body).apply(undefined, values);
+};
+
+RecordType.prototype._createWriter = function () {
+  // jshint -W054
+  // We still do default handling here, in case a normal JS object is passed.
+  var args = [];
+  var body = 'return function write' + unqualify(this._name) + '(tap, val) {\n';
+  var values = [];
+  var i, l, field, value;
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    field = this._fields[i];
+    args.push('t' + i);
+    values.push(field._type);
+    body += '  ';
+    if (field.getDefault() === undefined) {
+      body += 't' + i + '._write(tap, val.' + field._name + ');\n';
+    } else {
+      value = field._type.toBuffer(field.getDefault()).toString('binary');
+      // Convert the default value to a binary string ahead of time. We aren't
+      // converting it to a buffer to avoid retaining too much memory. If we
+      // had our own buffer pool, this could be an idea in the future.
+      args.push('d' + i);
+      values.push(value);
+      body += 'var v' + i + ' = val.' + field._name + '; ';
+      body += 'if (v' + i + ' === undefined) { ';
+      body += 'tap.writeBinary(d' + i + ', ' + value.length + ');';
+      body += ' } else { t' + i + '._write(tap, v' + i + '); }\n';
+    }
+  }
+  body += '}';
+  return new Function(args.join(), body).apply(undefined, values);
+};
+
+RecordType.prototype._updateResolver = function (resolver, type, opts) {
+  // jshint -W054
+  if (!~getAliases(this).indexOf(type._name)) {
+    throw new Error(f('no alias for %s in %s', type._name, this._name));
+  }
+
+  var rFields = this._fields;
+  var wFields = type._fields;
+  var wFieldsMap = utils.toMap(wFields, function (f) { return f._name; });
+
+  var innerArgs = []; // Arguments for reader constructor.
+  var resolvers = {}; // Resolvers keyed by writer field name.
+  var i, j, field, name, names, matches;
+  for (i = 0; i < rFields.length; i++) {
+    field = rFields[i];
+    names = getAliases(field);
+    matches = [];
+    for (j = 0; j < names.length; j++) {
+      name = names[j];
+      if (wFieldsMap[name]) {
+        matches.push(name);
+      }
+    }
+    if (matches.length > 1) {
+      throw new Error(f('multiple matches for %s', field.name));
+    }
+    if (!matches.length) {
+      if (field.getDefault() === undefined) {
+        throw new Error(f('no match for default-less %s', field.name));
+      }
+      innerArgs.push('undefined');
+    } else {
+      name = matches[0];
+      resolvers[name] = {
+        resolver: field._type.createResolver(wFieldsMap[name]._type, opts),
+        name: field._name // Reader field name.
+      };
+      innerArgs.push(field._name);
+    }
+  }
+
+  // See if we can add a bypass for unused fields at the end of the record.
+  var lazyIndex = -1;
+  i = wFields.length;
+  while (i && resolvers[wFields[--i]._name] === undefined) {
+    lazyIndex = i;
+  }
+
+  var uname = unqualify(this._name);
+  var args = [uname];
+  var values = [this._constructor];
+  var body = '  return function read' + uname + '(tap,lazy) {\n';
+  for (i = 0; i < wFields.length; i++) {
+    if (i === lazyIndex) {
+      body += '  if (!lazy) {\n';
+    }
+    field = type._fields[i];
+    name = field._name;
+    body += (~lazyIndex && i >= lazyIndex) ? '    ' : '  ';
+    if (resolvers[name] === undefined) {
+      args.push('t' + i);
+      values.push(field._type);
+      body += 't' + i + '._skip(tap);\n';
+    } else {
+      args.push('t' + i);
+      values.push(resolvers[name].resolver);
+      body += 'var ' + resolvers[name].name + ' = ';
+      body += 't' + i + '._read(tap);\n';
+    }
+  }
+  if (~lazyIndex) {
+    body += '  }\n';
+  }
+  body +=  '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
+
+  resolver._read = new Function(args.join(), body).apply(undefined, values);
+};
+
+RecordType.prototype._match = function (tap1, tap2) {
+  var fields = this._fields;
+  var i, l, field, order, type;
+  for (i = 0, l = fields.length; i < l; i++) {
+    field = fields[i];
+    order = field._order;
+    type = field._type;
+    if (order) {
+      order *= type._match(tap1, tap2);
+      if (order) {
+        return order;
+      }
+    } else {
+      type._skip(tap1);
+      type._skip(tap2);
+    }
+  }
+  return 0;
+};
+
+RecordType.prototype._copy = function (val, opts) {
+  // jshint -W058
+  var hook = opts && opts.fieldHook;
+  var values = [undefined];
+  var i, l, field, value;
+  for (i = 0, l = this._fields.length; i < l; i++) {
+    field = this._fields[i];
+    value = val[field._name];
+    if (value === undefined && field.hasOwnProperty('getDefault')) {
+      value = field.getDefault();
+    } else {
+      value = field._type._copy(val[field._name], opts);
+    }
+    if (hook) {
+      value = hook(field, value, this);
+    }
+    values.push(value);
+  }
+  return new (this._constructor.bind.apply(this._constructor, values));
+};
+
+RecordType.prototype.compare = function (val1, val2) {
+  var fields = this._fields;
+  var i, l, field, name, order, type;
+  for (i = 0, l = fields.length; i < l; i++) {
+    field = fields[i];
+    name = field._name;
+    order = field._order;
+    type = field._type;
+    if (order) {
+      order *= type.compare(val1[name], val2[name]);
+      if (order) {
+        return order;
+      }
+    }
+  }
+  return 0;
+};
+
+RecordType.prototype.random = function () {
+  // jshint -W058
+  var fields = this._fields.map(function (f) { return f._type.random(); });
+  fields.unshift(undefined);
+  return new (this._constructor.bind.apply(this._constructor, fields));
+};
+
+RecordType.prototype.getAliases = function () { return this._aliases; };
+
+RecordType.prototype.getFields = function () { return this._fields.slice(); };
+
+RecordType.prototype.getRecordConstructor = function () {
+  return this._constructor;
+};
+
+RecordType.prototype.toJSON = function () {
+  return {name: this._name, type: this._type, fields: this._fields};
+};
+
+/**
+ * Derived type abstract class.
+ *
+ */
+function LogicalType(attrs, opts, Types) {
+  Type.call(this);
+  LOGICAL_TYPE = this;
+  this._underlyingType = createType(attrs, opts);
+
+  // Convenience type check.
+  if (Types && !~Types.indexOf(this._underlyingType.constructor)) {
+    var lType = attrs.logicalType;
+    var uType = this._underlyingType;
+    throw new Error(f('invalid underlying type for %s: %s', lType, uType));
+  }
+}
+util.inherits(LogicalType, Type);
+
+LogicalType.prototype.getUnderlyingType = function () {
+  return this._underlyingType;
+};
+
+LogicalType.prototype._read = function (tap) {
+  return this._fromValue(this._underlyingType._read(tap));
+};
+
+LogicalType.prototype._write = function (tap, any) {
+  this._underlyingType._write(tap, this._toValue(any));
+};
+
+LogicalType.prototype._check = function (any, cb) {
+  try {
+    var val = this._toValue(any);
+  } catch (err) {
+    if (cb) {
+      cb(PATH.slice(), any, this);
+    }
+    return false;
+  }
+  return this._underlyingType._check(val, cb);
+};
+
+LogicalType.prototype._copy = function (any, opts) {
+  var type = this._underlyingType;
+  switch (opts && opts.coerce) {
+    case 3: // To string.
+      return type._copy(this._toValue(any), opts);
+    case 2: // From string.
+      return this._fromValue(type._copy(any, opts));
+    default: // Normal copy.
+      return this._fromValue(type._copy(this._toValue(any), opts));
+  }
+};
+
+LogicalType.prototype._updateResolver = function (resolver, type, opts) {
+  var _fromValue = this._resolve(type, opts);
+  if (_fromValue) {
+    resolver._read = function (tap) { return _fromValue(type._read(tap)); };
+  }
+};
+
+LogicalType.prototype.random = function () {
+  return this._fromValue(this._underlyingType.random());
+};
+
+LogicalType.prototype.compare = function (obj1, obj2) {
+  var val1 = this._toValue(obj1);
+  var val2 = this._toValue(obj2);
+  return this._underlyingType.compare(val1, val2);
+};
+
+LogicalType.prototype.toJSON = function () {
+  return this._underlyingType.toJSON();
+};
+
+// Methods to be implemented.
+LogicalType.prototype._fromValue = utils.abstractFunction;
+LogicalType.prototype._toValue = utils.abstractFunction;
+LogicalType.prototype._resolve = utils.abstractFunction;
+
+
+// General helpers.
+
+/**
+ * Customizable long.
+ *
+ * This allows support of arbitrarily large long (e.g. larger than
+ * `Number.MAX_SAFE_INTEGER`). See `LongType.using` method above.
+ *
+ */
+function AbstractLongType(noUnpack) {
+  LongType.call(this);
+  this._noUnpack = !!noUnpack;
+}
+util.inherits(AbstractLongType, LongType);
+
+AbstractLongType.prototype._check = function (val, cb) {
+  var b = this._isValid(val);
+  if (!b && cb) {
+    cb(PATH.slice(), val, this);
+  }
+  return b;
+};
+
+AbstractLongType.prototype._read = function (tap) {
+  var buf, pos;
+  if (this._noUnpack) {
+    pos = tap.pos;
+    tap.skipLong();
+    buf = tap.buf.slice(pos, tap.pos);
+  } else {
+    buf = tap.unpackLongBytes(tap);
+  }
+  if (tap.isValid()) {
+    return this._fromBuffer(buf);
+  }
+};
+
+AbstractLongType.prototype._write = function (tap, val) {
+  if (!this._isValid(val)) {
+    throwInvalidError(null, val, this);
+  }
+  var buf = this._toBuffer(val);
+  if (this._noUnpack) {
+    tap.writeFixed(buf);
+  } else {
+    tap.packLongBytes(buf);
+  }
+};
+
+AbstractLongType.prototype._copy = function (val, opts) {
+  switch (opts && opts.coerce) {
+    case 3: // To string.
+      return this._toJSON(val);
+    case 2: // From string.
+      return this._fromJSON(val);
+    default: // Normal copy.
+      // Slow but guarantees most consistent results. Faster alternatives would
+      // require assumptions on the long class used (e.g. immutability).
+      return this._fromJSON(JSON.parse(JSON.stringify(this._toJSON(val))));
+  }
+};
+
+AbstractLongType.prototype.random = function () {
+  return this._fromJSON(LongType.prototype.random());
+};
+
+// Methods to be implemented by the user.
+AbstractLongType.prototype._fromBuffer = utils.abstractFunction;
+AbstractLongType.prototype._toBuffer = utils.abstractFunction;
+AbstractLongType.prototype._fromJSON = utils.abstractFunction;
+AbstractLongType.prototype._toJSON = utils.abstractFunction;
+AbstractLongType.prototype._isValid = utils.abstractFunction;
+AbstractLongType.prototype.compare = utils.abstractFunction;
+
+/**
+ * Field.
+ *
+ * @param attrs {Object} The field's schema.
+ * @para opts {Object} Schema parsing options (the same as `Type`s').
+ *
+ */
+function Field(attrs, opts) {
+  var name = attrs.name;
+  if (typeof name != 'string' || !NAME_PATTERN.test(name)) {
+    throw new Error(f('invalid field name: %s', name));
+  }
+
+  this._name = name;
+  this._type = createType(attrs.type, opts);
+  this._aliases = attrs.aliases || [];
+
+  this._order = (function (order) {
+    switch (order) {
+      case 'ascending':
+        return 1;
+      case 'descending':
+        return -1;
+      case 'ignore':
+        return 0;
+      default:
+        throw new Error(f('invalid order: %j', order));
+    }
+  })(attrs.order === undefined ? 'ascending' : attrs.order);
+
+  var value = attrs['default'];
+  if (value !== undefined) {
+    // We need to convert defaults back to a valid format (unions are
+    // disallowed in default definitions, only the first type of each union is
+    // allowed instead).
+    // http://apache-avro.679487.n3.nabble.com/field-union-default-in-Java-td1175327.html
+    var type = this._type;
+    var val = type._copy(value, {coerce: 2, wrap: 2});
+    // The clone call above will throw an error if the default is invalid.
+    if (type instanceof PrimitiveType && !(type instanceof BytesType)) {
+      // These are immutable.
+      this.getDefault = function () { return val; };
+    } else {
+      this.getDefault = function () { return type._copy(val); };
+    }
+  }
+}
+
+Field.prototype.getAliases = function () { return this._aliases; };
+
+Field.prototype.getDefault = function () {}; // Undefined default.
+
+Field.prototype.getName = function () { return this._name; };
+
+Field.prototype.getOrder = function () {
+  return ['descending', 'ignore', 'ascending'][this._order + 1];
+};
+
+Field.prototype.getType = function () { return this._type; };
+
+Field.prototype.inspect = function () { return f('<Field %j>', this._name); };
+
+/**
+ * Resolver to read a writer's schema as a new schema.
+ *
+ * @param readerType {Type} The type to convert to.
+ *
+ */
+function Resolver(readerType) {
+  // Add all fields here so that all resolvers share the same hidden class.
+  this._readerType = readerType;
+  this._items = null;
+  this._read = null;
+  this._size = 0;
+  this._symbols = null;
+  this._values = null;
+}
+
+Resolver.prototype.inspect = function () { return '<Resolver>'; };
+
+/**
+ * Read a value from a tap.
+ *
+ * @param type {Type} The type to decode.
+ * @param tap {Tap} The tap to read from. No checks are performed here.
+ * @param resolver {Resolver} Optional resolver. It must match the input type.
+ * @param lazy {Boolean} Skip trailing fields when using a resolver.
+ *
+ */
+function readValue(type, tap, resolver, lazy) {
+  if (resolver) {
+    if (resolver._readerType !== type) {
+      throw new Error('invalid resolver');
+    }
+    return resolver._read(tap, lazy);
+  } else {
+    return type._read(tap);
+  }
+}
+
+/**
+ * Create default parsing options.
+ *
+ * @param attrs {Object} Schema to populate options with.
+ * @param opts {Object} Base options.
+ *
+ */
+function updateOpts(opts, attrs) {
+  var namespace = attrs && attrs.namespace;
+
+  opts = opts || {};
+  opts.namespace = namespace !== undefined ? namespace : opts.namespace;
+  opts.registry = opts.registry || {};
+  opts.logicalTypes = opts.logicalTypes || {};
+  return opts;
+}
+
+/**
+ * Resolve a schema's name and aliases.
+ *
+ * @param attrs {Object} True schema (can't be a string).
+ * @param namespace {String} Optional parent namespace.
+ * @param key {String} Key where the name should be looked up (defaults to
+ * `name`).
+ *
+ */
+function resolveNames(attrs, namespace) {
+  namespace = attrs.namespace || namespace;
+
+  var name = attrs.name;
+  if (!name) {
+    throw new Error(f('missing name property in schema: %j', attrs));
+  }
+  return {
+    name: qualify(name),
+    aliases: attrs.aliases ? attrs.aliases.map(qualify) : []
+  };
+
+  function qualify(name) {
+    if (!~name.indexOf('.') && namespace) {
+      name = namespace + '.' + name;
+    }
+    var tail = unqualify(name);
+    if (isPrimitive(tail)) {
+      // Primitive types cannot be defined in any namespace.
+      throw new Error(f('cannot rename primitive type: %j', tail));
+    }
+    name.split('.').forEach(function (part) {
+      if (!NAME_PATTERN.test(part)) {
+        throw new Error(f('invalid name: %j', name));
+      }
+    });
+    return name;
+  }
+}
+
+/**
+ * Remove namespace from a name.
+ *
+ * @param name {String} Full or short name.
+ *
+ */
+function unqualify(name) {
+  var parts = name.split('.');
+  return parts[parts.length - 1];
+}
+
+/**
+ * Get all aliases for a type (including its name).
+ *
+ * @param obj {Type|Object} Typically a type or a field. Its aliases property
+ * must exist and be an array.
+ *
+ */
+function getAliases(obj) {
+  var names = [obj._name];
+  var aliases = obj._aliases;
+  var i, l;
+  for (i = 0, l = aliases.length; i < l; i++) {
+    names.push(aliases[i]);
+  }
+  return names;
+}
+
+/**
+ * Get a type's "type" (as a string, e.g. `'record'`, `'string'`).
+ *
+ * @param type {Type} Any type.
+ *
+ */
+function getTypeName(type) {
+  var obj = type.toJSON();
+  return typeof obj == 'string' ? obj : obj.type;
+}
+
+/**
+ * Check whether a type's name is a primitive.
+ *
+ * @param name {String} Type name (e.g. `'string'`, `'array'`).
+ *
+ */
+function isPrimitive(name) {
+  var type = TYPES[name];
+  return type !== undefined && type.prototype instanceof PrimitiveType;
+}
+
+/**
+ * Get the number of elements in an array block.
+ *
+ * @param tap {Tap} A tap positioned at the beginning of an array block.
+ *
+ */
+function readArraySize(tap) {
+  var n = tap.readLong();
+  if (n < 0) {
+    n = -n;
+    tap.skipLong(); // Skip size.
+  }
+  return n;
+}
+
+/**
+ * Correctly stringify an object which contains types.
+ *
+ * @param obj {Object} The object to stringify. Typically, a type itself or an
+ * object containing types. Any types inside will be expanded only once then
+ * referenced by name.
+ * @param noDeref {Boolean} Always reference types by name when possible,
+ * rather than expand it the first time it is encountered.
+ *
+ */
+function stringify(obj, noDeref) {
+  // Since JS objects are unordered, this implementation (unfortunately)
+  // relies on engines returning properties in the same order that they are
+  // inserted in. This is not in the JS spec, but can be "somewhat" safely
+  // assumed (more here: http://stackoverflow.com/q/5525795/1062617).
+  return (function (registry) {
+    return JSON.stringify(obj, function (key, value) {
+      if (value instanceof Field) {
+        return {name: value._name, type: value._type};
+      } else if (value && value.name) {
+        var name = value.name;
+        if (noDeref || registry[name]) {
+          return name;
+        }
+        registry[name] = true;
+      }
+      return value;
+    });
+  })({});
+}
+
+/**
+ * Check whether a long can be represented without precision loss.
+ *
+ * @param n {Number} The number.
+ *
+ * Two things to note:
+ *
+ * + We are not using the `Number` constants for compatibility with older
+ *   browsers.
+ * + We must remove one from each bound because of rounding errors.
+ *
+ */
+function isSafeLong(n) {
+  return n >= -9007199254740990 && n <= 9007199254740990;
+}
+
+/**
+ * Throw a somewhat helpful error on invalid object.
+ *
+ * @param path {Array} Passed from hook, but unused (because empty where this
+ * function is used, since we aren't keeping track of it for effiency).
+ * @param val {...} The object to reject.
+ * @param type {Type} The type to check against.
+ *
+ * This method is mostly used from `_write` to signal an invalid object for a
+ * given type. Note that this provides less information than calling `isValid`
+ * with a hook since the path is not propagated (for efficiency reasons).
+ *
+ */
+function throwInvalidError(path, val, type) {
+  throw new Error(f('invalid %s: %j', type, val));
+}
+
+
+module.exports = {
+  Type: Type,
+  createType: createType,
+  stringify: stringify,
+  builtins: (function () {
+    // Base types are redundant but exported for backwards compatibility.
+    var obj = {Type: Type, LogicalType: LogicalType};
+    var types = Object.keys(TYPES);
+    var i, l, Class;
+    for (i = 0, l = types.length; i < l; i++) {
+      Class = TYPES[types[i]];
+      obj[Class.name_] = Class;
+    }
+    return obj;
+  })()
+};
+
+}).call(this,require("buffer").Buffer)
+},{"./utils":52,"buffer":16,"util":42}],52:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+// TODO: Make long comparison impervious to precision loss.
+// TODO: Optimize binary comparison methods.
+
+'use strict';
+
+/**
+ * Various utilities used accross this library.
+ *
+ */
+
+var crypto = require('crypto');
+
+
+/**
+ * Uppercase the first letter of a string.
+ *
+ * @param s {String} The string.
+ *
+ */
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+/**
+ * Compare two numbers.
+ *
+ * @param n1 {Number} The first one.
+ * @param n2 {Number} The second one.
+ *
+ */
+function compare(n1, n2) { return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1); }
+
+/**
+ * Compute a string's hash.
+ *
+ * @param str {String} The string to hash.
+ * @param algorithm {String} The algorithm used. Defaults to MD5.
+ *
+ */
+function getFingerprint(str, algorithm) {
+  algorithm = algorithm || 'md5';
+  var hash = crypto.createHash(algorithm);
+  hash.end(str);
+  return hash.read();
+}
+
+/**
+ * Find index of value in array.
+ *
+ * @param arr {Array} Can also be a false-ish value.
+ * @param v {Object} Value to find.
+ *
+ * Returns -1 if not found, -2 if found multiple times.
+ *
+ */
+function singleIndexOf(arr, v) {
+  var pos = -1;
+  var i, l;
+  if (!arr) {
+    return -1;
+  }
+  for (i = 0, l = arr.length; i < l; i++) {
+    if (arr[i] === v) {
+      if (pos >= 0) {
+        return -2;
+      }
+      pos = i;
+    }
+  }
+  return pos;
+}
+
+/**
+ * Convert array to map.
+ *
+ * @param arr {Array} Elements.
+ * @param fn {Function} Function returning an element's key.
+ *
+ */
+function toMap(arr, fn) {
+  var obj = {};
+  var i, elem;
+  for (i = 0; i < arr.length; i++) {
+    elem = arr[i];
+    obj[fn(elem)] = elem;
+  }
+  return obj;
+}
+
+/**
+ * Check whether an array has duplicates.
+ *
+ * @param arr {Array} The array.
+ * @param fn {Function} Optional function to apply to each element.
+ *
+ */
+function hasDuplicates(arr, fn) {
+  var obj = {};
+  var i, l, elem;
+  for (i = 0, l = arr.length; i < l; i++) {
+    elem = arr[i];
+    if (fn) {
+      elem = fn(elem);
+    }
+    if (obj[elem]) {
+      return true;
+    }
+    obj[elem] = true;
+  }
+  return false;
+}
+
+/**
+ * "Abstract" function to help with "subclassing".
+ *
+ */
+function abstractFunction() { throw new Error('abstract'); }
+
+/**
+ * Generator of random things.
+ *
+ * Inspired by: http://stackoverflow.com/a/424445/1062617
+ *
+ */
+function Lcg(seed) {
+  var a = 1103515245;
+  var c = 12345;
+  var m = Math.pow(2, 31);
+  var state = Math.floor(seed || Math.random() * (m - 1));
+
+  this._max = m;
+  this._nextInt = function () { return state = (a * state + c) % m; };
+}
+
+Lcg.prototype.nextBoolean = function () {
+  // jshint -W018
+  return !!(this._nextInt() % 2);
+};
+
+Lcg.prototype.nextInt = function (start, end) {
+  if (end === undefined) {
+    end = start;
+    start = 0;
+  }
+  end = end === undefined ? this._max : end;
+  return start + Math.floor(this.nextFloat() * (end - start));
+};
+
+Lcg.prototype.nextFloat = function (start, end) {
+  if (end === undefined) {
+    end = start;
+    start = 0;
+  }
+  end = end === undefined ? 1 : end;
+  return start + (end - start) * this._nextInt() / this._max;
+};
+
+Lcg.prototype.nextString = function(len, flags) {
+  len |= 0;
+  flags = flags || 'aA';
+  var mask = '';
+  if (flags.indexOf('a') > -1) {
+    mask += 'abcdefghijklmnopqrstuvwxyz';
+  }
+  if (flags.indexOf('A') > -1) {
+    mask += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  }
+  if (flags.indexOf('#') > -1) {
+    mask += '0123456789';
+  }
+  if (flags.indexOf('!') > -1) {
+    mask += '~`!@#$%^&*()_+-={}[]:";\'<>?,./|\\';
+  }
+  var result = [];
+  for (var i = 0; i < len; i++) {
+    result.push(this.choice(mask));
+  }
+  return result.join('');
+};
+
+Lcg.prototype.nextBuffer = function (len) {
+  var arr = [];
+  var i;
+  for (i = 0; i < len; i++) {
+    arr.push(this.nextInt(256));
+  }
+  return new Buffer(arr);
+};
+
+Lcg.prototype.choice = function (arr) {
+  var len = arr.length;
+  if (!len) {
+    throw new Error('choosing from empty array');
+  }
+  return arr[this.nextInt(len)];
+};
+
+/**
+ * Ordered queue which returns items consecutively.
+ *
+ * This is actually a heap by index, with the added requirements that elements
+ * can only be retrieved consecutively.
+ *
+ */
+function OrderedQueue() {
+  this._index = 0;
+  this._items = [];
+}
+
+OrderedQueue.prototype.push = function (item) {
+  var items = this._items;
+  var i = items.length | 0;
+  var j;
+  items.push(item);
+  while (i > 0 && items[i].index < items[j = ((i - 1) >> 1)].index) {
+    item = items[i];
+    items[i] = items[j];
+    items[j] = item;
+    i = j;
+  }
+};
+
+OrderedQueue.prototype.pop = function () {
+  var items = this._items;
+  var len = (items.length - 1) | 0;
+  var first = items[0];
+  if (!first || first.index > this._index) {
+    return null;
+  }
+  this._index++;
+  if (!len) {
+    items.pop();
+    return first;
+  }
+  items[0] = items.pop();
+  var mid = len >> 1;
+  var i = 0;
+  var i1, i2, j, item, c, c1, c2;
+  while (i < mid) {
+    item = items[i];
+    i1 = (i << 1) + 1;
+    i2 = (i + 1) << 1;
+    c1 = items[i1];
+    c2 = items[i2];
+    if (!c2 || c1.index <= c2.index) {
+      c = c1;
+      j = i1;
+    } else {
+      c = c2;
+      j = i2;
+    }
+    if (c.index >= item.index) {
+      break;
+    }
+    items[j] = item;
+    items[i] = c;
+    i = j;
+  }
+  return first;
+};
+
+/**
+ * A tap is a buffer which remembers what has been already read.
+ *
+ * It is optimized for performance, at the cost of failing silently when
+ * overflowing the buffer. This is a purposeful trade-off given the expected
+ * rarity of this case and the large performance hit necessary to enforce
+ * validity. See `isValid` below for more information.
+ *
+ */
+function Tap(buf, pos) {
+  this.buf = buf;
+  this.pos = pos | 0;
+}
+
+/**
+ * Check that the tap is in a valid state.
+ *
+ * For efficiency reasons, none of the methods below will fail if an overflow
+ * occurs (either read, skip, or write). For this reason, it is up to the
+ * caller to always check that the read, skip, or write was valid by calling
+ * this method.
+ *
+ */
+Tap.prototype.isValid = function () { return this.pos <= this.buf.length; };
+
+/**
+ * Returns the contents of the tap up to the current position.
+ *
+ */
+Tap.prototype.getValue = function () { return this.buf.slice(0, this.pos); };
+
+// Read, skip, write methods.
+//
+// These should fail silently when the buffer overflows. Note this is only
+// required to be true when the functions are decoding valid objects. For
+// example errors will still be thrown if a bad count is read, leading to a
+// negative position offset (which will typically cause a failure in
+// `readFixed`).
+
+Tap.prototype.readBoolean = function () { return !!this.buf[this.pos++]; };
+
+Tap.prototype.skipBoolean = function () { this.pos++; };
+
+Tap.prototype.writeBoolean = function (b) { this.buf[this.pos++] = !!b; };
+
+Tap.prototype.readInt = Tap.prototype.readLong = function () {
+  var n = 0;
+  var k = 0;
+  var buf = this.buf;
+  var b, h, f, fk;
+
+  do {
+    b = buf[this.pos++];
+    h = b & 0x80;
+    n |= (b & 0x7f) << k;
+    k += 7;
+  } while (h && k < 28);
+
+  if (h) {
+    // Switch to float arithmetic, otherwise we might overflow.
+    f = n;
+    fk = 268435456; // 2 ** 28.
+    do {
+      b = buf[this.pos++];
+      f += (b & 0x7f) * fk;
+      fk *= 128;
+    } while (b & 0x80);
+    return (f % 2 ? -(f + 1) : f) / 2;
+  }
+
+  return (n >> 1) ^ -(n & 1);
+};
+
+Tap.prototype.skipInt = Tap.prototype.skipLong = function () {
+  var buf = this.buf;
+  while (buf[this.pos++] & 0x80) {}
+};
+
+Tap.prototype.writeInt = Tap.prototype.writeLong = function (n) {
+  var buf = this.buf;
+  var f, m;
+
+  if (n >= -1073741824 && n < 1073741824) {
+    // Won't overflow, we can use integer arithmetic.
+    m = n >= 0 ? n << 1 : (~n << 1) | 1;
+    do {
+      buf[this.pos] = m & 0x7f;
+      m >>= 7;
+    } while (m && (buf[this.pos++] |= 0x80));
+  } else {
+    // We have to use slower floating arithmetic.
+    f = n >= 0 ? n * 2 : (-n * 2) - 1;
+    do {
+      buf[this.pos] = f & 0x7f;
+      f /= 128;
+    } while (f >= 1 && (buf[this.pos++] |= 0x80));
+  }
+  this.pos++;
+};
+
+Tap.prototype.readFloat = function () {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 4;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.readFloatLE(pos);
+};
+
+Tap.prototype.skipFloat = function () { this.pos += 4; };
+
+Tap.prototype.writeFloat = function (f) {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 4;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.writeFloatLE(f, pos);
+};
+
+Tap.prototype.readDouble = function () {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 8;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.readDoubleLE(pos);
+};
+
+Tap.prototype.skipDouble = function () { this.pos += 8; };
+
+Tap.prototype.writeDouble = function (d) {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 8;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.writeDoubleLE(d, pos);
+};
+
+Tap.prototype.readFixed = function (len) {
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  var fixed = new Buffer(len);
+  this.buf.copy(fixed, 0, pos, pos + len);
+  return fixed;
+};
+
+Tap.prototype.skipFixed = function (len) { this.pos += len; };
+
+Tap.prototype.writeFixed = function (buf, len) {
+  len = len || buf.length;
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  buf.copy(this.buf, pos, 0, len);
+};
+
+Tap.prototype.readBytes = function () {
+  return this.readFixed(this.readLong());
+};
+
+Tap.prototype.skipBytes = function () {
+  var len = this.readLong();
+  this.pos += len;
+};
+
+Tap.prototype.writeBytes = function (buf) {
+  var len = buf.length;
+  this.writeLong(len);
+  this.writeFixed(buf, len);
+};
+
+Tap.prototype.readString = function () {
+  var len = this.readLong();
+  var pos = this.pos;
+  var buf = this.buf;
+  this.pos += len;
+  if (this.pos > buf.length) {
+    return;
+  }
+  return this.buf.utf8Slice(pos, pos + len);
+};
+
+Tap.prototype.skipString = function () {
+  var len = this.readLong();
+  this.pos += len;
+};
+
+Tap.prototype.writeString = function (s) {
+  var len = Buffer.byteLength(s);
+  this.writeLong(len);
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  this.buf.utf8Write(s, pos, len);
+};
+
+// Helper used to speed up writing defaults.
+
+Tap.prototype.writeBinary = function (str, len) {
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
+    return;
+  }
+  this.buf.binaryWrite(str, pos, len);
+};
+
+// Binary comparison methods.
+//
+// These are not guaranteed to consume the objects they are comparing when
+// returning a non-zero result (allowing for performance benefits), so no other
+// operations should be done on either tap after a compare returns a non-zero
+// value. Also, these methods do not have the same silent failure requirement
+// as read, skip, and write since they are assumed to be called on valid
+// buffers.
+
+Tap.prototype.matchBoolean = function (tap) {
+  return this.buf[this.pos++] - tap.buf[tap.pos++];
+};
+
+Tap.prototype.matchInt = Tap.prototype.matchLong = function (tap) {
+  var n1 = this.readLong();
+  var n2 = tap.readLong();
+  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+};
+
+Tap.prototype.matchFloat = function (tap) {
+  var n1 = this.readFloat();
+  var n2 = tap.readFloat();
+  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+};
+
+Tap.prototype.matchDouble = function (tap) {
+  var n1 = this.readDouble();
+  var n2 = tap.readDouble();
+  return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
+};
+
+Tap.prototype.matchFixed = function (tap, len) {
+  return this.readFixed(len).compare(tap.readFixed(len));
+};
+
+Tap.prototype.matchBytes = Tap.prototype.matchString = function (tap) {
+  var l1 = this.readLong();
+  var p1 = this.pos;
+  this.pos += l1;
+  var l2 = tap.readLong();
+  var p2 = tap.pos;
+  tap.pos += l2;
+  var b1 = this.buf.slice(p1, this.pos);
+  var b2 = tap.buf.slice(p2, tap.pos);
+  return b1.compare(b2);
+};
+
+// Functions for supporting custom long classes.
+//
+// The two following methods allow the long implementations to not have to
+// worry about Avro's zigzag encoding, we directly expose longs as unpacked.
+
+Tap.prototype.unpackLongBytes = function () {
+  var res = new Buffer(8);
+  var n = 0;
+  var i = 0; // Byte index in target buffer.
+  var j = 6; // Bit offset in current target buffer byte.
+  var buf = this.buf;
+  var b, neg;
+
+  b = buf[this.pos++];
+  neg = b & 1;
+  res.fill(0);
+
+  n |= (b & 0x7f) >> 1;
+  while (b & 0x80) {
+    b = buf[this.pos++];
+    n |= (b & 0x7f) << j;
+    j += 7;
+    if (j >= 8) {
+      // Flush byte.
+      j -= 8;
+      res[i++] = n;
+      n >>= 8;
+    }
+  }
+  res[i] = n;
+
+  if (neg) {
+    invert(res, 8);
+  }
+
+  return res;
+};
+
+Tap.prototype.packLongBytes = function (buf) {
+  var neg = (buf[7] & 0x80) >> 7;
+  var res = this.buf;
+  var j = 1;
+  var k = 0;
+  var m = 3;
+  var n;
+
+  if (neg) {
+    invert(buf, 8);
+    n = 1;
+  } else {
+    n = 0;
+  }
+
+  var parts = [
+    buf.readUIntLE(0, 3),
+    buf.readUIntLE(3, 3),
+    buf.readUIntLE(6, 2)
+  ];
+  // Not reading more than 24 bits because we need to be able to combine the
+  // "carry" bits from the previous part and JavaScript only supports bitwise
+  // operations on 32 bit integers.
+  while (m && !parts[--m]) {} // Skip trailing 0s.
+
+  // Leading parts (if any), we never bail early here since we need the
+  // continuation bit to be set.
+  while (k < m) {
+    n |= parts[k++] << j;
+    j += 24;
+    while (j > 7) {
+      res[this.pos++] = (n & 0x7f) | 0x80;
+      n >>= 7;
+      j -= 7;
+    }
+  }
+
+  // Final part, similar to normal packing aside from the initial offset.
+  n |= parts[m] << j;
+  do {
+    res[this.pos] = n & 0x7f;
+    n >>= 7;
+  } while (n && (res[this.pos++] |= 0x80));
+  this.pos++;
+
+  // Restore original buffer (could make this optional?).
+  if (neg) {
+    invert(buf, 8);
+  }
+};
+
+// Helpers.
+
+/**
+ * Invert all bits in a buffer.
+ *
+ * @param buf {Buffer} Non-empty buffer to invert.
+ * @param len {Number} Buffer length (must be positive).
+ *
+ */
+function invert(buf, len) {
+  while (len--) {
+    buf[len] = ~buf[len];
+  }
+}
+
+
+module.exports = {
+  abstractFunction: abstractFunction,
+  capitalize: capitalize,
+  getFingerprint: getFingerprint,
+  compare: compare,
+  toMap: toMap,
+  singleIndexOf: singleIndexOf,
+  hasDuplicates: hasDuplicates,
+  Lcg: Lcg,
+  OrderedQueue: OrderedQueue,
+  Tap: Tap
+};
+
+}).call(this,require("buffer").Buffer)
+},{"buffer":16,"crypto":46}],53:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.2.0
  * http://jquery.com/
@@ -27508,4 +28407,4 @@ if ( !noGlobal ) {
 return jQuery;
 }));
 
-},{}]},{},[1]);
+},{}]},{},[43]);

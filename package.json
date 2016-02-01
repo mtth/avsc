@@ -13,7 +13,7 @@
     "jade": "jade jade/index.jade -o ."
   },
   "dependencies": {
-    "avsc": "^3.3.0",
+    "avsc": "^3.3.6",
     "buffer": "^3.5.0",
     "jquery": "^2.1.4",
     "jquery-ui": "^1.10.5"
