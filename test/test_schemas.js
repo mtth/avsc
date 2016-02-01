@@ -467,7 +467,7 @@ suite('schemas', function () {
     });
 
     test('invalid string', function () {
-      assert.throws(function () { getToken('"rewr\\"re'); });
+      assert.throws(function () { getToken('"rewr\\"re'); }, /unterminated/);
     });
 
     test('valid JSON', function () {
