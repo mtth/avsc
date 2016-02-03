@@ -141,7 +141,7 @@ suite('protocols', function () {
         request: [{name: 'greeting', type: 'string'}],
         response: 'int'
       });
-      assert.deepEqual(m.errorType.toString(), '["string"]');
+      assert.deepEqual(m.getErrorType().toString(), '["string"]');
     });
 
     test('missing response', function () {
@@ -170,6 +170,26 @@ suite('protocols', function () {
           'one-way': true
         });
       });
+    });
+
+    test('getters', function () {
+      var m = new Message('Ping', {
+        request: [{name: 'ping', type: 'string'}],
+        response: 'null'
+      });
+      assert.equal(m.getName(), 'Ping');
+      assert.equal(m.getRequestType().getFields()[0].getName(), 'ping');
+      assert.equal(m.getResponseType().getName(true), 'null');
+      assert.strictEqual(m.isOneWay(), false);
+    });
+
+    test('inspect', function () {
+      var m = new Message('Ping', {
+        request: [{name: 'ping', type: 'string'}],
+        response: 'null',
+        'one-way': true
+      });
+      assert(m.inspect()['one-way']);
     });
 
   });

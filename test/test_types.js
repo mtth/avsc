@@ -2659,7 +2659,7 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}]
       });
       var field = type.getFields()[0];
-      assert.equal(field.inspect(), '<Field "age">');
+      assert.equal(field.inspect().name, 'age');
     });
 
     test('resolver', function () {
