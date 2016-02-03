@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "3.3.7",
+  "version": "3.3.8",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -9,6 +9,8 @@
     "avpr",
     "avro",
     "avsc",
+    "binary",
+    "buffer",
     "data",
     "decoding",
     "encoding",
