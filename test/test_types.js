@@ -2296,6 +2296,24 @@ suite('types', function () {
       assert.equal(type._fields[1]._type._name, 'Id');
     });
 
+    test('absolute reference', function () {
+      var type = createType({
+        type: 'record',
+        namespace: 'earth',
+        name: 'Human',
+        fields: [
+          {
+            name: 'id1',
+            type: {type: 'fixed', name: 'Id', namespace: '', size: 2},
+          },
+          {name: 'id2', type: '.Id'}, // Not `earth.Id`.
+          {name: 'id3', type: '.string'} // Also works with primitives.
+        ]
+      });
+      assert.equal(type._name, 'earth.Human');
+      assert.equal(type._fields[1]._type._name, 'Id');
+    });
+
     test('wrapped primitive', function () {
       var type = createType({
         type: 'record',
