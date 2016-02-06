@@ -29,9 +29,9 @@ distributions with the [releases][] (but please host your own copy).
 ## Documentation
 
 + [Home][home]
++ [API](https://github.com/mtth/avsc/wiki/API)
 + [Quickstart](https://github.com/mtth/avsc/wiki/Quickstart)
 + [Advanced usage](https://github.com/mtth/avsc/wiki/Advanced-usage)
-+ [API](https://github.com/mtth/avsc/wiki/API)
 + [Benchmarks][benchmarks]
 
 
