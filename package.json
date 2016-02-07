@@ -10,7 +10,8 @@
   "license": "MIT",
   "scripts": {
     "bundle": "browserify js/index.js >js/bundle.js",
-    "jade": "jade jade/index.jade -o ."
+    "jade": "jade jade/index.jade -o .",
+    "uglify" : "uglifyjs js/bundle.js -o js/bundle.min.js --source-map js/bundle.min.js.map"
   },
   "dependencies": {
     "avsc": "^3.3.6",
