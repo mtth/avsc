@@ -11975,6 +11975,7 @@ function hasOwnProperty(obj, prop) {
   var avsc = require('avsc'),
       buffer = require('buffer'),
       utils = require('./utils'),
+      meta = require('./meta'),
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
@@ -12000,9 +12001,11 @@ function hasOwnProperty(obj, prop) {
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
+        metaType = meta.metaType,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     window.reverseIndexMap = [];  
+    window.metaType = metaType;
 
     eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
@@ -12074,6 +12077,7 @@ function hasOwnProperty(obj, prop) {
     }).on('update-url', function(data) {
       var state = {};
       var newUrl = location.href;
+
       newUrl = urlUtils.updateValues(newUrl, data);
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
@@ -12164,7 +12168,9 @@ function hasOwnProperty(obj, prop) {
         event.stopPropagation(); 
 
         var path = getPath($(this));
+        console.log("path: " + path);
         var position = findPositionOf(path);
+        console.log("position " + position);
         highlight(position); 
       } else {
         console.log("No instrumented type found");
@@ -12364,6 +12370,9 @@ function hasOwnProperty(obj, prop) {
       path.forEach(function(entry) {
         var arrayKey = arrayKeyPattern.exec(entry);
         var nextKey = arrayKey ? arrayKey[1] : entry; // getting the first captured group from regex result if a match was found.
+        if (!(nextKey in current.value)) {
+          nextKey = nextKey + '_';
+        }
         if (nextKey in current.value) {
           current = current.value[nextKey];
         }
@@ -12519,24 +12528,25 @@ function hasOwnProperty(obj, prop) {
           }
           var attrs = JSON.parse(rawInput);
           // Throw more useful error if not valid.
-          window.type.isValid(attrs, {errorHook: hook});
-          eventObj.trigger('valid-input');
-          function hook(path, any, type) {
-            if (
-              typeof any == 'string' &&
-              ( 
-                type instanceof avsc.types.BytesType ||
-                (
-                  type instanceof avsc.types.FixedType &&
-                  any.length === type.getSize()
+          window.type.isValid(attrs, {errorHook: 
+            function(path, any, type) {
+              if (
+                typeof any == 'string' &&
+                ( 
+                  type instanceof avsc.types.BytesType ||
+                  (
+                    type instanceof avsc.types.FixedType &&
+                    any.length === type.getSize()
+                  )
                 )
-              )
-            ) {
-              // This is a string-encoded buffer.
-              return;
+              ) {
+                // This is a string-encoded buffer.
+                return;
+              }
+              throw new Error('invalid ' + type + ' at ' + path.join('.'));
             }
-            throw new Error('invalid ' + type + ' at ' + path.join('.'));
-          }
+          });
+          eventObj.trigger('valid-input');
         } catch (err) {
           eventObj.trigger('invalid-input', err);
         }
@@ -12764,7 +12774,214 @@ function hasOwnProperty(obj, prop) {
 })();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./utils":44,"avsc":45,"buffer":16,"jquery":53}],44:[function(require,module,exports){
+},{"./meta":44,"./utils":45,"avsc":46,"buffer":16,"jquery":54}],44:[function(require,module,exports){
+var avro = require('avsc'),
+    util = require('util');
+
+
+function MetaType(attrs, opts) {
+  avro.types.LogicalType.call(this, attrs, opts, [avro.types.RecordType]);
+}
+util.inherits(MetaType, avro.types.LogicalType);
+
+MetaType.prototype._fromValue = function (val) {
+  var obj = val.value;
+  return obj[Object.keys(obj)[0]];
+};
+
+MetaType.prototype._toValue = function (any) {
+  var obj;
+  if (typeof any == 'string') {
+    if (~primitiveSymbols.indexOf(any)) {
+      // Handling primitive names separately from references lets us save a
+      // significant amount of space (1 byte per type name instead of 5-8).
+      obj = {PrimitiveType: any};
+    } else {
+      obj = {string: any};
+    }
+  } else if (any instanceof Array) {
+    obj = {array: any};
+  } else {
+    obj = {};
+    obj[capitalize(any.type)] = any;
+  }
+  return {value: obj};
+};
+
+var primitiveSymbols = [
+  "boolean",
+  "bytes",
+  "double",
+  "float",
+  "int",
+  "long",
+  "null",
+  "string"
+];
+
+var metaType = avro.parse({
+  "logicalType": "meta",
+  "type": "record",
+  "name": "Meta",
+  "fields": [
+    {
+      "type": [
+        {
+          "type": "enum",
+          "name": "PrimitiveType",
+          "symbols": primitiveSymbols,
+        },
+        {
+          "type": "record",
+          "name": "Array",
+          "fields": [
+            {
+              "name": "type",
+              "type": {
+                "type": "enum",
+                "name": "ArrayType",
+                "symbols": [
+                  "array"
+                ]
+              }
+            },
+            {
+              "type": "Meta",
+              "name": "items"
+            }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "Enum",
+          "fields": [
+            {
+              "type": "string",
+              "name": "name"
+            },
+            {
+              "type": {
+                "type": "enum",
+                "name": "EnumType",
+                "symbols": [
+                  "enum"
+                ]
+              },
+              "name": "type"
+            },
+            {
+              "type": {
+                "type": "array",
+                "items": "string"
+              },
+              "name": "symbols"
+            }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "Fixed",
+          "fields": [
+            {
+              "type": "string",
+              "name": "name"
+            },
+            {
+              "type": {
+                "type": "enum",
+                "name": "FixedType",
+                "symbols": [
+                  "fixed"
+                ]
+              },
+              "name": "type"
+            },
+            {
+              "type": "int",
+              "name": "size"
+            }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "Map",
+          "fields": [
+            {
+              "type": {
+                "type": "enum",
+                "name": "MapType",
+                "symbols": [
+                  "map"
+                ]
+              },
+              "name": "type"
+            },
+            {
+              "type": "Meta",
+              "name": "values"
+            }
+          ]
+        },
+        {
+          "type": "record",
+          "name": "Record",
+          "fields": [
+            {
+              "type": "string",
+              "name": "name"
+            },
+            {
+              "type": {
+                "type": "enum",
+                "name": "RecordType",
+                "symbols": [
+                  "record"
+                ]
+              },
+              "name": "type"
+            },
+            {
+              "type": {
+                "type": "array",
+                "items": {
+                  "type": "record",
+                  "name": "Field",
+                  "fields": [
+                    {
+                      "type": "string",
+                      "name": "name"
+                    },
+                    {
+                      "type": "Meta",
+                      "name": "type"
+                    }
+                  ]
+                }
+              },
+              "name": "fields"
+            }
+          ]
+        },
+        "string",
+        {
+          "type": "array",
+          "items": "Meta"
+        }
+      ],
+      "name": "value"
+    }
+  ]
+}, {logicalTypes: {meta: MetaType}});
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+module.exports = {
+  metaType: metaType
+}
+
+
+
+},{"avsc":46,"util":42}],45:[function(require,module,exports){
 /* jshint browser: true, browserify: true */
 
 
@@ -12803,13 +13020,14 @@ var UrlUtils = {
     var query = {};
     var m;
     do {
-
       m = queryPattern.exec(window.location.href);
       if (m) {
         query[m[1]] = m[2];
       }
     } while (m);
-    return decodeURIComponent(query[key]);
+    if (query[key]) { //otherwise it would return \"undefined\"
+      return decodeURIComponent(query[key]);
+    }
   },
 
  /**
@@ -12843,7 +13061,7 @@ module.exports = {
 }
 
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 /* jshint node: true */
 
 'use strict';
@@ -12878,7 +13096,7 @@ module.exports = {
   types: types.builtins
 };
 
-},{"../../lib/containers":48,"../../lib/protocols":49,"../../lib/schemas":50,"../../lib/types":51,"./lib/files":47}],46:[function(require,module,exports){
+},{"../../lib/containers":49,"../../lib/protocols":50,"../../lib/schemas":51,"../../lib/types":52,"./lib/files":48}],47:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -13057,7 +13275,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16}],47:[function(require,module,exports){
+},{"buffer":16}],48:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -13143,7 +13361,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"../../../lib/utils":52,"buffer":16}],48:[function(require,module,exports){
+},{"../../../lib/utils":53,"buffer":16}],49:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
@@ -13732,7 +13950,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./files":47,"./types":51,"./utils":52,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],49:[function(require,module,exports){
+},{"./files":48,"./types":52,"./utils":53,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],50:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
@@ -15000,7 +15218,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./types":51,"./utils":52,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],50:[function(require,module,exports){
+},{"./types":52,"./utils":53,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],51:[function(require,module,exports){
 /* jshint node: true */
 
 // TODO: Remove legacy import hook in next major release.
@@ -15638,7 +15856,7 @@ module.exports = {
   assemble: assemble
 };
 
-},{"./files":47,"path":24,"util":42}],51:[function(require,module,exports){
+},{"./files":48,"path":24,"util":42}],52:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -17925,7 +18143,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"./utils":52,"buffer":16,"util":42}],52:[function(require,module,exports){
+},{"./utils":53,"buffer":16,"util":42}],53:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -18574,7 +18792,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16,"crypto":46}],53:[function(require,module,exports){
+},{"buffer":16,"crypto":47}],54:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.2.0
  * http://jquery.com/

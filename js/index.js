@@ -6,6 +6,7 @@
   var avsc = require('avsc'),
       buffer = require('buffer'),
       utils = require('./utils'),
+      meta = require('./meta'),
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
@@ -31,9 +32,11 @@
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
+        metaType = meta.metaType,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     window.reverseIndexMap = [];  
+    window.metaType = metaType;
 
     eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
@@ -105,6 +108,7 @@
     }).on('update-url', function(data) {
       var state = {};
       var newUrl = location.href;
+
       newUrl = urlUtils.updateValues(newUrl, data);
       // Use this so that it doesn't reload the page, but that also means that you need to manually
       // load the schema from url
@@ -195,7 +199,9 @@
         event.stopPropagation(); 
 
         var path = getPath($(this));
+        console.log("path: " + path);
         var position = findPositionOf(path);
+        console.log("position " + position);
         highlight(position); 
       } else {
         console.log("No instrumented type found");
@@ -395,6 +401,9 @@
       path.forEach(function(entry) {
         var arrayKey = arrayKeyPattern.exec(entry);
         var nextKey = arrayKey ? arrayKey[1] : entry; // getting the first captured group from regex result if a match was found.
+        if (!(nextKey in current.value)) {
+          nextKey = nextKey + '_';
+        }
         if (nextKey in current.value) {
           current = current.value[nextKey];
         }
@@ -550,24 +559,25 @@
           }
           var attrs = JSON.parse(rawInput);
           // Throw more useful error if not valid.
-          window.type.isValid(attrs, {errorHook: hook});
-          eventObj.trigger('valid-input');
-          function hook(path, any, type) {
-            if (
-              typeof any == 'string' &&
-              ( 
-                type instanceof avsc.types.BytesType ||
-                (
-                  type instanceof avsc.types.FixedType &&
-                  any.length === type.getSize()
+          window.type.isValid(attrs, {errorHook: 
+            function(path, any, type) {
+              if (
+                typeof any == 'string' &&
+                ( 
+                  type instanceof avsc.types.BytesType ||
+                  (
+                    type instanceof avsc.types.FixedType &&
+                    any.length === type.getSize()
+                  )
                 )
-              )
-            ) {
-              // This is a string-encoded buffer.
-              return;
+              ) {
+                // This is a string-encoded buffer.
+                return;
+              }
+              throw new Error('invalid ' + type + ' at ' + path.join('.'));
             }
-            throw new Error('invalid ' + type + ' at ' + path.join('.'));
-          }
+          });
+          eventObj.trigger('valid-input');
         } catch (err) {
           eventObj.trigger('invalid-input', err);
         }
