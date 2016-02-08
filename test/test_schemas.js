@@ -315,8 +315,7 @@ suite('schemas', function () {
       });
       assemble('1', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
-        // Note the JSON roundtrip to remove the non-numeric union attributes.
-        assert.deepEqual(JSON.parse(JSON.stringify(attrs)), {
+        assert.deepEqual(attrs, {
           protocol: 'A',
           types: [],
           messages: {
@@ -396,6 +395,24 @@ suite('schemas', function () {
               'one-way': true
             }
           }
+        });
+        done();
+      });
+    });
+
+    test('javadoc precedence', function (done) {
+      var hook = createImportHook({
+        '1': 'protocol A {/**1*/ @doc(2) fixed One(1);}',
+      });
+      var opts = {importHook: hook, reassignJavadoc: true};
+      assemble('1', opts, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [
+            {name: 'One', type: 'fixed', size: 1, doc: '2'}
+          ],
+          messages: {}
         });
         done();
       });
