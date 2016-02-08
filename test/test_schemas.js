@@ -52,7 +52,7 @@ suite('schemas', function () {
                   name: 'name'
                 },
                 {type: 'Kind', order: 'descending', name: 'kind'},
-                {type: 'MD5', name: 'hash', doc: 'MD5 field!'},
+                {type: 'MD5', name: 'hash'},
                 {
                   type: ['MD5', 'null'],
                   aliases: ['hash'],
@@ -311,7 +311,7 @@ suite('schemas', function () {
 
     test('annotated union', function (done) {
       var hook = createImportHook({
-        '1': 'protocol A { @doc("") @bar(true) union { null, int } foo(); }'
+        '1': 'protocol A { /** 1 */ @bar(true) union { null, int } foo(); }'
       });
       assemble('1', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
@@ -321,7 +321,6 @@ suite('schemas', function () {
           types: [],
           messages: {
             foo: {
-              doc: '',
               response: ['null', 'int'],
               request: []
             }
@@ -402,16 +401,29 @@ suite('schemas', function () {
       });
     });
 
-    test('javadoc', function (done) {
+    test('reassign javadoc', function (done) {
       var hook = createImportHook({
-        '1': 'protocol A { /**\n * 1 */ fixed One(1); /** 2 */ void pong(); }'
+        '1': 'import idl "2"; protocol A {/** 2 */ void pong();}',
+        '2': 'import idl "3"; protocol B { /**\n * 1 */ fixed One(1); }',
+        '3': 'protocol C{record R{/**1*/int v1;int v2;/**3*/@foo(1)int v3;}}'
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      var opts = {importHook: hook, reassignJavadoc: true};
+      assemble('1', opts, function (err, attrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
           types: [
-            {name: 'One', type: 'fixed', size: 1, doc: '1'}
+            {
+              name: 'R',
+              namespace: '',
+              type: 'record',
+              fields: [
+                {name: 'v1', type: 'int', doc: '1'},
+                {name: 'v2', type: 'int'},
+                {name: 'v3', type: {type: 'int', foo: 1}, doc: '3'}
+              ]
+            },
+            {name: 'One', type: 'fixed', size: 1, doc: '1', namespace: ''}
           ],
           messages: {
             pong: {
