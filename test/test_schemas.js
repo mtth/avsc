@@ -311,10 +311,22 @@ suite('schemas', function () {
 
     test('annotated union', function (done) {
       var hook = createImportHook({
-        '1': 'protocol A { @doc("") union { null, int } }'
+        '1': 'protocol A { @doc("") @bar(true) union { null, int } foo(); }'
       });
-      assemble('1', {importHook: hook}, function (err) {
-        assert(/unions cannot be annotated/.test(err.message));
+      assemble('1', {importHook: hook}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        // Note the JSON roundtrip to remove the non-numeric union attributes.
+        assert.deepEqual(JSON.parse(JSON.stringify(attrs)), {
+          protocol: 'A',
+          types: [],
+          messages: {
+            foo: {
+              doc: '',
+              response: ['null', 'int'],
+              request: []
+            }
+          }
+        });
         done();
       });
     });
