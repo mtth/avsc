@@ -14,13 +14,14 @@
     "uglify" : "uglifyjs js/bundle.js -o js/bundle.min.js --source-map js/bundle.min.js.map"
   },
   "dependencies": {
-    "avsc": "^3.3.6",
+    "avsc": "^3.3.10",
     "buffer": "^3.5.0",
     "jquery": "^2.1.4",
     "jquery-ui": "^1.10.5"
   },
   "devDependencies": {
     "browserify": "^13.0.0",
+    "codemirror": "^5.11.0",
     "jade": "^1.11.0"
   }
 }

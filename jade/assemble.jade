@@ -1,0 +1,115 @@
+doctype html
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    title Avro IDL assembler
+    link(rel='stylesheet', href='stylesheets/assemble.css')
+    link(rel='icon', type='image/png', href='data:image/png;base64,iVBORw0KGgo=')
+    script(src='js/assemble-bundle.js')
+  body
+    .half-width
+      textarea#idl
+    .half-width
+      textarea#avsc
+    div(style='display: none')
+      #placeholder
+        | // Declare your protocol using IDL notation here...
+        .documentation
+          | Examples:
+          ul
+            li
+              a.example(href='#', data-example-id='math-protocol') Math protocol (basic)
+            li
+              a.example(href='#', data-example-id='meta-protocol') Meta protocol (advanced)
+          | Helpful links:
+          ul
+            li
+              a(href='https://avro.apache.org/docs/current/idl.html') IDL documentation
+    script#math-protocol(type='text/avro-idl').
+      /**
+       * Basic protocol to add and multiply numbers.
+       *
+       */
+      protocol Math {
+
+        // Types.
+        enum Status {
+          SUCCESS,
+          FAILURE
+        }
+        record Result {
+          Status status;
+          union { null, int, double } value;
+        }
+
+        // Messages.
+        Result add(array<int> nums, int delay = 0);
+        Result multiply(array<double> nums = []);
+
+      }
+    script#meta-protocol(type='text/avro-idl').
+      /**
+       * Protocol defining a schema for canonical Avro schemas.
+       *
+       */
+      protocol Meta {
+
+        enum PrimitiveType {
+          boolean,
+          bytes,
+          double,
+          float,
+          int,
+          long,
+          null,
+          string
+        }
+        enum ArrayType { array }
+        enum EnumType { enum }
+        enum FixedType { fixed }
+        enum MapType { map }
+        enum RecordType { record }
+
+        /**
+         * Meta type to represent any type.
+         *
+         * The logical type annotation will "unwrap" this type's `value` union
+         * field to match Avro schema definitions.
+         *
+         * It currently only represents canonical schemas, but it would be
+         * straightforward to add more information (e.g. field order).
+         *
+         */
+        @logicalType("meta")
+        record Meta {
+          union {
+            PrimitiveType,
+            record Array {
+              ArrayType type;
+              Meta items;
+            },
+            record Enum {
+              string name;
+              EnumType type;
+              array<string> symbols;
+            },
+            record Fixed {
+              string name;
+              FixedType type;
+              int size;
+            },
+            record Map {
+              MapType type;
+              Meta values;
+            },
+            record Record {
+              string name;
+              RecordType type;
+              array<record Field { string name; Meta type; }> fields;
+            },
+            string, // Reference.
+            array<Meta> // Union.
+          } value;
+        }
+
+      }
