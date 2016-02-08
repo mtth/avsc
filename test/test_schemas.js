@@ -33,6 +33,7 @@ suite('schemas', function () {
         assert.deepEqual(attrs, {
           namespace: 'org.apache.avro.test',
           protocol: 'Simple',
+          doc: 'An example protocol in Avro IDL.\n\nInspired by the Avro specification IDL page:\nhttps://avro.apache.org/docs/current/idl.html#example',
           types: [
             {
               aliases: ['org.foo.KindOf'],
@@ -46,12 +47,12 @@ suite('schemas', function () {
               name: 'TestRecord',
               fields: [
                 {
-                  type: {type: 'string', doc: 'first and last'},
+                  type: {type: 'string', foo: 'first and last'},
                   order: 'ignore',
                   name: 'name'
                 },
                 {type: 'Kind', order: 'descending', name: 'kind'},
-                {type: 'MD5', name: 'hash'},
+                {type: 'MD5', name: 'hash', doc: 'MD5 field!'},
                 {
                   type: ['MD5', 'null'],
                   aliases: ['hash'],
@@ -382,6 +383,29 @@ suite('schemas', function () {
               response: {foo: true, type: 'null'},
               request: [],
               'one-way': true
+            }
+          }
+        });
+        done();
+      });
+    });
+
+    test('javadoc', function (done) {
+      var hook = createImportHook({
+        '1': 'protocol A { /**\n * 1 */ fixed One(1); /** 2 */ void pong(); }'
+      });
+      assemble('1', {importHook: hook}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          types: [
+            {name: 'One', type: 'fixed', size: 1, doc: '1'}
+          ],
+          messages: {
+            pong: {
+              doc: '2',
+              response: 'null',
+              request: [],
             }
           }
         });
