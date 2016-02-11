@@ -6,7 +6,6 @@
   var avsc = require('avsc'),
       buffer = require('buffer'),
       utils = require('./utils'),
-      meta = require('./meta'),
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
@@ -32,11 +31,9 @@
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
-        metaType = meta.metaType,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
     window.reverseIndexMap = [];  
-    window.metaType = metaType;
 
     eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
@@ -199,9 +196,7 @@
         event.stopPropagation(); 
 
         var path = getPath($(this));
-        console.log("path: " + path);
         var position = findPositionOf(path);
-        console.log("position " + position);
         highlight(position); 
       } else {
         console.log("No instrumented type found");
