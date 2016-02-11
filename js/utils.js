@@ -36,13 +36,14 @@ var UrlUtils = {
     var query = {};
     var m;
     do {
-
       m = queryPattern.exec(window.location.href);
       if (m) {
         query[m[1]] = m[2];
       }
     } while (m);
-    return decodeURIComponent(query[key]);
+    if (query[key]) { //otherwise it would return \"undefined\"
+      return decodeURIComponent(query[key]);
+    }
   },
 
  /**
