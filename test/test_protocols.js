@@ -1183,6 +1183,7 @@ suite('protocols', function () {
         });
         var ptcl2 = createProtocol({
           protocol: 'serverProtocol',
+          namespace: 'foo',
           messages: {
             age: {
               request: [
