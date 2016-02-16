@@ -1,3 +1,4 @@
+@import 'common.css';
 body {
   background-color: white;
   font-family: 'Open Sans', sans-serif;
@@ -52,16 +53,6 @@ body {
 #output {
   font-family: 'Roboto Mono', sans-serif;
   white-space: pre-wrap;
-}
-#content {
-  height: 100%;
-  overflow: hidden;
-  white-space: nowrap; /* To be able to scroll */
-  margin-top: 40px;
-  padding-left: 10px;
-  margin-left: auto;
-  margin-right: auto; /* To be centered */
-  width: 1000px;
 }
 
 button {
@@ -143,55 +134,25 @@ a {
   text-align: center;
 }
 
+.-centered- {
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap; /* To be able to scroll */
+  margin-top: 40px;
+  padding-left: 10px;
+  margin-left: auto;
+  margin-right: auto; /* To be centered */
+  width: 1000px;
+}
+
+
+
 #template{
   color: darkgrey;
   position: absolute;
   margin-top: 35vh;
   margin-left: 8px;
   font-size: medium;
-}
-
-#header-image {
-  height: 40px;
-  width: 100%;
-  background-color: #367FAD;
-}
-
-.-header-{
-  width: 100%;
-  top:0;
-  left: 0;
-  right: 0;
-  height: 40px;
-  position: fixed;
-  z-index: 500;
-}
-
-
-ul {
-  list-style-type: none;
-  margin: 0;
-  padding: 0;
-  overflow: hidden;
-}
-
-li {
-  float: left;
-}
-
-li a {
-  display: block;
-  color: white;
-  text-align: center;
-  padding: 8px 20px 9px 20px;
-  text-decoration: none;
-}
-
-/* Change the link color to #111 (black) on hover */
-li a:hover {
-  border-bottom-color: rgb(124, 183, 124);
-  border-bottom-width: thick;
-  border-bottom-style: solid;
 }
 
 /* Custom styles for select */
@@ -230,38 +191,6 @@ select option {
   color: #367FAD;
 }
 
-#footer {
-  width: 100%;
-  height: 40px;
-  font-family: 'Coustard', serif;
-  font-size: 12px;
-  position: relative;
-}
-
-#footer a {
-  color: #3b8ec2;
-}
-
-#footer p {
-  text-align: center;
-  width : 500px;
-  border-top: medium solid #367FAD;
-  margin: 0 auto;
-  margin-top: 10px;
-  padding-top: 5px;
-}
-
-#github {
-  position:absolute;
-  top: 0;
-  right: 0;
-  border: 0;
-}
-
-.-disabled- {
-  color: #AEADB9;
-  pointer-events: none;
-}
 .-hidden- { /* Should be defined later to override all other display types */
   display: none;
 }

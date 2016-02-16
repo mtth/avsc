@@ -1,0 +1,82 @@
+.-content- {
+  height: 90%;
+  margin-top: 40px;
+}
+
+#header-image {
+  height: 40px;
+  width: 100%;
+  background-color: #367FAD;
+}
+
+.-header-{
+  font-family: 'Open Sans', sans-serif;
+  width: 100%;
+  top:0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  position: fixed;
+  z-index: 500;
+}
+
+.-header- ul {
+  list-style-type: none;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.-header- li {
+  float: left;
+}
+
+.-header- li a{
+  display: block;
+  color: white;
+  text-align: center;
+  padding: 8px 20px 9px 20px;
+  text-decoration: none;
+}
+
+/* Change the link color to #111 (black) on hover */
+.-header- li a:hover {
+  border-bottom-color: rgb(124, 183, 124);
+  border-bottom-width: thick;
+  border-bottom-style: solid;
+}
+
+li a.-disabled- {
+  color: #AEADB9;
+  pointer-events: none;
+}
+
+#footer {
+  width: 100%;
+  height: 40px;
+  font-family: 'Coustard', serif;
+  font-size: 12px;
+  position: relative;
+}
+
+#footer a {
+  color: #3b8ec2;
+}
+
+#footer p {
+  text-align: center;
+  width : 500px;
+  border-top: medium solid #367FAD;
+  margin: 0 auto;
+  margin-top: 10px;
+  padding-top: 5px;
+}
+
+#github {
+  position:absolute;
+  top: 0;
+  right: 0;
+  border: 0;
+}
+
+

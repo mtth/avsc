@@ -7,109 +7,126 @@ html(lang='en')
     link(rel='icon', type='image/png', href='data:image/png;base64,iVBORw0KGgo=')
     script(src='js/assemble-bundle.js')
   body
-    .half-width
-      textarea#idl
-    .half-width
-      textarea#avsc
-    div(style='display: none')
-      #placeholder
-        | // Declare your protocol using IDL notation here...
-        .documentation
-          | Examples:
-          ul
-            li
-              a.example(href='#', data-example-id='math-protocol') Math protocol (basic)
-            li
-              a.example(href='#', data-example-id='meta-protocol') Meta protocol (advanced)
-          | Helpful links:
-          ul
-            li
-              a(href='https://avro.apache.org/docs/current/idl.html') IDL documentation
-    script#math-protocol(type='text/avro-idl').
-      /**
-       * Basic protocol to add and multiply numbers.
-       *
-       */
-      protocol Math {
+    div.-header-
+      div
+        a.-level1-(href="https://github.com/mtth/avsc")
+          img#github(src='https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67', alt="Fork me on GitHub", data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" )
+      div#header-image
+        ul
+          li
+            a(href="../") Home 
+          li
+            a(href='assemble.html') IDL assembler
 
-        // Types.
-        enum Status {
-          SUCCESS,
-          FAILURE
-        }
-        record Result {
-          Status status;
-          union { null, int, double } value;
-        }
-
-        // Messages.
-        Result add(array<int> nums, int delay = 0);
-        Result multiply(array<double> nums = []);
-
-      }
-    script#meta-protocol(type='text/avro-idl').
-      /**
-       * Protocol defining a schema for canonical Avro schemas.
-       *
-       */
-      protocol Meta {
-
-        enum PrimitiveType {
-          boolean,
-          bytes,
-          double,
-          float,
-          int,
-          long,
-          null,
-          string
-        }
-        enum ArrayType { array }
-        enum EnumType { enum }
-        enum FixedType { fixed }
-        enum MapType { map }
-        enum RecordType { record }
-
+    div.-content-
+      .half-width
+        textarea#idl
+      .half-width
+        textarea#avsc
+      div(style='display: none')
+        #placeholder
+          | // Declare your protocol using IDL notation here...
+          .documentation
+            | Examples:
+            ul
+              li
+                a.example(href='#', data-example-id='math-protocol') Math protocol (basic)
+              li
+                a.example(href='#', data-example-id='meta-protocol') Meta protocol (advanced)
+            | Helpful links:
+            ul
+              li
+                a(href='https://avro.apache.org/docs/current/idl.html') IDL documentation
+      script#math-protocol(type='text/avro-idl').
         /**
-         * Meta type to represent any type.
-         *
-         * The logical type annotation will "unwrap" this type's `value` union
-         * field to match Avro schema definitions.
-         *
-         * It currently only represents canonical schemas, but it would be
-         * straightforward to add more information (e.g. field order).
+         * Basic protocol to add and multiply numbers.
          *
          */
-        @logicalType("meta")
-        record Meta {
-          union {
-            PrimitiveType,
-            record Array {
-              ArrayType type;
-              Meta items;
-            },
-            record Enum {
-              string name;
-              EnumType type;
-              array<string> symbols;
-            },
-            record Fixed {
-              string name;
-              FixedType type;
-              int size;
-            },
-            record Map {
-              MapType type;
-              Meta values;
-            },
-            record Record {
-              string name;
-              RecordType type;
-              array<record Field { string name; Meta type; }> fields;
-            },
-            string, // Reference.
-            array<Meta> // Union.
-          } value;
+        protocol Math {
+
+          // Types.
+          enum Status {
+            SUCCESS,
+            FAILURE
+          }
+          record Result {
+            Status status;
+            union { null, int, double } value;
+          }
+
+          // Messages.
+          Result add(array<int> nums, int delay = 0);
+          Result multiply(array<double> nums = []);
+
+        }
+      script#meta-protocol(type='text/avro-idl').
+        /**
+         * Protocol defining a schema for canonical Avro schemas.
+         *
+         */
+        protocol Meta {
+
+          enum PrimitiveType {
+            boolean,
+            bytes,
+            double,
+            float,
+            int,
+            long,
+            null,
+            string
+          }
+          enum ArrayType { array }
+          enum EnumType { enum }
+          enum FixedType { fixed }
+          enum MapType { map }
+          enum RecordType { record }
+
+          /**
+           * Meta type to represent any type.
+           *
+           * The logical type annotation will "unwrap" this type's `value` union
+           * field to match Avro schema definitions.
+           *
+           * It currently only represents canonical schemas, but it would be
+           * straightforward to add more information (e.g. field order).
+           *
+           */
+          @logicalType("meta")
+          record Meta {
+            union {
+              PrimitiveType,
+              record Array {
+                ArrayType type;
+                Meta items;
+              },
+              record Enum {
+                string name;
+                EnumType type;
+                array<string> symbols;
+              },
+              record Fixed {
+                string name;
+                FixedType type;
+                int size;
+              },
+              record Map {
+                MapType type;
+                Meta values;
+              },
+              record Record {
+                string name;
+                RecordType type;
+                array<record Field { string name; Meta type; }> fields;
+              },
+              string, // Reference.
+              array<Meta> // Union.
+            } value;
+          }
+
         }
 
-      }
+
+div#footer
+      p.
+        Powered by #[a(href="https://github.com/mtth/avsc") Avsc], a pure JavaScript implementation of the #[a(href="https://avro.apache.org/docs/current/spec.html") Avro Specification]. 
