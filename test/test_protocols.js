@@ -79,6 +79,20 @@ suite('protocols', function () {
       });
     });
 
+    test('special character in name', function () {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {
+          'ping/1': {
+            request: [],
+            response: 'string'
+          }
+        }
+      });
+      var message = ptcl.getMessages()['ping/1'];
+      assert.equal(message.getResponseType().getName(true), 'string');
+    });
+
     test('get messages', function () {
       var ptcl;
       ptcl = createProtocol({protocol: 'Empty'});

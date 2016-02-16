@@ -2544,6 +2544,22 @@ suite('types', function () {
       assert.equal(type._fields[0]._type._name, 'a.Person');
     });
 
+    test('namespaced global', function () {
+      var type = createType({
+        type: 'record',
+        name: '.Person',
+        namespace: 'earth',
+        fields: [
+          {
+            name: 'gender',
+            type: {type: 'enum', name: 'Gender', symbols: ['F', 'M']}
+          }
+        ]
+      });
+      assert.equal(type.getName(), 'Person');
+      assert.equal(type._fields[0]._type.getName(), 'earth.Gender');
+    });
+
     test('redefining', function () {
       assert.throws(function () {
         createType({
