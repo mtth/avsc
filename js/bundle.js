@@ -11975,6 +11975,7 @@ function hasOwnProperty(obj, prop) {
   var avsc = require('avsc'),
       buffer = require('buffer'),
       utils = require('./utils'),
+      meta = require('./meta'),
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
@@ -12000,14 +12001,17 @@ function hasOwnProperty(obj, prop) {
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
+        metaType = meta.metaType,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
-    window.reverseIndexMap = [];  
+    window.reverseIndexMap = [];
+    window.metaType = metaType;
 
     eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
       var schemaStr = JSON.stringify(schemaJson, null, 2); 
       runPreservingCursorPosition('schema', schemaElement.text, {context: schemaElement, param: schemaStr});
+      // encode schema here.
       eventObj.trigger('update-url', {schema:schemaStr});
       validateSchema(schemaJson);
     }).on('input-changed', function(rawInput) {
@@ -12061,19 +12065,21 @@ function hasOwnProperty(obj, prop) {
       template.show();
     }).on('schema-loaded', function(rawSchema) {
       template.hide();
-      var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
-      // Use this so that it doesn't reload the page, but that also means that you need to manually
-      // load the schema from url
-      window.history.pushState({}, 'AVSC', newUrl);
+      eventObj.trigger('update-url', {'schema': rawSchema});
       populateFromQuery();
       eventObj.trigger('update-layout');
-      
     }).on('re-instrument', function(rawInput) {
       window.instrumented = instrumentObject(window.type, window.type.fromString(rawInput));
       window.reverseIndexMap = computeReverseIndex(window.instrumented);
     }).on('update-url', function(data) {
       var state = {};
       var newUrl = location.href;
+      if (data.schema) {
+        // encode schema here..
+        var jsonSchema = JSON.parse(data.schema);
+        var encodedSchema = metaType.toBuffer(jsonSchema);
+        data.schema = encodedSchema.toString('hex');
+      }
 
       newUrl = urlUtils.updateValues(newUrl, data);
       // Use this so that it doesn't reload the page, but that also means that you need to manually
@@ -12250,7 +12256,10 @@ function hasOwnProperty(obj, prop) {
     function populateFromQuery() {
       var s = urlUtils.readValue('schema');
       if(s) {
-        eventObj.trigger('schema-changed', JSON.parse(s));
+        // decode schema.
+        var encodedSchema = new Buffer(s, 'hex');
+        var decodedSchema = metaType.fromBuffer(encodedSchema);
+        eventObj.trigger('schema-changed', decodedSchema);
       }
       
       var record = urlUtils.readValue('record');
@@ -12769,7 +12778,211 @@ function hasOwnProperty(obj, prop) {
 })();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./utils":44,"avsc":45,"buffer":16,"jquery":53}],44:[function(require,module,exports){
+},{"./meta":44,"./utils":45,"avsc":46,"buffer":16,"jquery":54}],44:[function(require,module,exports){
+var util = require('util'),
+    avro = require('avsc');
+function MetaType(attr, opts) {
+  avro.types.LogicalType.call(this, attr, opts, [avro.types.RecordType]);
+}
+
+util.inherits(MetaType, avro.types.LogicalType);
+
+MetaType.prototype._fromValue = function(val) {
+  var obj = val.value;
+  return obj[Object.keys(obj)[0]];
+}
+
+MetaType.prototype._toValue = function(any) {
+  var obj;
+  if(typeof any == 'string') {
+    if (~primitiveSymbols.indexOf(any)) {
+      // Handling primitive names separately from references lets us save a
+      // significant amount of space (1 byte per type name instead of 5-8).
+      obj = { PrimitiveType: any};
+    } else {
+      obj = {string: any};
+    }
+  } else if (any instanceof Array) {
+    obj = {array: any};
+  } else {
+    obj = {};
+    obj[capitalize(any.type)] = any;
+  }
+  return {value: obj};
+}
+
+var primitiveSymbols = [
+  "boolean",
+  "bytes",
+  "int",
+  "long",
+  "double",
+  "float",
+  "null",
+  "string"
+];
+
+var metaType = avro.parse({
+  "logicalType": "meta",
+  "type": "record",
+  "name": "Meta",
+  "fields": [
+   {
+     "type": [
+       {
+         "type": "enum",
+         "name": "PrimitiveType",
+         "symbols": primitiveSymbols,
+       },
+       {
+         "type": "record",
+         "name": "Array",
+         "fields": [
+           {
+             "name": "type",
+             "type": {
+               "type": "enum",
+               "name": "ArrayType",
+               "symbols": [
+                 "array"
+               ]
+             }
+           },
+           {
+             "type": "Meta",
+             "name": "items"
+           }
+         ]
+       },
+       {
+         "type": "record",
+         "name": "Enum",
+         "fields": [
+           {
+             "type": "string",
+             "name": "name"
+           },
+           {
+             "type": {
+               "type": "enum",
+               "name": "EnumType",
+               "symbols": [
+                 "enum"
+               ]
+             },
+             "name": "type"
+           },
+           {
+             "type": {
+               "type": "array",
+               "items": "string"
+             },
+             "name": "symbols"
+           }
+         ]
+       },
+       {
+         "type": "record",
+         "name": "Fixed",
+         "fields": [
+           {
+             "type": "string",
+             "name": "name"
+           },
+           {
+             "type": {
+               "type": "enum",
+               "name": "FixedType",
+               "symbols": [
+                 "fixed"
+               ]
+             },
+             "name": "type"
+           },
+           {
+             "type": "int",
+             "name": "size"
+           }
+         ]
+       },
+       {
+         "type": "record",
+         "name": "Map",
+         "fields": [
+           {
+             "type": {
+               "type": "enum",
+               "name": "MapType",
+               "symbols": [
+                 "map"
+               ]
+             },
+             "name": "type"
+           },
+           {
+             "type": "Meta",
+             "name": "values"
+           }
+         ]
+       },
+       {
+         "type": "record",
+         "name": "Record",
+         "fields": [
+           {
+             "type": "string",
+             "name": "name"
+           },
+           {
+             "type": {
+               "type": "enum",
+               "name": "RecordType",
+               "symbols": [
+                 "record"
+               ]
+             },
+             "name": "type"
+           },
+           {
+             "type": {
+               "type": "array",
+               "items": {
+                 "type": "record",
+                 "name": "Field",
+                 "fields": [
+                   {
+                     "type": "string",
+                     "name": "name"
+                   },
+                   {
+                     "type": "Meta",
+                     "name": "type"
+                   }
+                 ]
+               }
+             },
+             "name": "fields"
+           }
+         ]
+       },
+       "string",
+       {
+         "type": "array",
+         "items": "Meta"
+       }
+     ],
+     "name": "value"
+   }
+  ]
+}, {logicalTypes: {'meta': MetaType}});
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+module.exports = {
+  metaType : metaType
+}
+
+},{"avsc":46,"util":42}],45:[function(require,module,exports){
 /* jshint browser: true, browserify: true */
 
 
@@ -12849,7 +13062,7 @@ module.exports = {
 }
 
 
-},{}],45:[function(require,module,exports){
+},{}],46:[function(require,module,exports){
 /* jshint node: true */
 
 'use strict';
@@ -12884,7 +13097,7 @@ module.exports = {
   types: types.builtins
 };
 
-},{"../../lib/containers":48,"../../lib/protocols":49,"../../lib/schemas":50,"../../lib/types":51,"./lib/files":47}],46:[function(require,module,exports){
+},{"../../lib/containers":49,"../../lib/protocols":50,"../../lib/schemas":51,"../../lib/types":52,"./lib/files":48}],47:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -13063,7 +13276,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16}],47:[function(require,module,exports){
+},{"buffer":16}],48:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -13149,7 +13362,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"../../../lib/utils":52,"buffer":16}],48:[function(require,module,exports){
+},{"../../../lib/utils":53,"buffer":16}],49:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
@@ -13738,10 +13951,11 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./files":47,"./types":51,"./utils":52,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],49:[function(require,module,exports){
+},{"./files":48,"./types":52,"./utils":53,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],50:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
+// TODO: Remove deprecated `Message` fields in next major release.
 // TODO: Optimize MessageEncoder by avoiding the extra copy on transform.
 // TODO: Add timeout as emitter options?
 // TODO: Add error hook to allow transformation of system errors?
@@ -13866,7 +14080,7 @@ function Protocol(name, messages, types, ptcl) {
   this._parent = ptcl;
 
   // Cache a string instead of the buffer to avoid retaining an entire slab.
-  this._hashString = utils.getFingerprint(this.toString()).toString('binary');
+  this._hashString = utils.getHash(this.toString()).toString('binary');
 
   // Listener callbacks. Note the prototype used for handlers when this is a
   // subprotocol. This lets us easily implement the desired fallback behavior.
@@ -14032,8 +14246,8 @@ MessageEmitter.prototype._generateResolvers = function (
       throw new Error(f('incompatible one-way options for message: %s', name));
     }
     resolvers[name] = {
-      responseType: cm.responseType.createResolver(sm.responseType),
-      errorType: cm.errorType.createResolver(sm.errorType)
+      _responseType: cm._responseType.createResolver(sm._responseType),
+      _errorType: cm._errorType.createResolver(sm._errorType)
     };
   });
   this._resolvers[hashString] = resolvers;
@@ -14085,8 +14299,8 @@ MessageEmitter.prototype._finalizeHandshake = function (tap, handshakeReq) {
 };
 
 MessageEmitter.prototype._encodeRequest = function (tap, message, req) {
-  safeWrite(tap, STRING_TYPE, message.name);
-  safeWrite(tap, message.requestType, req);
+  safeWrite(tap, STRING_TYPE, message._name);
+  safeWrite(tap, message._requestType, req);
 };
 
 MessageEmitter.prototype._decodeArguments = function (
@@ -14095,9 +14309,9 @@ MessageEmitter.prototype._decodeArguments = function (
   var resolvers = getResolvers(this, hashString, message);
   var args = [null, null];
   if (tap.readBoolean()) {
-    args[0] = resolvers.errorType._read(tap);
+    args[0] = resolvers._errorType._read(tap);
   } else {
-    args[1] = resolvers.responseType._read(tap);
+    args[1] = resolvers._responseType._read(tap);
   }
   if (!tap.isValid()) {
     throw new Error('truncated message');
@@ -14168,7 +14382,7 @@ StatelessEmitter.prototype._emit = function (message, req, cb) {
       }
 
       readable
-        .pipe(new MessageDecoder(!message.oneWay))
+        .pipe(new MessageDecoder(!message._oneWay))
         .on('error', done)
         // This will happen when the message isn't one way and the readable
         // stream ends before a single message has been decoded (e.g. on
@@ -14193,7 +14407,7 @@ StatelessEmitter.prototype._emit = function (message, req, cb) {
             done(err);
             return;
           }
-          if (!message.oneWay) {
+          if (!message._oneWay) {
             done.apply(undefined, args);
           }
         });
@@ -14363,7 +14577,7 @@ StatefulEmitter.prototype._emit = function (message, req, cb) {
     return;
   }
 
-  if (!message.oneWay) {
+  if (!message._oneWay) {
     this._pending[id] = {message: message, cb: cb};
   }
   this._encoder.write(tap.getValue());
@@ -14427,11 +14641,11 @@ MessageListener.prototype._generateResolvers = function (
       throw new Error(f('missing server message: %s', name));
     }
     var cm = clientMessages[name];
-    if (cm.oneWay !== sm.oneWay) {
+    if (cm._oneWay !== sm._oneWay) {
       throw new Error(f('incompatible one-way options for message: %s', name));
     }
     resolvers[name] = {
-      requestType: sm.requestType.createResolver(cm.requestType)
+      _requestType: sm._requestType.createResolver(cm._requestType)
     };
   });
   this._resolvers[hashString] = resolvers;
@@ -14485,7 +14699,7 @@ MessageListener.prototype._validateHandshake = function (reqTap, resTap) {
 
 MessageListener.prototype._decodeRequest = function (tap, message) {
   var resolvers = getResolvers(this, this._emitterHashString, message);
-  var val = resolvers.requestType._read(tap);
+  var val = resolvers._requestType._read(tap);
   if (!tap.isValid()) {
     throw new Error('invalid request');
   }
@@ -14505,13 +14719,13 @@ MessageListener.prototype._encodeArguments = function (
   safeWrite(tap, BOOLEAN_TYPE, !noError);
   try {
     if (noError) {
-      safeWrite(tap, message.responseType, res);
+      safeWrite(tap, message._responseType, res);
     } else {
       if (err instanceof Error) {
         // Convenience to allow emitter to use JS errors inside handlers.
         err = avroError(err);
       }
-      safeWrite(tap, message.errorType, err);
+      safeWrite(tap, message._errorType, err);
     }
   } catch (err) {
     tap.pos = pos;
@@ -14581,7 +14795,7 @@ function StatelessListener(ptcl, readableFactory, opts) {
       return;
     }
 
-    if (self._message.oneWay) {
+    if (self._message._oneWay) {
       self.emit('_call', name, req);
       onResponse(null, null);
     } else {
@@ -14666,7 +14880,7 @@ function StatefulListener(ptcl, readable, writable, opts) {
       return;
     }
 
-    if (message.oneWay) {
+    if (message._oneWay) {
       self.emit('_call', name, req);
       self._pending--;
     } else {
@@ -14698,9 +14912,9 @@ util.inherits(StatefulListener, MessageListener);
  *
  */
 function Message(name, attrs, opts) {
-  this.name = name;
+  this._name = name;
 
-  this.requestType = types.createType({
+  this._requestType = types.createType({
     name: name,
     type: 'request',
     fields: attrs.request
@@ -14709,37 +14923,53 @@ function Message(name, attrs, opts) {
   if (!attrs.response) {
     throw new Error('missing response');
   }
-  this.responseType = types.createType(attrs.response, opts);
+  this._responseType = types.createType(attrs.response, opts);
 
   var errors = attrs.errors || [];
   errors.unshift('string');
-  this.errorType = types.createType(errors, opts);
+  this._errorType = types.createType(errors, opts);
 
-  this.oneWay = !!attrs['one-way'];
-  if (this.oneWay) {
+  this._oneWay = !!attrs['one-way'];
+  if (this._oneWay) {
     if (
-      !(this.responseType instanceof types.builtins.NullType) ||
+      !(this._responseType instanceof types.builtins.NullType) ||
       errors.length > 1
     ) {
       throw new Error('unapplicable one-way parameter');
     }
   }
+
+  // Deprecated fields (changed to be consistent with rest of API, which uses
+  // getters to emphasize "read-only"-ness of the attributes).
+  this.name = this._name;
+  this.requestType = this._requestType;
+  this.responseType = this._responseType;
+  this.errorType = this._errorType;
+  this.oneWay = this._oneWay;
 }
+
+Message.prototype.getName = function () { return this._name; };
+Message.prototype.getRequestType = function () { return this._requestType; };
+Message.prototype.getResponseType = function () { return this._responseType; };
+Message.prototype.getErrorType = function () { return this._errorType; };
+Message.prototype.isOneWay = function () { return this._oneWay; };
 
 Message.prototype.toJSON = function () {
   var obj = {
-    request: this.requestType.getFields(),
-    response: this.responseType
+    request: this._requestType.getFields(),
+    response: this._responseType
   };
-  var errorTypes = this.errorType.getTypes();
+  var errorTypes = this._errorType.getTypes();
   if (errorTypes.length > 1) {
     obj.errors = types.createType(errorTypes.slice(1));
   }
-  if (this.oneWay) {
+  if (this._oneWay) {
     obj['one-way'] = true;
   }
   return obj;
 };
+
+Message.prototype.inspect = Message.prototype.toJSON;
 
 /**
  * "Framing" stream.
@@ -14962,7 +15192,7 @@ function getResolvers(emitter, hashString, message) {
     return message;
   }
   var resolvers = emitter._resolvers[hashString];
-  return resolvers && resolvers[message.name];
+  return resolvers && resolvers[message._name];
 }
 
 /**
@@ -15006,7 +15236,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./types":51,"./utils":52,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],50:[function(require,module,exports){
+},{"./types":52,"./utils":53,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],51:[function(require,module,exports){
 /* jshint node: true */
 
 // TODO: Remove legacy import hook in next major release.
@@ -15113,9 +15343,11 @@ function assemble(fpath, opts, cb) {
     var info = imports.shift();
     if (!info) {
       // We are done with this file. We prepend all imported types to this
-      // file's and we can return the final result.
+      // file's and we can return the final result. We also perform a JSON
+      // serialization rountrip to remove non-numerical attributes from unions
+      // and transform Javadocs into strings.
       attrs.types = importedTypes.concat(attrs.types);
-      cb(null, attrs);
+      cb(null, JSON.parse(JSON.stringify(attrs)));
     } else if (info.kind === 'idl') {
       assemble(info.path, opts, assembleImports);
     } else {
@@ -15151,6 +15383,7 @@ function assemble(fpath, opts, cb) {
     while (tk.get().val === '@') {
       readAnnotation(attrs);
     }
+    tk.addJavadoc(attrs);
     tk.get({val: 'protocol'});
     attrs.protocol = tk.next({id: 'name'}).val;
     tk.next({val: '{'});
@@ -15209,7 +15442,13 @@ function assemble(fpath, opts, cb) {
   }
 
   function readMessage(protocolAttrs, responseAttrs, oneWay) {
-    var messageAttrs = {response: responseAttrs};
+    var messageAttrs;
+    if (opts.reassignJavadoc) {
+      messageAttrs = {};
+      messageAttrs.response = reassignJavadoc(responseAttrs, messageAttrs);
+    } else {
+      messageAttrs = {response: responseAttrs};
+    }
     if (oneWay) {
       messageAttrs['one-way'] = true;
     }
@@ -15250,19 +15489,13 @@ function assemble(fpath, opts, cb) {
 
   function readField() {
     var attrs = {type: readType()};
-    // The spec somehow breaks consistency by allowing the `order` annotation
-    // to be placed before the type's name rather than before the field's name.
-    // We must manually place it correctly and fix up the type.
-    if (attrs.type.order) {
-      attrs.order = attrs.type.order;
-      delete attrs.type.order;
-      if (Object.keys(attrs.type).length === 1) {
-        attrs.type = attrs.type.type;
-      }
+    if (opts.reassignJavadoc) {
+      attrs.type = reassignJavadoc(attrs.type, attrs);
     }
     while (tk.get().val === '@') {
       readAnnotation(attrs);
     }
+    tk.addJavadoc(attrs);
     attrs.name = tk.get({id: 'name'}).val;
     if (tk.next().val === '=') {
       attrs['default'] = tk.next({id: 'json'}).val;
@@ -15276,6 +15509,7 @@ function assemble(fpath, opts, cb) {
     while (tk.get().val === '@') {
       readAnnotation(attrs);
     }
+    tk.addJavadoc(attrs);
 
     switch (tk.get().val) {
     case 'record':
@@ -15290,10 +15524,7 @@ function assemble(fpath, opts, cb) {
     case 'array':
       return readArray(attrs);
     case 'union':
-      if (Object.keys(attrs).length) {
-        throw new Error('unions cannot be annotated');
-      }
-      return readUnion();
+      return readUnion(attrs);
     default:
       var type = tk.get().val;
       tk.next();
@@ -15350,16 +15581,22 @@ function assemble(fpath, opts, cb) {
     return attrs;
   }
 
-  function readUnion() {
-    var attrs = [];
+  function readUnion(attrs) {
+    var arr = [];
     tk.get({val: 'union'});
     tk.next({val: '{'});
     do {
       tk.next();
-      attrs.push(readType());
+      arr.push(readType());
     } while (tk.get().val !== '}');
     tk.next();
-    return attrs;
+    Object.keys(attrs).forEach(function (name) {
+      // We can do this since `JSON.stringify` will ignore non-numeric keys on
+      // array objects. This lets us be consistent with field and message
+      // attribute transfer (e.g. for `doc` and `order`).
+      arr[name] = attrs[name];
+    });
+    return arr;
   }
 
   function readRecord(attrs) {
@@ -15398,12 +15635,15 @@ function assemble(fpath, opts, cb) {
  * + `json`, special, must be asked for (the tokenizer doesn't have enough
  *   context to predict these).
  *
+ * This tokenizer also handles Javadoc extraction, via the `addJavadoc` method.
+ *
  */
 function Tokenizer(str) {
   this._str = str;
   this._pos = 0;
   this._queue = new BoundedQueue(3); // Bounded queue of last emitted tokens.
   this._token = undefined; // Current token.
+  this._doc = undefined; // Javadoc.
 }
 
 Tokenizer.prototype.get = function (opts) {
@@ -15441,7 +15681,7 @@ Tokenizer.prototype.next = function (opts) {
   } else if (/[0-9]/.test(c)) {
     id = 'number';
     this._pos = this._endOf(/[0-9]/);
-  } else if (/[`A-Za-z_]/.test(c)) {
+  } else if (/[`A-Za-z_.]/.test(c)) {
     id = 'name';
     this._pos = this._endOf(/[`A-Za-z0-9_.]/);
   } else {
@@ -15486,7 +15726,18 @@ Tokenizer.prototype.error = function (msg) {
       lineStart = i;
     }
   }
-  return new Error(f('%s at %d:%d', msg, lineNum, pos - lineStart));
+  var err = new Error(msg);
+  err.lineNum = lineNum;
+  err.colNum = pos - lineStart;
+  return err;
+};
+
+Tokenizer.prototype.addJavadoc = function (attrs) {
+  if (this._doc === undefined || attrs.doc !== undefined) {
+    return;
+  }
+  attrs.doc = this._doc;
+  this._doc = undefined;
 };
 
 /**
@@ -15495,7 +15746,7 @@ Tokenizer.prototype.error = function (msg) {
  */
 Tokenizer.prototype._skip = function () {
   var str = this._str;
-  var c;
+  var pos, c; // `pos` used for javadocs.
 
   while ((c = str.charAt(this._pos)) && /\s/.test(c)) {
     this._pos++;
@@ -15510,9 +15761,15 @@ Tokenizer.prototype._skip = function () {
       return this._skip();
     case '*':
       this._pos += 2;
+      if (str.charAt(this._pos) === '*') {
+        pos = this._pos + 1;
+      }
       while ((c = str.charAt(this._pos++))) {
         if (c === '*' && str.charAt(this._pos) === '/') {
           this._pos++;
+          if (pos !== undefined) {
+            this._doc = new Javadoc(str.slice(pos, this._pos - 2));
+          }
           return this._skip();
         }
       }
@@ -15555,7 +15812,7 @@ Tokenizer.prototype._endOfString = function () {
       pos++;
     }
   }
-  this.throwError('unterminated string at ' + this._pos);
+  throw this.error('unterminated string');
 };
 
 /**
@@ -15637,6 +15894,49 @@ BoundedQueue.prototype.peek = function () {
 
 BoundedQueue.prototype.pop = function () { return this._data.pop(); };
 
+/**
+ * Javadoc wrapper class.
+ *
+ * This is used to be able to distinguish between normal `doc` annotations and
+ * Javadoc comments, to correctly support the `reassignJavadoc` option.
+ *
+ * The parsing done is very simple and simply removes the line prefixes and
+ * leading / trailing empty lines. It's better to be conservative with
+ * formatting rather than risk losing information.
+ *
+ */
+function Javadoc(str) {
+  str = str.replace(/^[ \t]+|[ \t]+$/g, ''); // Trim whitespace.
+  var lines = str.split('\n').map(function (line, i) {
+    return i ? line.replace(/^\s*\*\s?/, '') : line;
+  });
+  while (!lines[0]) {
+    lines.shift();
+  }
+  while (!lines[lines.length - 1]) {
+    lines.pop();
+  }
+  this._str = lines.join('\n');
+}
+Javadoc.prototype.toJSON = function () { return this._str; };
+
+/**
+ * Transfer a key from an object to another and return the new source.
+ *
+ * If the source becomes an object with a single type attribute set, its `type`
+ * attribute is returned instead.
+ *
+ */
+function reassignJavadoc(from, to) {
+  if (!(from.doc instanceof Javadoc)) {
+    // Nothing to transfer.
+    return from;
+  }
+  to.doc = from.doc;
+  delete from.doc;
+  return Object.keys(from).length === 1 ? from.type : from;
+}
+
 
 module.exports = {
   BoundedQueue: BoundedQueue,
@@ -15644,7 +15944,7 @@ module.exports = {
   assemble: assemble
 };
 
-},{"./files":47,"path":24,"util":42}],51:[function(require,module,exports){
+},{"./files":48,"path":24,"util":42}],52:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -15729,7 +16029,9 @@ function createType(attrs, opts) {
 
   var type;
   if (typeof attrs == 'string') { // Type reference.
-    if (opts.namespace && !~attrs.indexOf('.') && !isPrimitive(attrs)) {
+    if (~attrs.indexOf('.')) {
+      attrs = attrs.replace(/^\./, ''); // Allow absolute referencing.
+    } else if (opts.namespace && !isPrimitive(attrs)) {
       attrs = opts.namespace + '.' + attrs;
     }
     type = opts.registry[attrs];
@@ -15969,7 +16271,7 @@ Type.prototype.getSchema = function (noDeref) {
 };
 
 Type.prototype.getFingerprint = function (algorithm) {
-  return utils.getFingerprint(this.getSchema(), algorithm);
+  return utils.getHash(this.getSchema(), algorithm);
 };
 
 Type.prototype.inspect = function () {
@@ -17687,7 +17989,14 @@ Field.prototype.getOrder = function () {
 
 Field.prototype.getType = function () { return this._type; };
 
-Field.prototype.inspect = function () { return f('<Field %j>', this._name); };
+Field.prototype.inspect = function () {
+  return {
+    name: this._name,
+    type: this._type,
+    order: this.getOrder(),
+    'default': this.getDefault()
+  };
+};
 
 /**
  * Resolver to read a writer's schema as a new schema.
@@ -17931,7 +18240,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"./utils":52,"buffer":16,"util":42}],52:[function(require,module,exports){
+},{"./utils":53,"buffer":16,"util":42}],53:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -17972,7 +18281,7 @@ function compare(n1, n2) { return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1); }
  * @param algorithm {String} The algorithm used. Defaults to MD5.
  *
  */
-function getFingerprint(str, algorithm) {
+function getHash(str, algorithm) {
   algorithm = algorithm || 'md5';
   var hash = crypto.createHash(algorithm);
   hash.end(str);
@@ -18569,7 +18878,7 @@ function invert(buf, len) {
 module.exports = {
   abstractFunction: abstractFunction,
   capitalize: capitalize,
-  getFingerprint: getFingerprint,
+  getHash: getHash,
   compare: compare,
   toMap: toMap,
   singleIndexOf: singleIndexOf,
@@ -18580,7 +18889,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16,"crypto":46}],53:[function(require,module,exports){
+},{"buffer":16,"crypto":47}],54:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.2.0
  * http://jquery.com/

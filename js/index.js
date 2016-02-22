@@ -6,6 +6,7 @@
   var avsc = require('avsc'),
       buffer = require('buffer'),
       utils = require('./utils'),
+      meta = require('./meta'),
       $ = require('jquery');
   window.avsc = avsc;
   $( function() {
@@ -31,14 +32,17 @@
         typingTimer,
         eventObj = utils.eventObj,
         urlUtils = utils.urlUtils,
+        metaType = meta.metaType,
         doneTypingInterval = 500; // wait for some time before processing user input.
     
-    window.reverseIndexMap = [];  
+    window.reverseIndexMap = [];
+    window.metaType = metaType;
 
     eventObj.on('schema-changed', function(schemaJson) {
       template.hide();
       var schemaStr = JSON.stringify(schemaJson, null, 2); 
       runPreservingCursorPosition('schema', schemaElement.text, {context: schemaElement, param: schemaStr});
+      // encode schema here.
       eventObj.trigger('update-url', {schema:schemaStr});
       validateSchema(schemaJson);
     }).on('input-changed', function(rawInput) {
@@ -92,19 +96,21 @@
       template.show();
     }).on('schema-loaded', function(rawSchema) {
       template.hide();
-      var newUrl = urlUtils.updateValues(location.href, {'schema' : rawSchema});
-      // Use this so that it doesn't reload the page, but that also means that you need to manually
-      // load the schema from url
-      window.history.pushState({}, 'AVSC', newUrl);
+      eventObj.trigger('update-url', {'schema': rawSchema});
       populateFromQuery();
       eventObj.trigger('update-layout');
-      
     }).on('re-instrument', function(rawInput) {
       window.instrumented = instrumentObject(window.type, window.type.fromString(rawInput));
       window.reverseIndexMap = computeReverseIndex(window.instrumented);
     }).on('update-url', function(data) {
       var state = {};
       var newUrl = location.href;
+      if (data.schema) {
+        // encode schema here..
+        var jsonSchema = JSON.parse(data.schema);
+        var encodedSchema = metaType.toBuffer(jsonSchema);
+        data.schema = encodedSchema.toString('hex');
+      }
 
       newUrl = urlUtils.updateValues(newUrl, data);
       // Use this so that it doesn't reload the page, but that also means that you need to manually
@@ -281,7 +287,10 @@
     function populateFromQuery() {
       var s = urlUtils.readValue('schema');
       if(s) {
-        eventObj.trigger('schema-changed', JSON.parse(s));
+        // decode schema.
+        var encodedSchema = new Buffer(s, 'hex');
+        var decodedSchema = metaType.fromBuffer(encodedSchema);
+        eventObj.trigger('schema-changed', decodedSchema);
       }
       
       var record = urlUtils.readValue('record');
