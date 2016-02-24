@@ -2116,7 +2116,7 @@ suite('types', function () {
       function createUnionTypeHook(Type) {
         var visited = [];
         return function(attrs, opts) {
-          if (attrs instanceof Array && !~visited.indexOf(attrs)) {
+          if (Array.isArray(attrs) && !~visited.indexOf(attrs)) {
             visited.push(attrs);
             return new Type(attrs, opts);
           }
