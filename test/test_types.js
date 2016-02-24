@@ -355,7 +355,193 @@ suite('types', function () {
 
   });
 
-  suite('UnionType', function () {
+  suite('UnwrappedUnionType', function () {
+
+    var data = [
+      {
+        name: 'null & string',
+        schema: ['null', 'string'],
+        valid: [null, 'hi'],
+        invalid: [undefined, {string: 'hi'}],
+        check: assert.deepEqual
+      },
+      {
+        name: 'qualified name',
+        schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
+        valid: [null, new Buffer(2)],
+        invalid: [{'a.B': new Buffer(2)}],
+        check: assert.deepEqual
+      },
+      {
+        name: 'array int',
+        schema: ['int', {type: 'array', items: 'int'}],
+        valid: [1, [1,3]],
+        invalid: [null, 'hi', {array: [2]}],
+        check: assert.deepEqual
+      },
+      {
+        name: 'null',
+        schema: ['null'],
+        valid: [null],
+        invalid: [{array: ['a']}, [4], 'null'],
+        check: assert.deepEqual
+      }
+    ];
+
+    var schemas = [
+      {},
+      [],
+      ['null', 'null'],
+      ['int', 'long'],
+      ['fixed', 'bytes'],
+      [{name: 'Letter', type: 'enum', symbols: ['A', 'B']}, 'string'],
+      ['null', {type: 'map', values: 'int'}, {type: 'map', values: 'long'}],
+      ['null', ['int', 'string']]
+    ];
+
+    testType(builtins.UnwrappedUnionType, data, schemas);
+
+    test('getTypes', function () {
+      var t = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.deepEqual(t.getTypes(), [createType('null'), createType('int')]);
+    });
+
+    test('invalid read', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.throws(function () { type.fromBuffer(new Buffer([4])); });
+    });
+
+    test('missing bucket write', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.throws(function () { type.toBuffer('hi'); });
+    });
+
+    test('invalid bucket write', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.throws(function () { type.toBuffer(2.5); });
+    });
+
+    test('non wrapped write', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.deepEqual(type.toBuffer(23), new Buffer([2, 46]));
+      assert.deepEqual(type.toBuffer(null), new Buffer([0]));
+    });
+
+    test('coerce buffers', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'bytes']);
+      var obj = {type: 'Buffer', data: [1, 2]};
+      assert.throws(function () { type.clone(obj); });
+      assert.deepEqual(
+        type.clone(obj, {coerceBuffers: true}),
+        new Buffer([1, 2])
+      );
+      assert.deepEqual(type.clone(null, {coerceBuffers: true}), null);
+    });
+
+    test('wrapped write', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.throws(function () { type.toBuffer({'int': 1}); });
+    });
+
+    test('to JSON', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.equal(JSON.stringify(type), '["null","int"]');
+    });
+
+    test('resolve int to [string, long]', function () {
+      var t1 = createType('int');
+      var t2 = new builtins.UnwrappedUnionType(['string', 'long']);
+      var a = t2.createResolver(t1);
+      var buf = t1.toBuffer(23);
+      assert.deepEqual(t2.fromBuffer(buf, a), 23);
+    });
+
+    test('resolve null to [null, int]', function () {
+      var t1 = createType('null');
+      var t2 = new builtins.UnwrappedUnionType(['null', 'int']);
+      var a = t2.createResolver(t1);
+      assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
+    });
+
+    test('resolve [string, int] to [float, bytes]', function () {
+      var t1 = new builtins.WrappedUnionType(['string', 'int']);
+      var t2 = new builtins.UnwrappedUnionType(['float', 'bytes']);
+      var a = t2.createResolver(t1);
+      var buf;
+      buf = t1.toBuffer({string: 'hi'});
+      assert.deepEqual(t2.fromBuffer(buf, a), new Buffer('hi'));
+      buf = t1.toBuffer({'int': 1});
+      assert.deepEqual(t2.fromBuffer(buf, a), 1);
+    });
+
+    test('clone', function () {
+      var t = new builtins.UnwrappedUnionType(
+        ['null', {type: 'map', values: 'int'}]
+      );
+      var o = {'int': 1};
+      assert.strictEqual(t.clone(null), null);
+      var c;
+      c = t.clone(o);
+      assert.deepEqual(c, o);
+      c = t.clone(o, {});
+      assert.deepEqual(c, o);
+      c.int = 2;
+      assert.equal(o.int, 1);
+      assert.throws(function () { t.clone([]); });
+      assert.throws(function () { t.clone([], {}); });
+      assert.throws(function () { t.clone(undefined); });
+    });
+
+    test('invalid null', function () {
+      var t = new builtins.UnwrappedUnionType(['string', 'int']);
+      assert.throws(function () { t.fromString(null); }, /invalid/);
+    });
+
+    test('invalid multiple keys', function () {
+      var t = new builtins.UnwrappedUnionType(['null', 'int']);
+      var o = {'int': 2};
+      assert.equal(t.fromString(JSON.stringify(o)), 2);
+      o.foo = 3;
+      assert.throws(function () { t.fromString(JSON.stringify(o)); });
+    });
+
+    test('clone named type', function () {
+      var t = createType({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'id1', type: {name: 'an.Id', type: 'fixed', size: 1}},
+          {name: 'id2', type: ['null', 'an.Id']}
+        ]
+      }, {unwrapUnions: true});
+      var b = new Buffer([0]);
+      var o = {id1: b, id2: b};
+      assert.deepEqual(t.clone(o), o);
+    });
+
+    test('compare buffers', function () {
+      var t = new builtins.UnwrappedUnionType(['null', 'double']);
+      var b1 = t.toBuffer(null);
+      assert.equal(t.compareBuffers(b1, b1), 0);
+      var b2 = t.toBuffer(4);
+      assert.equal(t.compareBuffers(b2, b1), 1);
+      assert.equal(t.compareBuffers(b1, b2), -1);
+      var b3 = t.toBuffer(6);
+      assert.equal(t.compareBuffers(b3, b2), 1);
+    });
+
+    test('compare', function () {
+      var t;
+      t = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.equal(t.compare(null, 3), -1);
+      assert.equal(t.compare(null, null), 0);
+      assert.throws(function () { t.compare('hi', 2); });
+      assert.throws(function () { t.compare(null, 'hey'); });
+    });
+
+  });
+
+  suite('WrappedUnionType', function () {
 
     var data = [
       {
@@ -396,47 +582,42 @@ suite('types', function () {
       ['null', ['int', 'string']]
     ];
 
-    testType(builtins.UnionType, data, schemas);
+    testType(builtins.WrappedUnionType, data, schemas);
 
     test('getTypes', function () {
       var t = createType(['null', 'int']);
       assert.deepEqual(t.getTypes(), [createType('null'), createType('int')]);
     });
 
-    test('instanceof Union', function () {
-      var type = new builtins.UnionType(['null', 'int']);
-      assert(type instanceof builtins.UnionType);
-    });
-
     test('get branch type', function () {
-      var type = new builtins.UnionType(['null', 'int']);
+      var type = new builtins.WrappedUnionType(['null', 'int']);
       var buf = type.toBuffer({'int': 48});
       var branchType = type.fromBuffer(buf).constructor.getBranchType();
       assert(branchType instanceof builtins.IntType);
     });
 
     test('missing name write', function () {
-      var type = new builtins.UnionType(['null', 'int']);
+      var type = new builtins.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer({b: 'a'});
       });
     });
 
     test('read invalid index', function () {
-      var type = new builtins.UnionType(['null', 'int']);
+      var type = new builtins.WrappedUnionType(['null', 'int']);
       var buf = new Buffer([1, 0]);
       assert.throws(function () { type.fromBuffer(buf); });
     });
 
     test('non wrapped write', function () {
-      var type = new builtins.UnionType(['null', 'int']);
+      var type = new builtins.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
         type.toBuffer(1, true);
       }, Error);
     });
 
     test('to JSON', function () {
-      var type = new builtins.UnionType(['null', 'int']);
+      var type = new builtins.WrappedUnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
@@ -467,7 +648,7 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = new builtins.UnionType(['null', 'int']);
+      var t = new builtins.WrappedUnionType(['null', 'int']);
       var o = {'int': 1};
       assert.strictEqual(t.clone(null), null);
       var c;
@@ -2440,6 +2621,18 @@ suite('types', function () {
           ]
         }
       );
+    });
+
+    test('invalid unwrapped union default', function () {
+      assert.throws(function () {
+        createType({
+          name: 'Person',
+          type: 'record',
+          fields: [
+            {name: 'id', type: ['null', 'int'], 'default': 2}
+          ]
+        }, {unwrapUnions: true});
+      }, /invalid "null"/);
     });
 
   });
