@@ -9,7 +9,7 @@
  *
  * Usage:
  *
- *   node perf.js SCHEMA ...
+ *   ./perf [-u] SCHEMA ...
  *
  */
 
@@ -17,6 +17,14 @@ var avro = require('../../lib'),
     Benchmark = require('benchmark'),
     path = require('path');
 
+
+var paths = process.argv.slice(2);
+var index = paths.indexOf('-u');
+var unwrap = false;
+if (~index) {
+  paths.splice(index, 1);
+  unwrap = true;
+}
 
 // Number of random values to generate to try per schema. This is mostly to
 // reduce the variability introduced by unions (which can greatly affect
@@ -27,8 +35,8 @@ var NUM_VALUES = 1000;
 console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t|\t'));
 console.log(['---------:', '-------:', '------: ', '---------'].join('\t|\t'));
 
-process.argv.slice(2).forEach(function (fpath) {
-  var type = avro.parse(fpath);
+paths.forEach(function (fpath) {
+  var type = avro.parse(fpath, {unwrapUnions: unwrap});
   var values = [];
   var bufs = [];
 
