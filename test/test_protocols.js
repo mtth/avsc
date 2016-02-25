@@ -48,7 +48,7 @@ suite('protocols', function () {
         }
       });
       assert.equal(p.getName(), 'foo.HelloWorld');
-      assert.equal(p.getType('foo.Greeting').getName(true), 'record');
+      assert.equal(p.getType('foo.Greeting').getTypeName(), 'record');
     });
 
     test('missing message', function () {

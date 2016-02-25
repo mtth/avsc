@@ -776,6 +776,7 @@ suite('types', function () {
         namespace: 'latin'
       });
       assert.equal(t.getName(), 'latin.Letter');
+      assert.equal(t.getName(true), 'latin.Letter');
     });
 
     test('get aliases', function () {
@@ -907,6 +908,7 @@ suite('types', function () {
         namespace: 'id'
       });
       assert.equal(t.getName(), 'id.Id');
+      assert.equal(t.getName(true), 'id.Id');
     });
 
     test('get aliases', function () {
@@ -1146,6 +1148,7 @@ suite('types', function () {
     test('getName', function () {
       var t = new builtins.MapType({type: 'map', values: 'int'});
       assert.strictEqual(t.getName(), undefined);
+      assert.strictEqual(t.getName(true), 'map');
     });
 
   });
@@ -1693,7 +1696,8 @@ suite('types', function () {
         ]
       });
       assert.strictEqual(t.getName(), 'earth.Person');
-      assert.equal(t.getName(true), 'record');
+      assert.strictEqual(t.getName(true), 'earth.Person');
+      assert.equal(t.getTypeName(), 'record');
     });
 
     test('getSchema', function () {
@@ -2126,7 +2130,10 @@ suite('types', function () {
   suite('LogicalType', function () {
 
     function DateType(attrs, opts) {
-      types.builtins.LogicalType.call(this, attrs, opts, [builtins.LongType]);
+      types.builtins.LogicalType.call(this, attrs, opts);
+      if (this.getUnderlyingType().getTypeName() !== 'long') {
+        throw new Error('invalid underlying date type');
+      }
     }
     util.inherits(DateType, types.builtins.LogicalType);
 
@@ -2143,7 +2150,7 @@ suite('types', function () {
     };
 
     function AgeType(attrs, opts) {
-      types.builtins.LogicalType.call(this, attrs, opts, [builtins.IntType]);
+      types.builtins.LogicalType.call(this, attrs, opts);
     }
     util.inherits(AgeType, types.builtins.LogicalType);
 
@@ -2395,7 +2402,7 @@ suite('types', function () {
         function OptionalType(attrs, opts) {
           types.builtins.LogicalType.call(this, attrs, opts);
           var type = this.getUnderlyingType().getTypes()[1];
-          this._name = type.getName() || type.getName(true);
+          this._name = type.getName(true);
         }
         util.inherits(OptionalType, types.builtins.LogicalType);
 
