@@ -1819,6 +1819,28 @@ suite('types', function () {
       assert.deepEqual(c, {name: 'ANN', age: 25});
     });
 
+    test('unwrapped union field default', function () {
+      assert.throws(function () {
+        createType({
+          type: 'record',
+          name: 'Person',
+          fields: [
+            {name: 'name', type: ['null', 'string'], 'default': 'Bob'}
+          ]
+        }, {unwrapUnions: true});
+      });
+      var t = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'name', type: ['string', 'null'], 'default': 'Bob'}
+        ]
+      }, {unwrapUnions: true});
+      var o = {name: 'Ann'};
+      assert.deepEqual(t.clone(o), o);
+      assert.deepEqual(t.clone({}), {name: 'Bob'});
+    });
+
     test('get full name & aliases', function () {
       var t = createType({
         type: 'record',
