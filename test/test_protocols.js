@@ -129,8 +129,9 @@ suite('protocols', function () {
     });
 
     test('invalid emitter', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      ptcl.emit('hi', {}, null, function (err) {
+      var ptcl = createProtocol({protocol: 'Hey'});
+      var ee = createProtocol({protocol: 'Hi'}).createEmitter(function () {});
+      ptcl.emit('hi', {}, ee, function (err) {
         assert(/invalid emitter/.test(err.string));
         done();
       });

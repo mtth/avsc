@@ -242,6 +242,10 @@ suite('types', function () {
       assert.equal(t.compareBuffers(b1, b3), -1);
     });
 
+    test('resolver float > float', function () {
+      assert.doesNotThrow(function () { getResolver('float', 'float'); });
+    });
+
     test('resolver double > float', function () {
       assert.throws(function () { getResolver('float', 'double'); });
     });
@@ -300,6 +304,16 @@ suite('types', function () {
     ];
 
     testType(builtins.BytesType, data);
+
+    test('resolve string > bytes', function () {
+      var bytesT = createType('bytes');
+      var stringT = createType('string');
+      var buf = new Buffer([4, 0, 1]);
+      assert.deepEqual(
+        stringT.fromBuffer(buf, stringT.createResolver(bytesT)),
+        '\x00\x01'
+      );
+    });
 
     test('clone', function () {
       var t = createType('bytes');
