@@ -1,16 +1,16 @@
 ui: mocha-tdd
 browsers:
   - name: chrome
-    version: 42..latest
+    version: -2..latest
   - name: firefox
-    version: 40..latest
+    version: -2..latest
   - name: safari
-    version: 5..latest
+    version: 6..latest
   - name: ie
-    version: 7..latest
+    version: 10..latest
   - name: microsoftedge
     version: 20..latest
   - name: opera
-    version: 8..latest
+    version: 10..latest
   - name: android
-    version: 5..latest
+    version: latest
