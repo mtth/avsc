@@ -421,6 +421,21 @@ suite('types', function () {
       assert.throws(function () { type.toBuffer(2.5); });
     });
 
+    test('fromString', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.strictEqual(type.fromString('null'), null);
+      assert.deepEqual(type.fromString('{"int": 48}'), 48);
+      assert.throws(function () { type.fromString('48'); });
+      assert.throws(function () { type.fromString('{"long": 48}'); });
+    });
+
+    test('toString', function () {
+      var type = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.strictEqual(type.toString(null), 'null');
+      assert.deepEqual(type.toString(48), '{"int":48}');
+      assert.throws(function () { type.toString(2.5); });
+    });
+
     test('non wrapped write', function () {
       var type = new builtins.UnwrappedUnionType(['null', 'int']);
       assert.deepEqual(type.toBuffer(23), new Buffer([2, 46]));
