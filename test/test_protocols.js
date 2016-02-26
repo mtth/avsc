@@ -967,13 +967,13 @@ suite('protocols', function () {
 
     function run(setupFn) {
 
-      test('single', function (done) {
+      test('primitive types', function (done) {
         var ptcl = createProtocol({
           protocol: 'Math',
           messages: {
             negate: {
               request: [{name: 'n', type: 'int'}],
-              response: 'int'
+              response: 'long'
             }
           }
         });
@@ -988,6 +988,40 @@ suite('protocols', function () {
               assert(/invalid "int"/.test(err.string));
               ee.destroy();
             });
+          });
+        });
+      });
+
+      test('complex type', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Literature',
+          messages: {
+            generate: {
+              request: [{name: 'n', type: 'int'}],
+              response: {
+                type: 'array',
+                items: {
+                  name: 'N',
+                  type: 'enum',
+                  symbols: ['A', 'B']
+                }
+              }
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          var type = ptcl.getType('N');
+          ee.on('eot', function () { done(); });
+          ptcl.on('generate', function (req, ee, cb) {
+            var letters = [];
+            while (req.n--) { letters.push(type.random()); }
+            cb(null, letters);
+          });
+          ptcl.emit('generate', {n: 20}, ee, function (err, res) {
+            assert.equal(this, ptcl);
+            assert.strictEqual(err, null);
+            assert.equal(res.length, 20);
+            ee.destroy();
           });
         });
       });
@@ -1184,6 +1218,58 @@ suite('protocols', function () {
             });
           }
         );
+      });
+
+      test('compatible protocol with a complex type', function (done) {
+        var ptcl1 = createProtocol({
+          protocol: 'Literature',
+          messages: {
+            generate: {
+              request: [{name: 'n', type: 'int'}],
+              response: {
+                type: 'array',
+                items: {
+                  name: 'N',
+                  aliases: ['N2'],
+                  type: 'enum',
+                  symbols: ['A', 'B', 'C', 'D']
+                }
+              }
+            }
+          }
+        });
+        var ptcl2 = createProtocol({
+          protocol: 'Literature',
+          messages: {
+            generate: {
+              request: [{name: 'n', type: 'int'}],
+              response: {
+                type: 'array',
+                items: {
+                  name: 'N2',
+                  aliases: ['N'],
+                  type: 'enum',
+                  symbols: ['A', 'B']
+                }
+              }
+            }
+          }
+        });
+        setupFn(ptcl1, ptcl2, function (ee) {
+          var type = ptcl2.getType('N2');
+          ee.on('eot', function () { done(); });
+          ptcl2.on('generate', function (req, ee, cb) {
+            var letters = [];
+            while (req.n--) { letters.push(type.random()); }
+            cb(null, letters);
+          });
+          ptcl1.emit('generate', {n: 20}, ee, function (err, res) {
+            assert.equal(this, ptcl1);
+            assert.strictEqual(err, null);
+            assert.equal(res.length, 20);
+            ee.destroy();
+          });
+        });
       });
 
       test('cached compatible protocols', function (done) {
