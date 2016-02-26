@@ -154,7 +154,7 @@ suite('containers', function () {
         var t = createType('int');
         var bufs = [new Buffer([3]), new Buffer([124])];
         var objs = [];
-        var decoder = new RawDecoder(t, {decode: false})
+        var decoder = new RawDecoder(t, {noDecode: true})
           .on('data', function (obj) { objs.push(obj); })
           .on('end', function () {
             assert.deepEqual(objs, bufs);
@@ -437,7 +437,7 @@ suite('containers', function () {
       var t = createType('int');
       var objs = [];
       var encoder = new streams.BlockEncoder(t);
-      var decoder = new streams.BlockDecoder({decode: false})
+      var decoder = new streams.BlockDecoder({noDecode: true})
         .on('data', function (obj) { objs.push(obj); })
         .on('end', function () {
           assert.deepEqual(objs, [new Buffer([96])]);
