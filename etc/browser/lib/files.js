@@ -54,7 +54,7 @@
  */
 function load(schema) {
   var obj;
-  if (typeof schema == 'string') {
+  if (typeof schema == 'string' && schema !== 'null') {
     try {
       obj = JSON.parse(schema);
     } catch (err) {

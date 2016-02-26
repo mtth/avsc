@@ -51,14 +51,6 @@ suite('protocols', function () {
       assert.equal(p.getType('foo.Greeting').getTypeName(), 'record');
     });
 
-    test('get type fingerprint', function () {
-      var ptcl = createProtocol({protocol: 'One', types: ['int']});
-      var t = ptcl.getType('int');
-      var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
-      assert.deepEqual(protocols.Protocol.getFingerprint(t, 'md5'), buf);
-      assert.deepEqual(protocols.Protocol.getFingerprint(t), buf);
-    });
-
     test('missing message', function () {
       var ptcl = createProtocol({namespace: 'com.acme', protocol: 'Hello'});
       assert.throws(function () {

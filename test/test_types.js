@@ -2638,6 +2638,13 @@ suite('types', function () {
       function hook() { return 'int'; }
     });
 
+    test('fingerprint', function () {
+      var t = createType('int');
+      var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
+      assert.deepEqual(t.getFingerprint('md5'), buf);
+      assert.deepEqual(t.getFingerprint(), buf);
+    });
+
     test('getSchema default', function () {
       var type = createType({
         type: 'record',
