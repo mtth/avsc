@@ -522,6 +522,47 @@ suite('containers', function () {
         });
     });
 
+    test('parse hook', function (cb) {
+      var t1 = createType({type: 'map', values: 'int'});
+      var t2 = createType({
+        type: 'array',
+        items: {
+          name: 'Person',
+          type: 'record',
+          fields: [
+            {name: 'name', type: 'string'},
+            {name: 'age', type: 'int'}
+          ]
+        }
+      });
+      var Person = t2.getItemsType().getRecordConstructor();
+      var persons = [];
+      var encoder = new streams.BlockEncoder(t1);
+      var decoder = new streams.BlockDecoder({parseHook: parseHook})
+        .on('data', function (val) { persons.push(val); })
+        .on('end', function () {
+          assert.deepEqual(
+            persons,
+            [
+              [],
+              [new Person('Ann', 23), new Person('Bob', 25)],
+              [new Person('Celia', 48)]
+            ]
+          );
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write({});
+      encoder.write({Ann: 23, Bob: 25});
+      encoder.write({Celia: 48});
+      encoder.end();
+
+      function parseHook(attrs) {
+        assert.deepEqual(attrs, JSON.parse(t1.getSchema()));
+        return t2;
+      }
+    });
+
   });
 
 });
