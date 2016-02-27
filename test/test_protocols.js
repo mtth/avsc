@@ -122,8 +122,14 @@ suite('protocols', function () {
     });
 
     test('subprotocol', function () {
-      var ptcl = createProtocol({namespace: 'com.acme', protocol: 'Hello'});
+      var ptcl = createProtocol({
+        namespace: 'com.acme',
+        protocol: 'Hello',
+        types: [{name: 'Id', type: 'fixed', size: 2}],
+        messages: {ping: {request: [], response: 'null'}}
+      });
       var subptcl = ptcl.subprotocol();
+      assert(subptcl.getFingerprint().equals(ptcl.getFingerprint()));
       assert.strictEqual(subptcl._emitterResolvers, ptcl._emitterResolvers);
       assert.strictEqual(subptcl._listenerResolvers, ptcl._listenerResolvers);
     });
@@ -1565,6 +1571,36 @@ suite('protocols', function () {
               done();
             });
           });
+        });
+      });
+
+      test('catch server error', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            error1: {request: [], response: 'null'},
+            error2: {request: [], response: 'null', 'one-way': true},
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'int'
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl
+            .on('error1', function () { throw new Error('foobar'); })
+            .on('error2', function () { throw new Error('foobar'); })
+            .on('negate', function (req, ee, cb) { cb(null, -req.n); })
+            .emit('error1', {}, ee, function (err) {
+              assert(/foobar/.test(err));
+              // But the server doesn't die.
+              this.emit('error2', {}, ee);
+              this.emit('negate', {n: 20}, ee, function (err, res) {
+                assert.strictEqual(err, null);
+                assert.equal(res, -20);
+                done();
+              });
+            });
         });
       });
 
