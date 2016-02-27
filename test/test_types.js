@@ -978,7 +978,7 @@ suite('types', function () {
       var t = createType({type: 'fixed', name: 'Id', size: 2, three: 3});
       t.one = 1;
       assert.equal(t.getSchema(), '{"name":"Id","type":"fixed","size":2}');
-      assert.equal(t.getSchema(true), '"Id"');
+      assert.equal(t.getSchema({noDeref: true}), '"Id"');
     });
 
     test('fromString', function () {
@@ -1724,14 +1724,18 @@ suite('types', function () {
         aliases: ['Human'],
         fields: [
           {name: 'friends', type: {type: 'array', items: 'string'}},
-          {name: 'age', aliases: ['years'], type: {type: 'int'}}
+          {name: 'age', aliases: ['years'], type: {type: 'int'}, 'default': 0}
         ]
       });
       assert.equal(
         t.getSchema(),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}'
       );
-      assert.equal(t.getSchema(true), '"earth.Person"');
+      assert.equal(
+        t.getSchema({keepDefaults: true}),
+        '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int","default":0}]}'
+      );
+      assert.equal(t.getSchema({noDeref: true}), '"earth.Person"');
     });
 
     test('getSchema recursive schema', function () {
@@ -1747,7 +1751,7 @@ suite('types', function () {
         t.getSchema(),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"earth.Person"}}]}'
       );
-      assert.equal(t.getSchema(true), '"earth.Person"');
+      assert.equal(t.getSchema({noDeref: true}), '"earth.Person"');
     });
 
     test('fromString', function () {
