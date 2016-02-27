@@ -47,7 +47,7 @@ suite('protocols', function () {
           'one-way': true
           }
         }
-      });
+      }, {systemErrorType: 'string'});
       assert.equal(p.getName(), 'foo.HelloWorld');
       assert.equal(p.getType('foo.Greeting').getTypeName(), 'record');
     });
@@ -132,10 +132,11 @@ suite('protocols', function () {
     test('invalid emitter', function (done) {
       var ptcl = createProtocol({protocol: 'Hey'});
       var ee = createProtocol({protocol: 'Hi'}).createEmitter(function () {});
-      ptcl.emit('hi', {}, ee, function (err) {
-        assert(/invalid emitter/.test(err));
-        done();
-      });
+      assert.throws(
+        function () { ptcl.emit('hi', {}, ee); },
+        /invalid emitter/
+      );
+      done();
     });
 
     test('inspect', function () {
@@ -485,7 +486,7 @@ suite('protocols', function () {
       ptcl.emit('id', {id: 123}, ee, cb);
 
       function cb(err) {
-        assert.equal(err, 'interrupted');
+        assert(/interrupted/.test(err));
         interrupted++;
       }
     });
@@ -580,7 +581,7 @@ suite('protocols', function () {
           ml.destroy();
 
           ptcl.emit('ping', {}, me, function (err) {
-            assert(/truncated message/.test(err));
+            assert(/truncated message/.test(err.message));
             done();
           });
 
@@ -631,7 +632,7 @@ suite('protocols', function () {
         return writable;
       });
       ptcl.emit('ping', {}, ee, function (err) {
-        assert(/interrupted/.test(err));
+        assert(/interrupted/.test(err.message));
         readable.write(frame(new Buffer(2)));
         readable.end(frame(new Buffer(0)));
       });
@@ -653,7 +654,7 @@ suite('protocols', function () {
         return writable;
       });
       ptcl.emit('ping', {}, ee, function (err) {
-        assert(/no message decoded/.test(err));
+        assert(/no message decoded/.test(err.message));
         done();
       });
     });
@@ -1006,7 +1007,7 @@ suite('protocols', function () {
             assert.strictEqual(err, null);
             assert.equal(res, -20);
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/invalid "int"/.test(err));
+              assert(/invalid "int"/.test(err.message));
               ee.destroy();
             });
           });
@@ -1060,14 +1061,18 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function () { done(); });
           ptcl.emit('negate', {n: 'a'}, ee, function (err) {
-            assert(/invalid "int"/.test(err), null);
+            assert(/invalid "int"/.test(err.message), null);
             ee.destroy();
           });
         });
       });
 
       test('error response', function (done) {
-        var msg = 'must be non-negative';
+        var errorAttrs = {
+          name: 'SystemError',
+          type: 'error',
+          fields: [{name: 'message', type: 'string'}]
+        };
         var ptcl = createProtocol({
           protocol: 'Math',
           messages: {
@@ -1076,10 +1081,10 @@ suite('protocols', function () {
               response: 'float'
             }
           }
-        }).on('sqrt', function (req, ee, cb) {
+        }, {systemErrorType: errorAttrs}).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n < 0) {
-            cb(msg);
+            cb(new Error('must be non-negative'));
           } else {
             cb(null, Math.sqrt(n));
           }
@@ -1089,7 +1094,7 @@ suite('protocols', function () {
             assert(Math.abs(res - 10) < 1e-5);
             ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
               assert.equal(this, ptcl);
-              assert.equal(err, msg);
+              assert(/must be non-negative/.test(err.message));
               done();
             });
           });
@@ -1116,7 +1121,7 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
             // The server error message is propagated to the client.
-            assert(/invalid "float"/.test(err));
+            assert(/invalid "float"/.test(err.message));
             ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
               // And the server doesn't die (we can make a new request).
               assert(Math.abs(res - 10) < 1e-5);
@@ -1135,7 +1140,7 @@ suite('protocols', function () {
               response: 'float'
             }
           }
-        }).on('sqrt', function (req, ee, cb) {
+        }, {systemErrorType: 'string'}).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n === -1) {
             cb(new Error('no i')); // Invalid error (should be a string).
@@ -1197,7 +1202,7 @@ suite('protocols', function () {
             ee.destroy();
           });
           ptcl.emit('wait', {ms: -100, id: 'c'}, ee, function (err, res) {
-            assert(/non-negative/.test(err));
+            assert(/non-negative/.test(err.message));
             ids.push(res);
           });
         });
@@ -1383,7 +1388,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl1, ptcl2, function (ee) {
             ee.on('error', function (err) {
-              assert(/incompatible/.test(err));
+              assert(/incompatible/.test(err.message));
               done();
             });
             ptcl1.emit('ping', {}, ee);
@@ -1408,10 +1413,11 @@ suite('protocols', function () {
       test('unknown message', function (done) {
         var ptcl = createProtocol({protocol: 'Empty'});
         setupFn(ptcl, ptcl, function (ee) {
-          ptcl.emit('echo', {}, ee, function (err) {
-            assert(/unknown/.test(err));
-            done();
-          });
+          assert.throws(
+            function () { ptcl.emit('echo', {}, ee); },
+            /unknown message/
+          );
+          done();
         });
       });
 
@@ -1428,7 +1434,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/unhandled/.test(err));
+            assert(/unhandled/.test(err.message));
             ptcl.emit('ping', {}, ee);
             // By definition of one-way, there is no reliable way of calling
             // done exactly when ping is done, so we add a small timeout.
@@ -1466,7 +1472,7 @@ suite('protocols', function () {
           });
 
           function interruptedCb(err) {
-            assert(/interrupted/.test(err));
+            assert(/interrupted/.test(err.message));
             interrupted++;
           }
         });
@@ -1489,7 +1495,7 @@ suite('protocols', function () {
             assert.equal(res, -20);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/destroyed/.test(err));
+              assert(/destroyed/.test(err.message));
               done();
             });
           });
@@ -1528,7 +1534,7 @@ suite('protocols', function () {
             assert(err instanceof SystemError);
             ptcl.emit('random', {}, ee, function (err) {
               assert(err instanceof SystemError);
-              assert(/foo/.test(err));
+              assert(/foo/.test(err.message));
               done();
             });
           });
