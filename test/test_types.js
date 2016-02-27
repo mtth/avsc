@@ -413,6 +413,13 @@ suite('types', function () {
       assert.deepEqual(t.getTypes(), [createType('null'), createType('int')]);
     });
 
+    test('getTypeName', function () {
+      var t = new builtins.UnwrappedUnionType(['null', 'int']);
+      assert.strictEqual(t.getName(), undefined);
+      assert.strictEqual(t.getName(true), undefined);
+      assert.equal(t.getTypeName(), '(union:unwrapped)');
+    });
+
     test('invalid read', function () {
       var type = new builtins.UnwrappedUnionType(['null', 'int']);
       assert.throws(function () { type.fromBuffer(new Buffer([4])); });
@@ -2206,6 +2213,9 @@ suite('types', function () {
       assert(t.isValid(t.random()));
       var d = new Date(123);
       assert.equal(t.toString(d), '123');
+      assert.strictEqual(t.getName(), undefined);
+      assert.equal(t.getName(true), 'long');
+      assert.equal(t.getTypeName(), '(logical:long)');
       assert.deepEqual(t.fromString('123'), d);
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
@@ -2263,7 +2273,6 @@ suite('types', function () {
     });
 
     test('recursive', function () {
-
       function Person(friends) { this.friends = friends || []; }
 
       function PersonType(attrs, opts) {
@@ -2330,15 +2339,12 @@ suite('types', function () {
       }
       util.inherits(EvenIntType, types.builtins.LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
-        this._assertValid(val);
+        if (val !== (val | 0) || val % 2) {
+          throw new Error('invalid');
+        }
         return val;
       };
       EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
-      EvenIntType.prototype._assertValid = function (any) {
-        if (any !== (any | 0) || any % 2) {
-          throw new Error('invalid');
-        }
-      };
 
       var opts = {logicalTypes: {'even-integer': EvenIntType}};
       var t = createType({type: 'int', logicalType: 'even-integer'}, opts);
@@ -2352,6 +2358,40 @@ suite('types', function () {
       assert.throws(function () { t.fromString('5'); });
       assert.throws(function () { t.toBuffer(3); });
       assert.throws(function () { t.fromBuffer(new Buffer([2])); });
+    });
+
+    test('inside unwrapped union', function () {
+      function FooType(attrs, opts) {
+        types.builtins.LogicalType.call(this, attrs, opts);
+      }
+      util.inherits(FooType, types.builtins.LogicalType);
+
+      assert.throws(function () {
+        types.createType([
+          {type: 'int', logicalType: 'foo'}
+        ], {logicalTypes: {foo: FooType}, wrapUnions: false});
+      }, /ambiguous/);
+    });
+
+    test('inside wrapped union', function () {
+      function EvenIntType(attrs, opts) {
+        types.builtins.LogicalType.call(this, attrs, opts);
+      }
+      util.inherits(EvenIntType, types.builtins.LogicalType);
+      EvenIntType.prototype._fromValue = function (val) {
+        if (val !== (val | 0) || val % 2) {
+          throw new Error('invalid');
+        }
+        return val;
+      };
+      EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
+
+      var t = types.createType(
+        [{type: 'int', logicalType: 'even'}],
+        {logicalTypes: {even: EvenIntType}, wrapUnions: true}
+      );
+      assert(t.isValid({int: 2}));
+      assert(!t.isValid({int: 3}));
     });
 
     // Unions are slightly tricky to override with logical types since their

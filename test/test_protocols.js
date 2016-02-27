@@ -3,7 +3,6 @@
 'use strict';
 
 var protocols = require('../lib/protocols'),
-    types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
@@ -47,7 +46,7 @@ suite('protocols', function () {
           'one-way': true
           }
         }
-      }, {systemErrorType: 'string'});
+      });
       assert.equal(p.getName(), 'foo.HelloWorld');
       assert.equal(p.getType('foo.Greeting').getTypeName(), 'record');
     });
@@ -491,7 +490,7 @@ suite('protocols', function () {
       }
     });
 
-    test('missing client message', function (done) {
+    test('single client message', function (done) {
       var ptcl1 = createProtocol({
         protocol: 'Ping',
         messages: {
@@ -509,6 +508,7 @@ suite('protocols', function () {
       ptcl2.createListener(transports[1]);
       var ee = ptcl1.createEmitter(transports[0]);
       ptcl1.emit('ping', {}, ee, function (err, res) {
+        assert.strictEqual(err, null);
         assert.equal(res, 'ok');
         done();
       });
@@ -558,7 +558,7 @@ suite('protocols', function () {
       ptcl.createListener(transports[1]);
       ptcl.createEmitter(transports[0])
         .on('error', function (err) {
-          assert(/invalid metadata:/.test(err.message));
+          assert(/invalid metadata/.test(err));
           done();
         })
         .on('handshake', function () {
@@ -1014,6 +1014,28 @@ suite('protocols', function () {
         });
       });
 
+      test('emit receive error', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'long',
+              errors: [{type: 'map', values: 'string'}]
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ee.on('eot', function () { done(); });
+          ptcl.on('negate', function (req, ee, cb) { cb({rate: '23'}); });
+          ptcl.emit('negate', {n: 20}, ee, function (err) {
+            assert.equal(this, ptcl);
+            assert.deepEqual(err, {rate: '23'});
+            ee.destroy();
+          });
+        });
+      });
+
       test('complex type', function (done) {
         var ptcl = createProtocol({
           protocol: 'Literature',
@@ -1068,11 +1090,6 @@ suite('protocols', function () {
       });
 
       test('error response', function (done) {
-        var errorAttrs = {
-          name: 'SystemError',
-          type: 'error',
-          fields: [{name: 'message', type: 'string'}]
-        };
         var ptcl = createProtocol({
           protocol: 'Math',
           messages: {
@@ -1081,7 +1098,7 @@ suite('protocols', function () {
               response: 'float'
             }
           }
-        }, {systemErrorType: errorAttrs}).on('sqrt', function (req, ee, cb) {
+        }).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n < 0) {
             cb(new Error('must be non-negative'));
@@ -1095,6 +1112,35 @@ suite('protocols', function () {
             ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
               assert.equal(this, ptcl);
               assert(/must be non-negative/.test(err.message));
+              done();
+            });
+          });
+        });
+      });
+
+      test('wrapped error response', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            sqrt: {
+              request: [{name: 'n', type: 'float'}],
+              response: 'null',
+              errors: ['float']
+            }
+          }
+        }, {wrapUnions: true}).on('sqrt', function (req, ee, cb) {
+          var n = req.n;
+          if (n < 0) {
+            cb(new Error('must be non-negative'));
+          } else {
+            cb({float: Math.sqrt(n)});
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.emit('sqrt', {n: -10}, ee, function (err) {
+            assert(/must be non-negative/.test(err.message));
+            ptcl.emit('sqrt', {n: 100}, ee, function (err) {
+              assert(Math.abs(err.float - 10) < 1e-5);
               done();
             });
           });
@@ -1131,7 +1177,7 @@ suite('protocols', function () {
         });
       });
 
-      test('invalid error', function (done) {
+      test('invalid strict error', function (done) {
         var ptcl = createProtocol({
           protocol: 'Math',
           messages: {
@@ -1140,14 +1186,14 @@ suite('protocols', function () {
               response: 'float'
             }
           }
-        }, {systemErrorType: 'string'}).on('sqrt', function (req, ee, cb) {
+        }, {strictErrors: true}).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n === -1) {
             cb(new Error('no i')); // Invalid error (should be a string).
           } else if (n < 0) {
             cb({error: 'complex'}); // Also invalid error.
           } else {
-            cb(null, Math.sqrt(n));
+            cb(undefined, Math.sqrt(n));
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
@@ -1157,6 +1203,7 @@ suite('protocols', function () {
               assert(/invalid \["string"\]/.test(err));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
                 // The server still doesn't die (we can make a new request).
+                assert.strictEqual(err, undefined);
                 assert(Math.abs(res - 10) < 1e-5);
                 done();
               });
@@ -1202,7 +1249,7 @@ suite('protocols', function () {
             ee.destroy();
           });
           ptcl.emit('wait', {ms: -100, id: 'c'}, ee, function (err, res) {
-            assert(/non-negative/.test(err.message));
+            assert(/non-negative/.test(err));
             ids.push(res);
           });
         });
@@ -1357,7 +1404,7 @@ suite('protocols', function () {
           messages: {
             age: {request: [{name: 'name', type: 'string'}], response: 'long'}
           }
-        });
+        }, {wrapUnions: true});
         var listenerPtcl = createProtocol({
           protocol: 'serverProtocol',
           messages: {
@@ -1370,7 +1417,7 @@ suite('protocols', function () {
           function (ee) {
             ee.on('error', function () {}); // For stateful protocols.
             emitterPtcl.emit('age', {name: 'Ann'}, ee, function (err) {
-              assert(err);
+              assert(err.message);
               done();
             });
           }
@@ -1388,7 +1435,12 @@ suite('protocols', function () {
         });
         setupFn(ptcl1, ptcl2, function (ee) {
             ee.on('error', function (err) {
-              assert(/incompatible/.test(err.message));
+              // The error will be emitter directly in the case of stateful
+              // emitters and wrapped when stateless.
+              assert(
+                /incompatible/.test(err) ||
+                /incompatible/.test(err.cause)
+              );
               done();
             });
             ptcl1.emit('ping', {}, ee);
@@ -1404,6 +1456,20 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('ping', function (req, ee, cb) {
             assert.strictEqual(cb, undefined);
+            done();
+          });
+          ptcl.emit('ping', {}, ee);
+        });
+      });
+
+      test('ignored response', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'ptcl',
+          messages: {ping: {request: [], response: 'null'}} // Not one-way.
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('ping', function (req, ee, cb) {
+            cb(null, null);
             done();
           });
           ptcl.emit('ping', {}, ee);
@@ -1496,45 +1562,6 @@ suite('protocols', function () {
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
               assert(/destroyed/.test(err.message));
-              done();
-            });
-          });
-        });
-      });
-
-      test('custom system error', function (done) {
-        // Custom error which can be used to return actual errors instead of
-        // strings (default for Avro).
-        var systemErrorType = types.createType({
-          name: 'SystemError',
-          type: 'error',
-          fields: [{name: 'message', type: 'string'}]
-        });
-        var SystemError = systemErrorType.getRecordConstructor();
-
-        var ptcl = createProtocol({
-          protocol: 'Math',
-          messages: {
-            negate: {
-              request: [{name: 'n', type: 'int'}],
-              response: 'int'
-            },
-            random: {
-              request: [],
-              response: 'int'
-            }
-          }
-        }, {systemErrorType: systemErrorType});
-
-        setupFn(ptcl, ptcl, function (ee) {
-          ptcl.on('random', function (req, ee, cb) {
-            cb(new Error('foo'));
-          });
-          ptcl.emit('negate', {n: 20}, ee, function (err) {
-            assert(err instanceof SystemError);
-            ptcl.emit('random', {}, ee, function (err) {
-              assert(err instanceof SystemError);
-              assert(/foo/.test(err.message));
               done();
             });
           });
