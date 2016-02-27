@@ -77,9 +77,16 @@ suite('types', function () {
       );
     });
 
-    test('resolve int > [null, int]', function () {
+    test('resolve int > U[null, int]', function () {
       var wt = createType('int');
       var rt = createType(['null', 'int']);
+      var buf = wt.toBuffer(123);
+      assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), 123);
+    });
+
+    test('resolve int > W[null, int]', function () {
+      var wt = createType('int');
+      var rt = createType(['null', 'int'], {wrapUnions: true});
       var buf = wt.toBuffer(123);
       assert.deepEqual(
         rt.fromBuffer(buf, rt.createResolver(wt)),
@@ -638,7 +645,7 @@ suite('types', function () {
 
     test('resolve int to [long, int]', function () {
       var t1 = createType('int');
-      var t2 = createType(['long', 'int']);
+      var t2 = new builtins.WrappedUnionType(['long', 'int']);
       var a = t2.createResolver(t1);
       var buf = t1.toBuffer(23);
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
@@ -646,14 +653,14 @@ suite('types', function () {
 
     test('resolve null to [null, int]', function () {
       var t1 = createType('null');
-      var t2 = createType(['null', 'int']);
+      var t2 = new builtins.WrappedUnionType(['null', 'int']);
       var a = t2.createResolver(t1);
       assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
     test('resolve [string, int] to [long, string]', function () {
-      var t1 = createType(['string', 'int']);
-      var t2 = createType(['int', 'bytes']);
+      var t1 = new builtins.WrappedUnionType(['string', 'int']);
+      var t2 = new builtins.WrappedUnionType(['int', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
       buf = t1.toBuffer({string: 'hi'});
@@ -679,7 +686,7 @@ suite('types', function () {
     });
 
     test('clone and wrap', function () {
-      var t = createType(['string', 'int']);
+      var t = new builtins.WrappedUnionType(['string', 'int']);
       var o;
       o = t.clone('hi', {wrapUnions: true});
       assert.deepEqual(o, {'string': 'hi'});
@@ -689,7 +696,7 @@ suite('types', function () {
     });
 
     test('invalid multiple keys', function () {
-      var t = createType(['null', 'int']);
+      var t = new builtins.WrappedUnionType(['null', 'int']);
       var o = {'int': 2};
       assert(t.isValid(o));
       o.foo = 3;
@@ -697,7 +704,7 @@ suite('types', function () {
     });
 
     test('clone multiple keys', function () {
-      var t = createType(['null', 'int']);
+      var t = new builtins.WrappedUnionType(['null', 'int']);
       var o = {'int': 2, foo: 3};
       assert.throws(function () { t.clone(o); });
       assert.throws(function () { t.clone(o, {}); });
@@ -711,7 +718,7 @@ suite('types', function () {
           {name: 'id1', type: {name: 'an.Id', type: 'fixed', size: 1}},
           {name: 'id2', type: ['null', 'an.Id']}
         ]
-      });
+      }, {wrapUnions: true});
       var b = new Buffer([0]);
       var o = {id1: b, id2: {Id: b}};
       var c = {id1: b, id2: {'an.Id': b}};
@@ -727,7 +734,7 @@ suite('types', function () {
           {name: 'id1', type: {name: 'Id', type: 'fixed', size: 1}},
           {name: 'id2', type: ['null', 'Id']}
         ]
-      });
+      }, {wrapUnions: true});
       var b = new Buffer([0]);
       var o = {id1: b, id2: {'an.Id': b}};
       assert.throws(function () { t.clone(o); });
@@ -735,7 +742,7 @@ suite('types', function () {
     });
 
     test('compare buffers', function () {
-      var t = createType(['null', 'double']);
+      var t = new builtins.WrappedUnionType(['null', 'double']);
       var b1 = t.toBuffer(null);
       assert.equal(t.compareBuffers(b1, b1), 0);
       var b2 = t.toBuffer({'double': 4});
@@ -747,10 +754,10 @@ suite('types', function () {
 
     test('compare', function () {
       var t;
-      t = createType(['null', 'int']);
+      t = new builtins.WrappedUnionType(['null', 'int']);
       assert.equal(t.compare(null, {'int': 3}), -1);
       assert.equal(t.compare(null, null), 0);
-      t = createType(['int', 'float']);
+      t = new builtins.WrappedUnionType(['int', 'float']);
       assert.equal(t.compare({'int': 2}, {'float': 0.5}), -1);
       assert.equal(t.compare({'int': 20}, {'int': 5}), 1);
     });
@@ -1417,7 +1424,7 @@ suite('types', function () {
 
     test('record default', function () {
       var d = {street: null, zip: 123};
-      var Person = createType({
+      var attrs = {
         name: 'Person',
         type: 'record',
         fields: [
@@ -1434,9 +1441,16 @@ suite('types', function () {
             'default': d
           }
         ]
-      }).getRecordConstructor();
-      var p = new Person();
-      assert.deepEqual(p.address, {street: null, zip: {'int': 123}});
+      };
+      var Person, person;
+      // Wrapped
+      Person = createType(attrs, {wrapUnions: true}).getRecordConstructor();
+      person = new Person();
+      assert.deepEqual(person.address, {street: null, zip: {'int': 123}});
+      // Unwrapped.
+      Person = createType(attrs).getRecordConstructor();
+      person = new Person();
+      assert.deepEqual(person.address, {street: null, zip: 123});
     });
 
     test('record keyword field name', function () {
@@ -1808,7 +1822,7 @@ suite('types', function () {
           {name: 'name', type: 'string', 'default': 'UNKNOWN'},
           {name: 'age', type: ['null', 'int'], 'default': null},
         ]
-      });
+      }, {wrapUnions: true});
       assert.deepEqual(
         t.clone({id: 1, name: 'Ann'}),
         {id: 1, name: 'Ann', age: null}
@@ -2371,8 +2385,10 @@ suite('types', function () {
         /**
         * A generic union type which exposes its values directly.
         *
-        * This implementation is pretty minimal, we could optimize it by caching
-        * the underlying union's type names for example.
+        * This implementation predates the existence of the
+        * `UnwrappedUnionType` currently in the built-in types. It can still be
+        * used as an example to implement custom unwrapped unions (which would
+        * be able to cover ambiguous unions).
         *
         */
         function UnwrappedUnionType(attrs, opts) {
@@ -2390,12 +2406,12 @@ suite('types', function () {
 
         var t1 = createType(
           schema,
-          {typeHook: createUnionTypeHook(UnwrappedUnionType)}
+          {typeHook: createUnionTypeHook(UnwrappedUnionType), wrapUnions: true}
         );
         var obj = {name: 'Ann', age: 23};
         assert(t1.isValid(obj));
         var buf = t1.toBuffer(obj);
-        var t2 = createType(schema);
+        var t2 = createType(schema, {wrapUnions: true});
         assert.deepEqual(
           t2.fromBuffer(buf),
           {Person: {name: 'Ann', age: {'int': 23}}}
@@ -2440,12 +2456,12 @@ suite('types', function () {
 
         var t1 = createType(
           schema,
-          {typeHook: createUnionTypeHook(OptionalType)}
+          {typeHook: createUnionTypeHook(OptionalType), wrapUnions: true}
         );
         var obj = {name: 'Ann', age: 23};
         assert(t1.isValid(obj));
         var buf = t1.toBuffer(obj);
-        var t2 = createType(schema);
+        var t2 = createType(schema, {wrapUnions: true});
         assert.deepEqual(
           t2.fromBuffer(buf),
           {Person: {name: 'Ann', age: {'int': 23}}}
@@ -2732,11 +2748,11 @@ suite('types', function () {
       assert.throws(function () { t.createResolver(obj); });
     });
 
-    test('union to valid union', function () {
+    test('union to valid wrapped union', function () {
       var t1 = createType(['int', 'string']);
-      var t2 = createType(['null', 'string', 'long']);
+      var t2 = createType(['null', 'string', 'long'], {wrapUnions: true});
       var resolver = t2.createResolver(t1);
-      var buf = t1.toBuffer({'int': 12});
+      var buf = t1.toBuffer(12);
       assert.deepEqual(t2.fromBuffer(buf, resolver), {'long': 12});
     });
 
@@ -2746,8 +2762,8 @@ suite('types', function () {
       assert.throws(function () { t2.createResolver(t1); });
     });
 
-    test('union to non union', function () {
-      var t1 = createType(['int', 'long']);
+    test('wrapped union to non union', function () {
+      var t1 = createType(['int', 'long'], {wrapUnions: true});
       var t2 = createType('long');
       var resolver = t2.createResolver(t1);
       var buf = t1.toBuffer({'int': 12});
@@ -2756,8 +2772,16 @@ suite('types', function () {
       assert.throws(function () { t2.fromBuffer(buf, resolver); });
     });
 
+    test('union to non union', function () {
+      var t1 = createType(['bytes', 'string']);
+      var t2 = createType('bytes');
+      var resolver = t2.createResolver(t1);
+      var buf = t1.toBuffer('\x01\x02');
+      assert.deepEqual(t2.fromBuffer(buf, resolver), new Buffer([1, 2]));
+    });
+
     test('union to invalid non union', function () {
-      var t1 = createType(['int', 'long']);
+      var t1 = createType(['int', 'long'], {wrapUnions: true});
       var t2 = createType('int');
       assert.throws(function() { t2.createResolver(t1); });
     });

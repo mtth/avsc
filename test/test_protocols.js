@@ -3,6 +3,7 @@
 'use strict';
 
 var protocols = require('../lib/protocols'),
+    types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
@@ -132,7 +133,7 @@ suite('protocols', function () {
       var ptcl = createProtocol({protocol: 'Hey'});
       var ee = createProtocol({protocol: 'Hi'}).createEmitter(function () {});
       ptcl.emit('hi', {}, ee, function (err) {
-        assert(/invalid emitter/.test(err.string));
+        assert(/invalid emitter/.test(err));
         done();
       });
     });
@@ -366,8 +367,8 @@ suite('protocols', function () {
       var resBufs = [
         {
           match: 'NONE',
-          serverHash: {'org.apache.avro.ipc.MD5': new Buffer(16)},
-          serverProtocol: {string: ptcl.toString()},
+          serverHash: new Buffer(16),
+          serverProtocol: ptcl.toString(),
         },
         {match: 'BOTH'}
       ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
@@ -394,14 +395,14 @@ suite('protocols', function () {
       var resBufs = [
         {
           match: 'NONE',
-          serverHash: {'org.apache.avro.ipc.MD5': hash},
-          serverProtocol: {string: ptcl.toString()},
+          serverHash: hash,
+          serverProtocol: ptcl.toString(),
         },
         {
           match: 'NONE',
-          serverHash: {'org.apache.avro.ipc.MD5': hash},
-          serverProtocol: {string: ptcl.toString()},
-          meta: {map: {error: new Buffer('abcd')}}
+          serverHash: hash,
+          serverProtocol: ptcl.toString(),
+          meta: {error: new Buffer('abcd')}
         }
       ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
       var error = false;
@@ -484,7 +485,7 @@ suite('protocols', function () {
       ptcl.emit('id', {id: 123}, ee, cb);
 
       function cb(err) {
-        assert.deepEqual(err, {string: 'interrupted'});
+        assert.equal(err, 'interrupted');
         interrupted++;
       }
     });
@@ -579,7 +580,7 @@ suite('protocols', function () {
           ml.destroy();
 
           ptcl.emit('ping', {}, me, function (err) {
-            assert(/invalid response:/.test(err.string));
+            assert(/truncated message/.test(err));
             done();
           });
 
@@ -630,11 +631,31 @@ suite('protocols', function () {
         return writable;
       });
       ptcl.emit('ping', {}, ee, function (err) {
-        assert(/interrupted/.test(err.string));
+        assert(/interrupted/.test(err));
         readable.write(frame(new Buffer(2)));
         readable.end(frame(new Buffer(0)));
       });
       ee.destroy(true);
+    });
+
+    test('truncated response data', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'string'}}
+      });
+      var readable = createReadableStream([
+        new Buffer([0, 0, 0]), // OK handshake.
+        new Buffer([8]) // Truncated string.
+      ]);
+      var writable = stream.PassThrough();
+      var ee = ptcl.createEmitter(function (cb) {
+        cb(readable);
+        return writable;
+      });
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert(/no message decoded/.test(err));
+        done();
+      });
     });
 
   });
@@ -686,7 +707,7 @@ suite('protocols', function () {
       var hash = new Buffer(ptcl2._hashString, 'binary');
       var req = {
         clientHash: hash,
-        clientProtocol: {string: ptcl2.toString()},
+        clientProtocol: ptcl2.toString(),
         serverHash: hash
       };
       var transport = createTransport(
@@ -697,7 +718,7 @@ suite('protocols', function () {
         .on('handshake', function (req, res) {
           assert(req.isValid());
           assert.equal(res.match, 'NONE');
-          var msg = res.meta.map.error.toString();
+          var msg = res.meta.error.toString();
           assert(/missing server message/.test(msg));
           done();
         });
@@ -894,7 +915,7 @@ suite('protocols', function () {
       var hash = new Buffer(ptcl1._hashString, 'binary');
       var req = {
         clientHash: hash,
-        clientProtocol: {'string': ptcl1.toString()},
+        clientProtocol: ptcl1.toString(),
         serverHash: hash
       };
       var encoder = new protocols.streams.MessageEncoder(64);
@@ -985,7 +1006,7 @@ suite('protocols', function () {
             assert.strictEqual(err, null);
             assert.equal(res, -20);
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/invalid "int"/.test(err.string));
+              assert(/invalid "int"/.test(err));
               ee.destroy();
             });
           });
@@ -1039,7 +1060,7 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function () { done(); });
           ptcl.emit('negate', {n: 'a'}, ee, function (err) {
-            assert(/invalid "int"/.test(err.string), null);
+            assert(/invalid "int"/.test(err), null);
             ee.destroy();
           });
         });
@@ -1058,7 +1079,7 @@ suite('protocols', function () {
         }).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n < 0) {
-            cb({string: msg});
+            cb(msg);
           } else {
             cb(null, Math.sqrt(n));
           }
@@ -1068,7 +1089,7 @@ suite('protocols', function () {
             assert(Math.abs(res - 10) < 1e-5);
             ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
               assert.equal(this, ptcl);
-              assert.equal(err.string, msg);
+              assert.equal(err, msg);
               done();
             });
           });
@@ -1095,7 +1116,7 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
             // The server error message is propagated to the client.
-            assert(/invalid "float"/.test(err.string));
+            assert(/invalid "float"/.test(err));
             ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
               // And the server doesn't die (we can make a new request).
               assert(Math.abs(res - 10) < 1e-5);
@@ -1116,19 +1137,24 @@ suite('protocols', function () {
           }
         }).on('sqrt', function (req, ee, cb) {
           var n = req.n;
-          if (n < 0) {
-            cb({error: 'complex'}); // Invalid error.
+          if (n === -1) {
+            cb(new Error('no i')); // Invalid error (should be a string).
+          } else if (n < 0) {
+            cb({error: 'complex'}); // Also invalid error.
           } else {
             cb(null, Math.sqrt(n));
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
-          ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
-            assert(/invalid \["string"\]/.test(err.string));
-            ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
-              // The server still doesn't die (we can make a new request).
-              assert(Math.abs(res - 10) < 1e-5);
-              done();
+          ptcl.emit('sqrt', {n: -1}, ee, function (err) {
+            assert(/invalid \["string"\]/.test(err));
+            ptcl.emit('sqrt', {n: -2}, ee, function (err) {
+              assert(/invalid \["string"\]/.test(err));
+              ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
+                // The server still doesn't die (we can make a new request).
+                assert(Math.abs(res - 10) < 1e-5);
+                done();
+              });
             });
           });
         });
@@ -1149,7 +1175,7 @@ suite('protocols', function () {
         }).on('wait', function (req, ee, cb) {
           var delay = req.ms;
           if (delay < 0) {
-            cb(new Error('delay must be non-negative'));
+            cb('delay must be non-negative');
             return;
           }
           setTimeout(function () { cb(null, req.id); }, delay);
@@ -1171,7 +1197,7 @@ suite('protocols', function () {
             ee.destroy();
           });
           ptcl.emit('wait', {ms: -100, id: 'c'}, ee, function (err, res) {
-            assert(/non-negative/.test(err.string));
+            assert(/non-negative/.test(err));
             ids.push(res);
           });
         });
@@ -1357,7 +1383,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl1, ptcl2, function (ee) {
             ee.on('error', function (err) {
-              assert(/incompatible/.test(err.message));
+              assert(/incompatible/.test(err));
               done();
             });
             ptcl1.emit('ping', {}, ee);
@@ -1383,7 +1409,7 @@ suite('protocols', function () {
         var ptcl = createProtocol({protocol: 'Empty'});
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {}, ee, function (err) {
-            assert(/unknown/.test(err.string));
+            assert(/unknown/.test(err));
             done();
           });
         });
@@ -1402,7 +1428,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/unhandled/.test(err.string));
+            assert(/unhandled/.test(err));
             ptcl.emit('ping', {}, ee);
             // By definition of one-way, there is no reliable way of calling
             // done exactly when ping is done, so we add a small timeout.
@@ -1440,7 +1466,7 @@ suite('protocols', function () {
           });
 
           function interruptedCb(err) {
-            assert(/interrupted/.test(err.string));
+            assert(/interrupted/.test(err));
             interrupted++;
           }
         });
@@ -1463,7 +1489,46 @@ suite('protocols', function () {
             assert.equal(res, -20);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/destroyed/.test(err.string));
+              assert(/destroyed/.test(err));
+              done();
+            });
+          });
+        });
+      });
+
+      test('custom system error', function (done) {
+        // Custom error which can be used to return actual errors instead of
+        // strings (default for Avro).
+        var systemErrorType = types.createType({
+          name: 'SystemError',
+          type: 'error',
+          fields: [{name: 'message', type: 'string'}]
+        });
+        var SystemError = systemErrorType.getRecordConstructor();
+
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'int'
+            },
+            random: {
+              request: [],
+              response: 'int'
+            }
+          }
+        }, {systemErrorType: systemErrorType});
+
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('random', function (req, ee, cb) {
+            cb(new Error('foo'));
+          });
+          ptcl.emit('negate', {n: 20}, ee, function (err) {
+            assert(err instanceof SystemError);
+            ptcl.emit('random', {}, ee, function (err) {
+              assert(err instanceof SystemError);
+              assert(/foo/.test(err));
               done();
             });
           });
