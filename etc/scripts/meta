@@ -2,10 +2,14 @@
 
 /* jshint node: true */
 
+// TODO: Handle references.
+
 'use strict';
 
 /**
- * Schema generation and compression utilities.
+ * A type for types.
+ *
+ * Useful for many things, here for schema generation and compression.
  *
  * Usages (input is always read from stdin):
  *
@@ -18,212 +22,111 @@
  *
  */
 
-var avro = require('../../lib'),
+var avro = require('../lib'),
     util = require('util');
 
 
+/**
+ * Transform a canonical schema into its type.
+ *
+ */
 function MetaType(attrs, opts) {
-  avro.types.LogicalType.call(this, attrs, opts, [avro.types.RecordType]);
+  avro.types.LogicalType.call(this, attrs, opts);
 }
 util.inherits(MetaType, avro.types.LogicalType);
 
-MetaType.prototype._fromValue = function (val) {
+MetaType.prototype._fromValue = function (val) { return avro.parse(val); };
+
+MetaType.prototype._toValue = function (any) { return any.toJSON(); };
+
+/**
+ * Deal with Avro's inconsistent union representation.
+ *
+ */
+function NamedUnionType(attrs, opts) {
+  avro.types.LogicalType.call(this, attrs, opts);
+}
+util.inherits(NamedUnionType, avro.types.LogicalType);
+
+NamedUnionType.prototype._fromValue = function (val) {
   var obj = val.value;
   return obj[Object.keys(obj)[0]];
 };
 
-MetaType.prototype._toValue = function (any) {
+NamedUnionType.prototype._toValue = function (any) {
   var obj;
   if (typeof any == 'string') {
-    if (~primitiveSymbols.indexOf(any)) {
-      // Handling primitive names separately from references lets us save a
-      // significant amount of space (1 byte per type name instead of 5-8).
-      obj = {PrimitiveType: any};
-    } else {
-      obj = {string: any};
-    }
-  } else if (any instanceof Array) {
-    obj = {array: any};
+    obj = {string: any};
+  } else if (avro.Type.isType(any, 'union')) {
+    obj = {array: any.getTypes()};
   } else {
     obj = {};
-    obj[capitalize(any.type)] = any;
+    obj[any.constructor.name_] = any;
   }
   return {value: obj};
 };
 
-var primitiveSymbols = [
-  "boolean",
-  "bytes",
-  "double",
-  "float",
-  "int",
-  "long",
-  "null",
-  "string"
-];
 
-var metaType = avro.parse({
-  "logicalType": "meta",
-  "type": "record",
-  "name": "Meta",
-  "fields": [
+// Finally.
+var META_TYPE = avro.parse({
+  name: 'MetaType',
+  type: 'record',
+  logicalType: 'union',
+  fields: [
     {
-      "type": [
-        {
-          "type": "enum",
-          "name": "PrimitiveType",
-          "symbols": primitiveSymbols,
-        },
-        {
-          "type": "record",
-          "name": "Array",
-          "fields": [
-            {
-              "name": "type",
-              "type": {
-                "type": "enum",
-                "name": "ArrayType",
-                "symbols": [
-                  "array"
+      name: 'value',
+      type: [
+        primitive('boolean'),
+        primitive('bytes'),
+        primitive('double'),
+        primitive('float'),
+        primitive('int'),
+        primitive('long'),
+        primitive('null'),
+        primitive('string'),
+        derived('array', [{name: 'items', type: 'MetaType'}]),
+        derived('map', [{name: 'values', type: 'MetaType'}]),
+        derived('fixed', [
+          {name: 'name', type: 'string'},
+          {name: 'size', type: 'int'}
+        ]),
+        derived('enum', [
+          {name: 'name', type: 'string'},
+          {name: 'symbols', type: {type: 'array', items: 'string'}}
+        ]),
+        derived('record', [
+          {name: 'name', type: 'string'},
+          {
+            name: 'fields',
+            type: {
+              type: 'array',
+              items: {
+                name: 'Field',
+                type: 'record',
+                fields: [
+                  {name: 'name', type: 'string'},
+                  {name: 'type', type: 'MetaType'}
                 ]
               }
-            },
-            {
-              "type": "Meta",
-              "name": "items"
             }
-          ]
-        },
-        {
-          "type": "record",
-          "name": "Enum",
-          "fields": [
-            {
-              "type": "string",
-              "name": "name"
-            },
-            {
-              "type": {
-                "type": "enum",
-                "name": "EnumType",
-                "symbols": [
-                  "enum"
-                ]
-              },
-              "name": "type"
-            },
-            {
-              "type": {
-                "type": "array",
-                "items": "string"
-              },
-              "name": "symbols"
-            }
-          ]
-        },
-        {
-          "type": "record",
-          "name": "Fixed",
-          "fields": [
-            {
-              "type": "string",
-              "name": "name"
-            },
-            {
-              "type": {
-                "type": "enum",
-                "name": "FixedType",
-                "symbols": [
-                  "fixed"
-                ]
-              },
-              "name": "type"
-            },
-            {
-              "type": "int",
-              "name": "size"
-            }
-          ]
-        },
-        {
-          "type": "record",
-          "name": "Map",
-          "fields": [
-            {
-              "type": {
-                "type": "enum",
-                "name": "MapType",
-                "symbols": [
-                  "map"
-                ]
-              },
-              "name": "type"
-            },
-            {
-              "type": "Meta",
-              "name": "values"
-            }
-          ]
-        },
-        {
-          "type": "record",
-          "name": "Record",
-          "fields": [
-            {
-              "type": "string",
-              "name": "name"
-            },
-            {
-              "type": {
-                "type": "enum",
-                "name": "RecordType",
-                "symbols": [
-                  "record"
-                ]
-              },
-              "name": "type"
-            },
-            {
-              "type": {
-                "type": "array",
-                "items": {
-                  "type": "record",
-                  "name": "Field",
-                  "fields": [
-                    {
-                      "type": "string",
-                      "name": "name"
-                    },
-                    {
-                      "type": "Meta",
-                      "name": "type"
-                    }
-                  ]
-                }
-              },
-              "name": "fields"
-            }
-          ]
-        },
-        "string",
-        {
-          "type": "array",
-          "items": "Meta"
-        }
-      ],
-      "name": "value"
+          }
+        ]),
+        {type: 'array', items: 'MetaType'}, // Union.
+        'string' // Reference (not fully supported yet).
+      ]
     }
   ]
-}, {logicalTypes: {meta: MetaType}});
+}, {logicalTypes: {meta: MetaType, union: NamedUnionType}, wrapUnions: true});
 
+
+// Examples of things we can do.
 switch (process.argv[2]) {
   case 'compress':
     readInput(function (err, buf) {
       if (err) {
         throw err;
       }
-      var attrs = JSON.parse(avro.parse(buf.toString()).getSchema());
-      process.stdout.write(metaType.toBuffer(attrs));
+      process.stdout.write(META_TYPE.toBuffer(avro.parse(buf.toString())));
     });
     break;
   case 'decompress':
@@ -231,11 +134,11 @@ switch (process.argv[2]) {
       if (err) {
         throw err;
       }
-      console.log(JSON.stringify(metaType.fromBuffer(buf)));
+      console.log(META_TYPE.fromBuffer(buf).getSchema());
     });
     break;
   case 'random':
-    console.log(JSON.stringify(metaType.random()));
+    console.log(JSON.stringify(META_TYPE.random()));
     break;
   default:
     var exec = process.argv[1];
@@ -243,7 +146,28 @@ switch (process.argv[2]) {
     process.exit(1);
 }
 
-// Helpers.
+
+// Helpers, mostly to generate repetitive parts of the schema.
+
+function primitive(name) {
+  return {
+    name: capitalize(name) + 'Type',
+    type: 'enum',
+    logicalType: 'meta',
+    symbols: [name]
+  };
+}
+
+function derived(name, fields) {
+  var typeName = capitalize(name) + 'Type';
+  fields.unshift({
+    name: 'type',
+    type: {type: 'enum', name: typeName + 'Name', symbols: [name]}
+  });
+  return {name: typeName, type: 'record', logicalType: 'meta', fields: fields};
+}
+
+function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function readInput(cb) {
   var bufs = [];
@@ -252,5 +176,3 @@ function readInput(cb) {
     .on('data', function (buf) { bufs.push(buf); })
     .on('end', function () { cb(null, Buffer.concat(bufs)); });
 }
-
-function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
