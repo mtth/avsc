@@ -216,9 +216,9 @@ suite('protocols', function () {
 
   });
 
-  suite('MessageDecoder', function () {
+  suite('FrameDecoder', function () {
 
-    var MessageDecoder = protocols.streams.MessageDecoder;
+    var FrameDecoder = protocols.streams.FrameDecoder;
 
     test('ok', function (done) {
       var parts = [
@@ -238,7 +238,7 @@ suite('protocols', function () {
           );
           done();
         });
-      readable.pipe(new MessageDecoder()).pipe(writable);
+      readable.pipe(new FrameDecoder()).pipe(writable);
     });
 
     test('trailing data', function (done) {
@@ -252,7 +252,7 @@ suite('protocols', function () {
       var readable = createReadableStream(parts.map(frame), true);
       var writable = createWritableStream(messages, true);
       readable
-        .pipe(new MessageDecoder())
+        .pipe(new FrameDecoder())
         .on('error', function () {
           assert.deepEqual(messages, [new Buffer([0, 1, 2])]);
           done();
@@ -263,19 +263,15 @@ suite('protocols', function () {
     test('empty', function (done) {
       var readable = createReadableStream([], true);
       readable
-        .pipe(new MessageDecoder(true))
+        .pipe(new FrameDecoder({noEmpty: true}))
         .on('error', function () { done(); });
     });
 
   });
 
-  suite('MessageEncoder', function () {
+  suite('FrameEncoder', function () {
 
-    var MessageEncoder = protocols.streams.MessageEncoder;
-
-    test('invalid frame size', function () {
-      assert.throws(function () { new MessageEncoder(); });
-    });
+    var FrameEncoder = protocols.streams.FrameEncoder;
 
     test('ok', function (done) {
       var messages = [
@@ -286,7 +282,7 @@ suite('protocols', function () {
       var readable = createReadableStream(messages, true);
       var writable = createWritableStream(frames, true);
       readable
-        .pipe(new MessageEncoder(64))
+        .pipe(new FrameEncoder({frameSize: 64}))
         .pipe(writable)
         .on('finish', function () {
           assert.deepEqual(
@@ -306,7 +302,7 @@ suite('protocols', function () {
       var readable = createReadableStream(messages, true);
       var writable = createWritableStream(frames, true);
       readable
-        .pipe(new MessageEncoder(64))
+        .pipe(new FrameEncoder({frameSize: 64}))
         .pipe(writable)
         .on('finish', function () {
           assert.deepEqual(
@@ -326,7 +322,7 @@ suite('protocols', function () {
       var readable = createReadableStream(messages, true);
       var writable = createWritableStream(frames, true);
       readable
-        .pipe(new MessageEncoder(2))
+        .pipe(new FrameEncoder({frameSize: 2}))
         .pipe(writable)
         .on('finish', function () {
           assert.deepEqual(
@@ -770,7 +766,7 @@ suite('protocols', function () {
           var idType = ee._idType;
           var bufs = [];
           transports[0].readable
-            .pipe(new protocols.streams.MessageDecoder())
+            .pipe(new protocols.streams.FrameDecoder())
             .on('data', function (buf) { bufs.push(buf); })
             .on('end', function () {
               assert.equal(bufs.length, 1);
@@ -810,7 +806,7 @@ suite('protocols', function () {
           var idType = ee._idType;
           var bufs = [];
           transports[0].readable
-            .pipe(new protocols.streams.MessageDecoder())
+            .pipe(new protocols.streams.FrameDecoder())
             .on('data', function (buf) { bufs.push(buf); })
             .on('end', function () {
               assert.equal(bufs.length, 1);
@@ -869,7 +865,7 @@ suite('protocols', function () {
         return readable;
       });
       var bufs = [];
-      writable.pipe(new protocols.streams.MessageDecoder())
+      writable.pipe(new protocols.streams.FrameDecoder())
         .on('data', function (buf) { bufs.push(buf); })
         .on('end', function () {
           assert.equal(bufs.length, 1);
@@ -887,7 +883,7 @@ suite('protocols', function () {
         clientProtocol: null,
         serverHash: hash
       };
-      var encoder = new protocols.streams.MessageEncoder(64);
+      var encoder = new protocols.streams.FrameEncoder();
       encoder.pipe(readable);
       encoder.end(Buffer.concat([
         HANDSHAKE_REQUEST_TYPE.toBuffer(req),
@@ -912,7 +908,7 @@ suite('protocols', function () {
         return readable;
       });
       var bufs = [];
-      writable.pipe(new protocols.streams.MessageDecoder())
+      writable.pipe(new protocols.streams.FrameDecoder())
         .on('data', function (buf) { bufs.push(buf); })
         .on('end', function () {
           assert.equal(bufs.length, 1);
@@ -927,7 +923,7 @@ suite('protocols', function () {
         clientProtocol: ptcl1.toString(),
         serverHash: hash
       };
-      var encoder = new protocols.streams.MessageEncoder(64);
+      var encoder = new protocols.streams.FrameEncoder();
       encoder.pipe(readable);
       encoder.end(HANDSHAKE_REQUEST_TYPE.toBuffer(req));
     });
@@ -1633,11 +1629,11 @@ function frame(buf) {
 
 function createReadableTransport(bufs, frameSize) {
   return createReadableStream(bufs)
-    .pipe(new protocols.streams.MessageEncoder(frameSize || 64));
+    .pipe(new protocols.streams.FrameEncoder({frameSize: frameSize || 64}));
 }
 
 function createWritableTransport(bufs) {
-  var decoder = new protocols.streams.MessageDecoder();
+  var decoder = new protocols.streams.FrameDecoder();
   decoder.pipe(createWritableStream(bufs));
   return decoder;
 }
