@@ -2209,6 +2209,7 @@ suite('types', function () {
         logicalType: 'date'
       }, {logicalTypes: logicalTypes});
       assert(t instanceof DateType);
+      assert.equal(t.inspect(), '<DateType "long">');
       assert(t.getUnderlyingType() instanceof builtins.LongType);
       assert(t.isValid(t.random()));
       var d = new Date(123);
@@ -2252,7 +2253,10 @@ suite('types', function () {
       var base = createType(attrs);
       var derived = createType(attrs, {logicalTypes: logicalTypes});
       var fields = derived.getFields();
-      assert(fields[0].getType() instanceof AgeType);
+      var ageType = fields[0].getType();
+      ageType.constructor = undefined; // Mimic missing constructor name.
+      assert(ageType instanceof AgeType);
+      assert.equal(ageType.inspect(), '<LogicalType "int">');
       assert(fields[1].getType() instanceof DateType);
       var date = new Date(Date.now());
       var buf = base.toBuffer({age: 12, time: +date});
