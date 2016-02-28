@@ -630,17 +630,21 @@ suite('protocols', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var readable = stream.PassThrough();
+      var readable = createReadableTransport([
+        new Buffer([0, 0, 0]), // OK handshake.
+        new Buffer([0, 0]), // OK, true.
+        new Buffer([])
+      ]);
       var writable = createWritableStream([]);
       var ee = ptcl.createEmitter(function (cb) {
         cb(readable);
+        ee.destroy(true);
         return writable;
       });
       ptcl.emit('ping', {}, ee, function (err) {
         assert(/interrupted/.test(err.message));
         done();
       });
-      ee.destroy(true);
     });
 
     test('truncated response data', function (done) {
@@ -1016,7 +1020,6 @@ suite('protocols', function () {
             assert.strictEqual(err, null);
             assert.equal(res, -20);
             n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
-              debugger;
               assert(/invalid "int"/.test(err.message));
               ee.destroy();
             });
@@ -1429,9 +1432,8 @@ suite('protocols', function () {
           emitterPtcl,
           listenerPtcl,
           function (ee) {
-            ee.on('error', function () { debugger; }); // For stateful protocols.
+            ee.on('error', function () {}); // For stateful protocols.
             emitterPtcl.emit('age', {name: 'Ann'}, ee, function (err) {
-              debugger;
               assert(err.message);
               done();
             });
