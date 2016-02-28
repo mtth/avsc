@@ -26,14 +26,8 @@ module.exports = {
   Protocol: protocols.Protocol,
   Type: types.Type,
   assemble: schemas.assemble,
+  emitters: protocols.emitters,
   parse: parse,
-  streams: {
-    BlockDecoder: containers.streams.BlockDecoder,
-    BlockEncoder: containers.streams.BlockEncoder,
-    FrameDecoder: protocols.streams.FrameDecoder,
-    FrameEncoder: protocols.streams.FrameEncoder,
-    RawDecoder: containers.streams.RawDecoder,
-    RawEncoder: containers.streams.RawEncoder
-  },
+  streams: containers.streams,
   types: types.builtins
 };
