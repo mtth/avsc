@@ -493,7 +493,7 @@ suite('schemas', function () {
         var fname = path.basename(fpath);
         var str = imports[fname];
         delete imports[fname];
-        process.nextTick(cb, null, str);
+        process.nextTick(function () { cb(null, str); });
       };
     }
 
