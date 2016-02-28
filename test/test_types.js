@@ -2209,7 +2209,7 @@ suite('types', function () {
         logicalType: 'date'
       }, {logicalTypes: logicalTypes});
       assert(t instanceof DateType);
-      assert.equal(t.inspect(), '<DateType "long">');
+      assert(/<(Date|Logical)Type "long">/.test(t.inspect())); // IE.
       assert(t.getUnderlyingType() instanceof builtins.LongType);
       assert(t.isValid(t.random()));
       var d = new Date(123);

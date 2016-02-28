@@ -22,7 +22,7 @@
  *
  */
 
-var avro = require('../lib'),
+var avro = require('../../lib'),
     util = require('util');
 
 
@@ -76,24 +76,23 @@ var META_TYPE = avro.parse({
     {
       name: 'value',
       type: [
+        derived('array', [{name: 'items', type: 'MetaType'}]),
         primitive('boolean'),
         primitive('bytes'),
         primitive('double'),
-        primitive('float'),
-        primitive('int'),
-        primitive('long'),
-        primitive('null'),
-        primitive('string'),
-        derived('array', [{name: 'items', type: 'MetaType'}]),
-        derived('map', [{name: 'values', type: 'MetaType'}]),
-        derived('fixed', [
-          {name: 'name', type: 'string'},
-          {name: 'size', type: 'int'}
-        ]),
         derived('enum', [
           {name: 'name', type: 'string'},
           {name: 'symbols', type: {type: 'array', items: 'string'}}
         ]),
+        derived('fixed', [
+          {name: 'name', type: 'string'},
+          {name: 'size', type: 'int'}
+        ]),
+        primitive('float'),
+        primitive('int'),
+        derived('map', [{name: 'values', type: 'MetaType'}]),
+        primitive('long'),
+        primitive('null'),
         derived('record', [
           {name: 'name', type: 'string'},
           {
@@ -111,6 +110,7 @@ var META_TYPE = avro.parse({
             }
           }
         ]),
+        primitive('string'),
         {type: 'array', items: 'MetaType'}, // Union.
         'string' // Reference (not fully supported yet).
       ]
@@ -119,7 +119,7 @@ var META_TYPE = avro.parse({
 }, {logicalTypes: {meta: MetaType, union: NamedUnionType}, wrapUnions: true});
 
 
-// Examples of things we can do.
+// Example of things we can do.
 switch (process.argv[2]) {
   case 'compress':
     readInput(function (err, buf) {
