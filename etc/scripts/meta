@@ -2,8 +2,6 @@
 
 /* jshint node: true */
 
-// TODO: Handle references.
-
 'use strict';
 
 /**
@@ -27,51 +25,49 @@ var avro = require('../../lib'),
 
 
 /**
- * Transform a canonical schema into its type.
+ * Deal with Avro's inconsistent union representation.
  *
  */
 function MetaType(attrs, opts) {
   avro.types.LogicalType.call(this, attrs, opts);
+  this._state = opts.state;
 }
 util.inherits(MetaType, avro.types.LogicalType);
 
-MetaType.prototype._fromValue = function (val) { return avro.parse(val); };
-
-MetaType.prototype._toValue = function (any) { return any.toJSON(); };
-
-/**
- * Deal with Avro's inconsistent union representation.
- *
- */
-function NamedUnionType(attrs, opts) {
-  avro.types.LogicalType.call(this, attrs, opts);
-}
-util.inherits(NamedUnionType, avro.types.LogicalType);
-
-NamedUnionType.prototype._fromValue = function (val) {
+MetaType.prototype._fromValue = function (val) {
   var obj = val.value;
   return obj[Object.keys(obj)[0]];
 };
 
-NamedUnionType.prototype._toValue = function (any) {
+MetaType.prototype._toValue = function (any) {
+  var name = any.getName();
   var obj;
-  if (typeof any == 'string') {
-    obj = {string: any};
+  if (name && this._state.references[name]) {
+    obj = {string: name};
   } else if (avro.Type.isType(any, 'union')) {
     obj = {array: any.getTypes()};
   } else {
+    if (name) {
+      this._state.references[name] = true;
+    }
     obj = {};
-    obj[any.constructor.name_] = any;
+    obj[any.constructor.name_] = any.toJSON();
   }
   return {value: obj};
 };
 
 
+// The global state used to handle references. We must also ensure we have
+// enough place to write the full schema in one try, otherwise the global state
+// for references will be stale.
+var STATE = {references: undefined};
+avro.Type.__reset(1048576);
+
 // Finally.
 var META_TYPE = avro.parse({
   name: 'MetaType',
   type: 'record',
-  logicalType: 'union',
+  logicalType: 'meta',
   fields: [
     {
       name: 'value',
@@ -112,11 +108,28 @@ var META_TYPE = avro.parse({
         ]),
         primitive('string'),
         {type: 'array', items: 'MetaType'}, // Union.
-        'string' // Reference (not fully supported yet).
+        'string' // Reference.
       ]
     }
   ]
-}, {logicalTypes: {meta: MetaType, union: NamedUnionType}, wrapUnions: true});
+}, {logicalTypes: {meta: MetaType}, state: STATE, wrapUnions: true});
+
+// We override entry points to handle the global state required to handle named
+// references correctly. (It might be safe to expose a limited API rather than
+// the full one, to enforce that only these two methods are supported.)
+
+META_TYPE.toBuffer = function (val) {
+  STATE.references = {};
+  return avro.Type.prototype.toBuffer.call(META_TYPE, val);
+};
+
+META_TYPE.fromBuffer = function (buf) {
+  // We can't do the attrs to type transformation inside the logical type's
+  // `_fromValue` method since that method is called in post-order (and we need
+  // pre-order to be able to resolve references).
+  var attrs = avro.Type.prototype.fromBuffer.call(META_TYPE, buf);
+  return avro.parse(attrs, {wrapUnions: true});
+};
 
 
 // Example of things we can do.
@@ -134,7 +147,7 @@ switch (process.argv[2]) {
       if (err) {
         throw err;
       }
-      console.log(META_TYPE.fromBuffer(buf).getSchema());
+      process.stdout.write(META_TYPE.fromBuffer(buf).getSchema());
     });
     break;
   case 'random':
@@ -153,7 +166,6 @@ function primitive(name) {
   return {
     name: capitalize(name) + 'Type',
     type: 'enum',
-    logicalType: 'meta',
     symbols: [name]
   };
 }
@@ -164,7 +176,7 @@ function derived(name, fields) {
     name: 'type',
     type: {type: 'enum', name: typeName + 'Name', symbols: [name]}
   });
-  return {name: typeName, type: 'record', logicalType: 'meta', fields: fields};
+  return {name: typeName, type: 'record', fields: fields};
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
