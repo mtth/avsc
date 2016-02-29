@@ -3028,6 +3028,15 @@ suite('types', function () {
 
   });
 
+  test('isType', function () {
+    var t = createType('int');
+    assert(types.Type.isType(t));
+    assert(types.Type.isType(t, 'int'));
+    assert(!types.Type.isType());
+    assert(!types.Type.isType('int'));
+    assert(!types.Type.isType(function () {}));
+  });
+
   test('reset', function () {
     types.Type.__reset(0);
     var t = createType('string');
