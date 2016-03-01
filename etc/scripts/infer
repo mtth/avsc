@@ -114,13 +114,13 @@ function combine(t1, t2) {
 
   var n1 = t1.getTypeName();
   var n2 = t2.getTypeName();
-  if (n2 === '(union)') {
+  if (~n2.indexOf('union')) {
     return t2.getTypes().reduce(combine, t1);
   }
 
   var b1 = getTypeBucket(t1);
   var b2 = getTypeBucket(t2);
-  if (b1 === '(union)') {
+  if (~b1.indexOf('union')) {
     var buckets = {};
     var ts = t1.getTypes();
     ts.forEach(function (t, i) { buckets[getTypeBucket(t)] = i; });
