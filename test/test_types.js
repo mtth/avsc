@@ -1906,6 +1906,8 @@ suite('types', function () {
           {name: 'name', type: 'string', aliases: ['word'], namespace: 'b'}
         ]
       });
+      assert.equal(t.getField('age').getName(), 'age');
+      assert.strictEqual(t.getField('foo'), undefined);
       var fields = t.getFields();
       assert.deepEqual(fields[0].getAliases(), []);
       assert.deepEqual(fields[1].getAliases(), ['word']);
