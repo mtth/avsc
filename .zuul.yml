@@ -7,10 +7,12 @@ browsers:
   - name: safari
     version: 6..latest
   - name: ie
-    version: 11..latest
+    version: 8..latest
   - name: microsoftedge
-    version: 20..latest
+    version: 13..latest
   - name: opera
     version: 11..latest
   - name: android
+    version: 4.4..latest
+  - name: iphone
     version: latest
