@@ -2218,7 +2218,7 @@ suite('types', function () {
       assert.equal(t.toString(d), '123');
       assert.strictEqual(t.getName(), undefined);
       assert.equal(t.getName(true), 'long');
-      assert.equal(t.getTypeName(), '(logical:long)');
+      assert.equal(t.getTypeName(), '(logical:date:long)');
       assert.deepEqual(t.fromString('123'), d);
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
@@ -2345,7 +2345,7 @@ suite('types', function () {
 
     test('even integer', function () {
       function EvenIntType(attrs, opts) {
-        types.builtins.LogicalType.call(this, attrs, opts, [builtins.IntType]);
+        types.builtins.LogicalType.call(this, attrs, opts);
       }
       util.inherits(EvenIntType, types.builtins.LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
@@ -2357,18 +2357,24 @@ suite('types', function () {
       EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
 
       var opts = {logicalTypes: {'even-integer': EvenIntType}};
-      var t = createType({type: 'int', logicalType: 'even-integer'}, opts);
+      var t = createType({type: 'long', logicalType: 'even-integer'}, opts);
       assert(t.isValid(2));
       assert(!t.isValid(3));
       assert(!t.isValid('abc'));
       assert.equal(t.fromBuffer(new Buffer([4])), 2);
       assert.equal(t.clone(4), 4);
       assert.equal(t.fromString('6'), 6);
-      assert.equal(t.getSchema(), '"int"');
+      assert.equal(t.getSchema(), '"long"');
       assert.deepEqual(
         t.getSchema({exportLogicalAttrs: true}),
-        '{"type":"int","logicalType":"even-integer"}'
+        '{"type":"long","logicalType":"even-integer"}'
       );
+      assert(types.Type.isType(t));
+      assert(!types.Type.isType(t, 'int'));
+      assert(types.Type.isType(t, '(logical:even-integer:long)'));
+      assert(types.Type.isType(t, /int/));
+      assert(types.Type.isType(t, /logical/));
+      assert(types.Type.isType(t, /logical:even-integer/));
       assert.throws(function () { t.clone(3); });
       assert.throws(function () { t.fromString('5'); });
       assert.throws(function () { t.toBuffer(3); });

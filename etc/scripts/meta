@@ -44,7 +44,7 @@ MetaType.prototype._toValue = function (any) {
   var obj;
   if (name && this._state.references[name]) {
     obj = {string: name};
-  } else if (avro.Type.isType(any, 'union')) {
+  } else if (avro.Type.isType(any, /union/)) {
     obj = {array: any.getTypes()};
   } else {
     if (name) {
