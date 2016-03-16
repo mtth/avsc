@@ -2292,15 +2292,15 @@ suite('types', function () {
 
       PersonType.prototype._toValue = function (val) { return val; };
 
-      var t = createType({
+      var attrs = {
         type: 'record',
         name: 'Person',
-        namespace: 'earth',
         logicalType: 'person',
         fields: [
           {name: 'friends', type: {type: 'array', items: 'Person'}},
         ]
-      }, {logicalTypes: {'person': PersonType}});
+      };
+      var t = createType(attrs, {logicalTypes: {'person': PersonType}});
 
       var p1 = new Person([new Person()]);
       var buf = t.toBuffer(p1);
@@ -2308,6 +2308,10 @@ suite('types', function () {
       assert(p2 instanceof Person);
       assert(p2.friends[0] instanceof Person);
       assert.deepEqual(p2, p1);
+      assert.deepEqual(
+        JSON.parse(t.getSchema({exportLogicalAttrs: true})),
+        attrs
+      );
     });
 
     test('resolve underlying > logical', function () {
@@ -2360,6 +2364,11 @@ suite('types', function () {
       assert.equal(t.fromBuffer(new Buffer([4])), 2);
       assert.equal(t.clone(4), 4);
       assert.equal(t.fromString('6'), 6);
+      assert.equal(t.getSchema(), '"int"');
+      assert.deepEqual(
+        t.getSchema({exportLogicalAttrs: true}),
+        '{"type":"int","logicalType":"even-integer"}'
+      );
       assert.throws(function () { t.clone(3); });
       assert.throws(function () { t.fromString('5'); });
       assert.throws(function () { t.toBuffer(3); });
