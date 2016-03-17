@@ -1995,7 +1995,7 @@ suite('types', function () {
       });
       var res = t2.createResolver(t1);
       var err1 = t1.random();
-      var err2 = t2.fromBuffer(err1.toBuffer(), res);
+      var err2 = t2.fromBuffer(t1.toBuffer(err1), res);
       assert.deepEqual(err2, {code: -1});
     });
 
