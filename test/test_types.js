@@ -417,7 +417,7 @@ suite('types', function () {
       var t = new builtins.UnwrappedUnionType(['null', 'int']);
       assert.strictEqual(t.getName(), undefined);
       assert.strictEqual(t.getName(true), undefined);
-      assert.equal(t.getTypeName(), '(union:unwrapped)');
+      assert.equal(t.getTypeName(), 'union:unwrapped');
     });
 
     test('invalid read', function () {
@@ -1981,6 +1981,24 @@ suite('types', function () {
       assert(err instanceof Error);
     });
 
+    test('resolve error type', function () {
+      var t1 = createType({
+        type: 'error',
+        name: 'Ouch',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var t2 = createType({
+        type: 'error',
+        name: 'OuchAgain',
+        aliases: ['Ouch'],
+        fields: [{name: 'code', type: 'int', 'default': -1}]
+      });
+      var res = t2.createResolver(t1);
+      var err1 = t1.random();
+      var err2 = t2.fromBuffer(err1.toBuffer(), res);
+      assert.deepEqual(err2, {code: -1});
+    });
+
     test('isValid hook', function () {
       var t = createType({
         type: 'record',
@@ -2218,7 +2236,7 @@ suite('types', function () {
       assert.equal(t.toString(d), '123');
       assert.strictEqual(t.getName(), undefined);
       assert.equal(t.getName(true), 'long');
-      assert.equal(t.getTypeName(), '(logical:date:long)');
+      assert.equal(t.getTypeName(), 'logical:date');
       assert.deepEqual(t.fromString('123'), d);
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
@@ -2371,10 +2389,7 @@ suite('types', function () {
       );
       assert(types.Type.isType(t));
       assert(!types.Type.isType(t, 'int'));
-      assert(types.Type.isType(t, '(logical:even-integer:long)'));
-      assert(types.Type.isType(t, /int/));
-      assert(types.Type.isType(t, /logical/));
-      assert(types.Type.isType(t, /logical:even-integer/));
+      assert(types.Type.isType(t, 'logical'));
       assert.throws(function () { t.clone(3); });
       assert.throws(function () { t.fromString('5'); });
       assert.throws(function () { t.toBuffer(3); });
