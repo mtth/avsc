@@ -542,7 +542,7 @@ suite('types', function () {
           {name: 'id1', type: {name: 'an.Id', type: 'fixed', size: 1}},
           {name: 'id2', type: ['null', 'an.Id']}
         ]
-      }, {unwrapUnions: true});
+      }, {wrapUnions: false});
       var b = new Buffer([0]);
       var o = {id1: b, id2: b};
       assert.deepEqual(t.clone(o), o);
@@ -1871,18 +1871,44 @@ suite('types', function () {
           fields: [
             {name: 'name', type: ['null', 'string'], 'default': 'Bob'}
           ]
-        }, {unwrapUnions: true});
+        }, {wrapUnions: false});
       });
-      var t = createType({
+      var attrs = {
         type: 'record',
         name: 'Person',
         fields: [
           {name: 'name', type: ['string', 'null'], 'default': 'Bob'}
         ]
-      }, {unwrapUnions: true});
+      };
+      var t = createType(attrs, {wrapUnions: false});
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
+      assert.deepEqual(JSON.parse(t.getSchema({keepDefaults: true})), attrs);
+    });
+
+    test('wrapped union field default', function () {
+      assert.throws(function () {
+        createType({
+          type: 'record',
+          name: 'Person',
+          fields: [
+            {name: 'name', type: ['null', 'string'], 'default': 'Bob'}
+          ]
+        }, {wrapUnions: true});
+      });
+      var attrs = {
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'name', type: ['string', 'null'], 'default': 'Bob'}
+        ]
+      };
+      var t = createType(attrs, {wrapUnions: true});
+      var o = {name: {string: 'Ann'}};
+      assert.deepEqual(t.clone(o), o);
+      assert.deepEqual(t.clone({}), {name: {string: 'Bob'}});
+      assert.deepEqual(JSON.parse(t.getSchema({keepDefaults: true})), attrs);
     });
 
     test('get full name & aliases', function () {
@@ -2771,7 +2797,7 @@ suite('types', function () {
           fields: [
             {name: 'id', type: ['null', 'int'], 'default': 2}
           ]
-        }, {unwrapUnions: true});
+        }, {wrapUnions: false});
       }, /invalid "null"/);
     });
 
