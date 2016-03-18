@@ -1745,17 +1745,34 @@ suite('types', function () {
         aliases: ['Human'],
         fields: [
           {name: 'friends', type: {type: 'array', items: 'string'}},
-          {name: 'age', aliases: ['years'], type: {type: 'int'}, 'default': 0}
+          {
+            name: 'age',
+            aliases: ['years'],
+            type: {type: 'int'},
+            'default': 0,
+            order: 'descending'
+          }
         ]
       });
       assert.equal(
         t.getSchema(),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}'
       );
-      assert.equal(
-        t.getSchema({keepDefaults: true}),
-        '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int","default":0}]}'
-      );
+      assert.deepEqual(JSON.parse(t.getSchema({exportAttrs: true})), {
+        type: 'record',
+        name: 'earth.Person',
+        aliases: ['earth.Human'],
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'string'}},
+          {
+            name: 'age',
+            aliases: ['years'],
+            type: 'int',
+            'default': 0,
+            order: 'descending'
+          }
+        ]
+      });
       assert.equal(t.getSchema({noDeref: true}), '"earth.Person"');
     });
 
@@ -1884,7 +1901,7 @@ suite('types', function () {
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
-      assert.deepEqual(JSON.parse(t.getSchema({keepDefaults: true})), attrs);
+      assert.deepEqual(JSON.parse(t.getSchema({exportAttrs: true})), attrs);
     });
 
     test('wrapped union field default', function () {
@@ -1908,7 +1925,7 @@ suite('types', function () {
       var o = {name: {string: 'Ann'}};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: {string: 'Bob'}});
-      assert.deepEqual(JSON.parse(t.getSchema({keepDefaults: true})), attrs);
+      assert.deepEqual(JSON.parse(t.getSchema({exportAttrs: true})), attrs);
     });
 
     test('get full name & aliases', function () {
@@ -2353,7 +2370,7 @@ suite('types', function () {
       assert(p2.friends[0] instanceof Person);
       assert.deepEqual(p2, p1);
       assert.deepEqual(
-        JSON.parse(t.getSchema({exportLogicalAttrs: true})),
+        JSON.parse(t.getSchema({exportAttrs: true})),
         attrs
       );
     });
@@ -2410,7 +2427,7 @@ suite('types', function () {
       assert.equal(t.fromString('6'), 6);
       assert.equal(t.getSchema(), '"long"');
       assert.deepEqual(
-        t.getSchema({exportLogicalAttrs: true}),
+        t.getSchema({exportAttrs: true}),
         '{"type":"long","logicalType":"even-integer"}'
       );
       assert(types.Type.isType(t));
