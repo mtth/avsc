@@ -1,0 +1,31 @@
+{
+  "namespace": "avro",
+  "protocol": "Math",
+  "types": [
+    {
+      "name": "Pair",
+      "type": "record",
+      "fields": [
+        {
+          "name": "left",
+          "type": "int"
+        },
+        {
+          "name": "right",
+          "type": "int"
+        }
+      ]
+    }
+  ],
+  "messages": {
+    "add": {
+      "request": [
+        {
+          "name": "pair",
+          "type": "Pair"
+        }
+      ],
+      "response": "double"
+    }
+  }
+}
