@@ -475,6 +475,7 @@ suite('types', function () {
     test('to JSON', function () {
       var type = new builtins.UnwrappedUnionType(['null', 'int']);
       assert.equal(JSON.stringify(type), '["null","int"]');
+      assert.equal(type.inspect(), '<UnwrappedUnionType ["null","int"]>');
     });
 
     test('resolve int to [string, long]', function () {
@@ -2272,7 +2273,7 @@ suite('types', function () {
         logicalType: 'date'
       }, {logicalTypes: logicalTypes});
       assert(t instanceof DateType);
-      assert(/<(Date|Logical)Type "long">/.test(t.inspect())); // IE.
+      assert(/<(Date|Logical)Type {.+}>/.test(t.inspect())); // IE.
       assert(t.getUnderlyingType() instanceof builtins.LongType);
       assert(t.isValid(t.random()));
       var d = new Date(123);
@@ -2319,7 +2320,10 @@ suite('types', function () {
       var ageType = fields[0].getType();
       ageType.constructor = undefined; // Mimic missing constructor name.
       assert(ageType instanceof AgeType);
-      assert.equal(ageType.inspect(), '<LogicalType "int">');
+      assert.equal(
+        ageType.inspect(),
+        '<LogicalType {"type":"int","logicalType":"age"}>'
+      );
       assert(fields[1].getType() instanceof DateType);
       var date = new Date(Date.now());
       var buf = base.toBuffer({age: 12, time: +date});
