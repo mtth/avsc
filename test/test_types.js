@@ -826,9 +826,7 @@ suite('types', function () {
     test('get symbols', function () {
       var t = createType({type: 'enum', symbols: ['A', 'B'], name: 'Letter'});
       var symbols = t.getSymbols();
-      assert.deepEqual(symbols, ['A', 'B']);
-      symbols.push('Char');
-      assert.equal(t.getSymbols().length, 2);
+      assert.deepEqual(symbols, {A: 'A', B: 'B'});
     });
 
     test('duplicate symbol', function () {
