@@ -205,7 +205,7 @@ suite('types', function () {
       b = new Buffer(2);
       pos = t.encode(s, b);
       assert(pos < 0);
-      b = new Buffer(2 - pos);
+      b = new Buffer(-pos);
       pos = t.encode(s, b);
       assert(pos >= 0);
       assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
@@ -3059,17 +3059,23 @@ suite('types', function () {
       assert.deepEqual(buf, new Buffer([0, 10]));
     });
 
-    test('string invalid', function () {
+    test('too short', function () {
       var t = createType('string');
       var buf = new Buffer(1);
       var n = t.encode('\x01\x02', buf, 0);
-      assert.equal(n, -2);
+      assert.equal(n, -3);
     });
 
     test('invalid', function () {
       var t = createType('float');
       var buf = new Buffer(2);
       assert.throws(function () { t.encode('hi', buf, 0); });
+    });
+
+    test('invalid offset', function () {
+      var t = createType('string');
+      var buf = new Buffer(2);
+      assert.throws(function () { t.encode('hi', buf, -1); });
     });
 
   });
