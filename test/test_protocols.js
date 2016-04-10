@@ -2,7 +2,8 @@
 
 'use strict';
 
-var protocols = require('../lib/protocols'),
+var types = require('../lib/types'),
+    protocols = require('../lib/protocols'),
     utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
@@ -89,7 +90,7 @@ suite('protocols', function () {
           }
         }
       });
-      var message = ptcl.getMessages()['ping/1'];
+      var message = ptcl.getMessage('ping/1');
       assert.equal(message.getResponseType().getName(true), 'string');
     });
 
@@ -107,18 +108,7 @@ suite('protocols', function () {
         }
       });
       var messages = ptcl.getMessages();
-      assert.equal(Object.keys(messages).length, 1);
-      assert(messages.ping !== undefined);
-    });
-
-    test('create listener', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var transport = new stream.PassThrough();
-      var ee = ptcl.createListener(transport, function (pending) {
-        assert.equal(pending, 0);
-        done();
-      });
-      ee.destroy();
+      assert.deepEqual(messages, [ptcl.getMessage('ping')]);
     });
 
     test('subprotocol', function () {
@@ -216,10 +206,10 @@ suite('protocols', function () {
 
   });
 
-  suite('EnvelopeDecoder & EnvelopeEncoder', function () {
+  suite('FrameDecoder & FrameEncoder', function () {
 
-    var EnvelopeDecoder = protocols.streams.EnvelopeDecoder;
-    var EnvelopeEncoder = protocols.streams.EnvelopeEncoder;
+    var FrameDecoder = protocols.streams.FrameDecoder;
+    var FrameEncoder = protocols.streams.FrameEncoder;
 
     test('decode', function (done) {
       var frames = [
@@ -229,20 +219,20 @@ suite('protocols', function () {
         new Buffer([3, 4]),
         new Buffer([])
       ].map(frame);
-      var envelopes = [];
+      var messages = [];
       createReadableStream(frames)
-        .pipe(new EnvelopeDecoder(true))
+        .pipe(new FrameDecoder())
         .on('finish', function () {
           assert.deepEqual(
-            envelopes,
+            messages,
             [
-              {id: null, payload: [new Buffer([0, 1, 2])]},
+              {id: null, payload: [new Buffer([0, 1]), new Buffer([2])]},
               {id: null, payload: [new Buffer([3, 4])]}
             ]
           );
           done();
         })
-        .pipe(createWritableStream(envelopes));
+        .pipe(createWritableStream(messages));
     });
 
     test('decode with trailing data', function (done) {
@@ -252,22 +242,22 @@ suite('protocols', function () {
         new Buffer([]),
         new Buffer([3])
       ].map(frame);
-      var envelopes = [];
+      var messages = [];
       createReadableStream(frames)
-        .pipe(new EnvelopeDecoder(true))
+        .pipe(new FrameDecoder())
         .on('error', function () {
           assert.deepEqual(
-            envelopes,
-            [{id: null, payload: [new Buffer([0, 1, 2])]}]
+            messages,
+            [{id: null, payload: [new Buffer([0, 1]), new Buffer([2])]}]
           );
           done();
         })
-        .pipe(createWritableStream(envelopes));
+        .pipe(createWritableStream(messages));
     });
 
     test('decode empty', function (done) {
       createReadableStream([])
-        .pipe(new EnvelopeDecoder())
+        .pipe(new FrameDecoder())
         .on('end', function () {
           done();
         })
@@ -277,7 +267,7 @@ suite('protocols', function () {
     test('encode empty', function (done) {
       var frames = [];
       createReadableStream([])
-        .pipe(new EnvelopeEncoder())
+        .pipe(new FrameEncoder())
         .pipe(createWritableStream(frames))
         .on('finish', function () {
           assert.deepEqual(frames, []);
@@ -286,28 +276,25 @@ suite('protocols', function () {
     });
 
     test('encode', function (done) {
-      var bufs = [
-        new Buffer([1, 3, 5, 6, 8]),
-        new Buffer([123, 23])
-      ];
-      var envelopes = [
+      var messages = [
         {id: 1, payload: [new Buffer([1, 3, 5]), new Buffer([6, 8])]},
         {id: 4, payload: [new Buffer([123, 23])]}
       ];
       var frames = [];
-      createReadableStream(envelopes)
-        .pipe(new EnvelopeEncoder(false, 4))
+      createReadableStream(messages)
+        .pipe(new FrameEncoder())
         .pipe(createWritableStream(frames))
         .on('finish', function () {
           assert.deepEqual(
             frames,
             [
-              new Buffer([0, 0, 0, 1]),
-              new Buffer([0, 0, 0, 4, 1, 3, 5, 6]),
-              new Buffer([0, 0, 0, 1, 8]),
+              new Buffer([0, 0, 0, 3]),
+              new Buffer([1, 3, 5]),
+              new Buffer([0, 0, 0, 2]),
+              new Buffer([6, 8]),
               new Buffer([0, 0, 0, 0]),
-              new Buffer([0, 0, 0, 4]),
-              new Buffer([0, 0, 0, 2, 123, 23]),
+              new Buffer([0, 0, 0, 2]),
+              new Buffer([123, 23]),
               new Buffer([0, 0, 0, 0])
             ]
           );
@@ -316,56 +303,39 @@ suite('protocols', function () {
     });
 
     test('roundtrip no prefix', function (done) {
+      var type = types.createType({
+        type: 'record',
+        name: 'Record',
+        fields: [
+          {name: 'id', type: 'null'},
+          {name: 'payload', type: {type: 'array', items: 'bytes'}}
+        ]
+      });
       var n = 100;
       var src = [];
-      var envelope;
       while (n--) {
-        envelope = protocols.ENVELOPE_TYPE.random();
-        envelope.id = null;
-        src.push(envelope);
-      }
-      var dst = [];
-      var encoder = new EnvelopeEncoder(true, 8);
-      var decoder = new EnvelopeDecoder(true);
-      createReadableStream(src)
-        .pipe(encoder)
-        .pipe(decoder)
-        .pipe(createWritableStream(dst))
-        .on('finish', function () {
-          src.forEach(function (envelope) {
-            envelope.payload = [Buffer.concat(envelope.payload)];
-          });
-          assert.deepEqual(dst, src);
-          done();
+        var record = type.random();
+        record.payload = record.payload.filter(function (arr) {
+          return arr.length;
         });
-    });
-
-    test('roundtrip with prefix', function (done) {
-      var n = 100;
-      var src = [];
-      var envelope;
-      while (n--) {
-        envelope = protocols.ENVELOPE_TYPE.random();
-        envelope.id |= 0;
-        src.push(envelope);
+        src.push(record);
       }
       var dst = [];
-      var encoder = new EnvelopeEncoder(false, 8);
-      var decoder = new EnvelopeDecoder();
+      var encoder = new FrameEncoder();
+      var decoder = new FrameDecoder();
       createReadableStream(src)
         .pipe(encoder)
         .pipe(decoder)
         .pipe(createWritableStream(dst))
         .on('finish', function () {
-          src.forEach(function (envelope) {
-            envelope.payload = [Buffer.concat(envelope.payload)];
-          });
           assert.deepEqual(dst, src);
           done();
         });
     });
 
   });
+
+  // TODO: Netty tests.
 
   suite('Registry', function () {
 
@@ -426,621 +396,7 @@ suite('protocols', function () {
 
   });
 
-  suite('StatefulEmitter', function () {
-
-    test('ok handshake', function (done) {
-      var buf = HANDSHAKE_RESPONSE_TYPE.toBuffer({match: 'BOTH'});
-      var bufs = [];
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var handshake = false;
-      ptcl.createEmitter(createTransport([buf], bufs))
-        .on('handshake', function (req, res) {
-            handshake = true;
-            assert(res.match === 'BOTH');
-            assert.deepEqual(
-              Buffer.concat(bufs),
-              HANDSHAKE_REQUEST_TYPE.toBuffer({
-                clientHash: new Buffer(ptcl._hashString, 'binary'),
-                serverHash: new Buffer(ptcl._hashString, 'binary')
-              })
-            );
-            this.destroy();
-        })
-        .on('eot', function () {
-          assert(handshake);
-          done();
-        });
-    });
-
-    test('no server match handshake', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var resBufs = [
-        {
-          match: 'NONE',
-          serverHash: new Buffer(16),
-          serverProtocol: ptcl.toString(),
-        },
-        {match: 'BOTH'}
-      ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
-      var reqBufs = [];
-      var handshakes = 0;
-      ptcl.createEmitter(createTransport(resBufs, reqBufs))
-        .on('handshake', function (req, res) {
-          if (handshakes++) {
-            assert(res.match === 'BOTH');
-            this.destroy();
-          } else {
-            assert(res.match === 'NONE');
-          }
-        })
-        .on('eot', function () {
-          assert.equal(handshakes, 2);
-          done();
-        });
-    });
-
-    test('incompatible protocol', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var hash = new Buffer(16); // Pretend the hash was different.
-      var resBufs = [
-        {
-          match: 'NONE',
-          serverHash: hash,
-          serverProtocol: ptcl.toString(),
-        },
-        {
-          match: 'NONE',
-          serverHash: hash,
-          serverProtocol: ptcl.toString(),
-          meta: {error: new Buffer('abcd')}
-        }
-      ].map(function (val) { return HANDSHAKE_RESPONSE_TYPE.toBuffer(val); });
-      var error = false;
-      ptcl.createEmitter(createTransport(resBufs, []))
-        .on('error', function (err) {
-          error = true;
-          assert.equal(err.message, 'abcd');
-        })
-        .on('eot', function () {
-          assert(error);
-          done();
-        });
-    });
-
-    test('handshake error', function (done) {
-      var resBufs = [
-        new Buffer([4, 0, 0]), // Invalid handshakes.
-        new Buffer([4, 0, 0])
-      ];
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var error = false;
-      ptcl.createEmitter(createTransport(resBufs, []))
-        .on('error', function (err) {
-          error = true;
-          assert.equal(err.message, 'handshake error');
-        })
-        .on('eot', function () {
-          assert(error);
-          done();
-        });
-    });
-
-    test('orphan response', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var idType = protocols.IdType.createMetadataType();
-      var resBufs = [
-        new Buffer([0, 0, 0]), // OK handshake.
-        idType.toBuffer(23)
-      ];
-      var error = false;
-      ptcl.createEmitter(createTransport(resBufs, []))
-        .on('error', function (err) {
-          error = true;
-          assert(/orphan response:/.test(err.message));
-        })
-        .on('eot', function () {
-          assert(error);
-          done();
-        });
-    });
-
-    test('ended readable', function (done) {
-      var bufs = [];
-      var ptcl = createProtocol({protocol: 'Empty'});
-      ptcl.createEmitter(createTransport([], bufs))
-        .on('eot', function () {
-          assert.equal(bufs.length, 1); // A single handshake was sent.
-          done();
-        });
-    });
-
-    test('interrupted', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Empty',
-        messages: {
-          id: {request: [{name: 'id', type: 'int'}], response: 'int'}
-        }
-      });
-      var resBufs = [
-        new Buffer([0, 0, 0]), // OK handshake.
-      ];
-      var interrupted = 0;
-      var transport = createTransport(resBufs, []);
-      var ee = ptcl.createEmitter(transport, function () {
-        assert.equal(interrupted, 2);
-        done();
-      });
-
-      ptcl.emit('id', {id: 123}, ee, cb);
-      ptcl.emit('id', {id: 123}, ee, cb);
-
-      function cb(err) {
-        assert(/interrupted/.test(err));
-        interrupted++;
-      }
-    });
-
-    test('single client message', function (done) {
-      var ptcl1 = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          ping: {request: [], response: 'string'}
-        }
-      });
-      var ptcl2 = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          ping: {request: [], response: 'string'},
-          pong: {request: [], response: 'string'}
-        }
-      }).on('ping', function (req, ee, cb) { cb(null, 'ok'); });
-      var transports = createPassthroughTransports();
-      ptcl2.createListener(transports[1]);
-      var ee = ptcl1.createEmitter(transports[0]);
-      ptcl1.emit('ping', {}, ee, function (err, res) {
-        assert.strictEqual(err, null);
-        assert.equal(res, 'ok');
-        done();
-      });
-    });
-
-    test('missing server message', function (done) {
-      var ptcl1 = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          ping: {request: [], response: 'string'}
-        }
-      });
-      var ptcl2 = createProtocol({protocol: 'Empty'});
-      var transports = createPassthroughTransports();
-      ptcl2.createListener(transports[1]);
-      ptcl1.createEmitter(transports[0])
-        .on('error', function (err) {
-          assert(/missing server message: ping/.test(err.message));
-          done();
-        });
-    });
-
-    test('trailing data', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          ping: {request: [], response: 'string'}
-        }
-      });
-      var transports = createPassthroughTransports();
-      ptcl.createEmitter(transports[0])
-        .on('error', function (err) {
-          assert(/trailing data/.test(err.message));
-          done();
-        });
-      transports[0].readable.end(new Buffer([2, 3]));
-    });
-
-    test('invalid metadata', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          ping: {request: [], response: 'string'}
-        }
-      });
-      var transports = createPassthroughTransports();
-      ptcl.createListener(transports[1]);
-      ptcl.createEmitter(transports[0])
-        .on('error', function (err) {
-          assert(/invalid metadata/.test(err));
-          done();
-        })
-        .on('handshake', function () {
-          transports[0].readable.write(frame(new Buffer([2, 3])));
-          transports[0].readable.write(frame(new Buffer(0)));
-        });
-    });
-
-    test('invalid response', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          ping: {request: [], response: 'string'}
-        }
-      });
-      var transports = createPassthroughTransports();
-      var ml = ptcl.createListener(transports[1]);
-      var me = ptcl.createEmitter(transports[0])
-        .on('handshake', function () {
-          ml.destroy();
-
-          ptcl.emit('ping', {}, me, function (err) {
-            assert(/truncated message/.test(err.message));
-            done();
-          });
-
-          var idType = protocols.IdType.createMetadataType();
-          var bufs = [
-              idType.toBuffer(1), // Metadata.
-              new Buffer([3]) // Invalid response.
-          ];
-          transports[0].readable.write(frame(Buffer.concat(bufs)));
-          transports[0].readable.write(frame(new Buffer(0)));
-        });
-    });
-
-    test('one way', function (done) {
-      var beats = 0;
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {
-          beat: {request: [], response: 'null', 'one-way': true}
-        }
-      }).on('beat', function (req, ee, cb) {
-        assert.strictEqual(cb, undefined);
-        if (++beats === 2) {
-          done();
-        }
-      });
-      var transports = createPassthroughTransports();
-      ptcl.createListener(transports[1]);
-      var ee = ptcl.createEmitter(transports[0]);
-      ptcl.emit('beat', {}, ee);
-      ptcl.emit('beat', {}, ee);
-    });
-
-  });
-
-  suite('StatelessEmitter', function () {
-
-    test('interrupted before response data', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {ping: {request: [], response: 'boolean'}}
-      });
-      var readable = createReadableTransport([
-        new Buffer([0, 0, 0]), // OK handshake.
-        new Buffer([0, 0]), // OK, true.
-        new Buffer([])
-      ]);
-      var writable = createWritableStream([]);
-      var ee = ptcl.createEmitter(function (cb) {
-        cb(readable);
-        ee.destroy(true);
-        return writable;
-      });
-      ptcl.emit('ping', {}, ee, function (err) {
-        assert(/interrupted/.test(err.message));
-        done();
-      });
-    });
-
-    test('truncated response data', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {ping: {request: [], response: 'string'}}
-      });
-      var readable = createReadableStream([
-        new Buffer([0, 0, 0]), // OK handshake.
-        new Buffer([8]) // Truncated string.
-      ]);
-      var writable = stream.PassThrough();
-      var ee = ptcl.createEmitter(function (cb) {
-        cb(readable);
-        return writable;
-      });
-      ptcl.emit('ping', {}, ee, function (err) {
-        assert(/no message decoded/.test(err.message));
-        done();
-      });
-    });
-
-  });
-
-  suite('StatefulListener', function () {
-
-    test('end readable', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var transports = createPassthroughTransports();
-      ptcl.createListener(transports[0])
-        .on('eot', function (pending) {
-          assert.equal(pending, 0);
-          done();
-        });
-      transports[0].readable.end();
-    });
-
-    test('finish writable', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var transports = createPassthroughTransports();
-      ptcl.createListener(transports[0])
-        .on('eot', function (pending) {
-          assert.equal(pending, 0);
-          done();
-        });
-      transports[0].writable.end();
-    });
-
-    test('invalid handshake', function (done) {
-      var ptcl = createProtocol({protocol: 'Empty'});
-      var transport = createTransport(
-        [new Buffer([4])], // Invalid handshake.
-        []
-      );
-      ptcl.createListener(transport)
-        .on('handshake', function (req, res) {
-          assert(!req.isValid());
-          assert.equal(res.match, 'NONE');
-          done();
-        });
-    });
-
-    test('missing server message', function (done) {
-      var ptcl1 = createProtocol({protocol: 'Empty'});
-      var ptcl2 = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
-      });
-      var hash = new Buffer(ptcl2._hashString, 'binary');
-      var req = {
-        clientHash: hash,
-        clientProtocol: ptcl2.toString(),
-        serverHash: hash
-      };
-      var transport = createTransport(
-        [HANDSHAKE_REQUEST_TYPE.toBuffer(req)],
-        []
-      );
-      ptcl1.createListener(transport)
-        .on('handshake', function (req, res) {
-          assert(req.isValid());
-          assert.equal(res.match, 'NONE');
-          var msg = res.meta.error.toString();
-          assert(/missing server message/.test(msg));
-          done();
-        });
-    });
-
-    test('invalid metadata', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
-      });
-      var transports = createPassthroughTransports();
-      ptcl.createListener(transports[1])
-        .on('error', function (err) {
-          assert(/invalid metadata/.test(err.message));
-          done();
-        });
-      ptcl.createEmitter(transports[0])
-        .on('handshake', function () {
-          // Handshake is complete now.
-          var writable = transports[0].writable;
-          writable.write(frame(new Buffer([0]))); // Empty metadata.
-          writable.write(frame(new Buffer(0)));
-        });
-    });
-
-    test('unknown message', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
-      });
-      var transports = createPassthroughTransports();
-      var ee = ptcl.createListener(transports[1])
-        .on('eot', function () {
-          transports[1].writable.end();
-        });
-      ptcl.createEmitter(transports[0])
-        .on('handshake', function () {
-          // Handshake is complete now.
-          this.destroy();
-          var idType = ee._idType;
-          var bufs = [];
-          transports[0].readable
-            .pipe(new protocols.streams.EnvelopeDecoder())
-            .on('data', function (buf) { bufs.push(buf); })
-            .on('end', function () {
-              assert.equal(bufs.length, 1);
-              var tap = new utils.Tap(bufs[0]);
-              idType._read(tap);
-              assert(tap.buf[tap.pos++]); // Error byte.
-              tap.pos++; // Union marker.
-              assert(/unknown message/.test(tap.readString()));
-              done();
-            });
-          [
-            idType.toBuffer(-1),
-            new Buffer([4, 104, 105]), // `hi` message.
-            new Buffer(0) // End of frame.
-          ].forEach(function (buf) {
-            transports[0].writable.write(frame(buf));
-          });
-          transports[0].writable.end();
-        });
-    });
-
-    test('invalid request', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {
-          request: [{name: 'id', type: 'string'}],
-          response: 'boolean'
-        }}
-      });
-      var transports = createPassthroughTransports();
-      var ee = ptcl.createListener(transports[1])
-        .on('eot', function () { transports[1].writable.end(); });
-      ptcl.createEmitter(transports[0])
-        .on('handshake', function () {
-          // Handshake is complete now.
-          this.destroy();
-          var idType = ee._idType;
-          var bufs = [];
-          transports[0].readable
-            .pipe(new protocols.streams.EnvelopeDecoder())
-            .on('data', function (buf) { bufs.push(buf); })
-            .on('end', function () {
-              assert.equal(bufs.length, 1);
-              var tap = new utils.Tap(bufs[0]);
-              idType._read(tap);
-              assert.equal(tap.buf[tap.pos++], 1); // Error byte.
-              assert.equal(tap.buf[tap.pos++], 0); // Union marker.
-              assert(/invalid request/.test(tap.readString()));
-              done();
-            });
-          [
-            idType.toBuffer(-1),
-            new Buffer([8, 98, 101, 97, 116]), // `beat` message.
-            new Buffer([8]), // Invalid Avro string encoding.
-            new Buffer(0) // End of frame.
-          ].forEach(function (buf) {
-            transports[0].writable.write(frame(buf));
-          });
-          transports[0].writable.end();
-        });
-    });
-
-    test('destroy', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
-      }).on('beat', function (req, ee, cb) {
-        ee.destroy();
-        setTimeout(function () { cb(null, true); }, 10);
-      });
-      var transports = createPassthroughTransports();
-      var responded = false;
-      ptcl.createListener(transports[1])
-        .on('eot', function () {
-          assert(responded); // Works because the transport is sync.
-          done();
-        });
-      ptcl.emit('beat', {}, ptcl.createEmitter(transports[0]), function () {
-        responded = true;
-      });
-    });
-
-  });
-
-  suite('StatelessListener', function () {
-
-    test('unknown message', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
-      });
-      var readable = new stream.PassThrough();
-      var writable = new stream.PassThrough();
-      var ee = ptcl.createListener(function (cb) {
-        cb(writable);
-        return readable;
-      });
-      var bufs = [];
-      writable.pipe(new protocols.streams.EnvelopeDecoder())
-        .on('data', function (buf) { bufs.push(buf); })
-        .on('end', function () {
-          assert.equal(bufs.length, 1);
-          var tap = new utils.Tap(bufs[0]);
-          tap.pos = 4; // Skip handshake response.
-          ee._idType._read(tap); // Skip metadata.
-          assert.equal(tap.buf[tap.pos++], 1); // Error.
-          assert.equal(tap.buf[tap.pos++], 0); // Union flag.
-          assert(/unknown message/.test(tap.readString()));
-          done();
-        });
-      var hash = new Buffer(ptcl._hashString, 'binary');
-      var req = {
-        clientHash: hash,
-        clientProtocol: null,
-        serverHash: hash
-      };
-      var encoder = new protocols.streams.EnvelopeEncoder(64);
-      encoder.pipe(readable);
-      encoder.end(Buffer.concat([
-        HANDSHAKE_REQUEST_TYPE.toBuffer(req),
-        new Buffer([0]), // Empty metadata.
-        new Buffer([4, 104, 105]) // `id` message.
-      ]));
-    });
-
-    test('incompatible one-way', function (done) {
-      var ptcl1 = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'null'}}
-      });
-      var ptcl2 = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'null', 'one-way': true}}
-      });
-      var readable = new stream.PassThrough();
-      var writable = new stream.PassThrough();
-      ptcl2.createListener(function (cb) {
-        cb(writable);
-        return readable;
-      });
-      var bufs = [];
-      writable.pipe(new protocols.streams.EnvelopeDecoder())
-        .on('data', function (buf) { bufs.push(buf); })
-        .on('end', function () {
-          assert.equal(bufs.length, 1);
-          var tap = new utils.Tap(bufs[0]);
-          var res = HANDSHAKE_RESPONSE_TYPE._read(tap);
-          assert.equal(res.match, 'NONE');
-          done();
-        });
-      var hash = new Buffer(ptcl1._hashString, 'binary');
-      var req = {
-        clientHash: hash,
-        clientProtocol: ptcl1.toString(),
-        serverHash: hash
-      };
-      var encoder = new protocols.streams.EnvelopeEncoder(64);
-      encoder.pipe(readable);
-      encoder.end(HANDSHAKE_REQUEST_TYPE.toBuffer(req));
-    });
-
-    test('late writable', function (done) {
-      var ptcl = createProtocol({
-        protocol: 'Heartbeat',
-        messages: {beat: {request: [], response: 'boolean'}}
-      }).on('beat', function (req, ee, cb) {
-        cb(null, true);
-      });
-      var readable = new stream.PassThrough();
-      var writable = new stream.PassThrough();
-      ptcl.createListener(function (cb) {
-        setTimeout(function () { cb(readable); }, 10);
-        return writable;
-      });
-      var ee = ptcl.createEmitter(function (cb) {
-        cb(readable);
-        return writable;
-      });
-      ptcl.emit('beat', {}, ee, function (err, res) {
-        assert.strictEqual(err, null);
-        assert.equal(res, true);
-        done();
-      });
-    });
-
-  });
+  // TODO: Emitter and listener tests.
 
   suite('emit', function () {
 
@@ -1711,11 +1067,11 @@ function frame(buf) {
 
 function createReadableTransport(bufs, frameSize) {
   return createReadableStream(bufs)
-    .pipe(new protocols.streams.EnvelopeEncoder(frameSize || 64));
+    .pipe(new protocols.streams.FrameEncoder(frameSize || 64));
 }
 
 function createWritableTransport(bufs) {
-  var decoder = new protocols.streams.EnvelopeDecoder();
+  var decoder = new protocols.streams.FrameDecoder();
   decoder.pipe(createWritableStream(bufs));
   return decoder;
 }
