@@ -216,128 +216,285 @@ suite('protocols', function () {
 
   });
 
-  suite('MessageDecoder', function () {
+  suite('EnvelopeDecoder & EnvelopeEncoder', function () {
 
-    var MessageDecoder = protocols.streams.MessageDecoder;
+    var EnvelopeDecoder = protocols.streams.EnvelopeDecoder;
+    var EnvelopeEncoder = protocols.streams.EnvelopeEncoder;
 
-    test('ok', function (done) {
-      var parts = [
+    test('decode', function (done) {
+      var frames = [
         new Buffer([0, 1]),
         new Buffer([2]),
         new Buffer([]),
-        new Buffer([3, 4, 5]),
+        new Buffer([3, 4]),
         new Buffer([])
-      ];
-      var messages = [];
-      var readable = createReadableStream(parts.map(frame), true);
-      var writable = createWritableStream(messages, true)
+      ].map(frame);
+      var envelopes = [];
+      createReadableStream(frames)
+        .pipe(new EnvelopeDecoder(true))
         .on('finish', function () {
           assert.deepEqual(
-            messages,
-            [new Buffer([0, 1, 2]), new Buffer([3, 4, 5])]
+            envelopes,
+            [
+              {id: null, payload: [new Buffer([0, 1, 2])]},
+              {id: null, payload: [new Buffer([3, 4])]}
+            ]
           );
           done();
-        });
-      readable.pipe(new MessageDecoder()).pipe(writable);
+        })
+        .pipe(createWritableStream(envelopes));
     });
 
-    test('trailing data', function (done) {
-      var parts = [
+    test('decode with trailing data', function (done) {
+      var frames = [
         new Buffer([0, 1]),
         new Buffer([2]),
         new Buffer([]),
         new Buffer([3])
-      ];
-      var messages = [];
-      var readable = createReadableStream(parts.map(frame), true);
-      var writable = createWritableStream(messages, true);
-      readable
-        .pipe(new MessageDecoder())
+      ].map(frame);
+      var envelopes = [];
+      createReadableStream(frames)
+        .pipe(new EnvelopeDecoder(true))
         .on('error', function () {
-          assert.deepEqual(messages, [new Buffer([0, 1, 2])]);
+          assert.deepEqual(
+            envelopes,
+            [{id: null, payload: [new Buffer([0, 1, 2])]}]
+          );
           done();
         })
-        .pipe(writable);
+        .pipe(createWritableStream(envelopes));
     });
 
-    test('empty', function (done) {
-      var readable = createReadableStream([], true);
-      readable
-        .pipe(new MessageDecoder(true))
-        .on('error', function () { done(); });
+    test('decode empty', function (done) {
+      createReadableStream([])
+        .pipe(new EnvelopeDecoder())
+        .on('end', function () {
+          done();
+        })
+        .pipe(createWritableStream([]));
+    });
+
+    test('encode empty', function (done) {
+      var frames = [];
+      createReadableStream([])
+        .pipe(new EnvelopeEncoder())
+        .pipe(createWritableStream(frames))
+        .on('finish', function () {
+          assert.deepEqual(frames, []);
+          done();
+        });
+    });
+
+    test('encode', function (done) {
+      var bufs = [
+        new Buffer([1, 3, 5, 6, 8]),
+        new Buffer([123, 23])
+      ];
+      var envelopes = [
+        {id: 1, payload: [new Buffer([1, 3, 5]), new Buffer([6, 8])]},
+        {id: 4, payload: [new Buffer([123, 23])]}
+      ];
+      var frames = [];
+      createReadableStream(envelopes)
+        .pipe(new EnvelopeEncoder(false, 4))
+        .pipe(createWritableStream(frames))
+        .on('finish', function () {
+          assert.deepEqual(
+            frames,
+            [
+              new Buffer([0, 0, 0, 1]),
+              new Buffer([0, 0, 0, 4, 1, 3, 5, 6]),
+              new Buffer([0, 0, 0, 1, 8]),
+              new Buffer([0, 0, 0, 0]),
+              new Buffer([0, 0, 0, 4]),
+              new Buffer([0, 0, 0, 2, 123, 23]),
+              new Buffer([0, 0, 0, 0])
+            ]
+          );
+          done();
+        });
+    });
+
+    test('roundtrip no prefix', function (done) {
+      var n = 100;
+      var src = [];
+      var envelope;
+      while (n--) {
+        envelope = protocols.ENVELOPE_TYPE.random();
+        envelope.id = null;
+        src.push(envelope);
+      }
+      var dst = [];
+      var encoder = new EnvelopeEncoder(true, 8);
+      var decoder = new EnvelopeDecoder(true);
+      createReadableStream(src)
+        .pipe(encoder)
+        .pipe(decoder)
+        .pipe(createWritableStream(dst))
+        .on('finish', function () {
+          src.forEach(function (envelope) {
+            envelope.payload = [Buffer.concat(envelope.payload)];
+          });
+          assert.deepEqual(dst, src);
+          done();
+        });
+    });
+
+    test('roundtrip with prefix', function (done) {
+      var n = 100;
+      var src = [];
+      var envelope;
+      while (n--) {
+        envelope = protocols.ENVELOPE_TYPE.random();
+        envelope.id |= 0;
+        src.push(envelope);
+      }
+      var dst = [];
+      var encoder = new EnvelopeEncoder(false, 8);
+      var decoder = new EnvelopeDecoder();
+      createReadableStream(src)
+        .pipe(encoder)
+        .pipe(decoder)
+        .pipe(createWritableStream(dst))
+        .on('finish', function () {
+          src.forEach(function (envelope) {
+            envelope.payload = [Buffer.concat(envelope.payload)];
+          });
+          assert.deepEqual(dst, src);
+          done();
+        });
     });
 
   });
 
-  suite('MessageEncoder', function () {
+  suite('Cache', function () {
 
-    var MessageEncoder = protocols.streams.MessageEncoder;
+    var Cache = protocols.Cache;
 
-    test('invalid frame size', function () {
-      assert.throws(function () { new MessageEncoder(); });
+    test('add protocol', function () {
+      var p1 = createProtocol({
+        protocol: 'foo',
+        messages: {
+          ping: {
+            request: [],
+            response: 'string'
+          }
+        }
+      });
+      var p2 = createProtocol({
+        protocol: 'foo',
+        messages: {
+          ping: {
+            request: [],
+            response: 'bytes'
+          }
+        }
+      });
+      var cache = new Cache(p1);
+      assert(!cache.addProtocol(p1));
+      assert(cache.addProtocol(p2));
+      assert(!cache.addProtocol(p2));
+      assert.strictEqual(cache.getProtocol(p2.getFingerprint()), p2);
+      assert.strictEqual(cache.getProtocol(p1.getFingerprint()), p1);
     });
 
-    test('ok', function (done) {
-      var messages = [
-        new Buffer([0, 1]),
-        new Buffer([2])
-      ];
-      var frames = [];
-      var readable = createReadableStream(messages, true);
-      var writable = createWritableStream(frames, true);
-      readable
-        .pipe(new MessageEncoder(64))
-        .pipe(writable)
-        .on('finish', function () {
-          assert.deepEqual(
-            frames,
-            [
-              new Buffer([0, 0, 0, 2, 0, 1, 0, 0, 0, 0]),
-              new Buffer([0, 0, 0, 1, 2, 0, 0, 0, 0])
-            ]
-          );
-          done();
-        });
+    test('add incompatible protocol', function () {
+      var p1 = createProtocol({
+        protocol: 'foo',
+        messages: {
+          ping: {
+            request: [],
+            response: 'string'
+          }
+        }
+      });
+      var p2 = createProtocol({
+        protocol: 'foo',
+        messages: {
+          ping: {
+            request: [],
+            response: 'int'
+          }
+        }
+      });
+      var p3 = createProtocol({
+        protocol: 'foo',
+        messages: {}
+      });
+      var cache = new Cache(p1);
+      assert.throws(function () {
+        cache.addProtocol(p2, {resolveRequests: true});
+      });
+      assert.throws(function () {
+        cache.addProtocol(p2, {resolveResponses: true});
+      });
+      cache.addProtocol(p2);
+      assert.throws(function () {
+        cache.addProtocol(p2, {resolveResponses: true});
+      });
+      assert.throws(function () {
+        cache.addProtocol(p3, {resolveResponses: true});
+      });
+      cache.addProtocol(p3, {resolveRequests: true});
     });
 
-    test('all zeros', function (done) {
-      var messages = [new Buffer([0, 0, 0, 0])];
-      var frames = [];
-      var readable = createReadableStream(messages, true);
-      var writable = createWritableStream(frames, true);
-      readable
-        .pipe(new MessageEncoder(64))
-        .pipe(writable)
-        .on('finish', function () {
-          assert.deepEqual(
-            frames,
-            [new Buffer([0, 0, 0, 4, 0, 0, 0, 0, 0, 0, 0, 0])]
-          );
-          done();
-        });
+  });
+
+  suite('Registry', function () {
+
+    var Registry = protocols.Registry;
+
+    test('get', function (done) {
+      var ctx = {one: 1};
+      var reg = new Registry(ctx);
+      var id = reg.add(200, function (err, two) {
+        assert.strictEqual(this, ctx);
+        assert.strictEqual(err, null);
+        assert.equal(two, 2);
+        assert.strictEqual(reg.get(id), undefined);
+        done();
+      });
+      setTimeout(function () { reg.get(id)(null, 2); }, 50);
     });
 
-    test('short frame size', function (done) {
-      var messages = [
-        new Buffer([0, 1, 2]),
-        new Buffer([2])
-      ];
-      var frames = [];
-      var readable = createReadableStream(messages, true);
-      var writable = createWritableStream(frames, true);
-      readable
-        .pipe(new MessageEncoder(2))
-        .pipe(writable)
-        .on('finish', function () {
-          assert.deepEqual(
-            frames,
-            [
-              new Buffer([0, 0, 0, 2, 0, 1, 0, 0, 0, 1, 2, 0, 0, 0, 0]),
-              new Buffer([0, 0, 0, 1, 2, 0, 0, 0, 0])
-            ]
-          );
+    test('timeout', function (done) {
+      var ctx = {one: 1};
+      var reg = new Registry(ctx);
+      var id = reg.add(10, function (err) {
+        assert.strictEqual(this, ctx);
+        assert(/timeout/.test(err));
+        assert.strictEqual(reg.get(id), undefined);
+        done();
+      });
+    });
+
+    test('no timeout', function (done) {
+      var ctx = {one: 1};
+      var reg = new Registry(ctx);
+      var id = reg.add(-1, function (err, two) {
+        assert.strictEqual(this, ctx);
+        assert.strictEqual(err, null);
+        assert.equal(two, 2);
+        assert.strictEqual(reg.get(id), undefined);
+        done();
+      });
+      reg.get(id)(null, 2);
+    });
+
+    test('clear', function (done) {
+      var ctx = {one: 1};
+      var reg = new Registry(ctx);
+      var n = 0;
+      reg.add(20, fn);
+      reg.add(20, fn);
+      reg.clear();
+
+      function fn(err) {
+        assert(/interrupted/.test(err));
+        if (++n == 2) {
           done();
-        });
+        }
+      }
     });
 
   });
@@ -770,7 +927,7 @@ suite('protocols', function () {
           var idType = ee._idType;
           var bufs = [];
           transports[0].readable
-            .pipe(new protocols.streams.MessageDecoder())
+            .pipe(new protocols.streams.EnvelopeDecoder())
             .on('data', function (buf) { bufs.push(buf); })
             .on('end', function () {
               assert.equal(bufs.length, 1);
@@ -810,7 +967,7 @@ suite('protocols', function () {
           var idType = ee._idType;
           var bufs = [];
           transports[0].readable
-            .pipe(new protocols.streams.MessageDecoder())
+            .pipe(new protocols.streams.EnvelopeDecoder())
             .on('data', function (buf) { bufs.push(buf); })
             .on('end', function () {
               assert.equal(bufs.length, 1);
@@ -869,7 +1026,7 @@ suite('protocols', function () {
         return readable;
       });
       var bufs = [];
-      writable.pipe(new protocols.streams.MessageDecoder())
+      writable.pipe(new protocols.streams.EnvelopeDecoder())
         .on('data', function (buf) { bufs.push(buf); })
         .on('end', function () {
           assert.equal(bufs.length, 1);
@@ -887,7 +1044,7 @@ suite('protocols', function () {
         clientProtocol: null,
         serverHash: hash
       };
-      var encoder = new protocols.streams.MessageEncoder(64);
+      var encoder = new protocols.streams.EnvelopeEncoder(64);
       encoder.pipe(readable);
       encoder.end(Buffer.concat([
         HANDSHAKE_REQUEST_TYPE.toBuffer(req),
@@ -912,7 +1069,7 @@ suite('protocols', function () {
         return readable;
       });
       var bufs = [];
-      writable.pipe(new protocols.streams.MessageDecoder())
+      writable.pipe(new protocols.streams.EnvelopeDecoder())
         .on('data', function (buf) { bufs.push(buf); })
         .on('end', function () {
           assert.equal(bufs.length, 1);
@@ -927,7 +1084,7 @@ suite('protocols', function () {
         clientProtocol: ptcl1.toString(),
         serverHash: hash
       };
-      var encoder = new protocols.streams.MessageEncoder(64);
+      var encoder = new protocols.streams.EnvelopeEncoder(64);
       encoder.pipe(readable);
       encoder.end(HANDSHAKE_REQUEST_TYPE.toBuffer(req));
     });
@@ -1011,7 +1168,7 @@ suite('protocols', function () {
           var n1, n2;
           ee.on('eot', function () {
             assert.equal(n1, 1);
-            assert.equal(n2, 1);
+            assert.equal(n2, 0);
             done();
           });
           ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
@@ -1020,7 +1177,7 @@ suite('protocols', function () {
             assert.strictEqual(err, null);
             assert.equal(res, -20);
             n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/invalid "int"/.test(err.message));
+              assert(/invalid "int"/.test(err));
               ee.destroy();
             });
           });
@@ -1042,6 +1199,7 @@ suite('protocols', function () {
           ee.on('eot', function () { done(); });
           ptcl.on('negate', function (req, ee, cb) { cb({rate: '23'}); });
           ptcl.emit('negate', {n: 20}, ee, function (err) {
+            debugger;
             assert.equal(this, ptcl);
             assert.deepEqual(err, {rate: '23'});
             ee.destroy();
@@ -1539,10 +1697,8 @@ suite('protocols', function () {
             setTimeout(function () { cb(null, 'ok'); }, req.ms);
           });
         var interrupted = 0;
-        var eoted = false;
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function (pending) {
-            eoted = true;
             assert.equal(interrupted, 2);
             assert.equal(pending, 2);
             done();
@@ -1551,6 +1707,7 @@ suite('protocols', function () {
           ptcl.emit('wait', {ms: 50}, ee, interruptedCb);
           ptcl.emit('wait', {ms: 10}, ee, function (err, res) {
             assert.equal(res, 'ok');
+            debugger;
             ee.destroy(true);
           });
 
@@ -1633,11 +1790,11 @@ function frame(buf) {
 
 function createReadableTransport(bufs, frameSize) {
   return createReadableStream(bufs)
-    .pipe(new protocols.streams.MessageEncoder(frameSize || 64));
+    .pipe(new protocols.streams.EnvelopeEncoder(frameSize || 64));
 }
 
 function createWritableTransport(bufs) {
-  var decoder = new protocols.streams.MessageDecoder();
+  var decoder = new protocols.streams.EnvelopeDecoder();
   decoder.pipe(createWritableStream(bufs));
   return decoder;
 }
@@ -1659,7 +1816,7 @@ function createPassthroughTransports() {
 
 function createReadableStream(bufs) {
   var n = 0;
-  function Stream() { stream.Readable.call(this); }
+  function Stream() { stream.Readable.call(this, {objectMode: true}); }
   util.inherits(Stream, stream.Readable);
   Stream.prototype._read = function () {
     this.push(bufs[n++] || null);
@@ -1669,7 +1826,7 @@ function createReadableStream(bufs) {
 }
 
 function createWritableStream(bufs) {
-  function Stream() { stream.Writable.call(this); }
+  function Stream() { stream.Writable.call(this, {objectMode: true}); }
   util.inherits(Stream, stream.Writable);
   Stream.prototype._write = function (buf, encoding, cb) {
     bufs.push(buf);
