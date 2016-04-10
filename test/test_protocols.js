@@ -367,79 +367,6 @@ suite('protocols', function () {
 
   });
 
-  suite('Cache', function () {
-
-    var Cache = protocols.Cache;
-
-    test('add protocol', function () {
-      var p1 = createProtocol({
-        protocol: 'foo',
-        messages: {
-          ping: {
-            request: [],
-            response: 'string'
-          }
-        }
-      });
-      var p2 = createProtocol({
-        protocol: 'foo',
-        messages: {
-          ping: {
-            request: [],
-            response: 'bytes'
-          }
-        }
-      });
-      var cache = new Cache(p1);
-      assert(!cache.addProtocol(p1));
-      assert(cache.addProtocol(p2));
-      assert(!cache.addProtocol(p2));
-      assert.strictEqual(cache.getProtocol(p2.getFingerprint()), p2);
-      assert.strictEqual(cache.getProtocol(p1.getFingerprint()), p1);
-    });
-
-    test('add incompatible protocol', function () {
-      var p1 = createProtocol({
-        protocol: 'foo',
-        messages: {
-          ping: {
-            request: [],
-            response: 'string'
-          }
-        }
-      });
-      var p2 = createProtocol({
-        protocol: 'foo',
-        messages: {
-          ping: {
-            request: [],
-            response: 'int'
-          }
-        }
-      });
-      var p3 = createProtocol({
-        protocol: 'foo',
-        messages: {}
-      });
-      var cache = new Cache(p1);
-      assert.throws(function () {
-        cache.addProtocol(p2, {resolveRequests: true});
-      });
-      assert.throws(function () {
-        cache.addProtocol(p2, {resolveResponses: true});
-      });
-      cache.addProtocol(p2);
-      assert.throws(function () {
-        cache.addProtocol(p2, {resolveResponses: true});
-      });
-      assert.throws(function () {
-        cache.addProtocol(p3, {resolveResponses: true});
-      });
-      cache.addProtocol(p3, {resolveRequests: true});
-    });
-
-  });
-
   suite('Registry', function () {
 
     var Registry = protocols.Registry;
@@ -1171,8 +1098,9 @@ suite('protocols', function () {
             assert.equal(n2, 0);
             done();
           });
-          ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
+          ptcl.on('negate', function (req, ee, cb) { debugger; cb(null, -req.n); });
           n1 = ptcl.emit('negate', {n: 20}, ee, function (err, res) {
+            debugger;
             assert.equal(this, ptcl);
             assert.strictEqual(err, null);
             assert.equal(res, -20);
@@ -1199,7 +1127,6 @@ suite('protocols', function () {
           ee.on('eot', function () { done(); });
           ptcl.on('negate', function (req, ee, cb) { cb({rate: '23'}); });
           ptcl.emit('negate', {n: 20}, ee, function (err) {
-            debugger;
             assert.equal(this, ptcl);
             assert.deepEqual(err, {rate: '23'});
             ee.destroy();
@@ -1517,6 +1444,7 @@ suite('protocols', function () {
             cb(null, letters);
           });
           ptcl1.emit('generate', {n: 20}, ee, function (err, res) {
+            debugger;
             assert.equal(this, ptcl1);
             assert.strictEqual(err, null);
             assert.equal(res.length, 20);
@@ -1610,13 +1538,12 @@ suite('protocols', function () {
         });
         setupFn(ptcl1, ptcl2, function (ee) {
             ee.on('error', function (err) {
-              // The error will be emitter directly in the case of stateful
-              // emitters and wrapped when stateless.
-              assert(
-                /incompatible/.test(err) ||
-                /incompatible/.test(err.cause)
-              );
-              done();
+              // This will be called twice for stateful emitters: once when
+              // interrupted, then for the incompatible protocol error.
+              assert(err);
+              if (!/interrupted/.test(err)) {
+                done();
+              }
             });
             ptcl1.emit('ping', {}, ee);
           }
@@ -1675,11 +1602,8 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/unhandled/.test(err.message));
-            ptcl.emit('ping', {}, ee);
-            // By definition of one-way, there is no reliable way of calling
-            // done exactly when ping is done, so we add a small timeout.
-            setTimeout(done, 100);
+            assert(/unhandled/.test(err));
+            done();
           });
         });
       });
@@ -1747,7 +1671,6 @@ suite('protocols', function () {
           protocol: 'Math',
           messages: {
             error1: {request: [], response: 'null'},
-            error2: {request: [], response: 'null', 'one-way': true},
             negate: {
               request: [{name: 'n', type: 'int'}],
               response: 'int'
@@ -1757,12 +1680,10 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ptcl
             .on('error1', function () { throw new Error('foobar'); })
-            .on('error2', function () { throw new Error('foobar'); })
             .on('negate', function (req, ee, cb) { cb(null, -req.n); })
             .emit('error1', {}, ee, function (err) {
               assert(/foobar/.test(err));
               // But the server doesn't die.
-              this.emit('error2', {}, ee);
               this.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.strictEqual(err, null);
                 assert.equal(res, -20);
