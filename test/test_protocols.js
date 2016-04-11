@@ -512,7 +512,7 @@ suite('protocols', function () {
         readable: new stream.PassThrough({objectMode: true}),
         writable: new stream.PassThrough({objectMode: true})
       };
-      var opts = {noHandshake: true, objectMode: true, timeout: 0};
+      var opts = {noPing: true, objectMode: true, timeout: 0};
       var ee = ptcl.createEmitter(transport, opts)
         .on('eot', function () { done(); });
       assert.strictEqual(ee.getTimeout(), 0);
@@ -542,7 +542,7 @@ suite('protocols', function () {
       var ee = ptcl.createEmitter(function (cb) {
         return stream.PassThrough()
           .on('finish', function () { cb(new Error('foobar')); });
-      });
+      }, {noPing: true});
       ptcl.emit('ping', {}, ee, function (err) {
         assert.deepEqual(err, {string: 'foobar'});
         assert(!ee.isDestroyed());
@@ -669,20 +669,26 @@ suite('protocols', function () {
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
           var n1, n2;
           ee.on('eot', function () {
             assert.equal(n1, 1);
             assert.equal(n2, 0);
             done();
-          });
-          ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
-          n1 = ptcl.emit('negate', {n: 20}, ee, function (err, res) {
-            assert.equal(this, ptcl);
-            assert.strictEqual(err, null);
-            assert.equal(res, -20);
-            n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/invalid "int"/.test(err));
-              ee.destroy();
+          }).once('handshake', function (hreq, hres) {
+            // Allow the initial ping to complete.
+            assert.equal(hres.match, 'BOTH');
+            process.nextTick(function () {
+              // Also let the pending count go down.
+              n1 = ptcl.emit('negate', {n: 20}, ee, function (err, res) {
+                assert.equal(this, ptcl);
+                assert.strictEqual(err, null);
+                assert.equal(res, -20);
+                n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
+                  assert(/invalid "int"/.test(err));
+                  ee.destroy();
+                });
+              });
             });
           });
         });
@@ -890,7 +896,7 @@ suite('protocols', function () {
         var ptcl = createProtocol({
           protocol: 'Delay',
           messages: {
-            wait: {
+            w: {
               request: [
                 {name: 'ms', type: 'float'},
                 {name: 'id', type: 'string'}
@@ -898,7 +904,7 @@ suite('protocols', function () {
               response: 'string'
             }
           }
-        }).on('wait', function (req, ee, cb) {
+        }).on('w', function (req, ee, cb) {
           var delay = req.ms;
           if (delay < 0) {
             cb('delay must be non-negative');
@@ -908,6 +914,7 @@ suite('protocols', function () {
         });
         var ids = [];
         setupFn(ptcl, ptcl, function (ee) {
+          var n1, n2, n3;
           ee.on('eot', function (pending) {
             assert.equal(pending, 0);
             assert.equal(n1, 1);
@@ -915,20 +922,23 @@ suite('protocols', function () {
             assert.equal(n3, 3);
             assert.deepEqual(ids, [null, 'b', 'a']);
             done();
-          });
-          var n1, n2, n3;
-          n1 = ptcl.emit('wait', {ms: 500, id: 'a'}, ee, function (err, res) {
-            assert.strictEqual(err, null);
-            ids.push(res);
-          });
-          n2 = ptcl.emit('wait', {ms: 10, id: 'b'}, ee, function (err, res) {
-            assert.strictEqual(err, null);
-            ids.push(res);
-            ee.destroy();
-          });
-          n3 = ptcl.emit('wait', {ms: -100, id: 'c'}, ee, function (err, res) {
-            assert(/non-negative/.test(err));
-            ids.push(res);
+          }).once('handshake', function (hreq, hres) {
+            assert.equal(hres.match, 'BOTH');
+            process.nextTick(function () {
+              n1 = ptcl.emit('w', {ms: 500, id: 'a'}, ee, function (err, res) {
+                assert.strictEqual(err, null);
+                ids.push(res);
+              });
+              n2 = ptcl.emit('w', {ms: 10, id: 'b'}, ee, function (err, res) {
+                assert.strictEqual(err, null);
+                ids.push(res);
+                ee.destroy();
+              });
+              n3 = ptcl.emit('w', {ms: -10, id: 'c'}, ee, function (err, res) {
+                assert(/non-negative/.test(err));
+                ids.push(res);
+              });
+            });
           });
         });
       });
@@ -1137,10 +1147,8 @@ suite('protocols', function () {
               // This will be called twice for stateful emitters: once when
               // interrupted, then for the incompatible protocol error.
               assert(err);
-              if (!/interrupted/.test(err)) {
-                done();
-              }
-            });
+              this.destroy();
+            }).on('eot', function () { done(); });
             ptcl1.emit('ping', {}, ee);
           }
         );
