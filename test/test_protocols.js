@@ -520,6 +520,7 @@ suite('protocols', function () {
       });
       var env = {message: ptcl.getMessage('ping'), request: {}};
       ee.destroy();
+      // TODO
       return;
       ee.emitMessage(env, undefined, function (err) {
         debugger;
@@ -551,6 +552,58 @@ suite('protocols', function () {
 
   });
 
+  suite('StatefulListener', function () {
+
+    test('custom handler', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Math',
+        messages: {
+          negate: {
+            request: [{name: 'num', type: 'int'}],
+            response: 'int'
+          }
+        }
+      }).on('negate', skip);
+
+      var transports = createPassthroughTransports();
+      var reqEnv = {
+        message: ptcl.getMessage('negate'),
+        header: {one: new Buffer([1])},
+        request: {num: 23}
+      };
+      var resEnv = {
+        message: ptcl.getMessage('negate'),
+        header: {two: new Buffer([2])},
+        response: -23,
+        error: undefined
+      };
+
+      ptcl.createListener(transports[0])
+        .onMessage(function (env, handler, cb) {
+          // Somehow message equality fails here (but not in the response
+          // envelope below). This might be because a new protocol is created
+          // from handshakes on the listener, but not on the emitter?
+          assert.equal(this.getPending(), 1);
+          assert.deepEqual(env.header, reqEnv.header);
+          assert.deepEqual(env.request, reqEnv.request);
+          assert.equal(env.message.getName(), reqEnv.message.getName());
+          assert.strictEqual(handler, skip);
+          cb(null, resEnv);
+        });
+
+      var ee = ptcl.createEmitter(transports[1])
+        .on('eot', function () { done(); });
+
+      ee.emitMessage(reqEnv, 0, function (err, env) {
+        assert.deepEqual(env, resEnv);
+        this.destroy();
+      });
+
+      function skip() { throw new Error('no'); }
+    });
+
+  });
+
   suite('StatelessListener', function () {
 
     test('factory error', function (done) {
@@ -565,8 +618,6 @@ suite('protocols', function () {
     });
 
   });
-
-  // TODO: Emitter and listener tests.
 
   suite('emit', function () {
 
