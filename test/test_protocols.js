@@ -497,7 +497,7 @@ suite('protocols', function () {
       assert.throws(function () {
         ee.emitMessage({message: ptcl.getMessage('ping'), request: {}});
       }, /missing callback/);
-      ee.emitMessage({request: {}}, undefined, function (err) {
+      ee.emitMessage('foo', {request: {}}, function (err) {
         assert(/missing message/.test(err));
         ee.destroy();
       });
@@ -512,21 +512,21 @@ suite('protocols', function () {
         readable: new stream.PassThrough({objectMode: true}),
         writable: new stream.PassThrough({objectMode: true})
       };
-      var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
+      var opts = {noHandshake: true, objectMode: true, timeout: 0};
+      var ee = ptcl.createEmitter(transport, opts)
         .on('eot', function () { done(); });
-      ee.emitMessage({request: {}}, undefined, function (err) {
-        assert(/missing message/.test(err));
-      });
-      var env = {message: ptcl.getMessage('ping'), request: {}};
-      ee.destroy();
-      // TODO
-      return;
-      ee.emitMessage(env, undefined, function (err) {
-        debugger;
+      assert.strictEqual(ee.getTimeout(), 0);
+      ee.emitMessage('ping', {request: {}}, function (err) {
         assert(/invalid response/.test(err));
+        assert(!this.isDestroyed());
+        this.destroy();
       });
       transport.writable.once('data', function (obj) {
-        transport.readable.write({id: obj.id, payload: []});
+        assert.deepEqual(
+          obj,
+          {id: 1, payload: [new Buffer('\x00\x08ping', 'binary')]}
+        );
+        transport.readable.write({id: obj.id, payload: [new Buffer([3])]});
       });
     });
 
