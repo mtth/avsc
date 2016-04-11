@@ -10,8 +10,6 @@ browsers:
     version: 11..latest
   - name: microsoftedge
     version: 13..latest
-  - name: opera
-    version: 11..latest
   - name: android
     version: 4.4..latest
   - name: iphone

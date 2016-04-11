@@ -927,6 +927,27 @@ suite('protocols', function () {
         );
       });
 
+      test('incompatible protocols missing message', function (done) {
+        var emitterPtcl = createProtocol({
+          protocol: 'emitterProtocol',
+          messages: {
+            age: {request: [{name: 'name', type: 'string'}], response: 'long'}
+          }
+        }, {wrapUnions: true});
+        var listenerPtcl = createProtocol({protocol: 'serverProtocol'});
+        setupFn(
+          emitterPtcl,
+          listenerPtcl,
+          function (ee) {
+            ee.on('error', function () {}); // For stateful protocols.
+            emitterPtcl.emit('age', {name: 'Ann'}, ee, function (err) {
+              assert(err.message);
+              done();
+            });
+          }
+        );
+      });
+
       test('incompatible protocols', function (done) {
         var emitterPtcl = createProtocol({
           protocol: 'emitterProtocol',
