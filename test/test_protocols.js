@@ -466,6 +466,72 @@ suite('protocols', function () {
 
   });
 
+  suite('StatefulEmitter', function () {
+
+    test('custom timeout', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = {
+        readable: new stream.PassThrough({objectMode: true}),
+        writable: new stream.PassThrough({objectMode: true})
+      };
+      var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
+        .on('eot', function () { done(); });
+      assert.equal(ee.getTimeout(), 0);
+      var env = {message: ptcl.getMessage('ping'), request: {}};
+      ee.emitMessage(env, 10, function (err) {
+        assert(/timeout/.test(err));
+        ee.destroy();
+      });
+    });
+
+    test('missing message & callback', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = new stream.PassThrough({objectMode: true});
+      var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
+        .on('eot', function () { done(); });
+      assert.throws(function () {
+        ee.emitMessage({message: ptcl.getMessage('ping'), request: {}});
+      }, /missing callback/);
+      ee.emitMessage({request: {}}, undefined, function (err) {
+        assert(/missing message/.test(err));
+        ee.destroy();
+      });
+    });
+
+    test('invalid response', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = {
+        readable: new stream.PassThrough({objectMode: true}),
+        writable: new stream.PassThrough({objectMode: true})
+      };
+      var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
+        .on('eot', function () { done(); });
+      ee.emitMessage({request: {}}, undefined, function (err) {
+        assert(/missing message/.test(err));
+      });
+      var env = {message: ptcl.getMessage('ping'), request: {}};
+      ee.destroy();
+      return;
+      ee.emitMessage(env, undefined, function (err) {
+        debugger;
+        assert(/invalid response/.test(err));
+      });
+      transport.writable.once('data', function (obj) {
+        transport.readable.write({id: obj.id, payload: []});
+      });
+    });
+
+  });
+
   suite('StatelessEmitter', function () {
 
     test('factory error', function (done) {
