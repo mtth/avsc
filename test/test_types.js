@@ -205,7 +205,7 @@ suite('types', function () {
       b = new Buffer(2);
       pos = t.encode(s, b);
       assert(pos < 0);
-      b = new Buffer(-pos);
+      b = new Buffer(b.length - pos);
       pos = t.encode(s, b);
       assert(pos >= 0);
       assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
@@ -3063,7 +3063,7 @@ suite('types', function () {
       var t = createType('string');
       var buf = new Buffer(1);
       var n = t.encode('\x01\x02', buf, 0);
-      assert.equal(n, -3);
+      assert.equal(n, -2);
     });
 
     test('invalid', function () {
@@ -3111,6 +3111,15 @@ suite('types', function () {
       assert.equal(resolver.inspect(), '<Resolver>');
     });
 
+  });
+
+  test('equals', function () {
+    var t1 = createType('int');
+    var t2 = createType('int');
+    assert(t1.equals(t2));
+    assert(t2.equals(t1));
+    assert(!t1.equals(createType('long')));
+    assert(!t1.equals(null));
   });
 
   test('isType', function () {
