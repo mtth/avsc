@@ -407,8 +407,6 @@ suite('protocols', function () {
 
   });
 
-  // TODO: Netty tests.
-
   suite('Registry', function () {
 
     var Registry = protocols.Registry;
@@ -468,6 +466,40 @@ suite('protocols', function () {
 
   });
 
+  suite('StatelessEmitter', function () {
+
+    test('factory error', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      }, {strictErrors: true, wrapUnions: true});
+      var ee = ptcl.createEmitter(function (cb) {
+        return stream.PassThrough()
+          .on('finish', function () { cb(new Error('foobar')); });
+      });
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert.deepEqual(err, {string: 'foobar'});
+        done();
+      });
+    });
+
+  });
+
+  suite('StatelessListener', function () {
+
+    test('factory error', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      ptcl.createListener(function (cb) {
+        cb(new Error('bar'));
+        return stream.PassThrough();
+      }).on('eot', function () { done(); });
+    });
+
+  });
+
   // TODO: Emitter and listener tests.
 
   suite('emit', function () {
@@ -477,10 +509,9 @@ suite('protocols', function () {
       run(function (emitterPtcl, listenerPtcl, cb) {
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
-        var opts = {bufferSize: 48};
         cb(
-          emitterPtcl.createEmitter({readable: pt1, writable: pt2}, opts),
-          listenerPtcl.createListener({readable: pt2, writable: pt1}, opts)
+          emitterPtcl.createEmitter({readable: pt1, writable: pt2}),
+          listenerPtcl.createListener({readable: pt2, writable: pt1})
         );
       });
 
