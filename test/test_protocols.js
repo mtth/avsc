@@ -530,6 +530,29 @@ suite('protocols', function () {
       });
     });
 
+    test('readable ended', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transports = createPassthroughTransports();
+      ptcl.createEmitter(transports[0]).on('eot', function () { done(); });
+      transports[0].readable.push(null);
+    });
+
+    test('writable finished', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      // We must use object mode here since ending the encoding stream won't
+      // end the underlying writable stream.
+      var transports = createPassthroughTransports(true);
+      ptcl.createEmitter(transports[0], {objectMode: true})
+        .on('eot', function () { done(); });
+      transports[0].writable.end();
+    });
+
   });
 
   suite('StatelessEmitter', function () {
@@ -631,6 +654,54 @@ suite('protocols', function () {
           emitterPtcl.createEmitter({readable: pt1, writable: pt2}),
           listenerPtcl.createListener({readable: pt2, writable: pt1})
         );
+      });
+
+      test('explicit server fingerprint', function (done) {
+        var transports = createPassthroughTransports();
+        var p1 = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'long'}],
+              response: 'int'
+            }
+          }
+        });
+        var p2 = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'long'}],
+              response: 'int'
+            }
+          }
+        });
+        var ml1 = p2.createListener(transports[0]);
+        var me1 = p1.createEmitter(transports[1]);
+        me1.on('handshake', function (hreq, hres) {
+          if (hres.match === 'NONE') {
+            return;
+          }
+          // When we reach here a connection has been established, so both
+          // emitter and listener caches have been populated with correct
+          // adapters.
+          var transports = createPassthroughTransports();
+          p2.createListener(transports[0], {cache: ml1.getCache()})
+            .once('handshake', onHandshake);
+          p1.createEmitter(transports[1], {
+            cache: me1.getCache(),
+            serverFingerprint: p2.getFingerprint()
+          }).once('handshake', onHandshake);
+
+          var n = 0;
+          function onHandshake(hreq, hres) {
+            // The remote protocol should be available.
+            assert.equal(hres.match, 'BOTH');
+            if (++n === 2) {
+              done();
+            }
+          }
+        });
       });
 
     });
@@ -1330,9 +1401,9 @@ function createTransport(readBufs, writeBufs) {
   );
 }
 
-function createPassthroughTransports() {
-  var pt1 = stream.PassThrough();
-  var pt2 = stream.PassThrough();
+function createPassthroughTransports(objectMode) {
+  var pt1 = stream.PassThrough({objectMode: objectMode});
+  var pt2 = stream.PassThrough({objectMode: objectMode});
   return [{readable: pt1, writable: pt2}, {readable: pt2, writable: pt1}];
 }
 
