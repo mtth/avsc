@@ -134,6 +134,22 @@ suite('protocols', function () {
       done();
     });
 
+    test('getFingerprint', function () {
+      var p = createProtocol({
+        namespace: 'hello',
+        protocol: 'World',
+      });
+      assert.deepEqual(p.getFingerprint('md5'), p.getFingerprint());
+    });
+
+    test('toString', function () {
+      var p = createProtocol({
+        namespace: 'hello',
+        protocol: 'World',
+      });
+      assert.equal(p.toString(), '{"protocol":"hello.World"}');
+    });
+
     test('inspect', function () {
       var p = createProtocol({
         namespace: 'hello',
@@ -302,7 +318,7 @@ suite('protocols', function () {
         });
     });
 
-    test('roundtrip no prefix', function (done) {
+    test('roundtrip', function (done) {
       var type = types.createType({
         type: 'record',
         name: 'Record',
@@ -323,6 +339,62 @@ suite('protocols', function () {
       var dst = [];
       var encoder = new FrameEncoder();
       var decoder = new FrameDecoder();
+      createReadableStream(src)
+        .pipe(encoder)
+        .pipe(decoder)
+        .pipe(createWritableStream(dst))
+        .on('finish', function () {
+          assert.deepEqual(dst, src);
+          done();
+        });
+    });
+
+  });
+
+  suite('NettyDecoder & NettyEncoder', function () {
+
+    var NettyDecoder = protocols.streams.NettyDecoder;
+    var NettyEncoder = protocols.streams.NettyEncoder;
+
+    test('decode with trailing data', function (done) {
+      var src = [
+        new Buffer([0, 0, 0, 2, 0, 0, 0]),
+        new Buffer([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
+      ];
+      var dst = [];
+      createReadableStream(src)
+        .pipe(new NettyDecoder())
+        .on('error', function () {
+          assert.deepEqual(
+            dst,
+            [{id: 2, payload: [new Buffer([1, 3, 4, 2, 5])]}]
+          );
+          done();
+        })
+        .pipe(createWritableStream(dst));
+    });
+
+    test('roundtrip', function (done) {
+      var type = types.createType({
+        type: 'record',
+        name: 'Record',
+        fields: [
+          {name: 'id', type: 'int'},
+          {name: 'payload', type: {type: 'array', items: 'bytes'}}
+        ]
+      });
+      var n = 200;
+      var src = [];
+      while (n--) {
+        var record = type.random();
+        record.payload = record.payload.filter(function (arr) {
+          return arr.length;
+        });
+        src.push(record);
+      }
+      var dst = [];
+      var encoder = new NettyEncoder();
+      var decoder = new NettyDecoder();
       createReadableStream(src)
         .pipe(encoder)
         .pipe(decoder)
@@ -424,8 +496,8 @@ suite('protocols', function () {
             .on('finish', function () {
               listenerPtcl.createListener(function (listenerCb) {
                 var resPt = new stream.PassThrough()
-                  .on('finish', function () { emitterCb(resPt); });
-                listenerCb(resPt);
+                  .on('finish', function () { emitterCb(null, resPt); });
+                listenerCb(null, resPt);
                 return reqPt;
               });
             });
@@ -454,9 +526,8 @@ suite('protocols', function () {
             assert.equal(n2, 0);
             done();
           });
-          ptcl.on('negate', function (req, ee, cb) { debugger; cb(null, -req.n); });
+          ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
           n1 = ptcl.emit('negate', {n: 20}, ee, function (err, res) {
-            debugger;
             assert.equal(this, ptcl);
             assert.strictEqual(err, null);
             assert.equal(res, -20);
@@ -800,7 +871,6 @@ suite('protocols', function () {
             cb(null, letters);
           });
           ptcl1.emit('generate', {n: 20}, ee, function (err, res) {
-            debugger;
             assert.equal(this, ptcl1);
             assert.strictEqual(err, null);
             assert.equal(res.length, 20);
@@ -987,7 +1057,6 @@ suite('protocols', function () {
           ptcl.emit('wait', {ms: 50}, ee, interruptedCb);
           ptcl.emit('wait', {ms: 10}, ee, function (err, res) {
             assert.equal(res, 'ok');
-            debugger;
             ee.destroy(true);
           });
 
