@@ -480,8 +480,7 @@ suite('protocols', function () {
       var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
         .on('eot', function () { done(); });
       assert.equal(ee.getTimeout(), 0);
-      var env = {message: ptcl.getMessage('ping'), request: {}};
-      ee.emitMessage(env, 10, function (err) {
+      ee.emitMessage('ping', {request: {}}, {timeout: 10}, function (err) {
         assert(/timeout/.test(err));
         ee.destroy();
       });
@@ -546,6 +545,7 @@ suite('protocols', function () {
       });
       ptcl.emit('ping', {}, ee, function (err) {
         assert.deepEqual(err, {string: 'foobar'});
+        assert(!ee.isDestroyed());
         done();
       });
     });
@@ -567,35 +567,36 @@ suite('protocols', function () {
 
       var transports = createPassthroughTransports();
       var reqEnv = {
-        message: ptcl.getMessage('negate'),
         header: {one: new Buffer([1])},
         request: {num: 23}
       };
       var resEnv = {
-        message: ptcl.getMessage('negate'),
         header: {two: new Buffer([2])},
         response: -23,
         error: undefined
       };
 
       ptcl.createListener(transports[0])
-        .onMessage(function (env, handler, cb) {
+        .onMessage(function (name, env, ptcl, cb) {
           // Somehow message equality fails here (but not in the response
           // envelope below). This might be because a new protocol is created
           // from handshakes on the listener, but not on the emitter?
+          assert.equal(name, 'negate');
           assert.equal(this.getPending(), 1);
-          assert.deepEqual(env.header, reqEnv.header);
-          assert.deepEqual(env.request, reqEnv.request);
-          assert.equal(env.message.getName(), reqEnv.message.getName());
-          assert.strictEqual(handler, skip);
+          assert.deepEqual(env, reqEnv);
+          assert.strictEqual(this.getProtocol().getHandler(name), skip);
           cb(null, resEnv);
         });
 
       var ee = ptcl.createEmitter(transports[1])
-        .on('eot', function () { done(); });
+        .on('eot', function () {
+          assert(this.isDestroyed());
+          done();
+        });
 
-      ee.emitMessage(reqEnv, 0, function (err, env) {
+      ee.emitMessage('negate', reqEnv, function (err, env, ptcl) {
         assert.deepEqual(env, resEnv);
+        assert(this.getProtocol().equals(ptcl));
         this.destroy();
       });
 
