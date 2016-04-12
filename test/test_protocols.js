@@ -122,10 +122,11 @@ suite('protocols', function () {
     });
 
     test('invalid emitter', function (done) {
-      var ptcl = createProtocol({protocol: 'Hey'});
-      var ee = createProtocol({protocol: 'Hi'}).createEmitter(function () {});
+      var p1 = createProtocol({protocol: 'Hey'});
+      var p2 = createProtocol({protocol: 'Hi'});
+      var ee = p2.createEmitter(new stream.PassThrough(), {noPing: true});
       assert.throws(
-        function () { ptcl.emit('hi', {}, ee); },
+        function () { p1.emit('hi', {}, ee); },
         /invalid emitter/
       );
       done();
