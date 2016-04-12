@@ -550,6 +550,32 @@ suite('protocols', function () {
       transports[0].writable.end();
     });
 
+    test('discover protocol', function (done) {
+      // Check that we can interrupt a handshake part-way, so that we can ping
+      // a remote server for its protocol, but still reuse the same connection
+      // for a later trasnmission.
+      var p1 = createProtocol({protocol: 'Empty'});
+      var p2 = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      }).on('ping', function (req, ml, cb) { cb(null, true); });
+      var transports = createPassthroughTransports();
+      p2.createListener(transports[0]);
+      p1.createEmitter(transports[1])
+        .on('handshake', function (hreq, hres) {
+          this.destroy();
+          assert.equal(hres.serverProtocol, p2.getSchema());
+        })
+        .on('eot', function () {
+          // The transports are still available for a connection.
+          var me = p2.createEmitter(transports[1]);
+          p2.emit('ping', {}, me, function (err, res) {
+            assert.strictEqual(res, true);
+            done();
+          });
+        });
+    });
+
   });
 
   suite('StatelessEmitter', function () {
