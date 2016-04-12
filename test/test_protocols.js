@@ -563,7 +563,23 @@ suite('protocols', function () {
         messages: {ping: {request: [], response: 'boolean'}}
       }, {strictErrors: true, wrapUnions: true});
       var ee = ptcl.createEmitter(function (cb) {
-        return stream.PassThrough()
+        return new stream.PassThrough({objectMode: true})
+          .on('finish', function () { cb(new Error('foobar')); });
+      }, {noPing: true, objectMode: true});
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert.deepEqual(err, {string: 'foobar'});
+        assert(!ee.isDestroyed());
+        done();
+      });
+    });
+
+    test('default encoder error', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      }, {strictErrors: true, wrapUnions: true});
+      var ee = ptcl.createEmitter(function (cb) {
+        return new stream.PassThrough()
           .on('finish', function () { cb(new Error('foobar')); });
       }, {noPing: true});
       ptcl.emit('ping', {}, ee, function (err) {
@@ -626,6 +642,32 @@ suite('protocols', function () {
       function skip() { throw new Error('no'); }
     });
 
+    test('readable ended', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = new stream.PassThrough();
+      ptcl.createListener(transport).on('eot', function () {
+        assert(this.isDestroyed());
+        done();
+      });
+      transport.push(null);
+    });
+
+    test('writable finished', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      // We must use object mode here since ending the encoding stream won't
+      // end the underlying writable stream.
+      var transports = createPassthroughTransports(true);
+      ptcl.createListener(transports[0], {objectMode: true})
+        .on('eot', function () { done(); });
+      transports[0].writable.end();
+    });
+
   });
 
   suite('StatelessListener', function () {
@@ -637,8 +679,36 @@ suite('protocols', function () {
       });
       ptcl.createListener(function (cb) {
         cb(new Error('bar'));
-        return stream.PassThrough();
+        return new stream.PassThrough();
       }).on('eot', function () { done(); });
+    });
+
+    test('delayed writable', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var objs = [];
+      var readable = new stream.PassThrough({objectMode: true});
+      var writable = new stream.PassThrough({objectMode: true})
+        .on('data', function (obj) { objs.push(obj); });
+      ptcl.createListener(function (cb) {
+        setTimeout(function () { cb(null, writable); }, 50);
+        return readable;
+      }, {objectMode: true}).on('eot', function () {
+        assert.deepEqual(objs.length, 1);
+        done();
+      });
+      readable.write({
+        id: 0,
+        payload: [
+          HANDSHAKE_REQUEST_TYPE.toBuffer({
+            clientHash: ptcl.getFingerprint(),
+            serverHash: ptcl.getFingerprint()
+          }),
+          new Buffer([3]) // Invalid request contents.
+        ]
+      });
     });
 
   });
@@ -1283,6 +1353,33 @@ suite('protocols', function () {
         });
       });
 
+      test('timeout', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Echo',
+          messages: {
+            echo: {
+              request: [{name: 'id', type: 'string'}],
+              response: 'string'
+            },
+            ping: {request: [], response: 'null', 'one-way': true}
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('echo', function (req, ee, cb) {
+            setTimeout(function () { cb(null, req.id); }, 50);
+          });
+          var env = {request: {id: 'foo'}};
+          ee.emitMessage('echo', env, {timeout: 10}, function (err) {
+            assert(/timeout/.test(err));
+            setTimeout(function () {
+              // Give enough time for the actual response to come back and
+              // still check that nothing fails.
+              done();
+            }, 100);
+          });
+        });
+      });
+
       test('destroy emitter noWait', function (done) {
         var ptcl = createProtocol({
           protocol: 'Delay',
@@ -1336,6 +1433,29 @@ suite('protocols', function () {
               assert(/destroyed/.test(err.message));
               done();
             });
+          });
+        });
+      });
+
+      test('destroy listener noWait', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'int'
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('negate', function (req, ee, cb) {
+            ee.destroy(true);
+            cb(null, -req.n);
+          });
+          var env = {request: {n: 20}};
+          ee.emitMessage('negate', env, {timeout: 10}, function(err) {
+            assert(/timeout/.test(err));
+            done();
           });
         });
       });
