@@ -151,7 +151,7 @@ suite('types', function () {
     });
 
     test('using missing methods', function () {
-      assert.throws(function () { builtins.LongType.using(); });
+      assert.throws(function () { builtins.LongType.__with(); });
     });
 
   });
@@ -1777,7 +1777,7 @@ suite('types', function () {
 
     suite('unpacked', function () {
 
-      var slowLongType = builtins.LongType.using({
+      var slowLongType = builtins.LongType.__with({
         fromBuffer: function (buf) {
           var neg = buf[7] >> 7;
           if (neg) { // Negative number.
@@ -1857,7 +1857,7 @@ suite('types', function () {
 
     suite('packed', function () {
 
-      var slowLongType = builtins.LongType.using({
+      var slowLongType = builtins.LongType.__with({
         fromBuffer: function (buf) {
           var tap = new Tap(buf);
           return tap.readLong();
@@ -1903,7 +1903,7 @@ suite('types', function () {
 
     test('incomplete buffer', function () {
       // Check that `fromBuffer` doesn't get called.
-      var slowLongType = new builtins.LongType.using({
+      var slowLongType = new builtins.LongType.__with({
         fromBuffer: function () { throw new Error('no'); },
         toBuffer: null,
         fromJSON: null,
