@@ -4,14 +4,11 @@
 
 var types = require('../lib/types'),
     protocols = require('../lib/protocols'),
-    utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
     util = require('util');
 
 
-var HANDSHAKE_REQUEST_TYPE = protocols.HANDSHAKE_REQUEST_TYPE;
-var HANDSHAKE_RESPONSE_TYPE = protocols.HANDSHAKE_RESPONSE_TYPE;
 var createProtocol = protocols.createProtocol;
 
 
@@ -702,7 +699,7 @@ suite('protocols', function () {
       readable.write({
         id: 0,
         payload: [
-          HANDSHAKE_REQUEST_TYPE.toBuffer({
+          protocols.HANDSHAKE_REQUEST_TYPE.toBuffer({
             clientHash: ptcl.getFingerprint(),
             serverHash: ptcl.getFingerprint()
           }),
@@ -732,8 +729,8 @@ suite('protocols', function () {
           protocol: 'Math',
           messages: {
             negate: {
-              request: [{name: 'n', type: 'long'}],
-              response: 'int'
+              request: [{name: 'n', type: 'int'}],
+              response: 'long'
             }
           }
         });
@@ -771,6 +768,43 @@ suite('protocols', function () {
               done();
             }
           }
+        });
+      });
+
+      test('cached client fingerprint', function (done) {
+        var transports = createPassthroughTransports();
+        var p1 = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'long'
+            }
+          }
+        });
+        var p2 = createProtocol({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'long'}],
+              response: 'int'
+            }
+          }
+        });
+        var ml1 = p2.createListener(transports[0]);
+        var me1 = p1.createEmitter(transports[1]);
+        me1.on('handshake', function (hreq, hres) {
+          if (hres.match === 'NONE') {
+            return;
+          }
+          var transports = createPassthroughTransports();
+          // The listener now has the client's protocol.
+          p2.createListener(transports[0], {cache: ml1.getCache()})
+            .once('handshake', function (hreq, hres) {
+              assert.equal(hres.match, 'CLIENT');
+              done();
+            });
+          p1.createEmitter(transports[1]);
         });
       });
 
@@ -1503,24 +1537,6 @@ function frame(buf) {
   return framed;
 }
 
-function createReadableTransport(bufs, frameSize) {
-  return createReadableStream(bufs)
-    .pipe(new protocols.streams.FrameEncoder(frameSize || 64));
-}
-
-function createWritableTransport(bufs) {
-  var decoder = new protocols.streams.FrameDecoder();
-  decoder.pipe(createWritableStream(bufs));
-  return decoder;
-}
-
-function createTransport(readBufs, writeBufs) {
-  return toDuplex(
-    createReadableTransport(readBufs),
-    createWritableTransport(writeBufs)
-  );
-}
-
 function createPassthroughTransports(objectMode) {
   var pt1 = stream.PassThrough({objectMode: objectMode});
   var pt2 = stream.PassThrough({objectMode: objectMode});
@@ -1545,25 +1561,6 @@ function createWritableStream(bufs) {
   util.inherits(Stream, stream.Writable);
   Stream.prototype._write = function (buf, encoding, cb) {
     bufs.push(buf);
-    cb();
-  };
-  return new Stream();
-}
-
-// Combine two (binary) streams into a single duplex one. This is very basic
-// and doesn't handle a lot of cases (e.g. where `_read` doesn't return
-// something).
-function toDuplex(readable, writable) {
-  function Stream() {
-    stream.Duplex.call(this);
-    this.on('finish', function () { writable.end(); });
-  }
-  util.inherits(Stream, stream.Duplex);
-  Stream.prototype._read = function () {
-    this.push(readable.read());
-  };
-  Stream.prototype._write = function (buf, encoding, cb) {
-    writable.write(buf);
     cb();
   };
   return new Stream();
