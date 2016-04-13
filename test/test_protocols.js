@@ -156,6 +156,12 @@ suite('protocols', function () {
       assert.equal(p.inspect(), '<Protocol "hello.World">');
     });
 
+    test('using constructor', function () {
+      var p = new protocols.Protocol({protocol: 'Empty'});
+      assert.equal(p.getName(), 'Empty');
+      assert.deepEqual(p.getMessages(), []);
+    });
+
   });
 
   suite('Message', function () {
@@ -585,11 +591,11 @@ suite('protocols', function () {
       var ptcl = createProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
-      }, {strictErrors: true, wrapUnions: true});
+      }, {wrapUnions: true});
       var ee = ptcl.createEmitter(function (cb) {
         return new stream.PassThrough({objectMode: true})
           .on('finish', function () { cb(new Error('foobar')); });
-      }, {noPing: true, objectMode: true});
+      }, {noPing: true, objectMode: true, strictErrors: true});
       ptcl.emit('ping', {}, ee, function (err) {
         assert.deepEqual(err, {string: 'foobar'});
         assert(!ee.isDestroyed());
@@ -601,11 +607,11 @@ suite('protocols', function () {
       var ptcl = createProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
-      }, {strictErrors: true, wrapUnions: true});
+      }, {wrapUnions: true});
       var ee = ptcl.createEmitter(function (cb) {
         return new stream.PassThrough()
           .on('finish', function () { cb(new Error('foobar')); });
-      }, {noPing: true});
+      }, {noPing: true, strictErrors: true});
       ptcl.emit('ping', {}, ee, function (err) {
         assert.deepEqual(err, {string: 'foobar'});
         assert(!ee.isDestroyed());
@@ -741,12 +747,16 @@ suite('protocols', function () {
 
     suite('stateful', function () {
 
-      run(function (emitterPtcl, listenerPtcl, cb) {
+      run(function (emitterPtcl, listenerPtcl, opts, cb) {
+        if (!cb) {
+          cb = opts;
+          opts = undefined;
+        }
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
         cb(
-          emitterPtcl.createEmitter({readable: pt1, writable: pt2}),
-          listenerPtcl.createListener({readable: pt2, writable: pt1})
+          emitterPtcl.createEmitter({readable: pt1, writable: pt2}, opts),
+          listenerPtcl.createListener({readable: pt2, writable: pt1}, opts)
         );
       });
 
@@ -839,8 +849,12 @@ suite('protocols', function () {
 
     suite('stateless', function () {
 
-      run(function (emitterPtcl, listenerPtcl, cb) {
-        cb(emitterPtcl.createEmitter(writableFactory));
+      run(function (emitterPtcl, listenerPtcl, opts, cb) {
+        if (!cb) {
+          cb = opts;
+          opts = undefined;
+        }
+        cb(emitterPtcl.createEmitter(writableFactory, opts));
 
         function writableFactory(emitterCb) {
           var reqPt = new stream.PassThrough()
@@ -850,7 +864,7 @@ suite('protocols', function () {
                   .on('finish', function () { emitterCb(null, resPt); });
                 listenerCb(null, resPt);
                 return reqPt;
-              });
+              }, opts);
             });
           return reqPt;
         }
@@ -1068,7 +1082,7 @@ suite('protocols', function () {
               response: 'float'
             }
           }
-        }, {strictErrors: true}).on('sqrt', function (req, ee, cb) {
+        }).on('sqrt', function (req, ee, cb) {
           var n = req.n;
           if (n === -1) {
             cb(new Error('no i')); // Invalid error (should be a string).
@@ -1078,7 +1092,7 @@ suite('protocols', function () {
             cb(undefined, Math.sqrt(n));
           }
         });
-        setupFn(ptcl, ptcl, function (ee) {
+        setupFn(ptcl, ptcl, {strictErrors: true}, function (ee) {
           ptcl.emit('sqrt', {n: -1}, ee, function (err) {
             assert(/invalid \["string"\]/.test(err));
             ptcl.emit('sqrt', {n: -2}, ee, function (err) {
