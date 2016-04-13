@@ -663,9 +663,9 @@ suite('protocols', function () {
           done();
         });
 
-      ee.emitMessage('negate', reqEnv, function (err, env, ptcl) {
+      ee.emitMessage('negate', reqEnv, function (err, env, meta) {
         assert.deepEqual(env, resEnv);
-        assert(this.getProtocol().equals(ptcl));
+        assert(this.getProtocol().equals(meta.serverProtocol));
         this.destroy();
       });
 
