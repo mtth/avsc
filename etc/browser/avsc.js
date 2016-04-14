@@ -26,7 +26,6 @@ module.exports = {
   Protocol: protocols.Protocol,
   Type: types.Type,
   assemble: schemas.assemble,
-  emitters: protocols.emitters,
   parse: parse,
   streams: containers.streams,
   types: types.builtins
