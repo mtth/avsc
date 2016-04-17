@@ -12746,7 +12746,7 @@ function BlockEncoder(schema, opts) {
   });
 
   var obj, type;
-  if (schema instanceof types.Type) {
+  if (types.Type.isType(schema)) {
     type = schema;
     schema = undefined;
   } else {
@@ -13125,10 +13125,7 @@ Protocol.prototype.subprotocol = function () {
 Protocol.prototype.emit = function (name, req, emitter, cb) {
   cb = cb || function (err) { emitter.emit('error', err); };
 
-  if (
-    !(emitter instanceof MessageEmitter) ||
-    emitter._ptcl._hashString !== this._hashString
-  ) {
+  if (emitter._ptcl._hashString !== this._hashString) {
     asyncAvroCb(this, cb, 'invalid emitter');
     return;
   }
@@ -13258,7 +13255,7 @@ MessageEmitter.prototype._generateResolvers = function (
     if (!sm) {
       throw new Error(f('missing server message: %s', name));
     }
-    if (cm.oneWay !== sm.oneWay) {
+    if (cm._oneWay !== sm._oneWay) {
       throw new Error(f('incompatible one-way options for message: %s', name));
     }
     resolvers[name] = {
@@ -13931,8 +13928,8 @@ function Message(name, attrs, opts) {
   this._name = name;
 
   this._requestType = types.createType({
-    name: name,
-    type: 'request',
+    name: 'org.apache.avro.ipc.Request', // Placeholder name.
+    type: '(request)',
     fields: attrs.request
   }, opts);
 
@@ -13947,10 +13944,7 @@ function Message(name, attrs, opts) {
 
   this._oneWay = !!attrs['one-way'];
   if (this._oneWay) {
-    if (
-      !(this._responseType instanceof types.builtins.NullType) ||
-      errors.length > 1
-    ) {
+    if (this._responseType.getTypeName() !== 'null' || errors.length > 1) {
       throw new Error('unapplicable one-way parameter');
     }
   }
@@ -14934,6 +14928,7 @@ function Javadoc(str) {
   }
   this._str = lines.join('\n');
 }
+
 Javadoc.prototype.toJSON = function () { return this._str; };
 
 /**
@@ -14964,6 +14959,8 @@ module.exports = {
 (function (Buffer){
 /* jshint node: true */
 
+// TODO: Change optional argument to `getName` to backfill with the typename
+// rather than always return the type name in next major version.
 // TODO: Remove Type from types map on next major version.
 // TODO: Remove third logical type argument in next major version?
 // TODO: Use toFastProperties on type reverse indices.
@@ -14971,6 +14968,7 @@ module.exports = {
 // and customizing their block size.
 // TODO: Add schema inference capabilities (as writable stream?).
 // TODO: Code-generate `compare` and `clone` record and union methods.
+// TODO: Have `getSchema` return an object instead of a string?
 
 'use strict';
 
@@ -14990,6 +14988,8 @@ var f = util.format;
 
 // All Avro types.
 var TYPES = {
+  '(request)': RecordType,
+  '(union)': UnionType,
   'array': ArrayType,
   'boolean': BooleanType,
   'bytes': BytesType,
@@ -15003,9 +15003,7 @@ var TYPES = {
   'map': MapType,
   'null': NullType,
   'record': RecordType,
-  'request': RecordType,
-  'string': StringType,
-  'union': UnionType
+  'string': StringType
 };
 
 // Valid (field, type, and symbol) name regex.
@@ -15036,7 +15034,7 @@ function createType(attrs, opts) {
     // Let's be helpful for this common error.
     throw new Error('invalid type: null (did you mean "null"?)');
   }
-  if (attrs instanceof Type) {
+  if (Type.isType(attrs)) {
     return attrs;
   }
 
@@ -15045,11 +15043,7 @@ function createType(attrs, opts) {
 
   var type;
   if (typeof attrs == 'string') { // Type reference.
-    if (~attrs.indexOf('.')) {
-      attrs = attrs.replace(/^\./, ''); // Allow absolute referencing.
-    } else if (opts.namespace && !isPrimitive(attrs)) {
-      attrs = opts.namespace + '.' + attrs;
-    }
+    attrs = qualify(attrs, opts.namespace);
     type = opts.registry[attrs];
     if (type) {
       // Type was already defined, return it.
@@ -15065,7 +15059,7 @@ function createType(attrs, opts) {
   }
 
   if (opts.typeHook && (type = opts.typeHook(attrs, opts))) {
-    if (!(type instanceof Type)) {
+    if (!Type.isType(type)) {
       throw new Error(f('invalid typehook return value: %j', type));
     }
     return type;
@@ -15095,7 +15089,7 @@ function createType(attrs, opts) {
     }
   }
 
-  if (attrs instanceof Array) { // Union.
+  if (Array.isArray(attrs)) { // Union.
     type = new UnionType(attrs, opts);
   } else { // New type definition.
     type = (function (typeName) {
@@ -15120,12 +15114,12 @@ function createType(attrs, opts) {
  * `Buffer`s. See individual subclasses for details.
  *
  */
-function Type(registry) {
+function Type(typeName, registry) {
+  this._typeName = typeName;
   var name = this._name;
   var type = LOGICAL_TYPE || this;
   LOGICAL_TYPE = null;
-
-  if (registry === undefined || name === undefined) {
+  if (name === undefined || !NAME_PATTERN.test(typeName)) {
     return;
   }
 
@@ -15136,16 +15130,21 @@ function Type(registry) {
   registry[name] = type;
 }
 
+Type.isType = function (any) {
+  // Not fool-proof, but most likely good enough.
+  return !!any && typeof any._updateResolver == 'function';
+};
+
 Type.__reset = function (size) { TAP.buf = new buffer.SlowBuffer(size); };
 
 Type.prototype.createResolver = function (type, opts) {
-  if (!(type instanceof Type)) {
+  if (!Type.isType(type)) {
     // More explicit error message than the "incompatible type" thrown
     // otherwise (especially because of the overridden `toJSON` method).
     throw new Error(f('not a type: %j', type));
   }
 
-  if (type instanceof LogicalType && !(this instanceof LogicalType)) {
+  if (this._typeName !== '(logical)' && type._typeName === '(logical)') {
     // Trying to read a logical type as a built-in: unwrap the logical type.
     return this.createResolver(type._underlyingType, opts);
   }
@@ -15154,7 +15153,7 @@ Type.prototype.createResolver = function (type, opts) {
   opts.registry = opts.registry || {};
 
   var resolver, key;
-  if (this instanceof RecordType && type instanceof RecordType) {
+  if (this._typeName === 'record' && type._typeName === 'record') {
     key = this._name + ':' + type._name; // ':' is illegal in Avro type names.
     resolver = opts.registry[key];
     if (resolver) {
@@ -15167,7 +15166,7 @@ Type.prototype.createResolver = function (type, opts) {
     opts.registry[key] = resolver;
   }
 
-  if (type instanceof UnionType) {
+  if (type._typeName === '(union)') {
     var resolvers = type._types.map(function (t) {
       return this.createResolver(t, opts);
     }, this);
@@ -15279,8 +15278,10 @@ Type.prototype.compareBuffers = function (buf1, buf2) {
 };
 
 Type.prototype.getName = function (noRef) {
-  return noRef ? getTypeName(this) : this._name;
+  return noRef ? this._typeName : this._name;
 };
+
+Type.prototype.getTypeName = function () { return this._typeName; };
 
 Type.prototype.getSchema = function (noDeref) {
   return stringify(this, noDeref);
@@ -15291,7 +15292,7 @@ Type.prototype.getFingerprint = function (algorithm) {
 };
 
 Type.prototype.inspect = function () {
-  if (this instanceof PrimitiveType) {
+  if (isPrimitive(this._typeName)) {
     return f('<%s>', this.constructor.name_);
   } else {
     var obj = JSON.parse(this.getSchema(true)); // Slow, only for debugging.
@@ -15322,7 +15323,7 @@ Type.prototype.random = utils.abstractFunction;
  * check whether a type is a primitive using `instanceof`.
  *
  */
-function PrimitiveType() { Type.call(this); }
+function PrimitiveType(typeName) { Type.call(this, typeName); }
 util.inherits(PrimitiveType, Type);
 PrimitiveType.prototype._updateResolver = function (resolver, type) {
   if (type.constructor === this.constructor) {
@@ -15334,12 +15335,13 @@ PrimitiveType.prototype._copy = function (val) {
   return val;
 };
 PrimitiveType.prototype.compare = utils.compare;
+PrimitiveType.prototype.toJSON = function () { return this._typeName; };
 
 /**
  * Nulls.
  *
  */
-function NullType() { PrimitiveType.call(this); }
+function NullType() { PrimitiveType.call(this, 'null'); }
 util.inherits(NullType, PrimitiveType);
 NullType.name_ = 'NullType';
 NullType.prototype._check = function (val, cb) {
@@ -15359,13 +15361,12 @@ NullType.prototype._write = function (tap, val) {
 NullType.prototype._match = function () { return 0; };
 NullType.prototype.compare = NullType.prototype._match;
 NullType.prototype.random = NullType.prototype._read;
-NullType.prototype.toJSON = function () { return 'null'; };
 
 /**
  * Booleans.
  *
  */
-function BooleanType() { PrimitiveType.call(this); }
+function BooleanType() { PrimitiveType.call(this, 'boolean'); }
 util.inherits(BooleanType, PrimitiveType);
 BooleanType.name_ = 'BooleanType';
 BooleanType.prototype._check = function (val, cb) {
@@ -15387,13 +15388,12 @@ BooleanType.prototype._match = function (tap1, tap2) {
   return tap1.matchBoolean(tap2);
 };
 BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
-BooleanType.prototype.toJSON = function () { return 'boolean'; };
 
 /**
  * Integers.
  *
  */
-function IntType() { PrimitiveType.call(this); }
+function IntType() { PrimitiveType.call(this, 'int'); }
 util.inherits(IntType, PrimitiveType);
 IntType.name_ = 'IntType';
 IntType.prototype._check = function (val, cb) {
@@ -15415,18 +15415,17 @@ IntType.prototype._match = function (tap1, tap2) {
   return tap1.matchInt(tap2);
 };
 IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
-IntType.prototype.toJSON = function () { return 'int'; };
 
 /**
  * Longs.
  *
  * We can't capture all the range unfortunately since JavaScript represents all
  * numbers internally as `double`s, so the default implementation plays safe
- * and throws rather than potentially silently change the data. See `using` or
- * `AbstractLongType` below for a way to implement a custom long type.
+ * and throws rather than potentially silently change the data. See
+ * `LongType.__with` below for a way to implement a custom long type.
  *
  */
-function LongType() { PrimitiveType.call(this); }
+function LongType() { PrimitiveType.call(this, 'long'); }
 util.inherits(LongType, PrimitiveType);
 LongType.name_ = 'LongType';
 LongType.prototype._check = function (val, cb) {
@@ -15454,13 +15453,14 @@ LongType.prototype._match = function (tap1, tap2) {
   return tap1.matchLong(tap2);
 };
 LongType.prototype._updateResolver = function (resolver, type) {
-  if (type instanceof LongType || type instanceof IntType) {
-    resolver._read = type._read;
+  switch (type._typeName) {
+    case 'int':
+    case 'long':
+      resolver._read = type._read;
   }
 };
 LongType.prototype.random = function () { return RANDOM.nextInt(); };
-LongType.prototype.toJSON = function () { return 'long'; };
-LongType.using = function (methods, noUnpack) {
+LongType.__with = function (methods, noUnpack) {
   methods = methods || {}; // Will give a more helpful error message.
   // We map some of the methods to a different name to be able to intercept
   // their input and output (otherwise we wouldn't be able to perform any
@@ -15482,12 +15482,16 @@ LongType.using = function (methods, noUnpack) {
   });
   return type;
 };
+LongType.using = util.deprecate(
+  LongType.__with,
+  'deprecated: use LongType.__with instead of LongType.using'
+);
 
 /**
  * Floats.
  *
  */
-function FloatType() { PrimitiveType.call(this); }
+function FloatType() { PrimitiveType.call(this, 'float'); }
 util.inherits(FloatType, PrimitiveType);
 FloatType.name_ = 'FloatType';
 FloatType.prototype._check = function (val, cb) {
@@ -15509,22 +15513,20 @@ FloatType.prototype._match = function (tap1, tap2) {
   return tap1.matchFloat(tap2);
 };
 FloatType.prototype._updateResolver = function (resolver, type) {
-  if (
-    type instanceof FloatType ||
-    type instanceof LongType ||
-    type instanceof IntType
-  ) {
-    resolver._read = type._read;
+  switch (type._typeName) {
+    case 'float':
+    case 'int':
+    case 'long':
+      resolver._read = type._read;
   }
 };
 FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
-FloatType.prototype.toJSON = function () { return 'float'; };
 
 /**
  * Doubles.
  *
  */
-function DoubleType() { PrimitiveType.call(this); }
+function DoubleType() { PrimitiveType.call(this, 'double'); }
 util.inherits(DoubleType, PrimitiveType);
 DoubleType.name_ = 'DoubleType';
 DoubleType.prototype._check = function (val, cb) {
@@ -15546,23 +15548,21 @@ DoubleType.prototype._match = function (tap1, tap2) {
   return tap1.matchDouble(tap2);
 };
 DoubleType.prototype._updateResolver = function (resolver, type) {
-  if (
-    type instanceof DoubleType ||
-    type instanceof FloatType ||
-    type instanceof LongType ||
-    type instanceof IntType
-  ) {
-    resolver._read = type._read;
+  switch (type._typeName) {
+    case 'double':
+    case 'float':
+    case 'int':
+    case 'long':
+      resolver._read = type._read;
   }
 };
 DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
-DoubleType.prototype.toJSON = function () { return 'double'; };
 
 /**
  * Strings.
  *
  */
-function StringType() { PrimitiveType.call(this); }
+function StringType() { PrimitiveType.call(this, 'string'); }
 util.inherits(StringType, PrimitiveType);
 StringType.name_ = 'StringType';
 StringType.prototype._check = function (val, cb) {
@@ -15584,14 +15584,15 @@ StringType.prototype._match = function (tap1, tap2) {
   return tap1.matchString(tap2);
 };
 StringType.prototype._updateResolver = function (resolver, type) {
-  if (type instanceof StringType || type instanceof BytesType) {
-    resolver._read = this._read;
+  switch (type._typeName) {
+    case 'bytes':
+    case 'string':
+      resolver._read = this._read;
   }
 };
 StringType.prototype.random = function () {
   return RANDOM.nextString(RANDOM.nextInt(32));
 };
-StringType.prototype.toJSON = function () { return 'string'; };
 
 /**
  * Bytes.
@@ -15603,7 +15604,7 @@ StringType.prototype.toJSON = function () { return 'string'; };
  * Note the coercion in `_copy`.
  *
  */
-function BytesType() { PrimitiveType.call(this); }
+function BytesType() { PrimitiveType.call(this, 'bytes'); }
 util.inherits(BytesType, PrimitiveType);
 BytesType.name_ = 'BytesType';
 BytesType.prototype._check = function (val, cb) {
@@ -15639,7 +15640,7 @@ BytesType.prototype._copy = function (obj, opts) {
       this._check(buf, throwInvalidError);
       return buf;
     case 1: // Coerce buffer JSON representation to buffers.
-      if (!obj || obj.type !== 'Buffer' || !(obj.data instanceof Array)) {
+      if (!obj || obj.type !== 'Buffer' || !Array.isArray(obj.data)) {
         throw new Error(f('cannot coerce to buffer: %j', obj));
       }
       buf = new Buffer(obj.data);
@@ -15654,7 +15655,6 @@ BytesType.prototype.compare = Buffer.compare;
 BytesType.prototype.random = function () {
   return RANDOM.nextBuffer(RANDOM.nextInt(32));
 };
-BytesType.prototype.toJSON = function () { return 'bytes'; };
 
 /**
  * Avro unions.
@@ -15685,7 +15685,7 @@ BytesType.prototype.toJSON = function () { return 'bytes'; };
  *
  */
 function UnionType(attrs, opts) {
-  if (!(attrs instanceof Array)) {
+  if (!Array.isArray(attrs)) {
     throw new Error(f('non-array union schema: %j', attrs));
   }
   if (!attrs.length) {
@@ -15695,15 +15695,15 @@ function UnionType(attrs, opts) {
   var namespace = opts && opts.namespace;
   opts = updateOpts(opts, attrs);
 
-  Type.call(this);
+  Type.call(this, '(union)');
   this._types = attrs.map(function (obj) { return createType(obj, opts); });
 
   this._indices = {};
   this._types.forEach(function (type, i) {
-    if (type instanceof UnionType) {
+    if (type._typeName === '(union)') {
       throw new Error('unions cannot be directly nested');
     }
-    var name = type._name || getTypeName(type);
+    var name = type._name || type._typeName;
     if (this._indices[name] !== undefined) {
       throw new Error(f('duplicate union name: %j', name));
     }
@@ -15712,7 +15712,7 @@ function UnionType(attrs, opts) {
 
   this._constructors = this._types.map(function (type) {
     // jshint -W054
-    var name = type._name || getTypeName(type);
+    var name = type._name || type._typeName;
     if (name === 'null') {
       return null;
     }
@@ -15927,7 +15927,7 @@ UnionType.prototype.toJSON = function () { return this._types; };
  *
  */
 function EnumType(attrs, opts) {
-  if (!(attrs.symbols instanceof Array) || !attrs.symbols.length) {
+  if (!Array.isArray(attrs.symbols) || !attrs.symbols.length) {
     throw new Error(f('invalid %j enum symbols: %j', attrs.name, attrs));
   }
 
@@ -15938,7 +15938,7 @@ function EnumType(attrs, opts) {
   this._name = resolutions.name;
   this._symbols = attrs.symbols;
   this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
+  Type.call(this, 'enum', opts.registry);
 
   this._indices = {};
   this._symbols.forEach(function (symbol, i) {
@@ -15994,7 +15994,7 @@ EnumType.prototype.compare = function (val1, val2) {
 EnumType.prototype._updateResolver = function (resolver, type) {
   var symbols = this._symbols;
   if (
-    type instanceof EnumType &&
+    type._typeName === 'enum' &&
     ~getAliases(this).indexOf(type._name) &&
     type._symbols.every(function (s) { return ~symbols.indexOf(s); })
   ) {
@@ -16017,7 +16017,7 @@ EnumType.prototype.random = function () {
 };
 
 EnumType.prototype.toJSON = function () {
-  return {name: this._name, type: 'enum', symbols: this._symbols};
+  return {name: this._name, type: this._typeName, symbols: this._symbols};
 };
 
 /**
@@ -16038,7 +16038,7 @@ function FixedType(attrs, opts) {
   this._name = resolutions.name;
   this._size = attrs.size | 0;
   this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
+  Type.call(this, 'fixed', opts.registry);
 
   opts.namespace = namespace;
 }
@@ -16076,7 +16076,7 @@ FixedType.prototype.compare = Buffer.compare;
 
 FixedType.prototype._updateResolver = function (resolver, type) {
   if (
-    type instanceof FixedType &&
+    type._typeName === 'fixed' &&
     this._size === type._size &&
     ~getAliases(this).indexOf(type._name)
   ) {
@@ -16096,7 +16096,7 @@ FixedType.prototype.random = function () {
 };
 
 FixedType.prototype.toJSON = function () {
-  return {name: this._name, type: 'fixed', size: this._size};
+  return {name: this._name, type: this._typeName, size: this._size};
 };
 
 /**
@@ -16110,16 +16110,14 @@ function MapType(attrs, opts) {
     throw new Error(f('missing map values: %j', attrs));
   }
 
-  Type.call(this);
+  Type.call(this, 'map');
   this._values = createType(attrs.values, opts);
 }
 util.inherits(MapType, Type);
 MapType.name_ = 'MapType';
 
-MapType.prototype.getValuesType = function () { return this._values; };
-
 MapType.prototype._check = function (val, cb) {
-  if (!val || typeof val != 'object' || val instanceof Array) {
+  if (!val || typeof val != 'object' || Array.isArray(val)) {
     if (cb) {
       cb(PATH.slice(), val, this);
     }
@@ -16180,7 +16178,7 @@ MapType.prototype._skip = function (tap) {
 };
 
 MapType.prototype._write = function (tap, val) {
-  if (!val || typeof val != 'object' || val instanceof Array) {
+  if (!val || typeof val != 'object' || Array.isArray(val)) {
     throwInvalidError(null, val, this);
   }
 
@@ -16204,14 +16202,14 @@ MapType.prototype._match = function () {
 };
 
 MapType.prototype._updateResolver = function (resolver, type, opts) {
-  if (type instanceof MapType) {
+  if (type._typeName === 'map') {
     resolver._values = this._values.createResolver(type._values, opts);
     resolver._read = this._read;
   }
 };
 
 MapType.prototype._copy = function (val, opts) {
-  if (val && typeof val == 'object' && !(val instanceof Array)) {
+  if (val && typeof val == 'object' && !Array.isArray(val)) {
     var values = this._values;
     var keys = Object.keys(val);
     var i, l, key;
@@ -16227,6 +16225,8 @@ MapType.prototype._copy = function (val, opts) {
 
 MapType.prototype.compare = MapType.prototype._match;
 
+MapType.prototype.getValuesType = function () { return this._values; };
+
 MapType.prototype.random = function () {
   var val = {};
   var i, l;
@@ -16237,7 +16237,7 @@ MapType.prototype.random = function () {
 };
 
 MapType.prototype.toJSON = function () {
-  return {type: 'map', values: this._values};
+  return {type: this._typeName, values: this._values};
 };
 
 /**
@@ -16252,13 +16252,13 @@ function ArrayType(attrs, opts) {
   }
 
   this._items = createType(attrs.items, opts);
-  Type.call(this);
+  Type.call(this, 'array');
 }
 util.inherits(ArrayType, Type);
 ArrayType.name_ = 'ArrayType';
 
 ArrayType.prototype._check = function (val, cb) {
-  if (!(val instanceof Array)) {
+  if (!Array.isArray(val)) {
     if (cb) {
       cb(PATH.slice(), val, this);
     }
@@ -16319,7 +16319,7 @@ ArrayType.prototype._skip = function (tap) {
 };
 
 ArrayType.prototype._write = function (tap, val) {
-  if (!(val instanceof Array)) {
+  if (!Array.isArray(val)) {
     throwInvalidError(null, val, this);
   }
 
@@ -16354,14 +16354,14 @@ ArrayType.prototype._match = function (tap1, tap2) {
 };
 
 ArrayType.prototype._updateResolver = function (resolver, type, opts) {
-  if (type instanceof ArrayType) {
+  if (type._typeName === 'array') {
     resolver._items = this._items.createResolver(type._items, opts);
     resolver._read = this._read;
   }
 };
 
 ArrayType.prototype._copy = function (val, opts) {
-  if (!(val instanceof Array)) {
+  if (!Array.isArray(val)) {
     throwInvalidError(null, val, this);
   }
   var items = [];
@@ -16396,7 +16396,7 @@ ArrayType.prototype.random = function () {
 };
 
 ArrayType.prototype.toJSON = function () {
-  return {type: 'array', items: this._items};
+  return {type: this._typeName, items: this._items};
 };
 
 /**
@@ -16419,14 +16419,13 @@ function RecordType(attrs, opts) {
   var namespace = opts && opts.namespace;
   opts = updateOpts(opts, attrs);
 
+  var typeName = attrs.type;
   var resolutions = resolveNames(attrs, opts.namespace);
   this._name = resolutions.name;
   this._aliases = resolutions.aliases;
-  this._type = attrs.type;
-  // Requests shouldn't be registered since their name is only a placeholder.
-  Type.call(this, this._type === 'request' ? undefined : opts.registry);
+  Type.call(this, typeName, opts.registry);
 
-  if (!(attrs.fields instanceof Array)) {
+  if (!Array.isArray(attrs.fields)) {
     throw new Error(f('non-array %s fields', this._name));
   }
   this._fields = attrs.fields.map(function (f) {
@@ -16436,7 +16435,7 @@ function RecordType(attrs, opts) {
     throw new Error(f('duplicate %s field name', this._name));
   }
 
-  this._constructor = this._createConstructor(this._type === 'error');
+  this._constructor = this._createConstructor(this._typeName === 'error');
   this._read = this._createReader();
   this._skip = this._createSkipper();
   this._write = this._createWriter();
@@ -16787,7 +16786,7 @@ RecordType.prototype.getRecordConstructor = function () {
 };
 
 RecordType.prototype.toJSON = function () {
-  return {name: this._name, type: this._type, fields: this._fields};
+  return {name: this._name, type: this._typeName, fields: this._fields};
 };
 
 /**
@@ -16795,7 +16794,7 @@ RecordType.prototype.toJSON = function () {
  *
  */
 function LogicalType(attrs, opts, Types) {
-  Type.call(this);
+  Type.call(this, '(logical)');
   LOGICAL_TYPE = this;
   this._underlyingType = createType(attrs, opts);
 
@@ -16877,7 +16876,7 @@ LogicalType.prototype._resolve = utils.abstractFunction;
  * Customizable long.
  *
  * This allows support of arbitrarily large long (e.g. larger than
- * `Number.MAX_SAFE_INTEGER`). See `LongType.using` method above.
+ * `Number.MAX_SAFE_INTEGER`). See `LongType.__with` method above.
  *
  */
 function AbstractLongType(noUnpack) {
@@ -16984,7 +16983,7 @@ function Field(attrs, opts) {
     var type = this._type;
     var val = type._copy(value, {coerce: 2, wrap: 2});
     // The clone call above will throw an error if the default is invalid.
-    if (type instanceof PrimitiveType && !(type instanceof BytesType)) {
+    if (isPrimitive(type._typeName) && type._typeName !== 'bytes') {
       // These are immutable.
       this.getDefault = function () { return val; };
     } else {
@@ -16992,6 +16991,10 @@ function Field(attrs, opts) {
     }
   }
 }
+
+Field.isField = function (obj) {
+  return obj && typeof obj.getDefault == 'function';
+};
 
 Field.prototype.getAliases = function () { return this._aliases; };
 
@@ -17074,8 +17077,6 @@ function updateOpts(opts, attrs) {
  *
  * @param attrs {Object} True schema (can't be a string).
  * @param namespace {String} Optional parent namespace.
- * @param key {String} Key where the name should be looked up (defaults to
- * `name`).
  *
  */
 function resolveNames(attrs, namespace) {
@@ -17085,27 +17086,18 @@ function resolveNames(attrs, namespace) {
   if (!name) {
     throw new Error(f('missing name property in schema: %j', attrs));
   }
-  return {
-    name: qualify(name),
-    aliases: attrs.aliases ? attrs.aliases.map(qualify) : []
-  };
-
-  function qualify(name) {
-    if (!~name.indexOf('.') && namespace) {
-      name = namespace + '.' + name;
-    }
-    var tail = unqualify(name);
-    if (isPrimitive(tail)) {
-      // Primitive types cannot be defined in any namespace.
-      throw new Error(f('cannot rename primitive type: %j', tail));
-    }
-    name.split('.').forEach(function (part) {
-      if (!NAME_PATTERN.test(part)) {
-        throw new Error(f('invalid name: %j', name));
-      }
-    });
-    return name;
+  name = qualify(name, namespace);
+  if (isPrimitive(name)) {
+    // Avro doesn't allow redefining primitive names.
+    throw new Error(f('cannot rename primitive type: %j', name));
   }
+
+  return {
+    name: name,
+    aliases: attrs.aliases ?
+      attrs.aliases.map(function (str) { return qualify(str, namespace); }) :
+      []
+  };
 }
 
 /**
@@ -17117,6 +17109,30 @@ function resolveNames(attrs, namespace) {
 function unqualify(name) {
   var parts = name.split('.');
   return parts[parts.length - 1];
+}
+
+/**
+ * Verify and return fully qualified name.
+ *
+ * @param name {String} Full or short name. It can be prefixed with a dot to
+ * force global namespace.
+ * @param namespace {String} Optional namespace.
+ *
+ */
+function qualify(name, namespace) {
+  if (~name.indexOf('.')) {
+    name = name.replace(/^\./, ''); // Allow absolute referencing.
+  } else if (namespace) {
+    name = namespace + '.' + name;
+  }
+  name.split('.').forEach(function (part) {
+    if (!NAME_PATTERN.test(part)) {
+      throw new Error(f('invalid name: %j', name));
+    }
+  });
+  var tail = unqualify(name);
+  // Primitives are always in the global namespace.
+  return isPrimitive(tail) ? tail : name;
 }
 
 /**
@@ -17137,24 +17153,14 @@ function getAliases(obj) {
 }
 
 /**
- * Get a type's "type" (as a string, e.g. `'record'`, `'string'`).
- *
- * @param type {Type} Any type.
- *
- */
-function getTypeName(type) {
-  var obj = type.toJSON();
-  return typeof obj == 'string' ? obj : obj.type;
-}
-
-/**
  * Check whether a type's name is a primitive.
  *
  * @param name {String} Type name (e.g. `'string'`, `'array'`).
  *
  */
-function isPrimitive(name) {
-  var type = TYPES[name];
+function isPrimitive(typeName) {
+  // Since we use this own module's `TYPES` object, we can use `instanceof`.
+  var type = TYPES[typeName];
   return type !== undefined && type.prototype instanceof PrimitiveType;
 }
 
@@ -17190,7 +17196,7 @@ function stringify(obj, noDeref) {
   // assumed (more here: http://stackoverflow.com/q/5525795/1062617).
   return (function (registry) {
     return JSON.stringify(obj, function (key, value) {
-      if (value instanceof Field) {
+      if (Field.isField(value)) {
         return {name: value._name, type: value._type};
       } else if (value && value.name) {
         var name = value.name;
@@ -17243,7 +17249,7 @@ module.exports = {
   createType: createType,
   stringify: stringify,
   builtins: (function () {
-    // Base types are redundant but exported for backwards compatibility.
+    // Base type is redundant but exported for backwards compatibility.
     var obj = {Type: Type, LogicalType: LogicalType};
     var types = Object.keys(TYPES);
     var i, l, Class;

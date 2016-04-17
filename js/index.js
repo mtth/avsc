@@ -658,7 +658,7 @@
       errorElem.text("");
       errorElem.hide();
       if (validElem) {
-        validElem.show('slow').delay(500).hide('slow');
+        validElem.fadeIn('slow').delay(500).fadeOut('slow');
       }
     }
     

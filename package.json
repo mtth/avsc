@@ -14,7 +14,7 @@
     "uglify" : "uglifyjs js/index-bundle.js -o js/index-bundle.min.js --source-map js/index-bundle.min.js.map"
   },
   "dependencies": {
-    "avsc": "^4.0.0",
+    "avsc": "^3.3.10",
     "buffer": "^3.5.0",
     "jquery": "^2.1.4",
     "jquery-ui": "^1.10.5"

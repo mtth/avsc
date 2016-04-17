@@ -30,7 +30,7 @@ body {
 .-textbox- {
   overflow: auto;
   text-align: left;
-  height: 78vh;
+  height: 68vh;
   padding: 10px;
   width: 300px;
   font-size: medium;
@@ -45,7 +45,6 @@ body {
 }
 .-container- {
   width: 330px;
-  height: 85%; /*To have enough room for labels and error messages */
   display: inline-block;
   position: relative;
   vertical-align: top;
@@ -91,11 +90,20 @@ a {
   opacity: 0.8;
   font-size: 19px;
   background-color: #EBEBEF;
-  top:10px;
+  bottom:28px;
   position:absolute;
-  width: 10%;
-  right: 30px;
+  width: 40px;
+  right: 150px; /* To be in the middle */
   margin: 10px auto;
+}
+
+.-random-icon-{
+  cursor: pointer;
+  position: absolute;
+  right: 15px;
+  top: 18px;
+  width: 35px;
+
 }
 .-buttons-row- {
   height: 10%;

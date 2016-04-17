@@ -7,7 +7,7 @@ html(lang='en')
     title Avsc
     link(rel='stylesheet', href='stylesheets/main.css', type='text/css')
     link(href='https://fonts.googleapis.com/css?family=Coustard|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
-    script(src='js/index-bundle.min.js' async)
+    script(src='js/index-bundle.js' async)
   
   body
     div.-header-
@@ -20,8 +20,6 @@ html(lang='en')
             a#reset(href='index.html') Home 
           li
             a(href='assemble.html') IDL assembler
-          li
-            a(href='infer.html') Infer schema
     div.-content-
       div.-centered-
         div.-container-
@@ -77,6 +75,8 @@ html(lang='en')
             div
               //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
               pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
+            div(title="Generate a random input")
+              img#random(src='assets/random.png').-random-icon-.-level2-
             div.-label-
               img#input-valid(src='assets/valid.png').-icon-.-hidden-
             div.-footer-
