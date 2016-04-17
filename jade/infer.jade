@@ -1,0 +1,34 @@
+doctype html
+html(lang='en')
+  head
+    meta(charset='utf-8')
+    title Avro Schema inference.
+    link(rel='stylesheet', href='stylesheets/assemble.css')
+    link(href='https://fonts.googleapis.com/css?family=Coustard|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
+    script(src='js/infer-bundle.js')
+  body
+    div.-header-
+      div
+        a.-level1-(href="https://github.com/mtth/avsc")
+          img#github(src='https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67', alt="Fork me on GitHub", data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" )
+      div#header-image
+        ul
+          li
+            a(href='index.html') Home 
+          li
+            a(href='assemble.html') IDL assembler
+          li
+            a(href='infer.html') Infer schema
+
+    div.-content-
+      .half-width
+        textarea#record
+      .half-width
+        textarea#avsc
+      div(style='display: none')
+        #placeholder
+          | // Enter your avro record here...
+
+div#footer
+      p.
+        Powered by #[a(href="https://github.com/mtth/avsc") Avsc], a pure JavaScript implementation of the #[a(href="https://avro.apache.org/docs/current/spec.html") Avro Specification]. 

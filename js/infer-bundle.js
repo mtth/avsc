@@ -11966,12 +11966,332 @@ function hasOwnProperty(obj, prop) {
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./support/isBuffer":41,"_process":25,"inherits":21}],43:[function(require,module,exports){
+(function (Buffer){
+
+// TODO: Subclass EnumType with a class that also keeps track of occurrences of
+// each symbols (to make a better decision when combining enums).
+// TODO: Use field defaults to represent values that are almost always present?
+// TODO: We could extend the subclass defined above to count all union
+// branches.
+// Coercions record -> map, enum -> string, fixed -> bytes, could be done via
+// functions coerce(type, counts) returning true if transformation should
+// occur, or simply true to always coerce. Probably inside a `coercions`
+// object.
+
+'use strict';
+var avro = require('avsc');
+/**
+ * Small script that can infer an Avro schema from a value.
+ *
+ * Currently pretty simple and makes a few assumptions on the types used. This
+ * should be made a bit more configurable before making it into the library.
+ *
+ */
+
+var TYPES = (function () {
+  var registry = {};
+  var names = [
+    'int', 'long', 'float', 'double', 'null', 'boolean', 'string'
+  ];
+  names.forEach(function (name) { registry[name] = createType(name); });
+  // Cached array type, used mostly for empty arrays.
+  registry.array = createType({type: 'array', items: 'null'});
+  return registry;
+});
+
+var N = 0;
+
+function getName() { return '_' + N++; }
+
+function createType(attrs) {
+  // TODO: Also pass registry?
+  return avro.parse(attrs, {unwrapUnions: true});
+}
+
+/**
+ * Infer schema from value.
+ *
+ */
+function infer(val, opts) {
+  opts = opts || {};
+
+  switch (typeof val) {
+    case 'string':
+      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(val)) {
+        // TODO: Reuse pattern exposed in types.
+        return createType({
+          name: getName(),
+          type: 'enum',
+          symbols: [val]
+        });
+      }
+      return TYPES.string;
+    case 'boolean':
+      return TYPES.boolean;
+    case 'number':
+      if ((val | 0) === val) {
+        return TYPES.int;
+      } else if (val % 1 === 0) {
+        return TYPES.long;
+      } else if (Math.abs(val) < 9007199254740991) {
+        return TYPES.float;
+      }
+      return TYPES.double;
+    case 'object':
+      if (val === null) {
+        return TYPES['null'];
+      } else if (Array.isArray(val)) {
+        if (!val.length) {
+          return TYPES.array;
+        }
+        return createType({
+          type: 'array',
+          items: val.slice(1).reduce(
+            function (t, v) { return combine(t, infer(v, opts)); },
+            infer(val[0], opts)
+          )
+        });
+      } else if (Buffer.isBuffer(val)) {
+        return createType({
+          name: getName(),
+          type: 'fixed',
+          size: val.length
+        });
+      }
+      return createType({
+        name: getName(), // TODO: Reuse constructor name when not `'Object'`.
+        type: 'record',
+        fields: Object.keys(val).map(function (n) {
+          return {name: n, type: infer(val[n], opts)};
+        })
+      });
+    default:
+      // Functions.
+      throw new Error('unsupported');
+  }
+}
+
+function combine(t1, t2) {
+  if (t1 === t2 || t1.getFingerprint().equals(t2.getFingerprint())) {
+    return t1;
+  }
+
+  var n1 = t1.getTypeName();
+  var n2 = t2.getTypeName();
+  if (n2 === '(union)') {
+    return t2.getTypes().reduce(combine, t1);
+  }
+
+  var b1 = getTypeBucket(t1);
+  var b2 = getTypeBucket(t2);
+  if (b1 === '(union)') {
+    var buckets = {};
+    var ts = t1.getTypes();
+    ts.forEach(function (t, i) { buckets[getTypeBucket(t)] = i; });
+    var n = buckets[b2];
+    if (n !== undefined) {
+      // Combine the new type with the branch in the same bucket.
+      ts[n] = combine(ts[n], t2);
+    } else {
+      // Add a new branch to the union.
+      ts.push(t2);
+    }
+    return createType(ts);
+  }
+
+  if (b1 === b2) {
+    switch (b1) {
+      case 'number':
+        return combineNumbers(t1, t2);
+      case 'string':
+        if (n1 === 'string' || n2 === 'string') {
+          return t1;
+        }
+        return combineEnums(t1, t2);
+      case 'bytes':
+        if (
+          n1 === 'fixed' &&
+          n2 === 'fixed' &&
+          t1.getSize() === t2.getSize()
+        ) {
+          return t1;
+        }
+        return TYPES.bytes;
+      case 'array':
+        return createType({
+          type: 'array',
+          items: combine(t1.getItemsType(), t2.getItemsType())
+        });
+      case 'null':
+        return t1;
+      default:
+        // Object, so map or record.
+        if (n1 === 'record' && n2 === 'record') {
+          return combineRecords(t1, t2);
+        }
+        return combineObjects(t1, t2);
+    }
+  } else {
+    // Both types are in different buckets and not unions.
+    return createType([t1, t2]);
+  }
+}
+
+function combineNumbers(t1, t2) {
+  var typeNames = ['int', 'long', 'float', 'double'];
+  var n1 = t1.getTypeName();
+  var n2 = t2.getTypeName();
+  var index = Math.max(typeNames.indexOf(n1), typeNames.indexOf(n2));
+  return TYPES[typeNames[index]];
+}
+
+function combineEnums(t1, t2) {
+  var s1 = t1.getSymbols();
+  var s2 = t2.getSymbols();
+  var obj = {};
+
+  var i, l;
+  for (i = 0, l = s1.length; i < l; i++) {
+    obj[s1[i]] = true;
+  }
+  for (i = 0, l = s2.length; i < l; i++) {
+    obj[s2[i]] = true;
+  }
+
+  var symbols = Object.keys(obj);
+  // TODO: Configure this threshold.
+  if (symbols.length < 4) {
+    return createType({name: getName(), type: 'enum', symbols: symbols});
+  } else {
+    return TYPES.string;
+  }
+}
+
+function combineRecords(t1, t2) {
+  var f1 = t1.getFields();
+  var f2 = t2.getFields();
+  var o1 = {};
+  var o2 = {};
+
+  var i, l, f, t;
+  for (i = 0, l = f1.length; i < l; i++) {
+    f = f1[i];
+    o1[f.getName()] = f.getType();
+  }
+  for (i = 0, l = f2.length; i < l; i++) {
+    f = f2[i];
+    t = o1[f.getName()];
+    if (t) {
+      o2[f.getName()] = combine(t, f.getType());
+    } else {
+      // TODO: Allow a stricter mode where this would fail. The code below
+      // treats missing fields (which should be undefined) as null. The option
+      // could be called `noNullUndefined` perhaps.
+      o2[f.getName()] = combine(TYPES['null'], f.getType());
+    }
+  }
+  for (i = 0, l = f1.length; i < l; i++) {
+    f = f1[i];
+    t = o2[f.getName()];
+    if (!t) {
+      // TODO: Also fail if strict here.
+      o2[f.getName()] = combine(TYPES['null'], f.getType());
+    }
+  }
+
+  var record = createType({
+    name: getName(), // TODO: Reuse name if the same.
+    type: 'record',
+    fields: Object.keys(o2).map(function (n) {
+      return {
+        name: n,
+        type: o2[n],
+        'default': isNullable(o2[n]) ? null : undefined
+      };
+    })
+  });
+
+  if (record.getFields().length > 3) {
+    // TODO: Allow configuring this.
+    return fieldsToMap(record.getFields());
+  } else {
+    return record;
+  }
+}
+
+function combineObjects(t1, t2) {
+  if (t1.getTypeName() === 'record') {
+    t1 = fieldsToMap(t1.getFields());
+  }
+  if (t2.getTypeName() === 'record') {
+    t2 = fieldsToMap(t2.getFields());
+  }
+  return createType({
+    type: 'map',
+    vales: combine(t1.getValuesType(), t2.getValuesType())
+  });
+}
+
+function fieldsToMap(fields) {
+  if (!fields.length) {
+    throw new Error('empty fields');
+  }
+  return createType({
+    type: 'map',
+    values: fields.slice(1).reduce(function (t, f) {
+      return combine(t, f.getType());
+    }, fields[0].getType())
+  });
+}
+
+function isNullable(type) {
+  // Check whether type is a union with null as a branch.
+  if (type.getTypeName() !== '(union)') {
+    return false;
+  }
+  var types = type.getTypes();
+  var i, l;
+  for (i = 0, l = types.length; i < l; i++) {
+    if (types[i].getTypeName() === 'null') {
+      return true;
+    }
+  }
+  return false;
+}
+
+function getTypeBucket(type) {
+  var typeName = type.getTypeName();
+  switch (typeName) {
+    case 'double':
+    case 'float':
+    case 'int':
+    case 'long':
+      return 'number';
+    case 'fixed':
+      return 'bytes';
+    case 'enum':
+      return 'string';
+    case 'map':
+    case 'record':
+      return 'object';
+    default:
+      return typeName; // boolean, bytes, null, string, array, (union).
+  }
+}
+
+module.exports = {
+  infer: infer  
+}
+
+}).call(this,{"isBuffer":require("../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
+},{"../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":22,"avsc":45}],44:[function(require,module,exports){
 /* jshint browserify: true */
 
 'use strict';
 
 var CodeMirror = require('codemirror/lib/codemirror'),
-    avro = require('avsc');
+    avro = require('avsc'),
+    inferUtil = require('./infer-script.js');
 
 
 // Force inclusion of CodeMirror resources.
@@ -11981,10 +12301,10 @@ require('codemirror/addon/display/placeholder');
 // To play around with the type, for adventurous people.
 window.PROTOCOL = null;
 
-var idlCm, avscCm;
+var recordCm, avscCm;
 window.onload = function () {
   // Setup editable IDL editor.
-  idlCm = CodeMirror.fromTextArea(document.getElementById('idl'), {
+  recordCm = CodeMirror.fromTextArea(document.getElementById('record'), {
     extraKeys: {
       Tab: function (cm) {
         var spaces = new Array(cm.getOption('indentUnit') + 1).join(' ');
@@ -11997,7 +12317,7 @@ window.onload = function () {
     placeholder: document.getElementById('placeholder'),
     tabSize: 2
   });
-  idlCm.on('change', createChangeHandler(500));
+  recordCm.on('change', createChangeHandler(500));
 
   // Setup JSON schema read-only editor (sic).
   avscCm = CodeMirror.fromTextArea(document.getElementById('avsc'), {
@@ -12005,21 +12325,8 @@ window.onload = function () {
     lineWrapping: false,
     mode: 'application/json',
     placeholder: '// ...and the corresponding JSON schema will appear here.',
-    readOnly: true
   });
 
-  // Setup example links.
-  var els = document.getElementsByClassName('example');
-  var i, l;
-  for (i = 0, l = els.length; i < l; i++) {
-    els[i].onclick = onExampleClick;
-  }
-  function onExampleClick(evt) {
-    var id = evt.target.getAttribute('data-example-id');
-    var example = document.getElementById(id);
-    idlCm.setValue(example.textContent);
-    return false;
-  }
 };
 
 // Helpers.
@@ -12033,52 +12340,32 @@ function createChangeHandler(delay) {
     }
     timeout = setTimeout(function () {
       timeout = undefined;
-      var str = idlCm.getValue();
+      var str = recordCm.getValue();
       if (!str) {
         avscCm.setValue('');
         return;
       }
-      assemble(str, function (err, attrs) {
+      infer(str, function (err, schema) {
         if (err) {
-          attrs = {'@error': {
+          schema = {'@error': {
             message: err.message,
             lineNum: err.lineNum,
             colNum: err.colNum
           }};
         }
-        avscCm.setValue(JSON.stringify(attrs, null, 2));
+        avscCm.setValue(JSON.stringify(schema, null, 2));
       });
     }, delay);
   };
 }
 
-function assemble(str, cb) {
-  var opts = {importHook: importHook, reassignJavadoc: true};
-  avro.assemble('', opts, function (err, attrs) {
-    if (err) {
-      cb(err);
-      return;
-    }
-    // Make sure the protocol is valid.
-    try {
-      window.PROTOCOL = avro.parse(attrs);
-    } catch (parseErr) {
-      cb(parseErr);
-      return;
-    }
-    cb(null, attrs);
-  });
-
-  function importHook(path, kind, cb) {
-    if (path) {
-      cb(new Error('imports are not supported in the browser'));
-      return;
-    }
-    cb(null, str);
-  }
+function infer(str, cb) {
+  // TODO: call the actual infer API.
+  var inferredSchema = inferUtil.infer(JSON.parse(str));
+  cb(null, JSON.parse(inferredSchema.getSchema()));
 }
 
-},{"avsc":44,"codemirror/addon/display/placeholder":52,"codemirror/lib/codemirror":53,"codemirror/mode/javascript/javascript":54}],44:[function(require,module,exports){
+},{"./infer-script.js":43,"avsc":45,"codemirror/addon/display/placeholder":53,"codemirror/lib/codemirror":54,"codemirror/mode/javascript/javascript":55}],45:[function(require,module,exports){
 /* jshint node: true */
 
 'use strict';
@@ -12113,7 +12400,7 @@ module.exports = {
   types: types.builtins
 };
 
-},{"../../lib/containers":47,"../../lib/protocols":48,"../../lib/schemas":49,"../../lib/types":50,"./lib/files":46}],45:[function(require,module,exports){
+},{"../../lib/containers":48,"../../lib/protocols":49,"../../lib/schemas":50,"../../lib/types":51,"./lib/files":47}],46:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -12292,7 +12579,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16}],46:[function(require,module,exports){
+},{"buffer":16}],47:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -12378,7 +12665,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"../../../lib/utils":51,"buffer":16}],47:[function(require,module,exports){
+},{"../../../lib/utils":52,"buffer":16}],48:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
@@ -12967,7 +13254,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./files":46,"./types":50,"./utils":51,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],48:[function(require,module,exports){
+},{"./files":47,"./types":51,"./utils":52,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],49:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
@@ -14252,7 +14539,7 @@ module.exports = {
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./types":50,"./utils":51,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],49:[function(require,module,exports){
+},{"./types":51,"./utils":52,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],50:[function(require,module,exports){
 /* jshint node: true */
 
 // TODO: Remove legacy import hook in next major release.
@@ -14960,7 +15247,7 @@ module.exports = {
   assemble: assemble
 };
 
-},{"./files":46,"path":24,"util":42}],50:[function(require,module,exports){
+},{"./files":47,"path":24,"util":42}],51:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -17256,7 +17543,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"./utils":51,"buffer":16,"util":42}],51:[function(require,module,exports){
+},{"./utils":52,"buffer":16,"util":42}],52:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -17905,7 +18192,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16,"crypto":45}],52:[function(require,module,exports){
+},{"buffer":16,"crypto":46}],53:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -17967,7 +18254,7 @@ module.exports = {
   }
 });
 
-},{"../../lib/codemirror":53}],53:[function(require,module,exports){
+},{"../../lib/codemirror":54}],54:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -26859,7 +27146,7 @@ module.exports = {
   return CodeMirror;
 });
 
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -27603,4 +27890,4 @@ CodeMirror.defineMIME("application/typescript", { name: "javascript", typescript
 
 });
 
-},{"../../lib/codemirror":53}]},{},[43]);
+},{"../../lib/codemirror":54}]},{},[44]);

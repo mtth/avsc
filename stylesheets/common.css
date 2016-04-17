@@ -6,7 +6,8 @@
 #header-image {
   height: 40px;
   width: 100%;
-  background-color: #367FAD;
+  background-color: #494A50;
+  font-family: 'Coustard', serif;
 }
 
 .-header-{
@@ -66,7 +67,7 @@ li a.-disabled- {
 #footer p {
   text-align: center;
   width : 500px;
-  border-top: medium solid #367FAD;
+  border-top: medium solid #494A50;
   margin: 0 auto;
   margin-top: 10px;
   padding-top: 5px;
