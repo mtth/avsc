@@ -30,7 +30,7 @@ body {
 .-textbox- {
   overflow: auto;
   text-align: left;
-  height: 82vh;
+  height: 78vh;
   padding: 10px;
   width: 300px;
   font-size: medium;
@@ -134,19 +134,6 @@ a {
   text-align: center;
 }
 
-.-centered- {
-  height: 100%;
-  overflow: hidden;
-  white-space: nowrap; /* To be able to scroll */
-  margin-top: 40px;
-  padding-left: 10px;
-  margin-left: auto;
-  margin-right: auto; /* To be centered */
-  width: 1000px;
-}
-
-
-
 #template{
   color: darkgrey;
   position: absolute;
@@ -154,6 +141,16 @@ a {
   margin-left: 8px;
   font-size: medium;
 }
+
+.-centered- {
+  overflow: hidden;
+  white-space: nowrap; /* To be able to scroll */
+  padding-left: 10px;
+  margin-left: auto;
+  margin-right: auto; /* To be centered */
+  width: 1000px;
+}
+
 
 /* Custom styles for select */
 

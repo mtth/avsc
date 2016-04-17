@@ -22,78 +22,79 @@ html(lang='en')
             a(href='assemble.html') IDL assembler
           li
             a(href='infer.html') Infer schema
-    div.-content-.-centered-
-      div.-container-
-        div.-outer-
-          div#template
-            | Enter, #[a#uploadLink(href="#") upload], or drag your schema here. 
-          pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
-          div.-label-
-            img#schema-valid(src='assets/valid.png').-icon-.-hidden-
+    div.-content-
+      div.-centered-
+        div.-container-
+          div.-outer-
+            div#template
+              | Enter, #[a#uploadLink(href="#") upload], or drag your schema here. 
+            pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
+            div.-label-
+              img#schema-valid(src='assets/valid.png').-icon-.-hidden-
 
-          div.-footer-
-            div#schema-error.-message-.-hidden-.-error-
-            div.-message-
-              |Schema
+            div.-footer-
+              div#schema-error.-message-.-hidden-.-error-
+              div.-message-
+                |Schema
 
-      div.-help-column-.-level1-
-        div.-center-
-          div.-logo-
-          div
-            H1
-              |Welcome to Avro playground!
-            P
-              |Avro playground is an online tool to learn, build, and test Avro schemas.
-
-            input#upload.-hidden-(type="file", accept=".avsc")
-            p.
-              Not sure where to start? Enter your schema or select from one of these templates! 
+        div.-help-column-.-level1-
+          div.-center-
+            div.-logo-
             div
-              select.-styled-select-.-blue-.-semi-square-#schema-template
-                option(value="")
-                  |-Select a template-
-                option(value="Cake")
-                  |Cake
-                option(value="Coupon")
-                  |Coupon
-                option(value="Human")
-                  |Human
-                option(value="Person")
-                  |Person
-                option(value="Bytes")
-                  |Bytes
-                option(value="String")
-                  |String
-                option(value="Long")
-                  |Long
-                option(value="Enum")
-                  |Enum
-                option(value="ArrayString")
-                  |ArrayString
-          
-      div.-container-.-level2-.-hidden-
-        div.-outer-
-          div
-            //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
-            pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
-          div.-label-
-            img#input-valid(src='assets/valid.png').-icon-.-hidden-
-          div.-footer-
-            div#decoded-error.-message-.-hidden-.-error-
-            div.-message-
-              |Input Record
+              H1
+                |Welcome to Avro playground!
+              P
+                |Avro playground is an online tool to learn, build, and test Avro schemas.
 
-      div.-container-.-hidden-.-level2-
-        div.-outer-
-          div 
+              input#upload.-hidden-(type="file", accept=".avsc")
+              p.
+                Not sure where to start? Enter your schema or select from one of these templates! 
+              div
+                select.-styled-select-.-blue-.-semi-square-#schema-template
+                  option(value="")
+                    |-Select a template-
+                  option(value="Cake")
+                    |Cake
+                  option(value="Coupon")
+                    |Coupon
+                  option(value="Human")
+                    |Human
+                  option(value="Person")
+                    |Person
+                  option(value="Bytes")
+                    |Bytes
+                  option(value="String")
+                    |String
+                  option(value="Long")
+                    |Long
+                  option(value="Enum")
+                    |Enum
+                  option(value="ArrayString")
+                    |ArrayString
+            
+        div.-container-.-level2-.-hidden-
+          div.-outer-
             div
-              div(contentEditable='true', spellcheck='false')#output.-textbox-.-highlightable- 
-          div.-label-
-            img#output-valid(src='assets/valid.png').-icon-.-hidden-
-          div.-footer-
-            div#encoded-error.-message-.-hidden-.-error-
-            div.-message-
-              |Encoded Record
+              //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
+              pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
+            div.-label-
+              img#input-valid(src='assets/valid.png').-icon-.-hidden-
+            div.-footer-
+              div#decoded-error.-message-.-hidden-.-error-
+              div.-message-
+                |Input Record
+
+        div.-container-.-hidden-.-level2-
+          div.-outer-
+            div 
+              div
+                div(contentEditable='true', spellcheck='false')#output.-textbox-.-highlightable- 
+            div.-label-
+              img#output-valid(src='assets/valid.png').-icon-.-hidden-
+            div.-footer-
+              div#encoded-error.-message-.-hidden-.-error-
+              div.-message-
+                |Encoded Record
 
     div#footer
       p.
