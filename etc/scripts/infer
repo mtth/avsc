@@ -35,13 +35,9 @@ var TYPES = (function () {
   return registry;
 })();
 
-var N = 0;
-
-function getName() { return '_' + N++; }
-
 function createType(attrs) {
   // TODO: Also pass registry?
-  return types.createType(attrs, {unwrapUnions: true});
+  return types.createType(attrs, {allowAnonymousTypes: true});
 }
 
 /**
@@ -55,11 +51,7 @@ function infer(val, opts) {
     case 'string':
       if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(val)) {
         // TODO: Reuse pattern exposed in types.
-        return createType({
-          name: getName(),
-          type: 'enum',
-          symbols: [val]
-        });
+        return createType({type: 'enum', symbols: [val]});
       }
       return TYPES.string;
     case 'boolean':
@@ -88,14 +80,10 @@ function infer(val, opts) {
           )
         });
       } else if (Buffer.isBuffer(val)) {
-        return createType({
-          name: getName(),
-          type: 'fixed',
-          size: val.length
-        });
+        return createType({type: 'fixed', size: val.length});
       }
       return createType({
-        name: getName(), // TODO: Reuse constructor name when not `'Object'`.
+        // TODO: Reuse constructor name when not `'Object'`.
         type: 'record',
         fields: Object.keys(val).map(function (n) {
           return {name: n, type: infer(val[n], opts)};
@@ -197,7 +185,7 @@ function combineEnums(t1, t2) {
   var symbols = Object.keys(obj);
   // TODO: Configure this threshold.
   if (symbols.length < 4) {
-    return createType({name: getName(), type: 'enum', symbols: symbols});
+    return createType({type: 'enum', symbols: symbols});
   } else {
     return TYPES.string;
   }
@@ -236,7 +224,7 @@ function combineRecords(t1, t2) {
   }
 
   var record = createType({
-    name: getName(), // TODO: Reuse name if the same.
+    // TODO: Reuse name if the same.
     type: 'record',
     fields: Object.keys(o2).map(function (n) {
       return {
@@ -321,4 +309,5 @@ if (process.argv.length < 3) {
   process.exit(1);
 }
 
-console.log(infer(JSON.parse(process.argv[2])).getSchema());
+var type = infer(JSON.parse(process.argv[2]));
+console.log(type.getSchema());

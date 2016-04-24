@@ -2861,6 +2861,7 @@ suite('types', function () {
         fields: [{name: 'foo', type: 'int'}]
       }, {allowAnonymousTypes: true});
       assert.strictEqual(t.getName(), undefined);
+      assert.strictEqual(t.getName(true), 'record');
       assert(t.isValid({foo: 3}));
     });
 
@@ -3083,6 +3084,18 @@ suite('types', function () {
       assert.throws(function () {
         createType({type: 'fixed', name: 'a.2.ID', size: 3});
       });
+    });
+
+    test('anonymous types', function () {
+      var t = createType([
+        {type: 'enum', symbols: ['A']},
+        'int',
+        {type: 'record', fields: [{name: 'foo', type: 'string'}]}
+      ], {allowAnonymousTypes: true});
+      assert.equal(
+        t.getSchema(),
+        '[{"type":"enum","symbols":["A"]},"int",{"type":"record","fields":[{"name":"foo","type":"string"}]}]'
+      );
     });
 
   });
