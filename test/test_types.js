@@ -2855,6 +2855,15 @@ suite('types', function () {
       }, /invalid "null"/);
     });
 
+    test('anonymous types', function () {
+      var t = createType({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int'}]
+      }, {allowAnonymousTypes: true});
+      assert.strictEqual(t.getName(), undefined);
+      assert(t.isValid({foo: 3}));
+    });
+
   });
 
   suite('fromString', function () {
@@ -2940,6 +2949,21 @@ suite('types', function () {
       var t1 = createType(['int', 'long'], {wrapUnions: true});
       var t2 = createType('int');
       assert.throws(function() { t2.createResolver(t1); });
+    });
+
+    test('anonymous types', function () {
+      var t1 = createType(
+        {type: 'fixed', size: 2},
+        {allowAnonymousTypes: true}
+      );
+      var t2 = createType(
+        {type: 'fixed', size: 2, namespace: 'foo', aliases: ['Id']},
+        {allowAnonymousTypes: true}
+      );
+      var t3 = createType({type: 'fixed', size: 2, name: 'foo.Id'});
+      assert.throws(function () { t1.createResolver(t3); });
+      assert.doesNotThrow(function () { t2.createResolver(t3); });
+      assert.doesNotThrow(function () { t3.createResolver(t1); });
     });
 
   });
