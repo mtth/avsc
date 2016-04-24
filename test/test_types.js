@@ -2235,7 +2235,7 @@ suite('types', function () {
 
     function DateType(attrs, opts) {
       types.builtins.LogicalType.call(this, attrs, opts);
-      if (this.getUnderlyingType().getTypeName() !== 'long') {
+      if (!types.Type.isType(this.getUnderlyingType(), 'long', 'string')) {
         throw new Error('invalid underlying date type');
       }
     }
@@ -2243,13 +2243,21 @@ suite('types', function () {
 
     DateType.prototype._fromValue = function (val) { return new Date(val); };
 
-    DateType.prototype._toValue = function (date) { return +date; };
+    DateType.prototype._toValue = function (date) {
+      if (!(date instanceof Date)) {
+        return undefined;
+      }
+      if (this.getUnderlyingType().getTypeName() === 'long') {
+        return +date;
+      } else {
+        // String.
+        return '' + date;
+      }
+    };
 
     DateType.prototype._resolve = function (type) {
-      if (type instanceof builtins.StringType) {
-        return function (str) { return new Date(Date.parse(str)); };
-      } else if (type instanceof builtins.LongType) {
-        return this.fromValue;
+      if (types.Type.isType(type, 'long', 'string')) {
+        return this._fromValue;
       }
     };
 
@@ -2258,12 +2266,13 @@ suite('types', function () {
     }
     util.inherits(AgeType, types.builtins.LogicalType);
 
-    AgeType.prototype._fromValue = function (val) {
-      if (val < 0) { throw new Error('invalid age'); }
-      return val;
-    };
+    AgeType.prototype._fromValue = function (val) { return val; };
 
-    AgeType.prototype._toValue = AgeType.prototype._fromValue;
+    AgeType.prototype._toValue = function (any) {
+      if (typeof any == 'number' && any >= 0) {
+        return any;
+      }
+    };
 
     var logicalTypes = {age: AgeType, date: DateType};
 
@@ -2444,16 +2453,40 @@ suite('types', function () {
     });
 
     test('inside unwrapped union', function () {
+      var t = types.createType(
+        [
+          'null',
+          {type: 'long', logicalType: 'age'},
+          {type: 'string', logicalType: 'date'}
+        ],
+        {logicalTypes: logicalTypes}
+      );
+      assert(t.isValid(new Date()));
+      assert(t.isValid(34));
+      assert(t.isValid(null));
+      assert(!t.isValid(-123));
+    });
+
+    test('inside unwrapped union ambiguous conversion', function () {
+      var t = types.createType(
+        ['long', {type: 'int', logicalType: 'age'}],
+        {logicalTypes: logicalTypes}
+      );
+      assert(t.isValid(-34));
+      assert.throws(function () { t.isValid(32); }, /ambiguous/);
+    });
+
+    test('inside unwrapped union with duplicate underlying type', function () {
       function FooType(attrs, opts) {
         types.builtins.LogicalType.call(this, attrs, opts);
       }
       util.inherits(FooType, types.builtins.LogicalType);
-
       assert.throws(function () {
         types.createType([
+          'int',
           {type: 'int', logicalType: 'foo'}
         ], {logicalTypes: {foo: FooType}, wrapUnions: false});
-      }, /ambiguous/);
+      }, /duplicate/);
     });
 
     test('inside wrapped union', function () {
