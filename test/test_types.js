@@ -770,6 +770,18 @@ suite('types', function () {
       assert.equal(t.compare({'int': 20}, {'int': 5}), 1);
     });
 
+    test('isValid hook', function () {
+      var t = new builtins.WrappedUnionType(['null', 'int']);
+      var paths = [];
+      assert(t.isValid(null, {errorHook: hook}));
+      assert(t.isValid({'int': 1}, {errorHook: hook}));
+      assert(!paths.length);
+      assert(!t.isValid({'int': 'hi'}, {errorHook: hook}));
+      assert.deepEqual(paths, [['int']]);
+
+      function hook(path) { paths.push(path); }
+    });
+
   });
 
   suite('EnumType', function () {
@@ -1317,6 +1329,23 @@ suite('types', function () {
         assert.strictEqual(type, t.getItemsType());
         assert.equal(typeof obj, 'string');
         paths.push(path);
+      }
+    });
+
+    test('isValid hook reentrant', function () {
+      var t = new builtins.ArrayType({
+        items: new builtins.ArrayType({items: 'int'})
+      });
+      var a1 = [[1, 3], ['a', 2, 'c'], [3, 'b']];
+      var a2 = [[1, 3]];
+      var paths = [];
+      assert(!t.isValid(a1, {errorHook: hook}));
+      assert.deepEqual(paths, [['1', '0'], ['1', '2'], ['2', '1']]);
+
+      function hook(path, any, type, val) {
+        paths.push(path);
+        assert.strictEqual(val, a1);
+        assert(t.isValid(a2, {errorHook: hook}));
       }
     });
 
