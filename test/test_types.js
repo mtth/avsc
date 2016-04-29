@@ -2343,6 +2343,14 @@ suite('types', function () {
       });
     });
 
+    test('missing type', function () {
+      var t = createType({
+        type: 'long',
+        logicalType: 'date'
+      }, {logicalTypes: {}});
+      assert(t.getTypeName(), 'long');
+    });
+
     test('nested types', function () {
       var attrs = {
         name: 'Person',
