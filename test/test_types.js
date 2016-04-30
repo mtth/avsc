@@ -804,7 +804,6 @@ suite('types', function () {
     var schemas = [
       {name: 'Foo', symbols: []},
       {name: 'Foo'},
-      {symbols: ['hi']},
       {name: 'G', symbols: ['0']}
     ];
 
@@ -846,6 +845,16 @@ suite('types', function () {
     test('duplicate symbol', function () {
       assert.throws(function () {
         createType({type: 'enum', symbols: ['A', 'B', 'A'], name: 'B'});
+      });
+    });
+
+    test('missing name', function () {
+      var attrs = {type: 'enum', symbols: ['A', 'B']};
+      var t = createType(attrs);
+      assert.strictEqual(t.getName(), undefined);
+      assert.strictEqual(t.getName(true), 'enum');
+      assert.throws(function () {
+        createType(attrs, {noAnonymousTypes: true});
       });
     });
 
@@ -935,7 +944,6 @@ suite('types', function () {
     var schemas = [
       {name: 'Foo', size: 0},
       {name: 'Foo', size: -2},
-      {size: 2},
       {name: 'Foo'},
       {}
     ];
@@ -2054,6 +2062,13 @@ suite('types', function () {
       assert(err instanceof Error);
     });
 
+    test('anonymous error type', function () {
+      assert.doesNotThrow(function () { createType({
+        type: 'error',
+        fields: [{name: 'name', type: 'string'}]
+      }); });
+    });
+
     test('resolve error type', function () {
       var t1 = createType({
         type: 'error',
@@ -2896,7 +2911,7 @@ suite('types', function () {
       var t = createType({
         type: 'record',
         fields: [{name: 'foo', type: 'int'}]
-      }, {allowAnonymousTypes: true});
+      });
       assert.strictEqual(t.getName(), undefined);
       assert.strictEqual(t.getName(true), 'record');
       assert(t.isValid({foo: 3}));
@@ -2990,13 +3005,9 @@ suite('types', function () {
     });
 
     test('anonymous types', function () {
-      var t1 = createType(
-        {type: 'fixed', size: 2},
-        {allowAnonymousTypes: true}
-      );
+      var t1 = createType({type: 'fixed', size: 2});
       var t2 = createType(
-        {type: 'fixed', size: 2, namespace: 'foo', aliases: ['Id']},
-        {allowAnonymousTypes: true}
+        {type: 'fixed', size: 2, namespace: 'foo', aliases: ['Id']}
       );
       var t3 = createType({type: 'fixed', size: 2, name: 'foo.Id'});
       assert.throws(function () { t1.createResolver(t3); });
@@ -3128,7 +3139,7 @@ suite('types', function () {
         {type: 'enum', symbols: ['A']},
         'int',
         {type: 'record', fields: [{name: 'foo', type: 'string'}]}
-      ], {allowAnonymousTypes: true});
+      ]);
       assert.equal(
         t.getSchema(),
         '[{"type":"enum","symbols":["A"]},"int",{"type":"record","fields":[{"name":"foo","type":"string"}]}]'
