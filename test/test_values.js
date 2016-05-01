@@ -43,7 +43,24 @@ suite('values', function () {
       assertUnionsEqual(combine([t1, t2]), createType(['int', 'string']));
     });
 
-    test('field default', function () {
+    test('records & maps', function () {
+      var t1 = createType({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int', 'default': 2}]
+      });
+      var t2 = createType({type: 'map', values: 'string'});
+      var t3 = combine([t1, t2]);
+      assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
+    });
+
+    test('arrays', function () {
+      var t1 = createType({type: 'array', items: 'null'});
+      var t2 = createType({type: 'array', items: 'int'});
+      var t3 = combine([t1, t2]);
+      assertUnionsEqual(t3.getItemsType(), createType(['null', 'int']));
+    });
+
+    test('field single default', function () {
       var t1 = createType({
         type: 'record',
         fields: [{name: 'foo', type: 'int', 'default': 2}]
@@ -59,6 +76,28 @@ suite('values', function () {
           type: 'record',
           fields: [
             {name: 'foo', type: 'int', 'default': 2}
+          ]
+        }
+      );
+    });
+
+    test('field multiple types default', function () {
+      var t1 = createType({
+        type: 'record',
+        fields: [{name: 'foo', type: 'string'}]
+      });
+      var t2 = createType({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int', 'default': 2}]
+      });
+      var t3 = combine([t1, t2], {noNullDefaults: true});
+      assert.deepEqual(
+        JSON.parse(t3.getSchema({exportAttrs: true})),
+        {
+          type: 'record',
+          fields: [
+            // Int should be first in the union.
+            {name: 'foo', type: ['int', 'string'], 'default': 2}
           ]
         }
       );
@@ -156,6 +195,8 @@ suite('values', function () {
 
     test('numbers', function () {
       assert.equal(infer(1).getTypeName(), 'int');
+      assert.equal(infer(1.2).getTypeName(), 'float');
+      assert.equal(infer(9007199254740991).getTypeName(), 'double');
     });
 
     test('function', function () {
@@ -176,6 +217,38 @@ suite('values', function () {
           ]
         }
       );
+    });
+
+    test('empty array', function () {
+      // Mostly check that the sentinel behaves correctly.
+      var t1 = infer({0: [], 1: [true]});
+      assert.equal(t1.getValuesType().getItemsType().getTypeName(), 'boolean');
+      var t2 = infer({0: [], 1: [true], 2: [null]});
+      assertUnionsEqual(
+        t2.getValuesType().getItemsType(),
+        createType(['boolean', 'null'])
+      );
+      var t3 = infer({0: [], 1: []});
+      assert.equal(t3.getValuesType().getItemsType().getTypeName(), 'null');
+    });
+
+    test('value hook', function () {
+      var t = infer({foo: 23, bar: 'hi'}, {valueHook: hook});
+      assert.equal(t.getField('foo').getType().getTypeName(), 'long');
+      assert.equal(t.getField('bar').getType().getTypeName(), 'string');
+      assert.throws(function () {
+        infer({foo: function () {}}, {valueHook: hook});
+      });
+
+      function hook(val, opts) {
+        if (typeof val == 'number') {
+          return createType('long', opts);
+        }
+        if (typeof val == 'function') {
+          // This will throw an error.
+          return null;
+        }
+      }
     });
 
   });
