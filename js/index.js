@@ -80,6 +80,7 @@
         });
       }
     }).on('reset-layout', function() {
+      $.clearQueue();
       firstPageElements.each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
