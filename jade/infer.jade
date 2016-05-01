@@ -21,14 +21,14 @@ html(lang='en')
             a(href='infer.html') Infer schema
 
     div.-content-
-      .half-width
+      .half-width.left
         textarea#record
-      .half-width
+      .half-width.right
         textarea#avsc
       div(style='display: none')
         #placeholder
           | // Enter your avro record here...
 
-div#footer
+    div#footer
       p.
         Powered by #[a(href="https://github.com/mtth/avsc") Avsc], a pure JavaScript implementation of the #[a(href="https://avro.apache.org/docs/current/spec.html") Avro Specification]. 

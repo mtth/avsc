@@ -47,7 +47,8 @@ html, body {
   display: block;
   color: white;
   text-align: center;
-  padding: 8px 20px 9px 20px;
+  padding: 11px 20px 0px 20px;
+  height: 24px;
   text-decoration: none;
 }
 
