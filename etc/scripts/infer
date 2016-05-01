@@ -1,15 +1,20 @@
 #!/usr/bin/env node
 
+// TODO: Allow streamed input JSON values to span multiple lines.
+
 'use strict';
 
 /**
  * Script to output a schema from one or more values.
  *
- * The input should be in JSON-lines format (one JSON entry per line).
- *
  * Usage:
  *
  *  infer [JSON]
+ *
+ * Arguments:
+ *
+ *  JSON          JSON-encoded value. If not specified, the script will read
+ *                values from stdin (one JSON entry per line).
  *
  */
 
@@ -42,7 +47,7 @@ function fromStream() {
       var val = JSON.parse(str);
       if (type === null) {
         type = avro.infer(val);
-      } else if (!type.isValid(val)) {
+      } else if (!type.isValid(val, {noUndeclaredFields: true})) {
         type = avro.combine([type, avro.infer(val)]);
       }
     })
