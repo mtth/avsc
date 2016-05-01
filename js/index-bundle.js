@@ -12532,7 +12532,7 @@ function hasOwnProperty(obj, prop) {
           }
           var attrs = JSON.parse(rawInput);
           // Throw more useful error if not valid.
-          window.type.isValid(attrs, {errorHook: 
+          window.type.isValid(attrs, {wrapUnions: true, errorHook:
             function(path, any, type) {
               if (
                 typeof any == 'string' &&
@@ -12560,7 +12560,7 @@ function hasOwnProperty(obj, prop) {
     function validateSchema(schemaJson) {
       window.type = undefined;
       try {
-        window.type = avsc.parse(schemaJson);
+        window.type = avsc.parse(schemaJson, {wrapUnions: true});
         eventObj.trigger('valid-schema');
         eventObj.trigger('update-layout');
       } catch (err) {
