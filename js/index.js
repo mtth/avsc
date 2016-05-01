@@ -702,7 +702,7 @@
     }
 
     function instrument(schema) {
-      if (schema instanceof avsc.types.Type) {
+      if (schema instanceof avsc.Type) {
         schema = schema.getSchema();
       }
       var refs = [];
