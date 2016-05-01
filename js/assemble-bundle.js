@@ -12061,7 +12061,7 @@ function assemble(str, cb) {
     }
     // Make sure the protocol is valid.
     try {
-      window.PROTOCOL = avro.parse(attrs);
+      window.PROTOCOL = avro.parse(attrs, {wrapUnions: true});
     } catch (parseErr) {
       cb(parseErr);
       return;
