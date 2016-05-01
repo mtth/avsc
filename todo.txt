@@ -1,0 +1,1 @@
+If you click home before the animation is over, the refresh button will not disappear.

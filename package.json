@@ -9,12 +9,12 @@
   "author": "Matthieu Monsch",
   "license": "MIT",
   "scripts": {
-    "bundle": "browserify js/index.js >js/bundle.js",
+    "bundle": "browserify js/index.js > js/index-bundle.js",
     "jade": "jade jade/index.jade -o .",
     "uglify" : "uglifyjs js/index-bundle.js -o js/index-bundle.min.js --source-map js/index-bundle.min.js.map"
   },
   "dependencies": {
-    "avsc": "^3.3.10",
+    "avsc": "^4.0.1",
     "buffer": "^3.5.0",
     "jquery": "^2.1.4",
     "jquery-ui": "^1.10.5"

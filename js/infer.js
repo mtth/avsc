@@ -3,9 +3,7 @@
 'use strict';
 
 var CodeMirror = require('codemirror/lib/codemirror'),
-    avro = require('avsc'),
-    inferUtil = require('./infer-script.js');
-
+    avro = require('avsc');
 
 // Force inclusion of CodeMirror resources.
 require('codemirror/mode/javascript/javascript');
@@ -58,22 +56,14 @@ function createChangeHandler(delay) {
         avscCm.setValue('');
         return;
       }
-      infer(str, function (err, schema) {
-        if (err) {
-          schema = {'@error': {
-            message: err.message,
-            lineNum: err.lineNum,
-            colNum: err.colNum
-          }};
-        }
-        avscCm.setValue(JSON.stringify(schema, null, 2));
+      infer(str, function (schemaJson) {
+        avscCm.setValue(JSON.stringify(schemaJson, null, 2));
       });
     }, delay);
   };
 }
 
 function infer(str, cb) {
-  // TODO: call the actual infer API.
-  var inferredSchema = inferUtil.infer(JSON.parse(str));
-  cb(null, JSON.parse(inferredSchema.getSchema()));
+  var inferredSchema = avro.infer(JSON.parse(str));
+  cb(JSON.parse(inferredSchema.getSchema({exportAttrs: true})));
 }

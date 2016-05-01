@@ -12787,7 +12787,7 @@ function hasOwnProperty(obj, prop) {
 })();
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {},require("buffer").Buffer)
-},{"./meta":44,"./utils":45,"avsc":46,"buffer":16,"jquery":54}],44:[function(require,module,exports){
+},{"./meta":44,"./utils":45,"avsc":46,"buffer":16,"jquery":55}],44:[function(require,module,exports){
 var util = require('util'),
     avro = require('avsc');
 function MetaType(attr, opts) {
@@ -13085,7 +13085,8 @@ var containers = require('../../lib/containers'),
     files = require('./lib/files'),
     protocols = require('../../lib/protocols'),
     schemas = require('../../lib/schemas'),
-    types = require('../../lib/types');
+    types = require('../../lib/types'),
+    values = require('../../lib/values');
 
 
 function parse(schema, opts) {
@@ -13100,12 +13101,14 @@ module.exports = {
   Protocol: protocols.Protocol,
   Type: types.Type,
   assemble: schemas.assemble,
+  combine: values.combine,
+  infer: values.infer,
   parse: parse,
   streams: containers.streams,
   types: types.builtins
 };
 
-},{"../../lib/containers":49,"../../lib/protocols":50,"../../lib/schemas":51,"../../lib/types":52,"./lib/files":48}],47:[function(require,module,exports){
+},{"../../lib/containers":49,"../../lib/protocols":50,"../../lib/schemas":51,"../../lib/types":52,"../../lib/values":54,"./lib/files":48}],47:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -13373,6 +13376,8 @@ module.exports = {
 },{"../../../lib/utils":53,"buffer":16}],49:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
+
+// TODO: Add streams which prefix each record with its length.
 
 'use strict';
 
@@ -14045,7 +14050,9 @@ function createProtocol(attrs, opts) {
   if (!name) {
     throw new Error('missing protocol name');
   }
-  opts.namespace = attrs.namespace;
+  if (attrs.namespace !== undefined) {
+    opts.namespace = attrs.namespace;
+  }
   if (opts.namespace && !~name.indexOf('.')) {
     name = f('%s.%s', opts.namespace, name);
   }
@@ -14926,8 +14933,10 @@ function Message(name, attrs, opts) {
   this._name = name;
 
   var requestName = 'org.apache.avro.ipc.Request'; // Placeholder name.
-  this._requestType = new types.builtins.RecordType({
+  this._requestType = types.createType({
+    type: 'record',
     name: requestName,
+    namespace: opts.namespace || '',
     fields: attrs.request
   }, opts);
   delete opts.registry[requestName];
@@ -16072,6 +16081,8 @@ module.exports = {
 (function (Buffer){
 /* jshint node: true */
 
+// TODO: Add `isValid` option which fails if a record's type is missing fields
+// present in the value.
 // TODO: Use toFastProperties on type reverse indices.
 // TODO: Allow configuring when to write the size when writing arrays and maps,
 // and customizing their block size.
@@ -16120,9 +16131,6 @@ var RANDOM = new utils.Lcg();
 // Encoding tap (shared for performance).
 var TAP = new Tap(new buffer.SlowBuffer(1024));
 
-// Path prefix for validity checks (shared for performance).
-var PATH = [];
-
 // Currently active logical type, used for name redirection.
 var LOGICAL_TYPE = null;
 
@@ -16147,8 +16155,8 @@ function createType(attrs, opts) {
     return attrs;
   }
 
-  // Initialize registry, etc. if necessary.
-  opts = updateOpts(opts);
+  opts = opts || {};
+  opts.registry = opts.registry || {};
 
   var type;
   if (typeof attrs == 'string') { // Type reference.
@@ -16174,7 +16182,7 @@ function createType(attrs, opts) {
     return type;
   }
 
-  if (attrs.logicalType && !LOGICAL_TYPE) {
+  if (attrs.logicalType && opts.logicalTypes && !LOGICAL_TYPE) {
     var DerivedType = opts.logicalTypes[attrs.logicalType];
     if (DerivedType) {
       var namespace = opts.namespace;
@@ -16226,24 +16234,44 @@ function createType(attrs, opts) {
  *  See individual subclasses for details.
  *
  */
-function Type(registry) {
-  // Lazily instantiated hash string. It will be generated the first time the
-  // type's default fingerprint is computed (for example when using `equals`).
-  // We cache a string instead of a buffer to avoid retaining too much memory.
-  this._hs = '';
-
-  var name = this._name;
+function Type(attrs, opts) {
   var type = LOGICAL_TYPE || this;
   LOGICAL_TYPE = null;
-  if (name === undefined) {
-    return;
-  }
 
-  var prev = registry[name];
-  if (prev !== undefined) {
-    throw new Error(f('duplicate type name: %s', name));
+  // Lazily instantiated hash string. It will be generated the first time the
+  // type's default fingerprint is computed (for example when using `equals`).
+  this._hs = undefined;
+  this._name = undefined;
+  this._aliases = undefined;
+
+  if (attrs) {
+    // This is a complex (i.e. non-primitive) type.
+    var name = attrs.name;
+    var namespace = attrs.namespace === undefined ?
+      opts && opts.namespace :
+      attrs.namespace;
+    if (name) {
+      name = qualify(name, namespace);
+      if (isPrimitive(name)) {
+        // Avro doesn't allow redefining primitive names.
+        throw new Error(f('cannot rename primitive type: %j', name));
+      }
+
+      var registry = opts && opts.registry;
+      if (registry) {
+        if (registry[name] !== undefined) {
+          throw new Error(f('duplicate type name: %s', name));
+        }
+        registry[name] = type;
+      }
+    } else if (opts && opts.noAnonymousTypes) {
+      throw new Error(f('missing name property in schema: %j', attrs));
+    }
+    this._name = name;
+    this._aliases = attrs.aliases ?
+      attrs.aliases.map(function (s) { return qualify(s, namespace); }) :
+      [];
   }
-  registry[name] = type;
 }
 
 Type.isType = function (/* any, [prefix] ... */) {
@@ -16409,13 +16437,14 @@ Type.prototype.clone = function (val, opts) {
 };
 
 Type.prototype.isValid = function (val, opts) {
-  while (PATH.length) {
-    // In case the previous `isValid` call didn't complete successfully (e.g.
-    // if an exception was thrown, but then caught in client code), `PATH`
-    // might be non-empty, we must manually clear it.
-    PATH.pop();
+  var cb, path;
+  if (opts && opts.errorHook) {
+    path = [];
+    cb = function (any, type) {
+      opts.errorHook.call(this, path.slice(), any, type, val);
+    };
   }
-  return this._check(val, opts && opts.errorHook);
+  return this._check(val, path, cb);
 };
 
 Type.prototype.compareBuffers = function (buf1, buf2) {
@@ -16497,7 +16526,7 @@ PrimitiveType.prototype._updateResolver = function (resolver, type) {
 };
 
 PrimitiveType.prototype._copy = function (val) {
-  this._check(val, throwInvalidError);
+  this._check(val, undefined, throwInvalidError);
   return val;
 };
 
@@ -16512,10 +16541,10 @@ PrimitiveType.prototype.toJSON = function () { return this.getTypeName(); };
 function NullType() { PrimitiveType.call(this); }
 util.inherits(NullType, PrimitiveType);
 
-NullType.prototype._check = function (val, cb) {
+NullType.prototype._check = function (val, path, cb) {
   var b = val === null;
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16526,7 +16555,7 @@ NullType.prototype._skip = function () {};
 
 NullType.prototype._write = function (tap, val) {
   if (val !== null) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
 };
 
@@ -16545,10 +16574,10 @@ NullType.prototype.random = NullType.prototype._read;
 function BooleanType() { PrimitiveType.call(this); }
 util.inherits(BooleanType, PrimitiveType);
 
-BooleanType.prototype._check = function (val, cb) {
+BooleanType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'boolean';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16559,7 +16588,7 @@ BooleanType.prototype._skip = function (tap) { tap.skipBoolean(); };
 
 BooleanType.prototype._write = function (tap, val) {
   if (typeof val != 'boolean') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeBoolean(val);
 };
@@ -16579,10 +16608,10 @@ BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
 function IntType() { PrimitiveType.call(this); }
 util.inherits(IntType, PrimitiveType);
 
-IntType.prototype._check = function (val, cb) {
+IntType.prototype._check = function (val, path, cb) {
   var b = val === (val | 0);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16593,7 +16622,7 @@ IntType.prototype._skip = function (tap) { tap.skipInt(); };
 
 IntType.prototype._write = function (tap, val) {
   if (val !== (val | 0)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeInt(val);
 };
@@ -16618,10 +16647,10 @@ IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
 function LongType() { PrimitiveType.call(this); }
 util.inherits(LongType, PrimitiveType);
 
-LongType.prototype._check = function (val, cb) {
+LongType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'number' && val % 1 === 0 && isSafeLong(val);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16638,7 +16667,7 @@ LongType.prototype._skip = function (tap) { tap.skipLong(); };
 
 LongType.prototype._write = function (tap, val) {
   if (typeof val != 'number' || val % 1 || !isSafeLong(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeLong(val);
 };
@@ -16689,10 +16718,10 @@ LongType.__with = function (methods, noUnpack) {
 function FloatType() { PrimitiveType.call(this); }
 util.inherits(FloatType, PrimitiveType);
 
-FloatType.prototype._check = function (val, cb) {
+FloatType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'number';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16703,7 +16732,7 @@ FloatType.prototype._skip = function (tap) { tap.skipFloat(); };
 
 FloatType.prototype._write = function (tap, val) {
   if (typeof val != 'number') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeFloat(val);
 };
@@ -16732,10 +16761,10 @@ FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
 function DoubleType() { PrimitiveType.call(this); }
 util.inherits(DoubleType, PrimitiveType);
 
-DoubleType.prototype._check = function (val, cb) {
+DoubleType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'number';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16746,7 +16775,7 @@ DoubleType.prototype._skip = function (tap) { tap.skipDouble(); };
 
 DoubleType.prototype._write = function (tap, val) {
   if (typeof val != 'number') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeDouble(val);
 };
@@ -16776,10 +16805,10 @@ DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
 function StringType() { PrimitiveType.call(this); }
 util.inherits(StringType, PrimitiveType);
 
-StringType.prototype._check = function (val, cb) {
+StringType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'string';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16790,7 +16819,7 @@ StringType.prototype._skip = function (tap) { tap.skipString(); };
 
 StringType.prototype._write = function (tap, val) {
   if (typeof val != 'string') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeString(val);
 };
@@ -16826,10 +16855,10 @@ StringType.prototype.random = function () {
 function BytesType() { PrimitiveType.call(this); }
 util.inherits(BytesType, PrimitiveType);
 
-BytesType.prototype._check = function (val, cb) {
+BytesType.prototype._check = function (val, path, cb) {
   var b = Buffer.isBuffer(val);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16840,7 +16869,7 @@ BytesType.prototype._skip = function (tap) { tap.skipBytes(); };
 
 BytesType.prototype._write = function (tap, val) {
   if (!Buffer.isBuffer(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeBytes(val);
 };
@@ -16855,24 +16884,24 @@ BytesType.prototype._copy = function (obj, opts) {
   var buf;
   switch ((opts && opts.coerce) | 0) {
     case 3: // Coerce buffers to strings.
-      this._check(obj, throwInvalidError);
+      this._check(obj, undefined, throwInvalidError);
       return obj.toString('binary');
     case 2: // Coerce strings to buffers.
       if (typeof obj != 'string') {
         throw new Error(f('cannot coerce to buffer: %j', obj));
       }
       buf = new Buffer(obj, 'binary');
-      this._check(buf, throwInvalidError);
+      this._check(buf, undefined, throwInvalidError);
       return buf;
     case 1: // Coerce buffer JSON representation to buffers.
       if (!isJsonBuffer(obj)) {
         throw new Error(f('cannot coerce to buffer: %j', obj));
       }
       buf = new Buffer(obj.data);
-      this._check(buf, throwInvalidError);
+      this._check(buf, undefined, throwInvalidError);
       return buf;
     default: // Copy buffer.
-      this._check(obj, throwInvalidError);
+      this._check(obj, undefined, throwInvalidError);
       return new Buffer(obj);
   }
 };
@@ -16890,18 +16919,15 @@ BytesType.prototype.random = function () {
  *
  */
 function UnionType(attrs, opts) {
+  Type.call(this);
+
   if (!Array.isArray(attrs)) {
     throw new Error(f('non-array union schema: %j', attrs));
   }
   if (!attrs.length) {
     throw new Error('empty union');
   }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-  Type.call(this);
   this._types = attrs.map(function (obj) { return createType(obj, opts); });
-  opts.namespace = namespace;
 
   this._branchIndices = {};
   this._types.forEach(function (type, i) {
@@ -16958,65 +16984,61 @@ UnionType.prototype.toJSON = function () { return this._types; };
 function UnwrappedUnionType(attrs, opts) {
   UnionType.call(this, attrs, opts);
 
+  this._logicalBranches = null;
   this._bucketIndices = {};
   this._types.forEach(function (type, index) {
     if (Type.isType(type, 'logical')) {
-      // Since values of logical types are arbitrary, we can't hope to
-      // predict the bucket from their values unfortunately.
-      throw new Error('unwrapped logical types are always ambiguous');
-    }
-    var bucket = (function (typeName) {
-      switch (typeName) {
-        case 'double':
-        case 'float':
-        case 'int':
-        case 'long':
-          return 'number';
-        case 'fixed':
-          return 'bytes';
-        case 'enum':
-          return 'string';
-        case 'map':
-        case 'error':
-        case 'record':
-          return 'object';
-        default:
-          return typeName; // boolean, bytes, null, string.
+      if (!this._logicalBranches) {
+        this._logicalBranches = [];
       }
-    })(type.getTypeName());
-    if (this._bucketIndices[bucket] !== undefined) {
-      throw new Error(f('ambiguous unwrapped union: %j', this));
+      this._logicalBranches.push({index: index, type: type});
+    } else {
+      var bucket = getTypeBucket(type);
+      if (this._bucketIndices[bucket] !== undefined) {
+        throw new Error(f('ambiguous unwrapped union: %j', this));
+      }
+      this._bucketIndices[bucket] = index;
     }
-    this._bucketIndices[bucket] = index;
   }, this);
 }
 util.inherits(UnwrappedUnionType, UnionType);
 
 UnwrappedUnionType.prototype._getIndex = function (val) {
-  if (val === null) {
-    return this._bucketIndices['null'];
-  } else {
-    var bucket = typeof val;
-    if (bucket === 'object') {
-      // Could be bytes, fixed, array, map, or record.
-      if (Array.isArray(val)) {
-        bucket = 'array';
-      } else if (Buffer.isBuffer(val)) {
-        bucket = 'bytes';
-      }
-    }
-    return this._bucketIndices[bucket];
+  var index = this._bucketIndices[getValueBucket(val)];
+  if (this._logicalBranches) {
+    // Slower path, we must run the value through all logical types.
+    index = this._getLogicalIndex(val, index);
   }
+  return index;
 };
 
-UnwrappedUnionType.prototype._check = function (val, cb) {
+UnwrappedUnionType.prototype._getLogicalIndex = function (any, index) {
+  var logicalBranches = this._logicalBranches;
+  var i, l, branch;
+  for (i = 0, l = logicalBranches.length; i < l; i++) {
+    branch = logicalBranches[i];
+    if (branch.type._check(any)) {
+      if (index === undefined) {
+        index = branch.index;
+      } else {
+        // More than one branch matches the value so we aren't guaranteed to
+        // infer the correct type. We throw rather than corrupt data. This can
+        // be fixed by "tightening" the logical types.
+        throw new Error('ambiguous conversion');
+      }
+    }
+  }
+  return index;
+};
+
+UnwrappedUnionType.prototype._check = function (val, path, cb) {
   var index = this._getIndex(val);
   var b = index !== undefined;
   if (b) {
-    return this._types[index]._check(val, cb);
+    return this._types[index]._check(val, path, cb);
   }
   if (cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -17034,7 +17056,7 @@ UnwrappedUnionType.prototype._read = function (tap) {
 UnwrappedUnionType.prototype._write = function (tap, val) {
   var index = this._getIndex(val);
   if (index === undefined) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeLong(index);
   if (val !== null) {
@@ -17070,8 +17092,8 @@ UnwrappedUnionType.prototype._copy = function (val, opts) {
         // Using the `coerceBuffers` option can cause corruption and erroneous
         // failures with unwrapped unions (in rare cases when the union also
         // contains a record which matches a buffer's JSON representation).
-        if (isJsonBuffer(val) && this._bucketIndices.bytes !== undefined) {
-          index = this._bucketIndices.bytes;
+        if (isJsonBuffer(val) && this._bucketIndices.buffer !== undefined) {
+          index = this._bucketIndices.buffer;
         } else {
           index = this._getIndex(val);
         }
@@ -17092,7 +17114,7 @@ UnwrappedUnionType.prototype._copy = function (val, opts) {
         index = this._getIndex(val);
     }
     if (index === undefined) {
-      throwInvalidError(null, val, this);
+      throwInvalidError(val, this);
     }
   }
   var type = this._types[index];
@@ -17115,9 +17137,9 @@ UnwrappedUnionType.prototype.compare = function (val1, val2) {
   var index1 = this._getIndex(val1);
   var index2 = this._getIndex(val2);
   if (index1 === undefined) {
-    throwInvalidError(null, val1, this);
+    throwInvalidError(val1, this);
   } else if (index2 === undefined) {
-    throwInvalidError(null, val2, this);
+    throwInvalidError(val2, this);
   } else if (index1 === index2) {
     return this._types[index1].compare(val1, val2);
   } else {
@@ -17177,7 +17199,7 @@ function WrappedUnionType(attrs, opts) {
 }
 util.inherits(WrappedUnionType, UnionType);
 
-WrappedUnionType.prototype._check = function (val, cb) {
+WrappedUnionType.prototype._check = function (val, path, cb) {
   var b = false;
   if (val === null) {
     // Shortcut type lookup in this case.
@@ -17190,15 +17212,20 @@ WrappedUnionType.prototype._check = function (val, cb) {
       var name = keys[0];
       var index = this._branchIndices[name];
       if (index !== undefined) {
-        PATH.push(name);
-        b = this._types[index]._check(val[name], cb);
-        PATH.pop();
-        return b;
+        if (cb) {
+          // Slow path.
+          path.push(name);
+          b = this._types[index]._check(val[name], path, cb);
+          path.pop();
+          return b;
+        } else {
+          return this._types[index]._check(val[name]);
+        }
       }
     }
   }
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -17220,7 +17247,7 @@ WrappedUnionType.prototype._write = function (tap, val) {
   if (val === null) {
     index = this._branchIndices['null'];
     if (index === undefined) {
-      throwInvalidError(null, val, this);
+      throwInvalidError(val, this);
     }
     tap.writeLong(index);
   } else {
@@ -17230,7 +17257,7 @@ WrappedUnionType.prototype._write = function (tap, val) {
       index = this._branchIndices[name];
     }
     if (index === undefined) {
-      throwInvalidError(null, val, this);
+      throwInvalidError(val, this);
     }
     tap.writeLong(index);
     this._types[index]._write(tap, val[name]);
@@ -17311,7 +17338,7 @@ WrappedUnionType.prototype._copy = function (val, opts) {
   if (obj !== undefined) {
     return wrap === 3 ? obj : new this._constructors[i](obj);
   }
-  throwInvalidError(null, val, this);
+  throwInvalidError(val, this);
 };
 
 WrappedUnionType.prototype.compare = function (val1, val2) {
@@ -17354,22 +17381,16 @@ WrappedUnionType.prototype.random = function () {
  *
  */
 function EnumType(attrs, opts) {
+  Type.call(this, attrs, opts);
+
   if (!Array.isArray(attrs.symbols) || !attrs.symbols.length) {
-    throw new Error(f('invalid %j enum symbols: %j', attrs.name, attrs));
+    throw new Error(f('invalid enum symbols: %j', attrs.symbols));
   }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
   this._symbols = attrs.symbols;
-  this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
 
   this._indices = {};
   this._symbols.forEach(function (symbol, i) {
-    if (!NAME_PATTERN.test(symbol)) {
+    if (!isValidName(symbol)) {
       throw new Error(f('invalid %s symbol: %j', this, symbol));
     }
     if (this._indices[symbol] !== undefined) {
@@ -17377,15 +17398,13 @@ function EnumType(attrs, opts) {
     }
     this._indices[symbol] = i;
   }, this);
-
-  opts.namespace = namespace;
 }
 util.inherits(EnumType, Type);
 
-EnumType.prototype._check = function (val, cb) {
+EnumType.prototype._check = function (val, path, cb) {
   var b = this._indices[val] !== undefined;
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -17404,7 +17423,7 @@ EnumType.prototype._skip = function (tap) { tap.skipLong(); };
 EnumType.prototype._write = function (tap, val) {
   var index = this._indices[val];
   if (index === undefined) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeLong(index);
 };
@@ -17421,7 +17440,7 @@ EnumType.prototype._updateResolver = function (resolver, type) {
   var symbols = this._symbols;
   if (
     type.getTypeName() === 'enum' &&
-    ~getAliases(this).indexOf(type._name) &&
+    (!type._name || ~getAliases(this).indexOf(type._name)) &&
     type._symbols.every(function (s) { return ~symbols.indexOf(s); })
   ) {
     resolver._symbols = type._symbols;
@@ -17430,7 +17449,7 @@ EnumType.prototype._updateResolver = function (resolver, type) {
 };
 
 EnumType.prototype._copy = function (val) {
-  this._check(val, throwInvalidError);
+  this._check(val, undefined, throwInvalidError);
   return val;
 };
 
@@ -17460,27 +17479,19 @@ EnumType.prototype.toJSON = function () {
  *
  */
 function FixedType(attrs, opts) {
+  Type.call(this, attrs, opts);
+
   if (attrs.size !== (attrs.size | 0) || attrs.size < 1) {
-    throw new Error(f('invalid %j fixed size: %j', attrs.name, attrs.size));
+    throw new Error(f('invalid %s fixed size', this.getName(true)));
   }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
   this._size = attrs.size | 0;
-  this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
-
-  opts.namespace = namespace;
 }
 util.inherits(FixedType, Type);
 
-FixedType.prototype._check = function (val, cb) {
+FixedType.prototype._check = function (val, path, cb) {
   var b = Buffer.isBuffer(val) && val.length === this._size;
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -17495,7 +17506,7 @@ FixedType.prototype._skip = function (tap) {
 
 FixedType.prototype._write = function (tap, val) {
   if (!Buffer.isBuffer(val) || val.length !== this._size) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeFixed(val, this._size);
 };
@@ -17510,7 +17521,7 @@ FixedType.prototype._updateResolver = function (resolver, type) {
   if (
     type.getTypeName() === 'fixed' &&
     this._size === type._size &&
-    ~getAliases(this).indexOf(type._name)
+    (!type._name || ~getAliases(this).indexOf(type._name))
   ) {
     resolver._size = this._size;
     resolver._read = this._read;
@@ -17545,19 +17556,19 @@ FixedType.prototype.toJSON = function () {
  *
  */
 function MapType(attrs, opts) {
+  Type.call(this);
+
   if (!attrs.values) {
     throw new Error(f('missing map values: %j', attrs));
   }
-
-  Type.call(this);
   this._values = createType(attrs.values, opts);
 }
 util.inherits(MapType, Type);
 
-MapType.prototype._check = function (val, cb) {
+MapType.prototype._check = function (val, path, cb) {
   if (!val || typeof val != 'object' || Array.isArray(val)) {
     if (cb) {
-      cb(PATH.slice(), val, this);
+      cb(val, this);
     }
     return false;
   }
@@ -17567,18 +17578,18 @@ MapType.prototype._check = function (val, cb) {
   var i, l, j, key;
   if (cb) {
     // Slow path.
-    j = PATH.length;
-    PATH.push('');
+    j = path.length;
+    path.push('');
     for (i = 0, l = keys.length; i < l; i++) {
-      key = PATH[j] = keys[i];
-      if (!this._values._check(val[key], cb)) {
+      key = path[j] = keys[i];
+      if (!this._values._check(val[key], path, cb)) {
         b = false;
       }
     }
-    PATH.pop();
+    path.pop();
   } else {
     for (i = 0, l = keys.length; i < l; i++) {
-      if (!this._values._check(val[keys[i]], cb)) {
+      if (!this._values._check(val[keys[i]])) {
         return false;
       }
     }
@@ -17617,7 +17628,7 @@ MapType.prototype._skip = function (tap) {
 
 MapType.prototype._write = function (tap, val) {
   if (!val || typeof val != 'object' || Array.isArray(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
 
   var values = this._values;
@@ -17658,7 +17669,7 @@ MapType.prototype._copy = function (val, opts) {
     }
     return copy;
   }
-  throwInvalidError(null, val, this);
+  throwInvalidError(val, this);
 };
 
 MapType.prototype.compare = MapType.prototype._match;
@@ -17687,19 +17698,19 @@ MapType.prototype.toJSON = function () {
  *
  */
 function ArrayType(attrs, opts) {
+  Type.call(this);
+
   if (!attrs.items) {
     throw new Error(f('missing array items: %j', attrs));
   }
-
   this._items = createType(attrs.items, opts);
-  Type.call(this);
 }
 util.inherits(ArrayType, Type);
 
-ArrayType.prototype._check = function (val, cb) {
+ArrayType.prototype._check = function (val, path, cb) {
   if (!Array.isArray(val)) {
     if (cb) {
-      cb(PATH.slice(), val, this);
+      cb(val, this);
     }
     return false;
   }
@@ -17708,18 +17719,18 @@ ArrayType.prototype._check = function (val, cb) {
   var i, l, j;
   if (cb) {
     // Slow path.
-    j = PATH.length;
-    PATH.push('');
+    j = path.length;
+    path.push('');
     for (i = 0, l = val.length; i < l; i++) {
-      PATH[j] = '' + i;
-      if (!this._items._check(val[i], cb)) {
+      path[j] = '' + i;
+      if (!this._items._check(val[i], path, cb)) {
         b = false;
       }
     }
-    PATH.pop();
+    path.pop();
   } else {
     for (i = 0, l = val.length; i < l; i++) {
-      if (!this._items._check(val[i], cb)) {
+      if (!this._items._check(val[i])) {
         return false;
       }
     }
@@ -17759,7 +17770,7 @@ ArrayType.prototype._skip = function (tap) {
 
 ArrayType.prototype._write = function (tap, val) {
   if (!Array.isArray(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
 
   var n = val.length;
@@ -17801,7 +17812,7 @@ ArrayType.prototype._updateResolver = function (resolver, type, opts) {
 
 ArrayType.prototype._copy = function (val, opts) {
   if (!Array.isArray(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   var items = new Array(val.length);
   var i, l;
@@ -17857,22 +17868,29 @@ ArrayType.prototype.toJSON = function () {
  *
  */
 function RecordType(attrs, opts) {
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
-  this._aliases = resolutions.aliases;
-  Type.call(this, opts.registry);
+  Type.call(this, attrs, opts);
 
   if (!Array.isArray(attrs.fields)) {
-    throw new Error(f('non-array %s fields', this._name));
+    throw new Error(f('non-array record fields: %j', attrs.fields));
   }
-  this._fields = attrs.fields.map(function (f) {
-    return new Field(f, opts);
-  });
   if (utils.hasDuplicates(attrs.fields, function (f) { return f.name; })) {
-    throw new Error(f('duplicate %s field name', this._name));
+    throw new Error(f('duplicate field name: %j', attrs.fields));
+  }
+
+  var namespace;
+  if (opts) {
+    // Save current namespace.
+    namespace = opts.namespace;
+    if (attrs.namespace !== undefined) {
+      opts.namespace = attrs.namespace;
+    } else {
+      var match = /^(.*)\.[^.]+$/.exec(this._name);
+      opts.namespace = match ? match[1] : '';
+    }
+  }
+  this._fields = attrs.fields.map(function (f) { return new Field(f, opts); });
+  if (opts) {
+    opts.namespace = namespace;
   }
 
   this._isError = attrs.type === 'error';
@@ -17881,10 +17899,14 @@ function RecordType(attrs, opts) {
   this._skip = this._createSkipper();
   this._write = this._createWriter();
   this._check = this._createChecker();
-
-  opts.namespace = namespace;
 }
 util.inherits(RecordType, Type);
+
+RecordType.prototype._getConstructorName = function () {
+  return this._name ?
+    unqualify(this._name) :
+    this._isError ? 'Error$' : 'Record$';
+};
 
 RecordType.prototype._createConstructor = function () {
   // jshint -W054
@@ -17911,7 +17933,7 @@ RecordType.prototype._createConstructor = function () {
       ds.push(getDefault);
     }
   }
-  var outerBody = 'return function ' + unqualify(this._name) + '(';
+  var outerBody = 'return function ' + this._getConstructorName() + '(';
   outerBody += innerArgs.join() + ') {\n' + innerBody + '};';
   var Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
 
@@ -17932,11 +17954,12 @@ RecordType.prototype._createConstructor = function () {
 
 RecordType.prototype._createChecker = function () {
   // jshint -W054
-  var names = ['t', 'P'];
-  var values = [this, PATH];
-  var body = 'return function check' + unqualify(this._name) + '(val, cb) {\n';
-  body += '  if (val === null || typeof val != \'object\') {\n';
-  body += '    if (cb) { cb(P.slice(), val, t); }\n';
+  var names = ['t'];
+  var values = [this];
+  var name = this._getConstructorName();
+  var body = 'return function check' + name + '(v, p, c) {\n';
+  body += '  if (v === null || typeof v != \'object\') {\n';
+  body += '    if (c) { c(v, t); }\n';
   body += '    return false;\n';
   body += '  }\n';
   if (!this._fields.length) {
@@ -17948,30 +17971,30 @@ RecordType.prototype._createChecker = function () {
       names.push('t' + i);
       values.push(field._type);
       if (field.getDefault() !== undefined) {
-        body += '  var v' + i + ' = val.' + field._name + ';\n';
+        body += '  var v' + i + ' = v.' + field._name + ';\n';
       }
     }
-    body += '  if (cb) {\n';
+    body += '  if (c) {\n';
     body += '    var b = 1;\n';
-    body += '    var j = P.length;\n';
-    body += '    P.push(\'\');\n';
+    body += '    var j = p.length;\n';
+    body += '    p.push(\'\');\n';
     var i, l, field;
     for (i = 0, l = this._fields.length; i < l; i++) {
       field = this._fields[i];
-      body += '    P[j] = \'' + field._name + '\';\n';
+      body += '    p[j] = \'' + field._name + '\';\n';
       if (field.getDefault() === undefined) {
-        body += '    b &= t' + i + '._check(val.' + field._name + ', cb);\n';
+        body += '    b &= t' + i + '._check(v.' + field._name + ', p, c);\n';
       } else {
         body += '    b &= v' + i + ' === undefined || ';
-        body += 't' + i + '._check(v' + i + ', cb);\n';
+        body += 't' + i + '._check(v' + i + ', p, c);\n';
       }
     }
-    body += '    P.pop();\n';
+    body += '    p.pop();\n';
     body += '    return !!b;\n';
     body += '  } else {\n    return (\n      ';
     body += this._fields.map(function (field, i) {
       if (field.getDefault() === undefined) {
-        return 't' + i + '._check(val.' + field._name + ')';
+        return 't' + i + '._check(v.' + field._name + ')';
       } else {
         return '(v' + i + ' === undefined || t' + i + '._check(v' + i + '))';
       }
@@ -17984,7 +18007,6 @@ RecordType.prototype._createChecker = function () {
 
 RecordType.prototype._createReader = function () {
   // jshint -W054
-  var uname = unqualify(this._name);
   var names = [];
   var values = [this._constructor];
   var i, l;
@@ -17992,11 +18014,12 @@ RecordType.prototype._createReader = function () {
     names.push('t' + i);
     values.push(this._fields[i]._type);
   }
-  var body = 'return function read' + uname + '(tap) {\n';
-  body += '  return new ' + uname + '(';
+  var name = this._getConstructorName();
+  var body = 'return function read' + name + '(tap) {\n';
+  body += '  return new ' + name + '(';
   body += names.map(function (t) { return t + '._read(tap)'; }).join();
   body += ');\n};';
-  names.unshift(uname);
+  names.unshift(name);
   // We can do this since the JS spec guarantees that function arguments are
   // evaluated from left to right.
   return new Function(names.join(), body).apply(undefined, values);
@@ -18005,7 +18028,7 @@ RecordType.prototype._createReader = function () {
 RecordType.prototype._createSkipper = function () {
   // jshint -W054
   var args = [];
-  var body = 'return function skip' + unqualify(this._name) + '(tap) {\n';
+  var body = 'return function skip' + this._getConstructorName() + '(tap) {\n';
   var values = [];
   var i, l;
   for (i = 0, l = this._fields.length; i < l; i++) {
@@ -18021,7 +18044,8 @@ RecordType.prototype._createWriter = function () {
   // jshint -W054
   // We still do default handling here, in case a normal JS object is passed.
   var args = [];
-  var body = 'return function write' + unqualify(this._name) + '(tap, val) {\n';
+  var name = this._getConstructorName();
+  var body = 'return function write' + name + '(tap, v) {\n';
   var values = [];
   var i, l, field, value;
   for (i = 0, l = this._fields.length; i < l; i++) {
@@ -18030,7 +18054,7 @@ RecordType.prototype._createWriter = function () {
     values.push(field._type);
     body += '  ';
     if (field.getDefault() === undefined) {
-      body += 't' + i + '._write(tap, val.' + field._name + ');\n';
+      body += 't' + i + '._write(tap, v.' + field._name + ');\n';
     } else {
       value = field._type.toBuffer(field.getDefault()).toString('binary');
       // Convert the default value to a binary string ahead of time. We aren't
@@ -18038,7 +18062,7 @@ RecordType.prototype._createWriter = function () {
       // had our own buffer pool, this could be an idea in the future.
       args.push('d' + i);
       values.push(value);
-      body += 'var v' + i + ' = val.' + field._name + '; ';
+      body += 'var v' + i + ' = v.' + field._name + '; ';
       body += 'if (v' + i + ' === undefined) { ';
       body += 'tap.writeBinary(d' + i + ', ' + value.length + ');';
       body += ' } else { t' + i + '._write(tap, v' + i + '); }\n';
@@ -18050,8 +18074,8 @@ RecordType.prototype._createWriter = function () {
 
 RecordType.prototype._updateResolver = function (resolver, type, opts) {
   // jshint -W054
-  if (!~getAliases(this).indexOf(type._name)) {
-    throw new Error(f('no alias for %s in %s', type._name, this._name));
+  if (type._name && !~getAliases(this).indexOf(type._name)) {
+    throw new Error(f('no alias found for %s', type._name));
   }
 
   var rFields = this._fields;
@@ -18096,7 +18120,7 @@ RecordType.prototype._updateResolver = function (resolver, type, opts) {
     lazyIndex = i;
   }
 
-  var uname = unqualify(this._name);
+  var uname = this._getConstructorName();
   var args = [uname];
   var values = [this._constructor];
   var body = '  return function read' + uname + '(tap,lazy) {\n';
@@ -18121,7 +18145,7 @@ RecordType.prototype._updateResolver = function (resolver, type, opts) {
   if (~lazyIndex) {
     body += '  }\n';
   }
-  body +=  '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
+  body += '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
 
   resolver._read = new Function(args.join(), body).apply(undefined, values);
 };
@@ -18255,16 +18279,19 @@ LogicalType.prototype._write = function (tap, any) {
   this._underlyingType._write(tap, this._toValue(any));
 };
 
-LogicalType.prototype._check = function (any, cb) {
+LogicalType.prototype._check = function (any, path, cb) {
   try {
     var val = this._toValue(any);
   } catch (err) {
+    // Handled below.
+  }
+  if (val === undefined) {
     if (cb) {
-      cb(PATH.slice(), any, this);
+      cb(any, this);
     }
     return false;
   }
-  return this._underlyingType._check(val, cb);
+  return this._underlyingType._check(val, path, cb);
 };
 
 LogicalType.prototype._copy = function (any, opts) {
@@ -18335,10 +18362,10 @@ function AbstractLongType(noUnpack) {
 }
 util.inherits(AbstractLongType, LongType);
 
-AbstractLongType.prototype._check = function (val, cb) {
+AbstractLongType.prototype._check = function (val, path, cb) {
   var b = this._isValid(val);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -18359,7 +18386,7 @@ AbstractLongType.prototype._read = function (tap) {
 
 AbstractLongType.prototype._write = function (tap, val) {
   if (!this._isValid(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   var buf = this._toBuffer(val);
   if (this._noUnpack) {
@@ -18403,7 +18430,7 @@ AbstractLongType.prototype.compare = utils.abstractFunction;
  */
 function Field(attrs, opts) {
   var name = attrs.name;
-  if (typeof name != 'string' || !NAME_PATTERN.test(name)) {
+  if (typeof name != 'string' || !isValidName(name)) {
     throw new Error(f('invalid field name: %s', name));
   }
 
@@ -18510,51 +18537,6 @@ function readValue(type, tap, resolver, lazy) {
 }
 
 /**
- * Create default parsing options.
- *
- * @param attrs {Object} Schema to populate options with.
- * @param opts {Object} Base options.
- *
- */
-function updateOpts(opts, attrs) {
-  var namespace = attrs && attrs.namespace;
-
-  opts = opts || {};
-  opts.namespace = namespace !== undefined ? namespace : opts.namespace;
-  opts.registry = opts.registry || {};
-  opts.logicalTypes = opts.logicalTypes || {};
-  return opts;
-}
-
-/**
- * Resolve a schema's name and aliases.
- *
- * @param attrs {Object} True schema (can't be a string).
- * @param namespace {String} Optional parent namespace.
- *
- */
-function resolveNames(attrs, namespace) {
-  namespace = attrs.namespace || namespace;
-
-  var name = attrs.name;
-  if (!name) {
-    throw new Error(f('missing name property in schema: %j', attrs));
-  }
-  name = qualify(name, namespace);
-  if (isPrimitive(name)) {
-    // Avro doesn't allow redefining primitive names.
-    throw new Error(f('cannot rename primitive type: %j', name));
-  }
-
-  return {
-    name: name,
-    aliases: attrs.aliases ?
-      attrs.aliases.map(function (str) { return qualify(str, namespace); }) :
-      []
-  };
-}
-
-/**
  * Remove namespace from a name.
  *
  * @param name {String} Full or short name.
@@ -18580,7 +18562,7 @@ function qualify(name, namespace) {
     name = namespace + '.' + name;
   }
   name.split('.').forEach(function (part) {
-    if (!NAME_PATTERN.test(part)) {
+    if (!isValidName(part)) {
       throw new Error(f('invalid name: %j', name));
     }
   });
@@ -18597,7 +18579,10 @@ function qualify(name, namespace) {
  *
  */
 function getAliases(obj) {
-  var names = [obj._name];
+  var names = [];
+  if (obj._name) {
+    names.push(obj._name);
+  }
   var aliases = obj._aliases;
   var i, l;
   for (i = 0, l = aliases.length; i < l; i++) {
@@ -18699,12 +18684,16 @@ function stringify(obj, opts) {
           } else {
             return {name: value.name, type: value.type};
           }
-        } else if (value.name) {
+        } else if (value.aliases) {
+          // This is a named type (enum, fixed, record, error).
           var name = value.name;
-          if (noDeref || registry[name]) {
-            return name;
+          if (name) {
+            // If the type is anonymous, we always dereference it.
+            if (noDeref || registry[name]) {
+              return name;
+            }
+            registry[name] = true;
           }
-          registry[name] = true;
           if (!EXPORT_ATTRS || !value.aliases.length) {
             value.aliases = undefined;
           }
@@ -18740,6 +18729,12 @@ function isJsonBuffer(obj) {
 }
 
 /**
+ * Check whether a string is a valid Avro identifier.
+ *
+ */
+function isValidName(str) { return NAME_PATTERN.test(str); }
+
+/**
  * Throw a somewhat helpful error on invalid object.
  *
  * @param path {Array} Passed from hook, but unused (because empty where this
@@ -18752,14 +18747,67 @@ function isJsonBuffer(obj) {
  * with a hook since the path is not propagated (for efficiency reasons).
  *
  */
-function throwInvalidError(path, val, type) {
+function throwInvalidError(val, type) {
   throw new Error(f('invalid %s: %j', type, val));
+}
+
+/**
+ * Get a type's bucket when included inside an unwrapped union.
+ *
+ * @param type {Type} Any type.
+ *
+ */
+function getTypeBucket(type) {
+  var typeName = type.getTypeName();
+  switch (typeName) {
+    case 'double':
+    case 'float':
+    case 'int':
+    case 'long':
+      return 'number';
+    case 'bytes':
+    case 'fixed':
+      return 'buffer';
+    case 'enum':
+      return 'string';
+    case 'map':
+    case 'error':
+    case 'record':
+      return 'object';
+    default:
+      return typeName;
+  }
+}
+
+/**
+ * Infer a value's bucket (see unwrapped unions for more details).
+ *
+ * @param val {...} Any value.
+ *
+ */
+function getValueBucket(val) {
+  if (val === null) {
+    return 'null';
+  }
+  var bucket = typeof val;
+  if (bucket === 'object') {
+    // Could be bytes, fixed, array, map, or record.
+    if (Array.isArray(val)) {
+      return 'array';
+    } else if (Buffer.isBuffer(val)) {
+      return 'buffer';
+    }
+  }
+  return bucket;
 }
 
 
 module.exports = {
   Type: Type,
   createType: createType,
+  getTypeBucket: getTypeBucket,
+  getValueBucket: getValueBucket,
+  isValidName: isValidName,
   stringify: stringify,
   builtins: (function () {
     var types = {
@@ -18788,7 +18836,7 @@ module.exports = {
 'use strict';
 
 /**
- * Various utilities used accross this library.
+ * Various utilities used across this library.
  *
  */
 
@@ -19425,6 +19473,371 @@ module.exports = {
 
 }).call(this,require("buffer").Buffer)
 },{"buffer":16,"crypto":47}],54:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+'use strict';
+
+// TODO: Add a few built-in logical types to help inference (e.g. dates)?
+
+/**
+ * From values to types.
+ *
+ * This file also contains the (very related) logic to combine types.
+ *
+ */
+
+var types = require('./types'),
+    utils = require('./utils');
+
+
+// Convenience imports.
+var f = utils.format;
+var createType = types.createType;
+var getTypeBucket = types.getTypeBucket;
+
+// Placeholder type used when inferring the type of an empty array.
+var EMPTY_ARRAY_TYPE = createType({type: 'array', items: 'null'});
+
+/**
+ * Infer a type from a value.
+ *
+ */
+function infer(val, opts) {
+  opts = opts || {};
+
+  if (opts.valueHook) {
+    var type = opts.valueHook(val, opts);
+    if (type !== undefined) {
+      if (!types.Type.isType(type)) {
+        throw new Error(f('invalid value hook return value: %j', type));
+      }
+      return type;
+    }
+  }
+
+  // Default inference logic.
+  switch (typeof val) {
+    case 'string':
+      return createType('string', opts);
+    case 'boolean':
+      return createType('boolean', opts);
+    case 'number':
+      if ((val | 0) === val) {
+        return createType('int', opts);
+      } else if (Math.abs(val) < 9007199254740991) {
+        return createType('float', opts);
+      }
+      return createType('double', opts);
+    case 'object':
+      if (val === null) {
+        return createType('null', opts);
+      } else if (Array.isArray(val)) {
+        if (!val.length) {
+          return EMPTY_ARRAY_TYPE;
+        }
+        return createType({
+          type: 'array',
+          items: combine(val.map(function (v) { return infer(v, opts); }))
+        }, opts);
+      } else if (Buffer.isBuffer(val)) {
+        return createType('bytes', opts);
+      }
+      var fieldNames = Object.keys(val);
+      if (fieldNames.some(function (s) { return !types.isValidName(s); })) {
+        // We have to fall back to a map.
+        return createType({
+          type: 'map',
+          values: combine(fieldNames.map(function (s) {
+            return infer(val[s], opts);
+          }), opts)
+        }, opts);
+      }
+      return createType({
+        type: 'record',
+        fields: fieldNames.map(function (s) {
+          return {name: s, type: infer(val[s], opts)};
+        })
+      }, opts);
+    default:
+      throw new Error(f('cannot infer type from: %j', val));
+  }
+}
+
+/**
+ * Combine types into one.
+ *
+ */
+function combine(types, opts) {
+  if (!types.length) {
+    throw new Error('no types to combine');
+  }
+  if (types.length === 1) {
+    return types[0]; // Nothing to do.
+  }
+
+  // Extract any union types.
+  var expanded = [];
+  types.forEach(function (type) {
+    switch (type.getTypeName()) {
+      case 'union:wrapped':
+        throw new Error('wrapped unions cannot be combined');
+      case 'union:unwrapped':
+        expanded = expanded.concat(type.getTypes());
+        break;
+      default:
+        expanded.push(type);
+    }
+  });
+
+  // Group types by category, similar to the logic for unwrapped unions.
+  var bucketized = {};
+  expanded.forEach(function (type) {
+    var bucket = getTypeBucket(type);
+    var bucketTypes = bucketized[bucket];
+    if (!bucketTypes) {
+      bucketized[bucket] = bucketTypes = [];
+    }
+    bucketTypes.push(type);
+  });
+
+  // Generate the "augmented" type for each group.
+  var buckets = Object.keys(bucketized);
+  var augmented = buckets.map(function (bucket) {
+    var bucketTypes = bucketized[bucket];
+    if (bucketTypes.length === 1) {
+      return bucketTypes[0];
+    } else {
+      switch (bucket) {
+        case 'null':
+        case 'boolean':
+          return bucketTypes[0];
+        case 'number':
+          return combineNumbers(bucketTypes);
+        case 'string':
+          return combineStrings(bucketTypes, opts);
+        case 'buffer':
+          return combineBuffers(bucketTypes, opts);
+        case 'array':
+          // Remove any sentinel arrays (used when inferring from empty arrays)
+          // to avoid making things nullable when they shouldn't be.
+          bucketTypes = bucketTypes.filter(function (t) {
+            return t !== EMPTY_ARRAY_TYPE;
+          });
+          if (!bucketTypes.length) {
+            // We still don't have a real type, just return the sentinel.
+            return EMPTY_ARRAY_TYPE;
+          }
+          return createType({
+            type: 'array',
+            items: combine(bucketTypes.map(function (t) {
+              return t.getItemsType();
+            }))
+          }, opts);
+        default:
+          return combineObjects(bucketTypes, opts);
+      }
+    }
+  });
+
+  if (augmented.length === 1) {
+    return augmented[0];
+  } else {
+    // We return an (unwrapped) union of all augmented types.
+    return createType(augmented, opts);
+  }
+}
+
+/**
+ * Combine number types.
+ *
+ * Note that never have to create a new type here, we are guaranteed to be able
+ * to reuse one of the input types as super-type.
+ *
+ */
+function combineNumbers(types) {
+  var typeNames = ['int', 'long', 'float', 'double'];
+  var superIndex = -1;
+  var superType = null;
+  var i, l, type, index;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    index = typeNames.indexOf(type.getTypeName());
+    if (index > superIndex) {
+      superIndex = index;
+      superType = type;
+    }
+  }
+  return superType;
+}
+
+/**
+ * Combine enums and strings.
+ *
+ * The order of the returned symbols is undefined and the returned enum is
+ * anonymous.
+ *
+ */
+function combineStrings(types, opts) {
+  var symbols = {};
+  var i, l, type, typeSymbols;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    if (type.getTypeName() === 'string') {
+      // If at least one of the types is a string, it will be the supertype.
+      return type;
+    }
+    typeSymbols = type.getSymbols();
+    var j, m;
+    for (j = 0, m = typeSymbols.length; j < m; j++) {
+      symbols[typeSymbols[j]] = true;
+    }
+  }
+  return createType({type: 'enum', symbols: Object.keys(symbols)}, opts);
+}
+
+/**
+ * Combine bytes and fixed.
+ *
+ * This function is optimized to avoid creating new types when possible: in
+ * case of a size mismatch between fixed types, it will continue looking
+ * through the array to find an existing bytes type (rather than exit early by
+ * creating one eagerly).
+ *
+ */
+function combineBuffers(types, opts) {
+  var size = -1;
+  var i, l, type;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    if (type.getTypeName() === 'bytes') {
+      return type;
+    }
+    if (size === -1) {
+      size = type.getSize();
+    } else if (type.getSize() != size) {
+      // Don't create a bytes type right away, we might be able to reuse one
+      // later on in the types array. Just mark this for now.
+      size = -2;
+    }
+  }
+  return size < 0 ? createType('bytes', opts) : types[0];
+}
+
+/**
+ * Combine maps and records.
+ *
+ * Field defaults are kept, with later definitions overriding previous ones.
+ *
+ */
+function combineObjects(types, opts) {
+  opts = opts || {};
+
+  var allTypes = []; // Field and value types.
+  var fieldTypes = {}; // Record field types grouped by field name.
+  var fieldDefaults = {};
+  var isValidRecord = true;
+
+  // Check whether the final type will be a map or a record.
+  var i, l, type, fields;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    if (!isValidRecord || type.getTypeName() === 'map') {
+      isValidRecord = false;
+      allTypes.push(type.getValuesType());
+    } else {
+      fields = type.getFields();
+
+      var j, m, field, fieldDefault, fieldName, fieldType;
+      for (j = 0, m = fields.length; j < m; j++) {
+        field = fields[j];
+        fieldName = field.getName();
+        fieldType = field.getType();
+        allTypes.push(fieldType);
+        if (!fieldTypes[fieldName]) {
+          fieldTypes[fieldName] = [];
+        }
+        fieldTypes[fieldName].push(fieldType);
+        fieldDefault = field.getDefault();
+        if (fieldDefault !== undefined) {
+          // Later defaults will override any previous ones.
+          fieldDefaults[fieldName] = fieldDefault;
+        }
+      }
+    }
+  }
+
+  if (isValidRecord) {
+    // Check that no fields are missing, or that we have the approriate
+    // defaults for those which are.
+    var fieldNames = Object.keys(fieldTypes);
+    for (i = 0, l = fieldNames.length; i < l; i++) {
+      fieldName = fieldNames[i];
+      if (
+        fieldTypes[fieldName].length < types.length &&
+        fieldDefaults[fieldName] === undefined
+      ) {
+        // At least one of the records is missing a field with no default.
+        if (opts && opts.strictDefaults) {
+          isValidRecord = false;
+        } else {
+          fieldTypes[fieldName].unshift(createType('null', opts));
+          fieldDefaults[fieldName] = null;
+        }
+      }
+    }
+  }
+
+  var attrs;
+  if (isValidRecord) {
+    attrs = {
+      type: 'record',
+      fields: fieldNames.map(function (s) {
+        var fieldType = combine(fieldTypes[s], opts);
+        var fieldDefault = fieldDefaults[s];
+        if (
+          fieldDefault !== undefined &&
+          ~fieldType.getTypeName().indexOf('union')
+        ) {
+          // Ensure that the default's corresponding type is first.
+          var unionTypes = fieldType.getTypes();
+          var i, l;
+          for (i = 0, l = unionTypes.length; i < l; i++) {
+            if (unionTypes[i].isValid(fieldDefault)) {
+              break;
+            }
+          }
+          if (i > 0) {
+            var unionType = unionTypes[0];
+            unionTypes[0] = unionTypes[i];
+            unionTypes[i] = unionType;
+            fieldType = createType(unionTypes, opts);
+          }
+        }
+        return {
+          name: s,
+          type: fieldType,
+          'default': fieldDefaults[s]
+        };
+      })
+    };
+  } else {
+    attrs = {
+      type: 'map',
+      values: combine(allTypes, opts)
+    };
+  }
+  return createType(attrs, opts);
+}
+
+
+module.exports = {
+  combine: combine,
+  infer: infer
+};
+
+}).call(this,{"isBuffer":require("../../../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
+},{"../../../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":22,"./types":52,"./utils":53}],55:[function(require,module,exports){
 /*!
  * jQuery JavaScript Library v2.2.0
  * http://jquery.com/

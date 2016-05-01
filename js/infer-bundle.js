@@ -11966,333 +11966,12 @@ function hasOwnProperty(obj, prop) {
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{"./support/isBuffer":41,"_process":25,"inherits":21}],43:[function(require,module,exports){
-(function (Buffer){
-
-// TODO: Subclass EnumType with a class that also keeps track of occurrences of
-// each symbols (to make a better decision when combining enums).
-// TODO: Use field defaults to represent values that are almost always present?
-// TODO: We could extend the subclass defined above to count all union
-// branches.
-// Coercions record -> map, enum -> string, fixed -> bytes, could be done via
-// functions coerce(type, counts) returning true if transformation should
-// occur, or simply true to always coerce. Probably inside a `coercions`
-// object.
-
-'use strict';
-var avro = require('avsc');
-/**
- * Small script that can infer an Avro schema from a value.
- *
- * Currently pretty simple and makes a few assumptions on the types used. This
- * should be made a bit more configurable before making it into the library.
- *
- */
-
-var TYPES = (function () {
-  var registry = {};
-  var names = [
-    'int', 'long', 'float', 'double', 'null', 'boolean', 'string'
-  ];
-  names.forEach(function (name) { registry[name] = createType(name); });
-  // Cached array type, used mostly for empty arrays.
-  registry.array = createType({type: 'array', items: 'null'});
-  return registry;
-});
-
-var N = 0;
-
-function getName() { return '_' + N++; }
-
-function createType(attrs) {
-  // TODO: Also pass registry?
-  return avro.parse(attrs, {unwrapUnions: true});
-}
-
-/**
- * Infer schema from value.
- *
- */
-function infer(val, opts) {
-  opts = opts || {};
-
-  switch (typeof val) {
-    case 'string':
-      if (/^[A-Za-z_][A-Za-z0-9_]*$/.test(val)) {
-        // TODO: Reuse pattern exposed in types.
-        return createType({
-          name: getName(),
-          type: 'enum',
-          symbols: [val]
-        });
-      }
-      return TYPES.string;
-    case 'boolean':
-      return TYPES.boolean;
-    case 'number':
-      if ((val | 0) === val) {
-        return TYPES.int;
-      } else if (val % 1 === 0) {
-        return TYPES.long;
-      } else if (Math.abs(val) < 9007199254740991) {
-        return TYPES.float;
-      }
-      return TYPES.double;
-    case 'object':
-      if (val === null) {
-        return TYPES['null'];
-      } else if (Array.isArray(val)) {
-        if (!val.length) {
-          return TYPES.array;
-        }
-        return createType({
-          type: 'array',
-          items: val.slice(1).reduce(
-            function (t, v) { return combine(t, infer(v, opts)); },
-            infer(val[0], opts)
-          )
-        });
-      } else if (Buffer.isBuffer(val)) {
-        return createType({
-          name: getName(),
-          type: 'fixed',
-          size: val.length
-        });
-      }
-      return createType({
-        name: getName(), // TODO: Reuse constructor name when not `'Object'`.
-        type: 'record',
-        fields: Object.keys(val).map(function (n) {
-          return {name: n, type: infer(val[n], opts)};
-        })
-      });
-    default:
-      // Functions.
-      throw new Error('unsupported');
-  }
-}
-
-function combine(t1, t2) {
-  if (t1 === t2 || t1.getFingerprint().equals(t2.getFingerprint())) {
-    return t1;
-  }
-
-  var n1 = t1.getTypeName();
-  var n2 = t2.getTypeName();
-  if (n2 === '(union)') {
-    return t2.getTypes().reduce(combine, t1);
-  }
-
-  var b1 = getTypeBucket(t1);
-  var b2 = getTypeBucket(t2);
-  if (b1 === '(union)') {
-    var buckets = {};
-    var ts = t1.getTypes();
-    ts.forEach(function (t, i) { buckets[getTypeBucket(t)] = i; });
-    var n = buckets[b2];
-    if (n !== undefined) {
-      // Combine the new type with the branch in the same bucket.
-      ts[n] = combine(ts[n], t2);
-    } else {
-      // Add a new branch to the union.
-      ts.push(t2);
-    }
-    return createType(ts);
-  }
-
-  if (b1 === b2) {
-    switch (b1) {
-      case 'number':
-        return combineNumbers(t1, t2);
-      case 'string':
-        if (n1 === 'string' || n2 === 'string') {
-          return t1;
-        }
-        return combineEnums(t1, t2);
-      case 'bytes':
-        if (
-          n1 === 'fixed' &&
-          n2 === 'fixed' &&
-          t1.getSize() === t2.getSize()
-        ) {
-          return t1;
-        }
-        return TYPES.bytes;
-      case 'array':
-        return createType({
-          type: 'array',
-          items: combine(t1.getItemsType(), t2.getItemsType())
-        });
-      case 'null':
-        return t1;
-      default:
-        // Object, so map or record.
-        if (n1 === 'record' && n2 === 'record') {
-          return combineRecords(t1, t2);
-        }
-        return combineObjects(t1, t2);
-    }
-  } else {
-    // Both types are in different buckets and not unions.
-    return createType([t1, t2]);
-  }
-}
-
-function combineNumbers(t1, t2) {
-  var typeNames = ['int', 'long', 'float', 'double'];
-  var n1 = t1.getTypeName();
-  var n2 = t2.getTypeName();
-  var index = Math.max(typeNames.indexOf(n1), typeNames.indexOf(n2));
-  return TYPES[typeNames[index]];
-}
-
-function combineEnums(t1, t2) {
-  var s1 = t1.getSymbols();
-  var s2 = t2.getSymbols();
-  var obj = {};
-
-  var i, l;
-  for (i = 0, l = s1.length; i < l; i++) {
-    obj[s1[i]] = true;
-  }
-  for (i = 0, l = s2.length; i < l; i++) {
-    obj[s2[i]] = true;
-  }
-
-  var symbols = Object.keys(obj);
-  // TODO: Configure this threshold.
-  if (symbols.length < 4) {
-    return createType({name: getName(), type: 'enum', symbols: symbols});
-  } else {
-    return TYPES.string;
-  }
-}
-
-function combineRecords(t1, t2) {
-  var f1 = t1.getFields();
-  var f2 = t2.getFields();
-  var o1 = {};
-  var o2 = {};
-
-  var i, l, f, t;
-  for (i = 0, l = f1.length; i < l; i++) {
-    f = f1[i];
-    o1[f.getName()] = f.getType();
-  }
-  for (i = 0, l = f2.length; i < l; i++) {
-    f = f2[i];
-    t = o1[f.getName()];
-    if (t) {
-      o2[f.getName()] = combine(t, f.getType());
-    } else {
-      // TODO: Allow a stricter mode where this would fail. The code below
-      // treats missing fields (which should be undefined) as null. The option
-      // could be called `noNullUndefined` perhaps.
-      o2[f.getName()] = combine(TYPES['null'], f.getType());
-    }
-  }
-  for (i = 0, l = f1.length; i < l; i++) {
-    f = f1[i];
-    t = o2[f.getName()];
-    if (!t) {
-      // TODO: Also fail if strict here.
-      o2[f.getName()] = combine(TYPES['null'], f.getType());
-    }
-  }
-
-  var record = createType({
-    name: getName(), // TODO: Reuse name if the same.
-    type: 'record',
-    fields: Object.keys(o2).map(function (n) {
-      return {
-        name: n,
-        type: o2[n],
-        'default': isNullable(o2[n]) ? null : undefined
-      };
-    })
-  });
-
-  if (record.getFields().length > 3) {
-    // TODO: Allow configuring this.
-    return fieldsToMap(record.getFields());
-  } else {
-    return record;
-  }
-}
-
-function combineObjects(t1, t2) {
-  if (t1.getTypeName() === 'record') {
-    t1 = fieldsToMap(t1.getFields());
-  }
-  if (t2.getTypeName() === 'record') {
-    t2 = fieldsToMap(t2.getFields());
-  }
-  return createType({
-    type: 'map',
-    vales: combine(t1.getValuesType(), t2.getValuesType())
-  });
-}
-
-function fieldsToMap(fields) {
-  if (!fields.length) {
-    throw new Error('empty fields');
-  }
-  return createType({
-    type: 'map',
-    values: fields.slice(1).reduce(function (t, f) {
-      return combine(t, f.getType());
-    }, fields[0].getType())
-  });
-}
-
-function isNullable(type) {
-  // Check whether type is a union with null as a branch.
-  if (type.getTypeName() !== '(union)') {
-    return false;
-  }
-  var types = type.getTypes();
-  var i, l;
-  for (i = 0, l = types.length; i < l; i++) {
-    if (types[i].getTypeName() === 'null') {
-      return true;
-    }
-  }
-  return false;
-}
-
-function getTypeBucket(type) {
-  var typeName = type.getTypeName();
-  switch (typeName) {
-    case 'double':
-    case 'float':
-    case 'int':
-    case 'long':
-      return 'number';
-    case 'fixed':
-      return 'bytes';
-    case 'enum':
-      return 'string';
-    case 'map':
-    case 'record':
-      return 'object';
-    default:
-      return typeName; // boolean, bytes, null, string, array, (union).
-  }
-}
-
-module.exports = {
-  infer: infer  
-}
-
-}).call(this,{"isBuffer":require("../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
-},{"../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":22,"avsc":45}],44:[function(require,module,exports){
 /* jshint browserify: true */
 
 'use strict';
 
 var CodeMirror = require('codemirror/lib/codemirror'),
-    avro = require('avsc'),
-    inferUtil = require('./infer-script.js');
-
+    avro = require('avsc');
 
 // Force inclusion of CodeMirror resources.
 require('codemirror/mode/javascript/javascript');
@@ -12345,27 +12024,19 @@ function createChangeHandler(delay) {
         avscCm.setValue('');
         return;
       }
-      infer(str, function (err, schema) {
-        if (err) {
-          schema = {'@error': {
-            message: err.message,
-            lineNum: err.lineNum,
-            colNum: err.colNum
-          }};
-        }
-        avscCm.setValue(JSON.stringify(schema, null, 2));
+      infer(str, function (schemaJson) {
+        avscCm.setValue(JSON.stringify(schemaJson, null, 2));
       });
     }, delay);
   };
 }
 
 function infer(str, cb) {
-  // TODO: call the actual infer API.
-  var inferredSchema = inferUtil.infer(JSON.parse(str));
-  cb(null, JSON.parse(inferredSchema.getSchema()));
+  var inferredSchema = avro.infer(JSON.parse(str));
+  cb(JSON.parse(inferredSchema.getSchema({exportAttrs: true})));
 }
 
-},{"./infer-script.js":43,"avsc":45,"codemirror/addon/display/placeholder":53,"codemirror/lib/codemirror":54,"codemirror/mode/javascript/javascript":55}],45:[function(require,module,exports){
+},{"avsc":44,"codemirror/addon/display/placeholder":53,"codemirror/lib/codemirror":54,"codemirror/mode/javascript/javascript":55}],44:[function(require,module,exports){
 /* jshint node: true */
 
 'use strict';
@@ -12379,7 +12050,8 @@ var containers = require('../../lib/containers'),
     files = require('./lib/files'),
     protocols = require('../../lib/protocols'),
     schemas = require('../../lib/schemas'),
-    types = require('../../lib/types');
+    types = require('../../lib/types'),
+    values = require('../../lib/values');
 
 
 function parse(schema, opts) {
@@ -12394,13 +12066,14 @@ module.exports = {
   Protocol: protocols.Protocol,
   Type: types.Type,
   assemble: schemas.assemble,
-  messages: protocols.messages,
+  combine: values.combine,
+  infer: values.infer,
   parse: parse,
   streams: containers.streams,
   types: types.builtins
 };
 
-},{"../../lib/containers":48,"../../lib/protocols":49,"../../lib/schemas":50,"../../lib/types":51,"./lib/files":47}],46:[function(require,module,exports){
+},{"../../lib/containers":47,"../../lib/protocols":48,"../../lib/schemas":49,"../../lib/types":50,"../../lib/values":52,"./lib/files":46}],45:[function(require,module,exports){
 (function (Buffer){
 /* jshint browserify: true */
 
@@ -12579,7 +12252,7 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16}],47:[function(require,module,exports){
+},{"buffer":16}],46:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -12637,7 +12310,7 @@ module.exports = {
  */
 function load(schema) {
   var obj;
-  if (typeof schema == 'string') {
+  if (typeof schema == 'string' && schema !== 'null') {
     try {
       obj = JSON.parse(schema);
     } catch (err) {
@@ -12665,11 +12338,11 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"../../../lib/utils":52,"buffer":16}],48:[function(require,module,exports){
+},{"../../../lib/utils":51,"buffer":16}],47:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
-// TODO: Add `readerType` option for `RawDecoder` and `BlockDecoder`.
+// TODO: Add streams which prefix each record with its length.
 
 'use strict';
 
@@ -12733,9 +12406,9 @@ var Tap = utils.Tap;
 function RawDecoder(schema, opts) {
   opts = opts || {};
 
-  var decode = opts.decode === undefined ? true : !!opts.decode;
+  var noDecode = !!opts.noDecode;
   stream.Duplex.call(this, {
-    readableObjectMode: decode,
+    readableObjectMode: !noDecode,
     allowHalfOpen: false
   });
 
@@ -12743,7 +12416,7 @@ function RawDecoder(schema, opts) {
   this._tap = new Tap(new Buffer(0));
   this._writeCb = null;
   this._needPush = false;
-  this._readValue = createReader(decode, this._type);
+  this._readValue = createReader(noDecode, this._type);
   this._finished = false;
 
   this.on('finish', function () {
@@ -12798,20 +12471,20 @@ RawDecoder.prototype._read = function () {
 function BlockDecoder(opts) {
   opts = opts || {};
 
-  var decode = opts.decode === undefined ? true : !!opts.decode;
+  var noDecode = !!opts.noDecode;
   stream.Duplex.call(this, {
     allowHalfOpen: true, // For async decompressors.
-    readableObjectMode: decode
+    readableObjectMode: !noDecode
   });
 
   this._type = null;
   this._codecs = opts.codecs;
-  this._parseOpts = opts.parseOpts;
+  this._parseHook = opts.parseHook;
   this._tap = new Tap(new Buffer(0));
   this._blockTap = new Tap(new Buffer(0));
   this._syncMarker = null;
   this._readValue = null;
-  this._decode = decode;
+  this._noDecode = noDecode;
   this._queue = new utils.OrderedQueue();
   this._decompress = null; // Decompression function.
   this._index = 0; // Next block index.
@@ -12860,13 +12533,16 @@ BlockDecoder.prototype._decodeHeader = function () {
 
   try {
     var schema = JSON.parse(header.meta['avro.schema'].toString());
-    this._type = types.createType(schema, this._parseOpts);
+    if (this._parseHook) {
+      schema = this._parseHook(schema);
+    }
+    this._type = types.createType(schema);
   } catch (err) {
     this.emit('error', err);
     return;
   }
 
-  this._readValue = createReader(this._decode, this._type);
+  this._readValue = createReader(this._noDecode, this._type);
   this._syncMarker = header.sync;
   this.emit('metadata', this._type, codec, header);
   return true;
@@ -13215,10 +12891,8 @@ function tryReadBlock(tap) {
  * Create bytes consumer, either reading or skipping records.
  *
  */
-function createReader(decode, type) {
-  if (decode) {
-    return function (tap) { return type._read(tap); };
-  } else {
+function createReader(noDecode, type) {
+  if (noDecode) {
     return (function (skipper) {
       return function (tap) {
         var pos = tap.pos;
@@ -13226,6 +12900,8 @@ function createReader(decode, type) {
         return tap.buf.slice(pos, tap.pos);
       };
     })(type._skip);
+  } else {
+    return function (tap) { return type._read(tap); };
   }
 }
 
@@ -13246,26 +12922,25 @@ module.exports = {
   HEADER_TYPE: HEADER_TYPE, // For tests.
   MAGIC_BYTES: MAGIC_BYTES, // Idem.
   streams: {
-    RawDecoder: RawDecoder,
     BlockDecoder: BlockDecoder,
-    RawEncoder: RawEncoder,
-    BlockEncoder: BlockEncoder
+    BlockEncoder: BlockEncoder,
+    RawDecoder: RawDecoder,
+    RawEncoder: RawEncoder
   }
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./files":47,"./types":51,"./utils":52,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],49:[function(require,module,exports){
+},{"./files":46,"./types":50,"./utils":51,"_process":25,"buffer":16,"stream":39,"util":42,"zlib":15}],48:[function(require,module,exports){
 (function (process,Buffer){
 /* jshint node: true */
 
-// TODO: Remove deprecated `Message` fields in next major release.
-// TODO: Optimize MessageEncoder by avoiding the extra copy on transform.
-// TODO: Add timeout as emitter options?
-// TODO: Add error hook to allow transformation of system errors?
-// TODO: Add protocol `discover` method?
-// TODO: Add clear protocol cache method?
-// TODO: Return something useful when emitting a message (e.g. number of
-// pending messages).
+// TODO: Explore making `MessageEmitter` a writable stream, and
+// `MessageListener` a readable stream. The main inconsistency is w.r.t.
+// watermarks (the standard stream behavior doesn't support waiting for the
+// callbacks, without also preventing concurrent requests).
+// TODO: See whether it is worth it to remove listeners from readable and
+// writable streams when stateless emitters and listeners are destroyed.
+// TODO: Add protocol "discover" method?
 
 'use strict';
 
@@ -13283,9 +12958,13 @@ var types = require('./types'),
     util = require('util');
 
 
-var BOOLEAN_TYPE = types.createType('boolean');
-var STRING_TYPE = types.createType('string');
-var SYSTEM_ERROR_TYPE = types.createType(['string']);
+// Various useful types. We instantiate options once, to share the registry.
+
+var OPTS = {};
+
+var BOOLEAN_TYPE = types.createType('boolean', OPTS);
+var MAP_BYTES_TYPE = types.createType({type: 'map', values: 'bytes'}, OPTS);
+var STRING_TYPE = types.createType('string', OPTS);
 
 var HANDSHAKE_REQUEST_TYPE = types.createType({
   namespace: 'org.apache.avro.ipc',
@@ -13294,14 +12973,10 @@ var HANDSHAKE_REQUEST_TYPE = types.createType({
   fields: [
     {name: 'clientHash', type: {name: 'MD5', type: 'fixed', size: 16}},
     {name: 'clientProtocol', type: ['null', 'string'], 'default': null},
-    {name: 'serverHash', type: 'org.apache.avro.ipc.MD5'},
-    {
-      name: 'meta',
-      type: ['null', {type: 'map', values: 'bytes'}],
-      'default': null
-    }
+    {name: 'serverHash', type: 'MD5'},
+    {name: 'meta', type: ['null', MAP_BYTES_TYPE], 'default': null}
   ]
-});
+}, OPTS);
 
 var HANDSHAKE_RESPONSE_TYPE = types.createType({
   namespace: 'org.apache.avro.ipc',
@@ -13317,24 +12992,15 @@ var HANDSHAKE_RESPONSE_TYPE = types.createType({
       }
     },
     {name: 'serverProtocol', type: ['null', 'string'], 'default': null},
-    {
-      name: 'serverHash',
-      type: ['null', {name: 'MD5', type: 'fixed', size: 16}],
-      'default': null
-    },
-    {
-      name: 'meta',
-      type: ['null', {type: 'map', values: 'bytes'}],
-      'default': null
-    }
+    {name: 'serverHash', type: ['null', 'MD5'], 'default': null},
+    {name: 'meta', type: ['null', MAP_BYTES_TYPE], 'default': null}
   ]
-});
+}, OPTS);
 
-var HandshakeRequest = HANDSHAKE_REQUEST_TYPE.getRecordConstructor();
-var HandshakeResponse = HANDSHAKE_RESPONSE_TYPE.getRecordConstructor();
+// A few convenience imports.
+
 var Tap = utils.Tap;
 var f = util.format;
-
 
 /**
  * Protocol generation function.
@@ -13345,16 +13011,16 @@ var f = util.format;
  */
 function createProtocol(attrs, opts) {
   opts = opts || {};
-
   var name = attrs.protocol;
   if (!name) {
     throw new Error('missing protocol name');
   }
-  opts.namespace = attrs.namespace;
+  if (attrs.namespace !== undefined) {
+    opts.namespace = attrs.namespace;
+  }
   if (opts.namespace && !~name.indexOf('.')) {
     name = f('%s.%s', opts.namespace, name);
   }
-
   if (attrs.types) {
     attrs.types.forEach(function (obj) { types.createType(obj, opts); });
   }
@@ -13364,77 +13030,65 @@ function createProtocol(attrs, opts) {
       messages[key] = new Message(key, attrs.messages[key], opts);
     });
   }
-
   return new Protocol(name, messages, opts.registry || {});
 }
 
 /**
  * An Avro protocol.
  *
- * It contains a cache for all remote protocols encountered by its emitters and
- * listeners. Note that a protocol can be listening to multiple listeners at a
- * given time. This can be a mix of stateful or stateless listeners.
- *
  */
-function Protocol(name, messages, types, ptcl) {
+function Protocol(name, messages, types, handlers) {
+  if (types === undefined) {
+    // Let's be helpful in case this class is instantiated directly.
+    return createProtocol(name, messages);
+  }
+
   this._name = name;
   this._messages = messages;
   this._types = types;
-  this._parent = ptcl;
-
-  // Cache a string instead of the buffer to avoid retaining an entire slab.
-  this._hashString = utils.getHash(this.toString()).toString('binary');
-
-  // Listener callbacks. Note the prototype used for handlers when this is a
-  // subprotocol. This lets us easily implement the desired fallback behavior.
-  var self = this;
-  this._handlers = Object.create(ptcl ? ptcl._handlers : null);
-  this._onListenerCall = function (name, req, cb) {
-    var handler = self._handlers[name];
-    if (handler) {
-      handler.call(self, req, this, cb);
-    } else if (cb) {
-      // This (listening) protocol hasn't implemented this message.
-      cb(new Error(f('unhandled message: %s', name)));
-    }
-  };
-
-  // Resolvers are split since we want emitters to still be able to talk to
-  // servers with more messages (which would be incompatible the other way).
-  this._emitterResolvers = ptcl ? ptcl._emitterResolvers : {};
-  this._listenerResolvers = ptcl ? ptcl._listenerResolvers : {};
+  // Shared with subprotocols (via the prototype chain, overwriting is safe).
+  this._handlers = handlers || {};
+  // We cache a string rather than a buffer to not retain an entire slab. This
+  // also lets us more use hashes as keys inside maps (e.g. for resolvers).
+  this._hs = utils.getHash(this.getSchema()).toString('binary');
 }
 
 Protocol.prototype.subprotocol = function () {
-  return new Protocol(this._name, this._messages, this._types, this);
+  // Return a copy of the protocol, but a separate namespace for handlers which
+  // inherits from the parent protocol. This can be useful for organizing
+  // protocols when there are many handlers.
+  return new Protocol(
+    this._name,
+    this._messages,
+    this._types,
+    Object.create(this._handlers)
+  );
 };
 
-Protocol.prototype.emit = function (name, req, emitter, cb) {
-  cb = cb || function (err) { emitter.emit('error', err); };
-
-  if (emitter._ptcl._hashString !== this._hashString) {
-    asyncAvroCb(this, cb, 'invalid emitter');
-    return;
-  }
-
-  var message = this._messages[name];
-  if (!message) {
-    asyncAvroCb(this, cb, f('unknown message: %s', name));
-    return;
-  }
-
-  emitter._emit(message, req, cb);
-};
-
-Protocol.prototype.createEmitter = function (transport, opts, cb) {
-  if (!cb && typeof opts == 'function') {
-    cb = opts;
-    opts = undefined;
-  }
-
-  var emitter;
+Protocol.prototype.createEmitter = function (transport, opts) {
+  var objectMode = opts && opts.objectMode;
   if (typeof transport == 'function') {
-    emitter = new StatelessEmitter(this, transport, opts);
+    var writableFactory;
+    if (objectMode) {
+      writableFactory = transport;
+    } else {
+      // We provide a default standard-compliant codec. This should support
+      // most use-cases (for example when speaking to the official Java and
+      // Python implementations over HTTP, or when this library is used for
+      // both the emitting and listening sides).
+      writableFactory = function (cb) {
+        var encoder = new FrameEncoder(opts);
+        encoder.pipe(transport(function (err, readable) {
+          if (err) {
+            cb(err);
+            return;
+          }
+          cb(null, readable.pipe(new FrameDecoder()));
+        }));
+        return encoder;
+      };
+    }
+    return new StatelessEmitter(this, writableFactory, opts);
   } else {
     var readable, writable;
     if (isStream(transport)) {
@@ -13443,12 +13097,104 @@ Protocol.prototype.createEmitter = function (transport, opts, cb) {
       readable = transport.readable;
       writable = transport.writable;
     }
-    emitter = new StatefulEmitter(this, readable, writable, opts);
+    if (!objectMode) {
+      // To ease communication with Java servers, we provide a non-standard
+      // default codec here (but compatible with Java servers'
+      // `NettyTransportCodec`'s implementation). This is unfortunate but
+      // probably a good compromise in practice.
+      readable = readable.pipe(new NettyDecoder());
+      var encoder = new NettyEncoder();
+      encoder.pipe(writable);
+      writable = encoder;
+    }
+    return new StatefulEmitter(this, readable, writable, opts);
   }
-  if (cb) {
-    emitter.once('eot', cb);
+};
+
+Protocol.prototype.createListener = function (transport, opts) {
+  // See `createEmitter` for `objectMode` motivations.
+  var objectMode = opts && opts.objectMode;
+  if (typeof transport == 'function') {
+    var readableFactory;
+    if (objectMode) {
+      readableFactory = transport;
+    } else {
+      readableFactory = function (cb) {
+        return transport(function (err, writable) {
+          if (err) {
+            cb(err);
+            return;
+          }
+          var encoder = new FrameEncoder(opts);
+          encoder.pipe(writable);
+          cb(null, encoder);
+        }).pipe(new FrameDecoder());
+      };
+    }
+    return new StatelessListener(this, readableFactory, opts);
+  } else {
+    var readable, writable;
+    if (isStream(transport)) {
+      readable = writable = transport;
+    } else {
+      readable = transport.readable;
+      writable = transport.writable;
+    }
+    if (!objectMode) {
+      readable = readable.pipe(new NettyDecoder());
+      var encoder = new NettyEncoder();
+      encoder.pipe(writable);
+      writable = encoder;
+    }
+    return new StatefulListener(this, readable, writable, opts);
   }
-  return emitter;
+};
+
+Protocol.prototype.emit = function (name, req, emitter, cb) {
+  if (!emitter || !this.equals(emitter.getProtocol())) {
+    throw new Error('invalid emitter');
+  }
+  var message = this._messages[name];
+  if (!message) {
+    throw new Error('unknown message: ' + name);
+  }
+  var self = this;
+  emitter.emitMessage(name, {request: req}, function (err, resEnv) {
+    var errType = message.getErrorType();
+    // System error, likely the message wasn't sent (or an error occurred while
+    // decoding the response).
+    if (err) {
+      if (this._strict) {
+        err = errType.clone(err.message, {wrapUnions: true});
+      }
+      done(err);
+      return;
+    }
+    // Message transmission succeeded, we transmit the message data; massaging
+    // any error strings into actual `Error` objects in non-strict mode.
+    err = resEnv.error;
+    if (!this._strict) {
+      if (err === undefined) {
+        err = null;
+      } else if (types.Type.isType(errType, 'union:unwrapped')) {
+        if (typeof err == 'string') {
+          err = new Error(err);
+        }
+      } else if (err && err.string) {
+        err = new Error(err.string);
+      }
+    }
+    done(err, resEnv.response);
+  });
+  return emitter.getPending();
+
+  function done(err, res) {
+    if (cb) {
+      cb.call(self, err, res);
+    } else if (err) {
+      emitter.emit('error', err);
+    }
+  }
 };
 
 Protocol.prototype.on = function (name, handler) {
@@ -13459,38 +13205,24 @@ Protocol.prototype.on = function (name, handler) {
   return this;
 };
 
-Protocol.prototype.createListener = function (transport, opts, cb) {
-  if (!cb && typeof opts == 'function') {
-    cb = opts;
-    opts = undefined;
-  }
-
-  var listener;
-  if (typeof transport == 'function') {
-    listener = new StatelessListener(this, transport, opts);
-  } else {
-    var readable, writable;
-    if (isStream(transport)) {
-      readable = writable = transport;
-    } else {
-      readable = transport.readable;
-      writable = transport.writable;
-    }
-    listener = new StatefulListener(this, readable, writable, opts);
-  }
-  if (cb) {
-    listener.once('eot', cb);
-  }
-  return listener.on('_call', this._onListenerCall);
+Protocol.prototype.getHandler = function (name) {
+  return this._handlers[name];
 };
-
-Protocol.prototype.getType = function (name) { return this._types[name]; };
 
 Protocol.prototype.getName = function () { return this._name; };
 
-Protocol.prototype.getMessages = function () { return this._messages; };
+Protocol.prototype.getType = function (name) { return this._types[name]; };
 
-Protocol.prototype.toString = function () {
+Protocol.prototype.getMessage = function (name) {
+  return this._messages[name];
+};
+
+Protocol.prototype.getMessages = function () {
+  var messages = this._messages;
+  return Object.keys(messages).map(function (name) { return messages[name]; });
+};
+
+Protocol.prototype.getSchema = function (opts) {
   var namedTypes = [];
   Object.keys(this._types).forEach(function (name) {
     var type = this._types[name];
@@ -13498,17 +13230,36 @@ Protocol.prototype.toString = function () {
       namedTypes.push(type);
     }
   }, this);
-
   return types.stringify({
     protocol: this._name,
     types: namedTypes.length ? namedTypes : undefined,
-    messages: this._messages
-  });
+    messages: Object.keys(this._messages).length ? this._messages : undefined
+  }, opts);
+};
+
+Protocol.prototype.getFingerprint = function (algorithm) {
+  if (!algorithm) {
+    // We can use the cached hash.
+    return new Buffer(this._hs, 'binary');
+  } else {
+    return utils.getHash(this.getSchema());
+  }
+};
+
+Protocol.prototype.equals = function (ptcl) {
+  return !!ptcl && this._hs === ptcl._hs;
+};
+
+Protocol.prototype.toString = function () {
+  return this.getSchema({noDeref: true});
 };
 
 Protocol.prototype.inspect = function () {
   return f('<Protocol %j>', this._name);
 };
+
+Protocol.MessageEmitter = MessageEmitter;
+Protocol.MessageListener = MessageListener;
 
 /**
  * Base message emitter class.
@@ -13517,106 +13268,151 @@ Protocol.prototype.inspect = function () {
  *
  */
 function MessageEmitter(ptcl, opts) {
+  opts = opts || {};
   events.EventEmitter.call(this);
-
   this._ptcl = ptcl;
-  this._resolvers = ptcl._emitterResolvers;
-  this._serverHashString = ptcl._hashString;
-  this._idType = IdType.createMetadataType(opts.IdType);
-  this._bufferSize = opts.bufferSize || 2048;
-  this._frameSize = opts.frameSize || 2048;
+  this._strict = !!opts.strictErrors;
 
+  this._timeout = opts.timeout === undefined ? 10000 : opts.timeout;
+  this._cache = opts.cache || {};
+  var fgpt = opts.serverFingerprint;
+  var adapter;
+  if (fgpt) {
+    adapter = this._cache[fgpt];
+  }
+  if (!adapter) {
+    // This might happen even if the server fingerprint option was set, in
+    // cases where the cache doesn't contain the corresponding adapter.
+    fgpt = ptcl.getFingerprint();
+    adapter = this._cache[fgpt] = new Adapter(ptcl, ptcl, fgpt);
+  }
+  this._adapter = adapter;
+
+  this._registry = new Registry(this);
+  this._destroyed = false;
+  this._interrupted = false;
   this.once('_eot', function (pending) { this.emit('eot', pending); });
 }
 util.inherits(MessageEmitter, events.EventEmitter);
 
-MessageEmitter.prototype._generateResolvers = function (
-  hashString, serverPtcl
-) {
-  var resolvers = {};
-  var emitterMessages = this._ptcl._messages;
-  var serverMessages = serverPtcl._messages;
-  Object.keys(emitterMessages).forEach(function (name) {
-    var cm = emitterMessages[name];
-    var sm = serverMessages[name];
-    if (!sm) {
-      throw new Error(f('missing server message: %s', name));
+MessageEmitter.prototype.getCache = function () { return this._cache; };
+
+MessageEmitter.prototype.getProtocol = function () { return this._ptcl; };
+
+MessageEmitter.prototype.getTimeout = function () { return this._timeout; };
+
+MessageEmitter.prototype.isDestroyed = function () { return this._destroyed; };
+
+MessageEmitter.prototype.getPending = function () {
+  return this._registry.size();
+};
+
+MessageEmitter.prototype.emitMessage = function (name, reqEnv, opts, cb) {
+  if (cb === undefined && typeof opts == 'function') {
+    cb = opts;
+    opts = undefined;
+  }
+  if (!cb) {
+    throw new Error('missing callback');
+  }
+
+  // Serialize the message.
+  var err, msg, reqBuf;
+  if (this._destroyed) {
+    err = new Error('destroyed');
+  } else if (name === '') {
+    // This is a ping request.
+    reqBuf = new Buffer([0, 0]); // No header, empty message name.
+  } else {
+    msg = this._ptcl.getMessage(name);
+    if (!msg) {
+      err = new Error('missing message');
+    } else {
+      try {
+        reqBuf = Buffer.concat([
+          MAP_BYTES_TYPE.toBuffer(reqEnv.header || {}),
+          STRING_TYPE.toBuffer(name),
+          msg.getRequestType().toBuffer(reqEnv.request)
+        ]);
+      } catch (cause) {
+        err = wrapError('invalid request', cause);
+      }
     }
-    if (cm._oneWay !== sm._oneWay) {
-      throw new Error(f('incompatible one-way options for message: %s', name));
+  }
+
+  // Return now if a serialization error occurred.
+  var self = this;
+  if (err) {
+    process.nextTick(function () { cb.call(self, err); });
+    return true;
+  }
+
+  // Generate the response callback.
+  var timeout = (opts && opts.timeout !== undefined) ?
+    opts.timeout :
+    this._timeout;
+  var id = this._registry.add(timeout, function (err, resBuf, adapter) {
+    var resEnv;
+    if (!err) {
+      if (name === '') {
+        resEnv = {};
+      } else {
+        try {
+          resEnv = adapter.decodeResponse(resBuf, name).envelope;
+        } catch (cause) {
+          err = wrapError('invalid response', cause);
+        }
+      }
     }
-    resolvers[name] = {
-      _responseType: cm._responseType.createResolver(sm._responseType),
-      _errorType: cm._errorType.createResolver(sm._errorType)
-    };
+    var meta;
+    if (adapter) {
+      meta = {
+        serverFingerprint: adapter._fingerprint,
+        serverProtocol: adapter.getServerProtocol()
+      };
+    }
+    cb.call(this, err, resEnv, meta);
+    if (this._destroyed && !this._interrupted && !this._registry.size()) {
+      this.destroy();
+    }
   });
-  this._resolvers[hashString] = resolvers;
+
+  return this._send(id, reqBuf, !!msg && msg.isOneWay());
 };
 
-MessageEmitter.prototype._createHandshakeRequest = function (
-  hashString, noPtcl
-) {
-  return new HandshakeRequest(
-    getHash(this._ptcl),
-    noPtcl ? null : {string: this._ptcl.toString()},
-    new Buffer(hashString, 'binary')
-  );
+MessageEmitter.prototype.destroy = function (noWait) {
+  this._destroyed = true;
+  var registry = this._registry;
+  var pending = registry.size();
+  if (noWait && pending) {
+    this._interrupted = true;
+    registry.clear();
+  }
+  if (noWait || !pending) {
+    this.emit('_eot', pending);
+  }
 };
 
-MessageEmitter.prototype._finalizeHandshake = function (tap, handshakeReq) {
-  var res = HANDSHAKE_RESPONSE_TYPE._read(tap);
-  this.emit('handshake', handshakeReq, res);
+MessageEmitter.prototype._send = utils.abstractFunction;
 
-  if (handshakeReq.clientProtocol && res.match === 'NONE') {
-    // If the emitter's protocol was included in the original request, this is
-    // not a failure which a retry will fix.
-    var buf = res.meta && res.meta.map.error;
-    throw new Error(buf ? buf.toString() : 'handshake error');
-  }
-
-  var hashString;
-  if (res.serverHash && res.serverProtocol) {
-    // This means the request didn't include the correct server hash. Note that
-    // we use the handshake response's hash rather than our computed one in
-    // case the server computes it differently.
-    hashString = res.serverHash['org.apache.avro.ipc.MD5'].toString('binary');
-    if (!canResolve(this, hashString)) {
-      this._generateResolvers(
-        hashString,
-        createProtocol(JSON.parse(res.serverProtocol.string))
-      );
-    }
-    // Make this hash the new default.
-    this._serverHashString = hashString;
-  } else {
-    hashString = handshakeReq.serverHash.toString('binary');
-  }
-
-  // We return the server's hash for stateless emitters. It might be that the
-  // default hash changes in between requests, in which case using the default
-  // one will fail.
-  return {match: res.match, serverHashString: hashString};
+MessageEmitter.prototype._createHandshakeRequest = function (adapter, noPtcl) {
+  var ptcl = this._ptcl;
+  return {
+    clientHash: ptcl.getFingerprint(),
+    clientProtocol: noPtcl ? null : ptcl.getSchema({exportAttrs: true}),
+    serverHash: adapter._fingerprint
+  };
 };
 
-MessageEmitter.prototype._encodeRequest = function (tap, message, req) {
-  safeWrite(tap, STRING_TYPE, message._name);
-  safeWrite(tap, message._requestType, req);
-};
-
-MessageEmitter.prototype._decodeArguments = function (
-  tap, hashString, message
-) {
-  var resolvers = getResolvers(this, hashString, message);
-  var args = [null, null];
-  if (tap.readBoolean()) {
-    args[0] = resolvers._errorType._read(tap);
-  } else {
-    args[1] = resolvers._responseType._read(tap);
+MessageEmitter.prototype._getAdapter = function (hres) {
+  var serverBuf = hres.serverHash;
+  var adapter = this._cache[serverBuf];
+  if (adapter) {
+    return adapter;
   }
-  if (!tap.isValid()) {
-    throw new Error('truncated message');
-  }
-  return args;
+  var serverPtcl = createProtocol(JSON.parse(hres.serverProtocol));
+  adapter = new Adapter(this._ptcl, serverPtcl, serverBuf);
+  return this._cache[serverBuf] = adapter;
 };
 
 /**
@@ -13628,120 +13424,68 @@ MessageEmitter.prototype._decodeArguments = function (
  *
  * Since each message will use its own writable/readable stream pair, the
  * advantage of this emitter is that it is able to keep track of which response
- * corresponds to each request without relying on messages' metadata. In
+ * corresponds to each request without relying on transport ordering. In
  * particular, this means these emitters are compatible with any server
  * implementation.
  *
  */
 function StatelessEmitter(ptcl, writableFactory, opts) {
-  opts = opts || {};
   MessageEmitter.call(this, ptcl, opts);
-
   this._writableFactory = writableFactory;
-  this._id = 1;
-  this._pending = {};
-  this._destroyed = false;
-  this._interrupted = false;
+
+  if (!opts || !opts.noPing) {
+    // Ping the server to check whether the remote protocol is compatible.
+    this.emitMessage('', {}, function (err) {
+      if (err) {
+        this.emit('error', err);
+      }
+    });
+  }
 }
 util.inherits(StatelessEmitter, MessageEmitter);
 
-StatelessEmitter.prototype._emit = function (message, req, cb) {
-  // We enclose the server's hash inside this message's closure since the
-  // emitter might be emitting several message concurrently and the hash might
-  // change before the response returns (unlikely but possible if the emitter
-  // talks to multiple servers at once or the server changes protocol).
-  var serverHashString = this._serverHashString;
-  var id = this._id++;
+StatelessEmitter.prototype._send = function (id, reqBuf) {
+  var cb = this._registry.get(id);
+  var adapter = this._adapter;
   var self = this;
-
-  this._pending[id] = cb;
-  if (this._destroyed) {
-    asyncAvroCb(undefined, done, 'emitter destroyed');
-    return;
-  }
-  emit(false);
+  process.nextTick(emit);
+  return true; // Each writable is only used once, no risk of buffering.
 
   function emit(retry) {
-    var tap = new Tap(new Buffer(self._bufferSize));
+    var hreq = self._createHandshakeRequest(adapter, !retry);
 
-    var handshakeReq = self._createHandshakeRequest(serverHashString, !retry);
-    safeWrite(tap, HANDSHAKE_REQUEST_TYPE, handshakeReq);
-    try {
-      safeWrite(tap, self._idType, id);
-      self._encodeRequest(tap, message, req);
-    } catch (err) {
-      asyncAvroCb(undefined, done, err);
-      return;
-    }
-
-    var writable = self._writableFactory(function onReadable(readable) {
-      if (self._interrupted) {
-        // In case this function is called asynchronously (e.g. when sending
-        // HTTP requests), it might be that we have ended since.
+    var writable = self._writableFactory.call(self, function (err, readable) {
+      if (err) {
+        cb(err);
         return;
       }
-
-      readable
-        .pipe(new MessageDecoder(!message._oneWay))
-        .on('error', done)
-        // This will happen when the message isn't one way and the readable
-        // stream ends before a single message has been decoded (e.g. on
-        // invalid response).
-        .on('data', function (buf) {
-          readable.unpipe(this); // Single message per readable stream.
-          if (self._interrupted) {
+      readable.on('data', function (obj) {
+        var buf = Buffer.concat(obj.payload);
+        try {
+          var parts = readHead(HANDSHAKE_RESPONSE_TYPE, buf);
+          var hres = parts.head;
+          if (hres.serverHash) {
+            adapter = self._getAdapter(hres);
+          }
+          self.emit('handshake', hreq, hres);
+          if (hres.match === 'NONE') {
+            emit(true);
             return;
           }
-
-          var tap = new Tap(buf);
-          try {
-            var info = self._finalizeHandshake(tap, handshakeReq);
-            serverHashString = info.serverHashString;
-            if (info.match === 'NONE') {
-              emit(true); // Retry, attaching emitter protocol this time.
-              return;
-            }
-            self._idType._read(tap); // Skip metadata.
-            var args = self._decodeArguments(tap, serverHashString, message);
-          } catch (err) {
-            done(err);
-            return;
-          }
-          if (!message._oneWay) {
-            done.apply(undefined, args);
-          }
-        });
+          // Change the default adapter.
+          self._adapter = adapter;
+        } catch (err) {
+          cb(err);
+          return;
+        }
+        cb(null, parts.tail, adapter);
+      });
     });
 
-    var encoder = new MessageEncoder(self._frameSize);
-    encoder.pipe(writable);
-    encoder.end(tap.getValue());
-  }
-
-  function done(err, res) {
-    var cb = self._pending[id];
-    delete self._pending[id];
-    cb.call(self._ptcl, err, res);
-    if (self._destroyed) {
-      self.destroy();
-    }
-  }
-};
-
-StatelessEmitter.prototype.destroy = function (noWait) {
-  this._destroyed = true;
-
-  var pendingIds = Object.keys(this._pending);
-  if (noWait) {
-    this._interrupted = true;
-    pendingIds.forEach(function (id) {
-      this._pending[id]({string: 'interrupted'});
-      delete this._pending[id];
-    }, this);
-  }
-
-  if (noWait || !pendingIds.length) {
-    this.emit('_eot', pendingIds.length);
+    writable.end({
+      id: id,
+      payload: [HANDSHAKE_REQUEST_TYPE.toBuffer(hreq), reqBuf]
+    });
   }
 };
 
@@ -13750,371 +13494,323 @@ StatelessEmitter.prototype.destroy = function (noWait) {
  *
  * These emitters reuse the same streams (both readable and writable) for all
  * messages. This avoids a lot of overhead (e.g. creating new connections,
- * re-issuing handshakes) but requires the server to include compatible
- * metadata in each response (namely forwarding each request's ID into its
- * response).
- *
- * A custom metadata format can be specified via the `idType` option. The
- * default is compatible with this package's default server (i.e. listener)
- * implementation.
+ * re-issuing handshakes) but requires the underlying transport to support
+ * forwarding message IDs.
  *
  */
 function StatefulEmitter(ptcl, readable, writable, opts) {
-  opts = opts || {};
   MessageEmitter.call(this, ptcl, opts);
-
   this._readable = readable;
   this._writable = writable;
-  this._id = 1;
-  this._pending = {};
-  this._started = false;
-  this._destroyed = false;
-  this._ended = false; // Readable input ended.
-  this._decoder = new MessageDecoder();
-  this._encoder = new MessageEncoder(this._frameSize);
+  this._connected = !!(opts && opts.noPing);
+  this._readable.on('end', function () { self.destroy(true); });
+  this._writable.on('finish', function () { self.destroy(); });
 
-  var handshakeReq = null;
-  var self = this;
-
-  process.nextTick(function () {
-    self._readable.pipe(self._decoder)
-      .on('error', function (err) { self.emit('error', err); })
-      .on('data', onHandshakeData)
-      .on('end', function () {
-        self._ended = true;
-        self.destroy();
-      });
-
-    self._encoder.pipe(self._writable);
-    emitHandshake(true);
+  this.on('eot', function () {
+    // Remove references to this emitter to avoid potential memory leaks.
+    this._readable
+      .removeListener('data', onPing)
+      .removeListener('data', onMessage);
   });
 
-  function emitHandshake(noPtcl) {
-    handshakeReq = self._createHandshakeRequest(
-      self._serverHashString,
-      noPtcl
-    );
-    self._encoder.write(handshakeReq.toBuffer());
+  var self = this;
+  var hreq; // For handshake events.
+  if (this._connected) {
+    this._readable.on('data', onMessage);
+  } else {
+    this._readable.on('data', onPing);
+    process.nextTick(ping);
   }
 
-  function onHandshakeData(buf) {
-    var tap = new Tap(buf);
-    try {
-      var info = self._finalizeHandshake(tap, handshakeReq);
-    } catch (err) {
-      self.emit('error', err);
-      self.destroy(); // This isn't a recoverable error.
+  function ping(retry) {
+    if (self._destroyed) {
       return;
     }
-
-    if (info.match !== 'NONE') {
-      self._decoder
-        .removeListener('data', onHandshakeData)
-        .on('data', onMessageData);
-      self._started = true;
-      self.emit('_start'); // Send any pending messages.
-    } else {
-      emitHandshake(false);
-    }
+    hreq = self._createHandshakeRequest(self._adapter, !retry);
+    var payload = [
+      HANDSHAKE_REQUEST_TYPE.toBuffer(hreq),
+      new Buffer([0, 0]) // No header, no data (empty message name).
+    ];
+    self._writable.write({id: 0, payload: payload});
   }
 
-  function onMessageData(buf) {
-    var tap = new Tap(buf);
+  function onPing(obj) {
+    var buf = Buffer.concat(obj.payload);
     try {
-      var id = self._idType._read(tap);
-      if (!id) {
-        throw new Error('missing ID');
+      var hres = readHead(HANDSHAKE_RESPONSE_TYPE, buf).head;
+      if (hres.serverHash) {
+        self._adapter = self._getAdapter(hres);
       }
     } catch (err) {
-      self.emit('error', new Error('invalid metadata: ' + err.message));
+      self.destroy(true); // Not a recoverable error.
+      self.emit('error', wrapError('handshake error', err));
       return;
     }
+    self.emit('handshake', hreq, hres);
+    if (hres.match === 'NONE') {
+      ping(true);
+    } else {
+      self._readable.removeListener('data', onPing).on('data', onMessage);
+      self._connected = true;
+      self.emit('_connected');
+      hreq = null; // Release reference.
+    }
+  }
 
-    var info = self._pending[id];
-    if (info === undefined) {
-      self.emit('error', new Error('orphan response: ' + id));
-      return;
-    }
-
-    try {
-      var args = self._decodeArguments(
-        tap,
-        self._serverHashString,
-        info.message
-      );
-    } catch (err) {
-      info.cb({string: 'invalid response: ' + err.message});
-      return;
-    }
-    delete self._pending[id];
-    info.cb.apply(self._ptcl, args);
-    if (self._destroyed) {
-      self.destroy();
+  // Callback used after a connection has been established.
+  function onMessage(obj) {
+    var cb = self._registry.get(obj.id);
+    if (cb) {
+      process.nextTick(function () {
+        // Ensure that the initial callback gets called asynchronously, even
+        // for completely synchronous transports (otherwise the number of
+        // pending requests will sometimes be inconsistent between stateful and
+        // stateless transports).
+        cb(null, Buffer.concat(obj.payload), self._adapter);
+      });
     }
   }
 }
 util.inherits(StatefulEmitter, MessageEmitter);
 
-StatefulEmitter.prototype._emit = function (message, req, cb) {
-  if (this._destroyed) {
-    asyncAvroCb(this._ptcl, cb, 'emitter destroyed');
-    return;
+StatefulEmitter.prototype._send = function (id, reqBuf, isOneWay) {
+  if (!this._connected) {
+    this.once('_connected', function () { this._send(id, reqBuf, isOneWay); });
+    return false; // Call is being buffered.
   }
-
-  var self = this;
-  if (!this._started) {
-    this.once('_start', function () { self._emit(message, req, cb); });
-    return;
+  if (isOneWay) {
+    var self = this;
+    // Clear the callback, passing in an empty header.
+    process.nextTick(function () {
+      self._registry.get(id)(null, new Buffer([0, 0, 0]), self._adapter);
+    });
   }
-
-  var tap = new Tap(new Buffer(this._bufferSize));
-  var id = this._id++;
-  try {
-    safeWrite(tap, this._idType, -id);
-    this._encodeRequest(tap, message, req);
-  } catch (err) {
-    asyncAvroCb(this._ptcl, cb, err);
-    return;
-  }
-
-  if (!message._oneWay) {
-    this._pending[id] = {message: message, cb: cb};
-  }
-  this._encoder.write(tap.getValue());
-};
-
-StatefulEmitter.prototype.destroy = function (noWait) {
-  this._destroyed = true;
-  if (!this._started) {
-    this.emit('_start'); // Error out any pending calls.
-  }
-
-  var pendingIds = Object.keys(this._pending);
-  if (pendingIds.length && !(noWait || this._ended)) {
-    return; // Wait for pending requests.
-  }
-  pendingIds.forEach(function (id) {
-    var cb = this._pending[id].cb;
-    delete this._pending[id];
-    cb({string: 'interrupted'});
-  }, this);
-
-  this._readable.unpipe(this._decoder);
-  this._encoder.unpipe(this._writable);
-  this.emit('_eot', pendingIds.length);
+  return this._writable.write({id: id, payload: [reqBuf]});
 };
 
 /**
  * The server-side emitter equivalent.
  *
- * In particular it is responsible for handling handshakes appropriately.
- *
  */
 function MessageListener(ptcl, opts) {
-  events.EventEmitter.call(this);
   opts = opts || {};
-
+  events.EventEmitter.call(this);
   this._ptcl = ptcl;
-  this._resolvers = ptcl._listenerResolvers;
-  this._emitterHashString = null;
-  this._idType = IdType.createMetadataType(opts.IdType);
-  this._bufferSize = opts.bufferSize || 2048;
-  this._frameSize = opts.frameSize || 2048;
-  this._decoder = new MessageDecoder();
-  this._encoder = new MessageEncoder(this._frameSize);
-  this._destroyed = false;
-  this._pending = 0;
+  this._strict = !!opts.strictErrors;
+  this._cache = opts.cache || {};
 
+  var fgpt = this._ptcl.getFingerprint();
+  if (!this._cache[fgpt]) {
+    // Add the listener's protocol to the cache if it isn't already there. This
+    // will save a handshake the first time on emitters with the same protocol.
+    this._cache[fgpt] = new Adapter(this._ptcl, this._ptcl, fgpt);
+  }
+
+  this._adapter = null;
+  this._hook = null;
+
+  this._pending = 0;
+  this._destroyed = false;
+  this._interrupted = false;
   this.once('_eot', function (pending) { this.emit('eot', pending); });
 }
 util.inherits(MessageListener, events.EventEmitter);
 
-MessageListener.prototype._generateResolvers = function (
-  hashString, emitterPtcl
-) {
-  var resolvers = {};
-  var clientMessages = emitterPtcl._messages;
-  var serverMessages = this._ptcl._messages;
-  Object.keys(clientMessages).forEach(function (name) {
-    var sm = serverMessages[name];
-    if (!sm) {
-      throw new Error(f('missing server message: %s', name));
-    }
-    var cm = clientMessages[name];
-    if (cm._oneWay !== sm._oneWay) {
-      throw new Error(f('incompatible one-way options for message: %s', name));
-    }
-    resolvers[name] = {
-      _requestType: sm._requestType.createResolver(cm._requestType)
-    };
-  });
-  this._resolvers[hashString] = resolvers;
+MessageListener.prototype.getCache = function () { return this._cache; };
+
+MessageListener.prototype.getPending = function () { return this._pending; };
+
+MessageListener.prototype.getProtocol = function () { return this._ptcl; };
+
+MessageListener.prototype.isDestroyed = function () {
+  return this._destroyed;
 };
 
-MessageListener.prototype._validateHandshake = function (reqTap, resTap) {
-  // Reads handshake request and write corresponding response out. If an error
-  // occurs when parsing the request, a response with match NONE will be sent.
-  // Also emits 'handshake' event with both the request and the response.
-  var validationErr = null;
-  try {
-    var handshakeReq = HANDSHAKE_REQUEST_TYPE._read(reqTap);
-    var serverHashString = handshakeReq.serverHash.toString('binary');
-  } catch (err) {
-    validationErr = err;
-  }
-
-  if (!validationErr) {
-    this._emitterHashString = handshakeReq.clientHash.toString('binary');
-    if (!canResolve(this, this._emitterHashString)) {
-      var emitterPtclString = handshakeReq.clientProtocol;
-      if (emitterPtclString) {
-        try {
-          this._generateResolvers(
-            this._emitterHashString,
-            createProtocol(JSON.parse(emitterPtclString.string))
-          );
-        } catch (err) {
-          validationErr = err;
-        }
-      } else {
-        validationErr = new Error('unknown client protocol hash');
-      }
-    }
-  }
-
-  // We use the handshake response's meta field to transmit an eventual error
-  // to the client. This will let us display a more useful message later on.
-  var serverMatch = serverHashString === this._ptcl._hashString;
-  var handshakeRes = new HandshakeResponse(
-    validationErr ? 'NONE' : serverMatch ? 'BOTH' : 'CLIENT',
-    serverMatch ? null : {string: this._ptcl.toString()},
-    serverMatch ? null : {'org.apache.avro.ipc.MD5': getHash(this._ptcl)},
-    validationErr ? {map: {error: new Buffer(validationErr.message)}} : null
-  );
-
-  this.emit('handshake', handshakeReq, handshakeRes);
-  safeWrite(resTap, HANDSHAKE_RESPONSE_TYPE, handshakeRes);
-  return validationErr === null;
-};
-
-MessageListener.prototype._decodeRequest = function (tap, message) {
-  var resolvers = getResolvers(this, this._emitterHashString, message);
-  var val = resolvers._requestType._read(tap);
-  if (!tap.isValid()) {
-    throw new Error('invalid request');
-  }
-  return val;
-};
-
-MessageListener.prototype._encodeSystemError = function (tap, err) {
-  safeWrite(tap, BOOLEAN_TYPE, true);
-  safeWrite(tap, SYSTEM_ERROR_TYPE, avroError(err));
-};
-
-MessageListener.prototype._encodeArguments = function (
-  tap, message, err, res
-) {
-  var noError = err === null;
-  var pos = tap.pos;
-  safeWrite(tap, BOOLEAN_TYPE, !noError);
-  try {
-    if (noError) {
-      safeWrite(tap, message._responseType, res);
-    } else {
-      if (err instanceof Error) {
-        // Convenience to allow emitter to use JS errors inside handlers.
-        err = avroError(err);
-      }
-      safeWrite(tap, message._errorType, err);
-    }
-  } catch (err) {
-    tap.pos = pos;
-    this._encodeSystemError(tap, err);
-  }
+MessageListener.prototype.onMessage = function (fn) {
+  this._hook = fn;
+  return this;
 };
 
 MessageListener.prototype.destroy = function (noWait) {
-  if (!this._destroyed) {
-    // Stop listening. This will also correctly push back any unused bytes into
-    // the readable stream (via `MessageDecoder`'s `unpipe` handler).
-    this._readable.unpipe(this._decoder);
-  }
-
   this._destroyed = true;
   if (noWait || !this._pending) {
-    this._encoder.unpipe(this._writable);
+    this._interrupted = true;
     this.emit('_eot', this._pending);
   }
 };
 
+MessageListener.prototype._receive = function (reqBuf, adapter, cb) {
+  var ptcl = this._ptcl;
+  var self = this;
+  try {
+    var decoded = adapter.decodeRequest(reqBuf);
+  } catch (err) {
+    cb(encodeError(err));
+    return;
+  }
+
+  var clientMsg = decoded.message;
+  if (!clientMsg) {
+    // Ping request, return an empty response.
+    cb(new Buffer(0));
+    return;
+  }
+  var name = clientMsg.getName();
+  var serverMsg = ptcl.getMessage(name);
+  var handler = ptcl._handlers[name];
+  var reqEnv = decoded.envelope;
+  this._pending++;
+  if (this._hook) {
+    // Custom hook.
+    var meta = {
+      clientFingerprint: adapter._fingerprint,
+      clientProtocol: adapter.getClientProtocol()
+    };
+    this._hook.call(this, name, reqEnv, meta, done);
+  } else if (handler) {
+    try {
+      if (serverMsg.isOneWay()) {
+        handler.call(ptcl, reqEnv.request);
+        done(null, null);
+      } else {
+        handler.call(ptcl, reqEnv.request, this, function (err, res) {
+          var errType = serverMsg.getErrorType();
+          if (!self._strict) {
+            if (isError(err)) {
+              err = errType.clone(err.message, {wrapUnions: true});
+            } else if (err === null) {
+              err = undefined;
+            }
+          }
+          done(null, {error: err, response: res});
+        });
+      }
+    } catch (err) {
+      // We catch synchronous failures (same as express) and return the
+      // failure. Note that the server process can still crash if an error is
+      // thrown after the handler returns but before the response is sent
+      // (again, same as express).
+      done(err);
+    }
+  } else {
+    // The underlying protocol hasn't implemented a handler for this message.
+    done(new Error(f('unhandled message: %s', name)));
+  }
+
+  function done(err, resEnv) {
+    self._pending--;
+    var resBuf;
+    if (!err) {
+      var errType = serverMsg.getErrorType();
+      var noError = resEnv.error === undefined;
+      try {
+        var header = MAP_BYTES_TYPE.toBuffer(resEnv.header || {});
+        resBuf = Buffer.concat([
+          header,
+          BOOLEAN_TYPE.toBuffer(!noError),
+          noError ?
+            serverMsg.getResponseType().toBuffer(resEnv.response) :
+            errType.toBuffer(resEnv.error)
+        ]);
+      } catch (cause) {
+        err = wrapError('invalid response', cause);
+      }
+    }
+    if (err) {
+      resBuf = encodeError(err, header);
+    }
+    if (!self._interrupted) {
+      cb(resBuf, serverMsg.isOneWay());
+    }
+    if (self._destroyed && !self._pending) {
+      self.destroy();
+    }
+  }
+};
+
+MessageListener.prototype._createHandshakeResponse = function (err, hreq) {
+  var ptcl = this._ptcl;
+  var buf = ptcl.getFingerprint();
+  var serverMatch = hreq && hreq.serverHash.equals(buf);
+  return {
+    match: err ? 'NONE' : (serverMatch ? 'BOTH' : 'CLIENT'),
+    serverProtocol: serverMatch ? null : ptcl.getSchema({exportAttrs: true}),
+    serverHash: serverMatch ? null : buf
+  };
+};
+
+MessageListener.prototype._getAdapter = function (hreq) {
+  var clientBuf = hreq.clientHash;
+  var adapter = this._cache[clientBuf];
+  if (adapter) {
+    return adapter;
+  }
+  if (!hreq.clientProtocol) {
+    throw new Error('unknown protocol');
+  }
+  var clientPtcl = createProtocol(JSON.parse(hreq.clientProtocol));
+  adapter = new Adapter(clientPtcl, this._ptcl, clientBuf);
+  return this._cache[clientBuf] = adapter;
+};
+
 /**
- * Listener for stateless transport.
+ * MessageListener for stateless transport.
  *
  * This listener expect a handshake to precede each message.
  *
  */
 function StatelessListener(ptcl, readableFactory, opts) {
   MessageListener.call(this, ptcl, opts);
-
-  this._tap = new Tap(new Buffer(this._bufferSize));
-  this._message = undefined;
-
   var self = this;
-  this._readable = readableFactory(function (writable) {
-    // The encoder will buffer writes that happen before this function is
-    // called, so we don't need to do any special handling.
-    self._writable = self._encoder
-      .pipe(writable)
-      .on('finish', onEnd);
+
+  process.nextTick(function () {
+    // Delay listening to allow handlers to be attached even if the factory is
+    // purely synchronous.
+    readableFactory.call(this, function (err, writable) {
+      if (err) {
+        onFinish();
+        return;
+      }
+      self._writable = writable.on('finish', onFinish);
+      self.emit('_writable');
+    }).once('data', onRequest)
+      .on('end', function() { self.destroy(); });
   });
 
-  this._readable.pipe(this._decoder)
-    .on('data', onRequestData)
-    .on('end', onEnd);
-
-  function onRequestData(buf) {
-    self._pending++;
-    self.destroy(); // Only one message per stateless listener.
-
-    var reqTap = new Tap(buf);
-    if (!self._validateHandshake(reqTap, self._tap)) {
-      onResponse(new Error('invalid handshake'));
-      return;
-    }
-
+  function onRequest(obj) {
+    var id = obj.id;
+    var buf = Buffer.concat(obj.payload);
+    var err = null;
     try {
-      self._idType._read(reqTap); // Skip metadata.
-      var name = STRING_TYPE._read(reqTap);
-      self._message = self._ptcl._messages[name];
-      if (!self._message) {
-        throw new Error(f('unknown message: %s', name));
+      var parts = readHead(HANDSHAKE_REQUEST_TYPE, buf);
+      var hreq = parts.head;
+      var adapter = self._getAdapter(hreq);
+    } catch (cause) {
+      err = wrapError('invalid handshake request', cause);
+    }
+
+    if (err) {
+      done(encodeError(err));
+    } else {
+      self._receive(parts.tail, adapter, done);
+    }
+
+    function done(resBuf) {
+      var hres = self._createHandshakeResponse(err, hreq);
+      self.emit('handshake', hreq, hres);
+      if (self._writable) {
+        var payload = [
+          HANDSHAKE_RESPONSE_TYPE.toBuffer(hres),
+          resBuf
+        ];
+        self._writable.end({id: id, payload: payload});
+      } else {
+        self.once('_writable', function () { done(resBuf); });
       }
-      var req = self._decodeRequest(reqTap, self._message);
-    } catch (err) {
-      onResponse(err);
-      return;
-    }
-
-    if (self._message._oneWay) {
-      self.emit('_call', name, req);
-      onResponse(null, null);
-    } else {
-      self.emit('_call', name, req, onResponse);
     }
   }
 
-  function onResponse(err, res) {
-    safeWrite(self._tap, self._idType, 0);
-    if (!self._message) {
-      self._encodeSystemError(self._tap, err);
-    } else {
-      self._encodeArguments(self._tap, self._message, err, res);
-    }
-    self._pending--;
-    self._encoder.end(self._tap.getValue());
-  }
-
-  function onEnd() { self.destroy(); }
+  function onFinish() { self.destroy(true); }
 }
 util.inherits(StatelessListener, MessageListener);
 
@@ -14127,98 +13823,88 @@ util.inherits(StatelessListener, MessageListener);
  */
 function StatefulListener(ptcl, readable, writable, opts) {
   MessageListener.call(this, ptcl, opts);
+  this._adapter = undefined;
+  this._writable = writable.on('finish', onFinish);
+  this._readable = readable.on('data', onHandshake).on('end', onEnd);
 
-  this._readable = readable;
-  this._writable = writable;
+  this.on('eot', function () {
+    // Clean up any references to the listener on the underlying streams.
+    this._writable.removeListener('finish', onFinish);
+    this._readable
+      .removeListener('data', onHandshake)
+      .removeListener('data', onRequest)
+      .removeListener('end', onEnd);
+  });
 
   var self = this;
 
-  this._readable
-    .pipe(this._decoder)
-    .on('data', onHandshakeData)
-    .on('end', function () { self.destroy(); });
-
-  this._encoder
-    .pipe(this._writable)
-    .on('finish', function () { self.destroy(); });
-
-  function onHandshakeData(buf) {
-    var reqTap = new Tap(buf);
-    var resTap = new Tap(new Buffer(self._bufferSize));
-    if (self._validateHandshake(reqTap, resTap)) {
-      self._decoder
-        .removeListener('data', onHandshakeData)
-        .on('data', onRequestData);
-    }
-    self._encoder.write(resTap.getValue());
-  }
-
-  function onRequestData(buf) {
-    var reqTap = new Tap(buf);
-    var resTap = new Tap(new Buffer(self._bufferSize));
-    var id = 0;
+  function onHandshake(obj) {
+    var id = obj.id;
+    var buf = Buffer.concat(obj.payload);
+    var err;
     try {
-      id = -self._idType._read(reqTap) | 0;
-      if (!id) {
-        throw new Error('missing ID');
-      }
-    } catch (err) {
-      self.emit('error', new Error('invalid metadata: ' + err.message));
-      return;
+      var parts = readHead(HANDSHAKE_REQUEST_TYPE, buf);
+      var hreq = parts.head;
+      self._adapter = self._getAdapter(hreq);
+    } catch (cause) {
+      err = wrapError('invalid handshake request', cause);
     }
-
-    self._pending++;
-    try {
-      var name = STRING_TYPE._read(reqTap);
-      var message = self._ptcl._messages[name];
-      if (!message) {
-        throw new Error('unknown message: ' + name);
-      }
-      var req = self._decodeRequest(reqTap, message);
-    } catch (err) {
-      onResponse(err);
-      return;
-    }
-
-    if (message._oneWay) {
-      self.emit('_call', name, req);
-      self._pending--;
+    if (err) {
+      // Either the client's protocol was unknown or it isn't compatible.
+      done(encodeError(err));
     } else {
-      self.emit('_call', name, req, onResponse);
+      self._readable
+        .removeListener('data', onHandshake)
+        .on('data', onRequest);
+      self._receive(parts.tail, self._adapter, done);
     }
 
-    function onResponse(err, res) {
-      self._pending--;
-      safeWrite(resTap, self._idType, id);
-      if (!message) {
-        self._encodeSystemError(resTap, err);
-      } else {
-        self._encodeArguments(resTap, message, err, res);
-      }
-      self._encoder.write(resTap.getValue(), undefined, function () {
-        if (!self._pending && self._destroyed) {
-          self.destroy(); // For real this time.
-        }
-      });
+    function done(resBuf) {
+      var hres = self._createHandshakeResponse(err, hreq);
+      self.emit('handshake', hreq, hres);
+      var payload = [
+        HANDSHAKE_RESPONSE_TYPE.toBuffer(hres),
+        resBuf
+      ];
+      self._writable.write({id: id, payload: payload});
     }
   }
+
+  function onRequest(obj) {
+    // These requests are not prefixed with handshakes.
+    var id = obj.id;
+    var reqBuf = Buffer.concat(obj.payload);
+    self._receive(reqBuf, self._adapter, function (resBuf, isOneWay) {
+      if (!isOneWay) {
+        self._writable.write({id: id, payload: [resBuf]});
+      }
+    });
+  }
+
+  function onEnd() { self.destroy(); }
+
+  function onFinish() { self.destroy(true); }
 }
 util.inherits(StatefulListener, MessageListener);
-
-// Helpers.
 
 /**
  * An Avro message.
  *
+ * It contains the various types used to send it (request, error, response).
+ *
  */
 function Message(name, attrs, opts) {
+  opts = opts || {};
   this._name = name;
 
+  var requestName = 'org.apache.avro.ipc.Request'; // Placeholder name.
   this._requestType = types.createType({
-    name: 'org.apache.avro.ipc.Request', // Placeholder name.
-    type: '(request)',
+    type: 'record',
+    name: requestName,
+    namespace: opts.namespace || '',
     fields: attrs.request
   }, opts);
+  delete opts.registry[requestName];
 
   if (!attrs.response) {
     throw new Error('missing response');
@@ -14235,23 +13921,19 @@ function Message(name, attrs, opts) {
       throw new Error('unapplicable one-way parameter');
     }
   }
-
-  // Deprecated fields (changed to be consistent with rest of API, which uses
-  // getters to emphasize "read-only"-ness of the attributes).
-  this.name = this._name;
-  this.requestType = this._requestType;
-  this.responseType = this._responseType;
-  this.errorType = this._errorType;
-  this.oneWay = this._oneWay;
 }
 
 Message.prototype.getName = function () { return this._name; };
+
 Message.prototype.getRequestType = function () { return this._requestType; };
+
 Message.prototype.getResponseType = function () { return this._responseType; };
+
 Message.prototype.getErrorType = function () { return this._errorType; };
+
 Message.prototype.isOneWay = function () { return this._oneWay; };
 
-Message.prototype.toJSON = function () {
+Message.prototype.inspect = Message.prototype.toJSON = function () {
   var obj = {
     request: this._requestType.getFields(),
     response: this._responseType
@@ -14266,76 +13948,163 @@ Message.prototype.toJSON = function () {
   return obj;
 };
 
-Message.prototype.inspect = Message.prototype.toJSON;
+// Helpers.
 
 /**
- * "Framing" stream.
+ * Callback registry.
  *
- * @param frameSize {Number} (Maximum) size in bytes of each frame. The last
- * frame might be shorter.
+ * Callbacks added must accept an error as first argument. This is used by
+ * message emitters to store pending calls.
  *
  */
-function MessageEncoder(frameSize) {
-  stream.Transform.call(this);
-  this._frameSize = frameSize | 0;
-  if (this._frameSize <= 0) {
-    throw new Error('invalid frame size');
-  }
+function Registry(ctx) {
+  this._ctx = ctx; // Context for all callbacks.
+  this._id = 0; // Unique integer ID for each call.
+  this._n = 0; // Number of pending calls.
+  this._cbs = {};
 }
-util.inherits(MessageEncoder, stream.Transform);
 
-MessageEncoder.prototype._transform = function (buf, encoding, cb) {
-  var frames = [];
-  var length = buf.length;
-  var start = 0;
-  var end;
-  do {
-    end = start + this._frameSize;
-    if (end > length) {
-      end = length;
+Registry.prototype.size = function () { return this._n; };
+
+Registry.prototype.get = function (id) { return this._cbs[id]; };
+
+Registry.prototype.add = function (timeout, fn) {
+  this._id = (this._id + 1) | 0;
+
+  var self = this;
+  var id = this._id;
+  var timer;
+  if (timeout > 0) {
+    timer = setTimeout(function () { cb(new Error('timeout')); }, timeout);
+  }
+
+  this._cbs[id] = cb;
+  this._n++;
+  return id;
+
+  function cb() {
+    if (!self._cbs[id]) {
+      // The callback has already run.
+      return;
     }
-    frames.push(intBuffer(end - start));
-    frames.push(buf.slice(start, end));
-  } while ((start = end) < length);
-  frames.push(intBuffer(0));
-  cb(null, Buffer.concat(frames));
+    delete self._cbs[id];
+    self._n--;
+    if (timer) {
+      clearTimeout(timer);
+    }
+    fn.apply(self._ctx, arguments);
+  }
+};
+
+Registry.prototype.clear = function () {
+  Object.keys(this._cbs).forEach(function (id) {
+    this._cbs[id](new Error('interrupted'));
+  }, this);
 };
 
 /**
- * "Un-framing" stream.
+ * Protocol resolution helper.
  *
- * @param noEmpty {Boolean} Emit an error if the decoder ends before emitting a
- * single frame.
- *
- * This stream should only be used by being piped/unpiped to. Otherwise there
- * is a risk that too many bytes get consumed from the source stream (i.e.
- * data corresponding to a partial message might be lost).
+ * It is used both by emitters and listeners, to respectively decode errors and
+ * responses, or requests.
  *
  */
-function MessageDecoder(noEmpty) {
-  stream.Transform.call(this);
+function Adapter(clientPtcl, serverPtcl, fingerprint) {
+  this._clientPtcl = clientPtcl;
+  this._serverPtcl = serverPtcl;
+  this._fingerprint = fingerprint; // Convenience.
+  this._rsvs = clientPtcl.equals(serverPtcl) ? null : this._createResolvers();
+}
+
+Adapter.prototype.getClientProtocol = function () { return this._clientPtcl; };
+
+Adapter.prototype.getServerProtocol = function () { return this._serverPtcl; };
+
+Adapter.prototype._createResolvers = function () {
+  var rsvs = {};
+  this._clientPtcl.getMessages().forEach(function (c) {
+    var n = c.getName();
+    var s = this._serverPtcl.getMessage(n);
+    if (!s) {
+      throw new Error(f('missing server message: %s', n));
+    }
+    if (s.isOneWay() !== c.isOneWay()) {
+      throw new Error(f('inconsistent one-way parameter for message: %s', n));
+    }
+    try {
+      rsvs[n + '?'] = s.getRequestType().createResolver(c.getRequestType());
+      rsvs[n + '*'] = c.getErrorType().createResolver(s.getErrorType());
+      rsvs[n + '!'] = c.getResponseType().createResolver(s.getResponseType());
+    } catch (err) {
+      throw wrapError('incompatible message ' + n, err);
+    }
+  }, this);
+  return rsvs;
+};
+
+Adapter.prototype._getReader = function (name, qualifier) {
+  if (this._rsvs) {
+    return this._rsvs[name + qualifier];
+  } else {
+    var msg = this._serverPtcl.getMessage(name);
+    switch (qualifier) {
+      case '?': return msg.getRequestType();
+      case '*': return msg.getErrorType();
+      case '!': return msg.getResponseType();
+    }
+  }
+};
+
+Adapter.prototype.decodeRequest = function (buf) {
+  var tap = new Tap(buf);
+  var hdr = MAP_BYTES_TYPE._read(tap);
+  var name = STRING_TYPE._read(tap);
+  if (name) {
+    var req = this._getReader(name, '?')._read(tap);
+  }
+  if (!tap.isValid()) {
+    throw new Error('truncated request');
+  }
+  return {
+    message: this._clientPtcl.getMessage(name),
+    envelope: {header: hdr, request: req}
+  };
+};
+
+Adapter.prototype.decodeResponse = function (buf, name) {
+  var tap = new Tap(buf);
+  var hdr = MAP_BYTES_TYPE._read(tap);
+  var isError = BOOLEAN_TYPE._read(tap);
+  var reader = this._getReader(name, isError ? '*' : '!');
+  if (isError) {
+    var err = reader._read(tap);
+  } else {
+    var res = reader._read(tap);
+  }
+  if (!tap.isValid()) {
+    throw new Error('truncated response');
+  }
+  return {
+    message: this._serverPtcl.getMessage(name),
+    envelope: {header: hdr, error: err, response: res}
+  };
+};
+
+/**
+ * Standard "un-framing" stream.
+ *
+ */
+function FrameDecoder() {
+  stream.Transform.call(this, {readableObjectMode: true});
+  this._id = undefined;
   this._buf = new Buffer(0);
   this._bufs = [];
-  this._length = 0;
-  this._empty = !!noEmpty;
 
-  this
-    .on('finish', function () { this.push(null); })
-    .on('unpipe', function (src) {
-      if (~this._length && !src._readableState.ended) {
-        // Not ideal to rely on this to check whether we can unshift, but the
-        // official documentation mentions it (in the context of the read
-        // buffers) so it should be stable. Alternatives are more complex,
-        // costly (e.g. attaching a handler on pipe), and not as fool-proof
-        // (the stream might have ended earlier).
-        this._bufs.push(this._buf);
-        src.unshift(Buffer.concat(this._bufs));
-      }
-    });
+  this.on('finish', function () { this.push(null); });
 }
-util.inherits(MessageDecoder, stream.Transform);
+util.inherits(FrameDecoder, stream.Transform);
 
-MessageDecoder.prototype._transform = function (buf, encoding, cb) {
+FrameDecoder.prototype._transform = function (buf, encoding, cb) {
   buf = Buffer.concat([this._buf, buf]);
   var frameLength;
   while (
@@ -14344,13 +14113,10 @@ MessageDecoder.prototype._transform = function (buf, encoding, cb) {
   ) {
     if (frameLength) {
       this._bufs.push(buf.slice(4, frameLength + 4));
-      this._length += frameLength;
     } else {
-      var frame = Buffer.concat(this._bufs, this._length);
-      this._empty = false;
-      this._length = 0;
+      var bufs = this._bufs;
       this._bufs = [];
-      this.push(frame);
+      this.push({id: null, payload: bufs});
     }
     buf = buf.slice(frameLength + 4);
   }
@@ -14358,40 +14124,124 @@ MessageDecoder.prototype._transform = function (buf, encoding, cb) {
   cb();
 };
 
-MessageDecoder.prototype._flush = function () {
-  if (this._length || this._buf.length) {
-    this._length = -1; // Don't unshift data on incoming unpipe.
+FrameDecoder.prototype._flush = function () {
+  if (this._buf.length || this._bufs.length) {
     this.emit('error', new Error('trailing data'));
-  } else if (this._empty) {
-    this.emit('error', new Error('no message decoded'));
   }
 };
 
 /**
- * Default ID generator, using Avro messages' metadata field.
+ * Standard framing stream.
  *
- * This is required for stateful emitters to work and can be overridden to read
- * or write arbitrary metadata. Note that the message contents are
- * (intentionally) not available when updating this metadata.
+ * @param `frameSize` {Number} (Maximum) size in bytes of each frame. The last
+ * frame might be shorter. Defaults to 4096.
  *
  */
-function IdType(attrs, opts) {
-  types.builtins.LogicalType.call(this, attrs, opts);
+function FrameEncoder() {
+  stream.Transform.call(this, {writableObjectMode: true});
+  this.on('finish', function () { this.push(null); });
 }
-util.inherits(IdType, types.builtins.LogicalType);
+util.inherits(FrameEncoder, stream.Transform);
 
-IdType.prototype._fromValue = function (val) {
-  var buf = val.id;
-  return buf && buf.length === 4 ? buf.readInt32BE(0) : 0;
+FrameEncoder.prototype._transform = function (obj, encoding, cb) {
+  var bufs = obj.payload;
+  var i, l, buf;
+  for (i = 0, l = bufs.length; i < l; i++) {
+    buf = bufs[i];
+    this.push(intBuffer(buf.length));
+    this.push(buf);
+  }
+  this.push(intBuffer(0));
+  cb();
 };
 
-IdType.prototype._toValue = function (any) {
-  return {id: intBuffer(any | 0)};
+/**
+ * Netty-compatible decoding stream.
+ *
+ */
+function NettyDecoder() {
+  stream.Transform.call(this, {readableObjectMode: true});
+  this._id = undefined;
+  this._frameCount = 0;
+  this._buf = new Buffer(0);
+  this._bufs = [];
+
+  this.on('finish', function () { this.push(null); });
+}
+util.inherits(NettyDecoder, stream.Transform);
+
+NettyDecoder.prototype._transform = function (buf, encoding, cb) {
+  buf = Buffer.concat([this._buf, buf]);
+
+  while (true) {
+    if (this._id === undefined) {
+      if (buf.length < 8) {
+        this._buf = buf;
+        cb();
+        return;
+      }
+      this._id = buf.readInt32BE(0);
+      this._frameCount = buf.readInt32BE(4);
+      buf = buf.slice(8);
+    }
+
+    var frameLength;
+    while (
+      this._frameCount &&
+      buf.length >= 4 &&
+      buf.length >= (frameLength = buf.readInt32BE(0)) + 4
+    ) {
+      this._frameCount--;
+      this._bufs.push(buf.slice(4, frameLength + 4));
+      buf = buf.slice(frameLength + 4);
+    }
+
+    if (this._frameCount) {
+      this._buf = buf;
+      cb();
+      return;
+    } else {
+      var obj = {id: this._id, payload: this._bufs};
+      this._bufs = [];
+      this._id = undefined;
+      this.push(obj);
+    }
+  }
 };
 
-IdType.createMetadataType = function (Type) {
-  Type = Type || IdType;
-  return new Type({type: 'map', values: 'bytes'});
+NettyDecoder.prototype._flush = function () {
+  if (this._buf.length || this._bufs.length) {
+    this.emit('error', new Error('trailing data'));
+  }
+};
+
+/**
+ * Netty-compatible encoding stream.
+ *
+ */
+function NettyEncoder() {
+  stream.Transform.call(this, {writableObjectMode: true});
+  this.on('finish', function () { this.push(null); });
+}
+util.inherits(NettyEncoder, stream.Transform);
+
+NettyEncoder.prototype._transform = function (obj, encoding, cb) {
+  var bufs = obj.payload;
+  var l = bufs.length;
+  var buf;
+  // Header: [ ID, number of frames ]
+  buf = new Buffer(8);
+  buf.writeInt32BE(obj.id, 0);
+  buf.writeInt32BE(l, 4);
+  this.push(buf);
+  // Frames, each: [ length, bytes ]
+  var i;
+  for (i = 0; i < l; i++) {
+    buf = bufs[i];
+    this.push(intBuffer(buf.length));
+    this.push(buf);
+  }
+  cb();
 };
 
 /**
@@ -14407,89 +14257,65 @@ function intBuffer(n) {
 }
 
 /**
- * Write and maybe resize.
+ * Decode a type used as prefix inside a buffer.
  *
- * @param tap {Tap} Tap written to.
- * @param type {Type} Avro type.
- * @param val {...} Corresponding Avro value.
+ * @param type {Type} The type of the prefix.
+ * @param buf {Buffer} Encoded bytes.
+ *
+ * This function will return an object `{head, tail}` where head contains the
+ * decoded value and tail the rest of the buffer. An error will be thrown if
+ * the prefix cannot be decoded.
  *
  */
-function safeWrite(tap, type, val) {
-  var pos = tap.pos;
-  type._write(tap, val);
-
+function readHead(type, buf) {
+  var tap = new Tap(buf);
+  var head = type._read(tap);
   if (!tap.isValid()) {
-    var buf = new Buffer(tap.pos);
-    tap.buf.copy(buf, 0, 0, pos);
-    tap.buf = buf;
-    tap.pos = pos;
-    type._write(tap, val);
+    throw new Error(f('truncated %s', type));
   }
+  return {head: head, tail: tap.buf.slice(tap.pos)};
 }
 
 /**
- * Convert an error message into a format suitable for RPC.
+ * Wrap something in an error.
  *
- * @param err {Error|String} Error message. It will be converted into valid
- * format for Avro.
+ * @param message {String} The new error's message.
+ * @param cause {Error} The cause of the error. It is available as `cause`
+ * field on the outer error.
+ *
+ * This is used to keep the argument of emitters' `'error'` event errors.
  *
  */
-function avroError(err) {
-  if (err instanceof Error) {
-    err = err.message;
-  }
-  return {string: err};
+function wrapError(message, cause) {
+  var err = new Error(f('%s: %s', message, cause.message));
+  err.cause = cause;
+  return err;
 }
 
 /**
- * Asynchronous error handling.
+ * Check whether something is an error.
  *
- * @param cb {Function} Callback.
- * @param err {...} Error, passed as first argument to `cb.` If an `Error`
- * instance or a string, it will be converted into valid format for Avro.
- * @param res {...} Response. Passed as second argument to `cb`.
+ * @param any {Object} Any object.
  *
  */
-function asyncAvroCb(ctx, cb, err, res) {
-  process.nextTick(function () { cb.call(ctx, avroError(err), res); });
+function isError(any) {
+  // Also not ideal, but avoids brittle `instanceof` checks.
+  return !!any && Object.prototype.toString.call(any) === '[object Error]';
 }
 
 /**
- * Convenience function to get a protocol's hash.
+ * Encode an error and optional header into a valid Avro response.
  *
- * @param ptcl {Protocol} Any protocol.
- *
- */
-function getHash(ptcl) {
-  return new Buffer(ptcl._hashString, 'binary');
-}
-
-/**
- * Whether a emitter or listener can resolve messages from a hash string.
- *
- * @param emitter {MessageEmitter|MessageListener}
- * @param hashString {String}
+ * @param err {Error} Error to encode.
+ * @param header {Object} Optional response header.
  *
  */
-function canResolve(emitter, hashString) {
-  var resolvers = emitter._resolvers[hashString];
-  return !!resolvers || hashString === emitter._ptcl._hashString;
-}
-
-/**
- * Retrieve resolvers for a given hash string.
- *
- * @param emitter {MessageEmitter|MessageListener}
- * @param hashString {String}
- * @param message {Message}
- *
- */
-function getResolvers(emitter, hashString, message) {
-  if (hashString === emitter._ptcl._hashString) {
-    return message;
-  }
-  var resolvers = emitter._resolvers[hashString];
-  return resolvers && resolvers[message._name];
+function encodeError(err, header) {
+  return Buffer.concat([
+    header || new Buffer([0]), // Recover the header if possible.
+    new Buffer([1, 0]), // Error flag and first union index.
+    STRING_TYPE.toBuffer(err.message)
+  ]);
 }
 
 /**
@@ -14510,34 +14336,21 @@ function isStream(any) {
 module.exports = {
   HANDSHAKE_REQUEST_TYPE: HANDSHAKE_REQUEST_TYPE,
   HANDSHAKE_RESPONSE_TYPE: HANDSHAKE_RESPONSE_TYPE,
-  IdType: IdType,
   Message: Message,
   Protocol: Protocol,
+  Registry: Registry,
   createProtocol: createProtocol,
-  emitters: {
-    StatefulEmitter: StatefulEmitter,
-    StatelessEmitter: StatelessEmitter
-  },
-  listeners: {
-    StatefulListener: StatefulListener,
-    StatelessListener: StatelessListener
-  },
-  messages: {
-    MessageEmitter: MessageEmitter,
-    MessageListener: MessageListener,
-  },
   streams: {
-    MessageDecoder: MessageDecoder,
-    MessageEncoder: MessageEncoder
+    FrameDecoder: FrameDecoder,
+    FrameEncoder: FrameEncoder,
+    NettyDecoder: NettyDecoder,
+    NettyEncoder: NettyEncoder
   }
 };
 
 }).call(this,require('_process'),require("buffer").Buffer)
-},{"./types":51,"./utils":52,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],50:[function(require,module,exports){
+},{"./types":50,"./utils":51,"_process":25,"buffer":16,"events":20,"stream":39,"util":42}],49:[function(require,module,exports){
 /* jshint node: true */
-
-// TODO: Remove legacy import hook in next major release.
-// TODO: Add `extends` logic?
 
 'use strict';
 
@@ -14564,12 +14377,7 @@ function assemble(fpath, opts, cb) {
   }
 
   opts = opts || {};
-
-  // Legacy hook name. (Also not as flexible since it didn't expose the kind.)
-  /* istanbul ignore next */
-  if (opts.reader) {
-    opts.importHook = wrapReader(opts.reader);
-  } else if (!opts.importHook) {
+  if (!opts.importHook) {
     opts.importHook = files.createImportHook();
   }
 
@@ -14913,14 +14721,6 @@ function assemble(fpath, opts, cb) {
 // Helpers.
 
 /**
- * Legacy import hook.
- *
- */
-/* istanbul ignore next */ var wrapReader = util.deprecate(function (reader) {
-  return function (fpath, kind, cb) { reader(fpath, cb); };
-}, '`reader` option is deprecated please use `importHook` instead');
-
-/**
  * Simple class to split an input string into tokens.
  *
  * There are different types of tokens, characterized by their `id`:
@@ -15242,20 +15042,16 @@ module.exports = {
   assemble: assemble
 };
 
-},{"./files":47,"path":24,"util":42}],51:[function(require,module,exports){
+},{"./files":46,"path":24,"util":42}],50:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
-// TODO: Change optional argument to `getName` to backfill with the typename
-// rather than always return the type name in next major version.
-// TODO: Remove Type from types map on next major version.
-// TODO: Remove third logical type argument in next major version?
+// TODO: Add `isValid` option which fails if a record's type is missing fields
+// present in the value.
 // TODO: Use toFastProperties on type reverse indices.
 // TODO: Allow configuring when to write the size when writing arrays and maps,
 // and customizing their block size.
-// TODO: Add schema inference capabilities (as writable stream?).
 // TODO: Code-generate `compare` and `clone` record and union methods.
-// TODO: Have `getSchema` return an object instead of a string?
 
 'use strict';
 
@@ -15273,10 +15069,8 @@ var utils = require('./utils'),
 var Tap = utils.Tap;
 var f = util.format;
 
-// All Avro types.
+// All non-union concrete (i.e. non-logical) Avro types.
 var TYPES = {
-  '(request)': RecordType,
-  '(union)': UnionType,
   'array': ArrayType,
   'boolean': BooleanType,
   'bytes': BytesType,
@@ -15302,12 +15096,13 @@ var RANDOM = new utils.Lcg();
 // Encoding tap (shared for performance).
 var TAP = new Tap(new buffer.SlowBuffer(1024));
 
-// Path prefix for validity checks (shared for performance).
-var PATH = [];
-
 // Currently active logical type, used for name redirection.
 var LOGICAL_TYPE = null;
 
+// Variable used to decide whether to include logical attributes when getting a
+// type's schema. A global variable is the simplest way to "pass an argument"
+// to JSON stringify's replacer function.
+var EXPORT_ATTRS = false;
 
 /**
  * Schema parsing entry point.
@@ -15325,8 +15120,8 @@ function createType(attrs, opts) {
     return attrs;
   }
 
-  // Initialize registry, etc. if necessary.
-  opts = updateOpts(opts);
+  opts = opts || {};
+  opts.registry = opts.registry || {};
 
   var type;
   if (typeof attrs == 'string') { // Type reference.
@@ -15352,7 +15147,7 @@ function createType(attrs, opts) {
     return type;
   }
 
-  if (attrs.logicalType && !LOGICAL_TYPE) {
+  if (attrs.logicalType && opts.logicalTypes && !LOGICAL_TYPE) {
     var DerivedType = opts.logicalTypes[attrs.logicalType];
     if (DerivedType) {
       var namespace = opts.namespace;
@@ -15377,6 +15172,7 @@ function createType(attrs, opts) {
   }
 
   if (Array.isArray(attrs)) { // Union.
+    var UnionType = opts.wrapUnions ? WrappedUnionType : UnwrappedUnionType;
     type = new UnionType(attrs, opts);
   } else { // New type definition.
     type = (function (typeName) {
@@ -15391,35 +15187,88 @@ function createType(attrs, opts) {
 }
 
 /**
- * "Abstract" base Avro type class.
+ * "Abstract" base Avro type.
  *
- * This class' constructor will register any named types to support
- * recursive schemas.
+ * This class' constructor will register any named types to support recursive
+ * schemas. All type values are represented in memory similarly to their JSON
+ * representation, except for:
  *
- * All type values are represented in memory similarly to their JSON
- * representation, except for `bytes` and `fixed` which are represented as
- * `Buffer`s. See individual subclasses for details.
+ * + `bytes` and `fixed` which are represented as `Buffer`s.
+ * + `union`s which will be "unwrapped" unless the `wrapUnions` option is set.
+ *
+ *  See individual subclasses for details.
  *
  */
-function Type(typeName, registry) {
-  this._typeName = typeName;
-  var name = this._name;
+function Type(attrs, opts) {
   var type = LOGICAL_TYPE || this;
   LOGICAL_TYPE = null;
-  if (name === undefined || !NAME_PATTERN.test(typeName)) {
-    return;
-  }
 
-  var prev = registry[name];
-  if (prev !== undefined) {
-    throw new Error(f('duplicate type name: %s', name));
+  // Lazily instantiated hash string. It will be generated the first time the
+  // type's default fingerprint is computed (for example when using `equals`).
+  this._hs = undefined;
+  this._name = undefined;
+  this._aliases = undefined;
+
+  if (attrs) {
+    // This is a complex (i.e. non-primitive) type.
+    var name = attrs.name;
+    var namespace = attrs.namespace === undefined ?
+      opts && opts.namespace :
+      attrs.namespace;
+    if (name) {
+      name = qualify(name, namespace);
+      if (isPrimitive(name)) {
+        // Avro doesn't allow redefining primitive names.
+        throw new Error(f('cannot rename primitive type: %j', name));
+      }
+
+      var registry = opts && opts.registry;
+      if (registry) {
+        if (registry[name] !== undefined) {
+          throw new Error(f('duplicate type name: %s', name));
+        }
+        registry[name] = type;
+      }
+    } else if (opts && opts.noAnonymousTypes) {
+      throw new Error(f('missing name property in schema: %j', attrs));
+    }
+    this._name = name;
+    this._aliases = attrs.aliases ?
+      attrs.aliases.map(function (s) { return qualify(s, namespace); }) :
+      [];
   }
-  registry[name] = type;
 }
 
-Type.isType = function (any) {
-  // Not fool-proof, but most likely good enough.
-  return !!any && typeof any._updateResolver == 'function';
+Type.isType = function (/* any, [prefix] ... */) {
+  var l = arguments.length;
+  if (!l) {
+    return false;
+  }
+
+  var any = arguments[0];
+  if (
+    !any ||
+    typeof any._updateResolver != 'function' ||
+    typeof any.getTypeName != 'function'
+  ) {
+    // Not fool-proof, but most likely good enough.
+    return false;
+  }
+
+  if (l === 1) {
+    // No type names specified, we are done.
+    return true;
+  }
+
+  // We check if at least one of the prefixes matches.
+  var typeName = any.getTypeName();
+  var i;
+  for (i = 1; i < l; i++) {
+    if (typeName.indexOf(arguments[i]) === 0) {
+      return true;
+    }
+  }
+  return false;
 };
 
 Type.__reset = function (size) { TAP.buf = new buffer.SlowBuffer(size); };
@@ -15431,7 +15280,7 @@ Type.prototype.createResolver = function (type, opts) {
     throw new Error(f('not a type: %j', type));
   }
 
-  if (this._typeName !== '(logical)' && type._typeName === '(logical)') {
+  if (!Type.isType(this, 'logical') && Type.isType(type, 'logical')) {
     // Trying to read a logical type as a built-in: unwrap the logical type.
     return this.createResolver(type._underlyingType, opts);
   }
@@ -15440,7 +15289,11 @@ Type.prototype.createResolver = function (type, opts) {
   opts.registry = opts.registry || {};
 
   var resolver, key;
-  if (this._typeName === 'record' && type._typeName === 'record') {
+  if (
+    Type.isType(this, 'record', 'error') &&
+    Type.isType(type, 'record', 'error')
+  ) {
+    // We allow conversions between records and errors.
     key = this._name + ':' + type._name; // ':' is illegal in Avro type names.
     resolver = opts.registry[key];
     if (resolver) {
@@ -15453,7 +15306,7 @@ Type.prototype.createResolver = function (type, opts) {
     opts.registry[key] = resolver;
   }
 
-  if (type._typeName === '(union)') {
+  if (Type.isType(type, 'union')) {
     var resolvers = type._types.map(function (t) {
       return this.createResolver(t, opts);
     }, this);
@@ -15476,8 +15329,7 @@ Type.prototype.createResolver = function (type, opts) {
 };
 
 Type.prototype.decode = function (buf, pos, resolver) {
-  var tap = new Tap(buf);
-  tap.pos = pos | 0;
+  var tap = new Tap(buf, pos);
   var val = readValue(this, tap, resolver);
   if (!tap.isValid()) {
     return {value: undefined, offset: -1};
@@ -15486,8 +15338,7 @@ Type.prototype.decode = function (buf, pos, resolver) {
 };
 
 Type.prototype.encode = function (val, buf, pos) {
-  var tap = new Tap(buf);
-  tap.pos = pos | 0;
+  var tap = new Tap(buf, pos);
   this._write(tap, val);
   if (!tap.isValid()) {
     // Don't throw as there is no way to predict this. We also return the
@@ -15529,7 +15380,7 @@ Type.prototype.fromString = function (str) {
 Type.prototype.toString = function (val) {
   if (val === undefined) {
     // Consistent behavior with standard `toString` expectations.
-    return this.getSchema(true);
+    return this.getSchema({noDeref: true});
   }
   return JSON.stringify(this._copy(val, {coerce: 3}));
 };
@@ -15551,42 +15402,61 @@ Type.prototype.clone = function (val, opts) {
 };
 
 Type.prototype.isValid = function (val, opts) {
-  while (PATH.length) {
-    // In case the previous `isValid` call didn't complete successfully (e.g.
-    // if an exception was thrown, but then caught in client code), `PATH`
-    // might be non-empty, we must manually clear it.
-    PATH.pop();
+  var cb, path;
+  if (opts && opts.errorHook) {
+    path = [];
+    cb = function (any, type) {
+      opts.errorHook.call(this, path.slice(), any, type, val);
+    };
   }
-  return this._check(val, opts && opts.errorHook);
+  return this._check(val, path, cb);
 };
 
 Type.prototype.compareBuffers = function (buf1, buf2) {
   return this._match(new Tap(buf1), new Tap(buf2));
 };
 
-Type.prototype.getName = function (noRef) {
-  return noRef ? this._typeName : this._name;
+Type.prototype.getName = function (asBranch) {
+  var type = Type.isType(this, 'logical') ? this._underlyingType : this;
+  if (type._name || !asBranch) {
+    return type._name;
+  }
+  return Type.isType(this, 'union') ? undefined : type.getTypeName();
 };
 
-Type.prototype.getTypeName = function () { return this._typeName; };
+Type.prototype.getSchema = function (opts) { return stringify(this, opts); };
 
-Type.prototype.getSchema = function (noDeref) {
-  return stringify(this, noDeref);
+Type.prototype.equals = function (type) {
+  return (
+    Type.isType(type) &&
+    this.getFingerprint().equals(type.getFingerprint())
+  );
 };
 
 Type.prototype.getFingerprint = function (algorithm) {
-  return utils.getHash(this.getSchema(), algorithm);
+  if (!algorithm) {
+    if (!this._hs) {
+      this._hs = utils.getHash(this.getSchema()).toString('binary');
+    }
+    return new Buffer(this._hs, 'binary');
+  } else {
+    return utils.getHash(this.getSchema(), algorithm);
+  }
 };
 
 Type.prototype.inspect = function () {
-  if (isPrimitive(this._typeName)) {
-    return f('<%s>', this.constructor.name_);
+  var typeName = this.getTypeName();
+  var className = getClassName(typeName);
+  if (isPrimitive(typeName)) {
+    // The class name is sufficient to identify the type.
+    return f('<%s>', className);
   } else {
-    var obj = JSON.parse(this.getSchema(true)); // Slow, only for debugging.
-    if (typeof obj == 'object') {
+    // We add a little metadata for convenience.
+    var obj = JSON.parse(this.getSchema({exportAttrs: true, noDeref: true}));
+    if (typeof obj == 'object' && !Type.isType(this, 'logical')) {
       obj.type = undefined; // Would be redundant with constructor name.
     }
-    return f('<%s %j>', this.constructor.name_, obj);
+    return f('<%s %j>', className, obj);
   }
 };
 
@@ -15598,6 +15468,7 @@ Type.prototype._skip = utils.abstractFunction;
 Type.prototype._updateResolver = utils.abstractFunction;
 Type.prototype._write = utils.abstractFunction;
 Type.prototype.compare = utils.abstractFunction;
+Type.prototype.getTypeName = utils.abstractFunction;
 Type.prototype.random = utils.abstractFunction;
 
 // Implementations.
@@ -15610,97 +15481,123 @@ Type.prototype.random = utils.abstractFunction;
  * check whether a type is a primitive using `instanceof`.
  *
  */
-function PrimitiveType(typeName) { Type.call(this, typeName); }
+function PrimitiveType() { Type.call(this); }
 util.inherits(PrimitiveType, Type);
+
 PrimitiveType.prototype._updateResolver = function (resolver, type) {
   if (type.constructor === this.constructor) {
     resolver._read = this._read;
   }
 };
+
 PrimitiveType.prototype._copy = function (val) {
-  this._check(val, throwInvalidError);
+  this._check(val, undefined, throwInvalidError);
   return val;
 };
+
 PrimitiveType.prototype.compare = utils.compare;
-PrimitiveType.prototype.toJSON = function () { return this._typeName; };
+
+PrimitiveType.prototype.toJSON = function () { return this.getTypeName(); };
 
 /**
  * Nulls.
  *
  */
-function NullType() { PrimitiveType.call(this, 'null'); }
+function NullType() { PrimitiveType.call(this); }
 util.inherits(NullType, PrimitiveType);
-NullType.name_ = 'NullType';
-NullType.prototype._check = function (val, cb) {
+
+NullType.prototype._check = function (val, path, cb) {
   var b = val === null;
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 NullType.prototype._read = function () { return null; };
+
 NullType.prototype._skip = function () {};
+
 NullType.prototype._write = function (tap, val) {
   if (val !== null) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
 };
+
 NullType.prototype._match = function () { return 0; };
+
 NullType.prototype.compare = NullType.prototype._match;
+
+NullType.prototype.getTypeName = function () { return 'null'; };
+
 NullType.prototype.random = NullType.prototype._read;
 
 /**
  * Booleans.
  *
  */
-function BooleanType() { PrimitiveType.call(this, 'boolean'); }
+function BooleanType() { PrimitiveType.call(this); }
 util.inherits(BooleanType, PrimitiveType);
-BooleanType.name_ = 'BooleanType';
-BooleanType.prototype._check = function (val, cb) {
+
+BooleanType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'boolean';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 BooleanType.prototype._read = function (tap) { return tap.readBoolean(); };
+
 BooleanType.prototype._skip = function (tap) { tap.skipBoolean(); };
+
 BooleanType.prototype._write = function (tap, val) {
   if (typeof val != 'boolean') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeBoolean(val);
 };
+
 BooleanType.prototype._match = function (tap1, tap2) {
   return tap1.matchBoolean(tap2);
 };
+
+BooleanType.prototype.getTypeName = function () { return 'boolean'; };
+
 BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
 
 /**
  * Integers.
  *
  */
-function IntType() { PrimitiveType.call(this, 'int'); }
+function IntType() { PrimitiveType.call(this); }
 util.inherits(IntType, PrimitiveType);
-IntType.name_ = 'IntType';
-IntType.prototype._check = function (val, cb) {
+
+IntType.prototype._check = function (val, path, cb) {
   var b = val === (val | 0);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 IntType.prototype._read = function (tap) { return tap.readInt(); };
+
 IntType.prototype._skip = function (tap) { tap.skipInt(); };
+
 IntType.prototype._write = function (tap, val) {
   if (val !== (val | 0)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeInt(val);
 };
+
 IntType.prototype._match = function (tap1, tap2) {
   return tap1.matchInt(tap2);
 };
+
+IntType.prototype.getTypeName = function () { return 'int'; };
+
 IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
 
 /**
@@ -15708,20 +15605,21 @@ IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
  *
  * We can't capture all the range unfortunately since JavaScript represents all
  * numbers internally as `double`s, so the default implementation plays safe
- * and throws rather than potentially silently change the data. See
- * `LongType.__with` below for a way to implement a custom long type.
+ * and throws rather than potentially silently change the data. See `__with` or
+ * `AbstractLongType` below for a way to implement a custom long type.
  *
  */
-function LongType() { PrimitiveType.call(this, 'long'); }
+function LongType() { PrimitiveType.call(this); }
 util.inherits(LongType, PrimitiveType);
-LongType.name_ = 'LongType';
-LongType.prototype._check = function (val, cb) {
+
+LongType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'number' && val % 1 === 0 && isSafeLong(val);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 LongType.prototype._read = function (tap) {
   var n = tap.readLong();
   if (!isSafeLong(n)) {
@@ -15729,24 +15627,32 @@ LongType.prototype._read = function (tap) {
   }
   return n;
 };
+
 LongType.prototype._skip = function (tap) { tap.skipLong(); };
+
 LongType.prototype._write = function (tap, val) {
   if (typeof val != 'number' || val % 1 || !isSafeLong(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeLong(val);
 };
+
 LongType.prototype._match = function (tap1, tap2) {
   return tap1.matchLong(tap2);
 };
+
 LongType.prototype._updateResolver = function (resolver, type) {
-  switch (type._typeName) {
+  switch (type.getTypeName()) {
     case 'int':
     case 'long':
       resolver._read = type._read;
   }
 };
+
+LongType.prototype.getTypeName = function () { return 'long'; };
+
 LongType.prototype.random = function () { return RANDOM.nextInt(); };
+
 LongType.__with = function (methods, noUnpack) {
   methods = methods || {}; // Will give a more helpful error message.
   // We map some of the methods to a different name to be able to intercept
@@ -15769,73 +15675,82 @@ LongType.__with = function (methods, noUnpack) {
   });
   return type;
 };
-LongType.using = util.deprecate(
-  LongType.__with,
-  'deprecated: use LongType.__with instead of LongType.using'
-);
 
 /**
  * Floats.
  *
  */
-function FloatType() { PrimitiveType.call(this, 'float'); }
+function FloatType() { PrimitiveType.call(this); }
 util.inherits(FloatType, PrimitiveType);
-FloatType.name_ = 'FloatType';
-FloatType.prototype._check = function (val, cb) {
+
+FloatType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'number';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 FloatType.prototype._read = function (tap) { return tap.readFloat(); };
+
 FloatType.prototype._skip = function (tap) { tap.skipFloat(); };
+
 FloatType.prototype._write = function (tap, val) {
   if (typeof val != 'number') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeFloat(val);
 };
+
 FloatType.prototype._match = function (tap1, tap2) {
   return tap1.matchFloat(tap2);
 };
+
 FloatType.prototype._updateResolver = function (resolver, type) {
-  switch (type._typeName) {
+  switch (type.getTypeName()) {
     case 'float':
     case 'int':
     case 'long':
       resolver._read = type._read;
   }
 };
+
+FloatType.prototype.getTypeName = function () { return 'float'; };
+
 FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
 
 /**
  * Doubles.
  *
  */
-function DoubleType() { PrimitiveType.call(this, 'double'); }
+function DoubleType() { PrimitiveType.call(this); }
 util.inherits(DoubleType, PrimitiveType);
-DoubleType.name_ = 'DoubleType';
-DoubleType.prototype._check = function (val, cb) {
+
+DoubleType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'number';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 DoubleType.prototype._read = function (tap) { return tap.readDouble(); };
+
 DoubleType.prototype._skip = function (tap) { tap.skipDouble(); };
+
 DoubleType.prototype._write = function (tap, val) {
   if (typeof val != 'number') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeDouble(val);
 };
+
 DoubleType.prototype._match = function (tap1, tap2) {
   return tap1.matchDouble(tap2);
 };
+
 DoubleType.prototype._updateResolver = function (resolver, type) {
-  switch (type._typeName) {
+  switch (type.getTypeName()) {
     case 'double':
     case 'float':
     case 'int':
@@ -15843,40 +15758,51 @@ DoubleType.prototype._updateResolver = function (resolver, type) {
       resolver._read = type._read;
   }
 };
+
+DoubleType.prototype.getTypeName = function () { return 'double'; };
+
 DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
 
 /**
  * Strings.
  *
  */
-function StringType() { PrimitiveType.call(this, 'string'); }
+function StringType() { PrimitiveType.call(this); }
 util.inherits(StringType, PrimitiveType);
-StringType.name_ = 'StringType';
-StringType.prototype._check = function (val, cb) {
+
+StringType.prototype._check = function (val, path, cb) {
   var b = typeof val == 'string';
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 StringType.prototype._read = function (tap) { return tap.readString(); };
+
 StringType.prototype._skip = function (tap) { tap.skipString(); };
+
 StringType.prototype._write = function (tap, val) {
   if (typeof val != 'string') {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeString(val);
 };
+
 StringType.prototype._match = function (tap1, tap2) {
   return tap1.matchString(tap2);
 };
+
 StringType.prototype._updateResolver = function (resolver, type) {
-  switch (type._typeName) {
+  switch (type.getTypeName()) {
     case 'bytes':
     case 'string':
       resolver._read = this._read;
   }
 };
+
+StringType.prototype.getTypeName = function () { return 'string'; };
+
 StringType.prototype.random = function () {
   return RANDOM.nextString(RANDOM.nextInt(32));
 };
@@ -15891,63 +15817,316 @@ StringType.prototype.random = function () {
  * Note the coercion in `_copy`.
  *
  */
-function BytesType() { PrimitiveType.call(this, 'bytes'); }
+function BytesType() { PrimitiveType.call(this); }
 util.inherits(BytesType, PrimitiveType);
-BytesType.name_ = 'BytesType';
-BytesType.prototype._check = function (val, cb) {
+
+BytesType.prototype._check = function (val, path, cb) {
   var b = Buffer.isBuffer(val);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
+
 BytesType.prototype._read = function (tap) { return tap.readBytes(); };
+
 BytesType.prototype._skip = function (tap) { tap.skipBytes(); };
+
 BytesType.prototype._write = function (tap, val) {
   if (!Buffer.isBuffer(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeBytes(val);
 };
+
 BytesType.prototype._match = function (tap1, tap2) {
   return tap1.matchBytes(tap2);
 };
+
 BytesType.prototype._updateResolver = StringType.prototype._updateResolver;
+
 BytesType.prototype._copy = function (obj, opts) {
   var buf;
   switch ((opts && opts.coerce) | 0) {
     case 3: // Coerce buffers to strings.
-      this._check(obj, throwInvalidError);
+      this._check(obj, undefined, throwInvalidError);
       return obj.toString('binary');
     case 2: // Coerce strings to buffers.
       if (typeof obj != 'string') {
         throw new Error(f('cannot coerce to buffer: %j', obj));
       }
       buf = new Buffer(obj, 'binary');
-      this._check(buf, throwInvalidError);
+      this._check(buf, undefined, throwInvalidError);
       return buf;
     case 1: // Coerce buffer JSON representation to buffers.
-      if (!obj || obj.type !== 'Buffer' || !Array.isArray(obj.data)) {
+      if (!isJsonBuffer(obj)) {
         throw new Error(f('cannot coerce to buffer: %j', obj));
       }
       buf = new Buffer(obj.data);
-      this._check(buf, throwInvalidError);
+      this._check(buf, undefined, throwInvalidError);
       return buf;
     default: // Copy buffer.
-      this._check(obj, throwInvalidError);
+      this._check(obj, undefined, throwInvalidError);
       return new Buffer(obj);
   }
 };
+
 BytesType.prototype.compare = Buffer.compare;
+
+BytesType.prototype.getTypeName = function () { return 'bytes'; };
+
 BytesType.prototype.random = function () {
   return RANDOM.nextBuffer(RANDOM.nextInt(32));
 };
 
 /**
- * Avro unions.
+ * Base "abstract" Avro union type.
  *
- * Unions are represented in memory similarly to their JSON representation
- * (i.e. inside an object with single key the name of the contained type).
+ */
+function UnionType(attrs, opts) {
+  Type.call(this);
+
+  if (!Array.isArray(attrs)) {
+    throw new Error(f('non-array union schema: %j', attrs));
+  }
+  if (!attrs.length) {
+    throw new Error('empty union');
+  }
+  this._types = attrs.map(function (obj) { return createType(obj, opts); });
+
+  this._branchIndices = {};
+  this._types.forEach(function (type, i) {
+    if (Type.isType(type, 'union')) {
+      throw new Error('unions cannot be directly nested');
+    }
+    var branch = type.getName(true);
+    if (this._branchIndices[branch] !== undefined) {
+      throw new Error(f('duplicate union branch name: %j', branch));
+    }
+    this._branchIndices[branch] = i;
+  }, this);
+}
+util.inherits(UnionType, Type);
+
+UnionType.prototype._skip = function (tap) {
+  this._types[tap.readLong()]._skip(tap);
+};
+
+UnionType.prototype._match = function (tap1, tap2) {
+  var n1 = tap1.readLong();
+  var n2 = tap2.readLong();
+  if (n1 === n2) {
+    return this._types[n1]._match(tap1, tap2);
+  } else {
+    return n1 < n2 ? -1 : 1;
+  }
+};
+
+UnionType.prototype.getTypes = function () { return this._types.slice(); };
+
+UnionType.prototype.toJSON = function () { return this._types; };
+
+/**
+ * "Natural" union type.
+ *
+ * This representation doesn't require a wrapping object and is therefore
+ * simpler and generally closer to what users expect. However it cannot be used
+ * to represent all Avro unions since some lead to ambiguities (e.g. if two
+ * number types are in the union).
+ *
+ * Currently, this union supports at most one type in each of the categories
+ * below:
+ *
+ * + `null`
+ * + `boolean`
+ * + `int`, `long`, `float`, `double`
+ * + `string`, `enum`
+ * + `bytes`, `fixed`
+ * + `array`
+ * + `map`, `record`
+ *
+ */
+function UnwrappedUnionType(attrs, opts) {
+  UnionType.call(this, attrs, opts);
+
+  this._logicalBranches = null;
+  this._bucketIndices = {};
+  this._types.forEach(function (type, index) {
+    if (Type.isType(type, 'logical')) {
+      if (!this._logicalBranches) {
+        this._logicalBranches = [];
+      }
+      this._logicalBranches.push({index: index, type: type});
+    } else {
+      var bucket = getTypeBucket(type);
+      if (this._bucketIndices[bucket] !== undefined) {
+        throw new Error(f('ambiguous unwrapped union: %j', this));
+      }
+      this._bucketIndices[bucket] = index;
+    }
+  }, this);
+}
+util.inherits(UnwrappedUnionType, UnionType);
+
+UnwrappedUnionType.prototype._getIndex = function (val) {
+  var index = this._bucketIndices[getValueBucket(val)];
+  if (this._logicalBranches) {
+    // Slower path, we must run the value through all logical types.
+    index = this._getLogicalIndex(val, index);
+  }
+  return index;
+};
+
+UnwrappedUnionType.prototype._getLogicalIndex = function (any, index) {
+  var logicalBranches = this._logicalBranches;
+  var i, l, branch;
+  for (i = 0, l = logicalBranches.length; i < l; i++) {
+    branch = logicalBranches[i];
+    if (branch.type._check(any)) {
+      if (index === undefined) {
+        index = branch.index;
+      } else {
+        // More than one branch matches the value so we aren't guaranteed to
+        // infer the correct type. We throw rather than corrupt data. This can
+        // be fixed by "tightening" the logical types.
+        throw new Error('ambiguous conversion');
+      }
+    }
+  }
+  return index;
+};
+
+UnwrappedUnionType.prototype._check = function (val, path, cb) {
+  var index = this._getIndex(val);
+  var b = index !== undefined;
+  if (b) {
+    return this._types[index]._check(val, path, cb);
+  }
+  if (cb) {
+    cb(val, this);
+  }
+  return b;
+};
+
+UnwrappedUnionType.prototype._read = function (tap) {
+  var index = tap.readLong();
+  var branchType = this._types[index];
+  if (branchType) {
+    return branchType._read(tap);
+  } else {
+    throw new Error(f('invalid union index: %s', index));
+  }
+};
+
+UnwrappedUnionType.prototype._write = function (tap, val) {
+  var index = this._getIndex(val);
+  if (index === undefined) {
+    throwInvalidError(val, this);
+  }
+  tap.writeLong(index);
+  if (val !== null) {
+    this._types[index]._write(tap, val);
+  }
+};
+
+UnwrappedUnionType.prototype._updateResolver = function (resolver, type, opts) {
+  // jshint -W083
+  // (The loop exits after the first function is created.)
+  var i, l, typeResolver;
+  for (i = 0, l = this._types.length; i < l; i++) {
+    try {
+      typeResolver = this._types[i].createResolver(type, opts);
+    } catch (err) {
+      continue;
+    }
+    resolver._read = function (tap) { return typeResolver._read(tap); };
+    return;
+  }
+};
+
+UnwrappedUnionType.prototype._copy = function (val, opts) {
+  var coerce = opts && opts.coerce | 0;
+  var wrap = opts && opts.wrap | 0;
+  var index;
+  if (wrap === 2) {
+    // We are parsing a default, so always use the first branch's type.
+    index = 0;
+  } else {
+    switch (coerce) {
+      case 1:
+        // Using the `coerceBuffers` option can cause corruption and erroneous
+        // failures with unwrapped unions (in rare cases when the union also
+        // contains a record which matches a buffer's JSON representation).
+        if (isJsonBuffer(val) && this._bucketIndices.buffer !== undefined) {
+          index = this._bucketIndices.buffer;
+        } else {
+          index = this._getIndex(val);
+        }
+        break;
+      case 2:
+        // Decoding from JSON, we must unwrap the value.
+        if (val === null) {
+          index = this._bucketIndices['null'];
+        } else if (typeof val === 'object') {
+          var keys = Object.keys(val);
+          if (keys.length === 1) {
+            index = this._branchIndices[keys[0]];
+            val = val[keys[0]];
+          }
+        }
+        break;
+      default:
+        index = this._getIndex(val);
+    }
+    if (index === undefined) {
+      throwInvalidError(val, this);
+    }
+  }
+  var type = this._types[index];
+  if (val === null || wrap === 3) {
+    return type._copy(val, opts);
+  } else {
+    switch (coerce) {
+      case 3:
+        // Encoding to JSON, we wrap the value.
+        var obj = {};
+        obj[type.getName(true)] = type._copy(val, opts);
+        return obj;
+      default:
+        return type._copy(val, opts);
+    }
+  }
+};
+
+UnwrappedUnionType.prototype.compare = function (val1, val2) {
+  var index1 = this._getIndex(val1);
+  var index2 = this._getIndex(val2);
+  if (index1 === undefined) {
+    throwInvalidError(val1, this);
+  } else if (index2 === undefined) {
+    throwInvalidError(val2, this);
+  } else if (index1 === index2) {
+    return this._types[index1].compare(val1, val2);
+  } else {
+    return utils.compare(index1, index2);
+  }
+};
+
+UnwrappedUnionType.prototype.getTypeName = function () {
+  return 'union:unwrapped';
+};
+
+UnwrappedUnionType.prototype.random = function () {
+  var index = RANDOM.nextInt(this._types.length);
+  return this._types[index].random();
+};
+
+/**
+ * Compatible union type.
+ *
+ * Values of this type are represented in memory similarly to their JSON
+ * representation (i.e. inside an object with single key the name of the
+ * contained type).
  *
  * This is not ideal, but is the most efficient way to unambiguously support
  * all unions. Here are a few reasons why the wrapping object is necessary:
@@ -15962,44 +16141,13 @@ BytesType.prototype.random = function () {
  *   longer be valid records (making it inconvenient to do simple things like
  *   creating new records).
  *
- * Lore: In the past (until d304cab), there used to be an "unwrapped union
- * type" which directly exposed its values, without the wrapping object
- * (similarly to Avro's python implementation). It was removed to keep all
- * representations consistent and make this library simpler to understand
- * (conversions, e.g. for schema evolution, between representations were
- * particularly confusing). Encoding was also much slower (worst case
- * complexity linear in the number of types in the union).
- *
  */
-function UnionType(attrs, opts) {
-  if (!Array.isArray(attrs)) {
-    throw new Error(f('non-array union schema: %j', attrs));
-  }
-  if (!attrs.length) {
-    throw new Error('empty union');
-  }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  Type.call(this, '(union)');
-  this._types = attrs.map(function (obj) { return createType(obj, opts); });
-
-  this._indices = {};
-  this._types.forEach(function (type, i) {
-    if (type._typeName === '(union)') {
-      throw new Error('unions cannot be directly nested');
-    }
-    var name = type._name || type._typeName;
-    if (this._indices[name] !== undefined) {
-      throw new Error(f('duplicate union name: %j', name));
-    }
-    this._indices[name] = i;
-  }, this);
+function WrappedUnionType(attrs, opts) {
+  UnionType.call(this, attrs, opts);
 
   this._constructors = this._types.map(function (type) {
     // jshint -W054
-    var name = type._name || type._typeName;
+    var name = type.getName(true);
     if (name === 'null') {
       return null;
     }
@@ -16011,45 +16159,43 @@ function UnionType(attrs, opts) {
     }
     var constructor = new Function('val', body);
     constructor.getBranchType = function () { return type; };
-    constructor.prototype.getBranchType = util.deprecate(
-      constructor.getBranchType,
-      'deprecated: use constructor.getBranchType'
-    );
     return constructor;
   });
-
-  opts.namespace = namespace;
 }
-util.inherits(UnionType, Type);
-UnionType.name_ = 'UnionType';
+util.inherits(WrappedUnionType, UnionType);
 
-UnionType.prototype._check = function (val, cb) {
+WrappedUnionType.prototype._check = function (val, path, cb) {
   var b = false;
   if (val === null) {
     // Shortcut type lookup in this case.
-    b = this._indices['null'] !== undefined;
+    b = this._branchIndices['null'] !== undefined;
   } else if (typeof val == 'object') {
     var keys = Object.keys(val);
     if (keys.length === 1) {
       // We require a single key here to ensure that writes are correct and
       // efficient as soon as a record passes this check.
       var name = keys[0];
-      var index = this._indices[name];
+      var index = this._branchIndices[name];
       if (index !== undefined) {
-        PATH.push(name);
-        b = this._types[index]._check(val[name], cb);
-        PATH.pop();
-        return b;
+        if (cb) {
+          // Slow path.
+          path.push(name);
+          b = this._types[index]._check(val[name], path, cb);
+          path.pop();
+          return b;
+        } else {
+          return this._types[index]._check(val[name]);
+        }
       }
     }
   }
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
 
-UnionType.prototype._read = function (tap) {
+WrappedUnionType.prototype._read = function (tap) {
   var index = tap.readLong();
   var Class = this._constructors[index];
   if (Class) {
@@ -16061,43 +16207,29 @@ UnionType.prototype._read = function (tap) {
   }
 };
 
-UnionType.prototype._skip = function (tap) {
-  this._types[tap.readLong()]._skip(tap);
-};
-
-UnionType.prototype._write = function (tap, val) {
+WrappedUnionType.prototype._write = function (tap, val) {
   var index, keys, name;
   if (val === null) {
-    index = this._indices['null'];
+    index = this._branchIndices['null'];
     if (index === undefined) {
-      throwInvalidError(null, val, this);
+      throwInvalidError(val, this);
     }
     tap.writeLong(index);
   } else {
     keys = Object.keys(val);
     if (keys.length === 1) {
       name = keys[0];
-      index = this._indices[name];
+      index = this._branchIndices[name];
     }
     if (index === undefined) {
-      throwInvalidError(null, val, this);
+      throwInvalidError(val, this);
     }
     tap.writeLong(index);
     this._types[index]._write(tap, val[name]);
   }
 };
 
-UnionType.prototype._match = function (tap1, tap2) {
-  var n1 = tap1.readLong();
-  var n2 = tap2.readLong();
-  if (n1 === n2) {
-    return this._types[n1]._match(tap1, tap2);
-  } else {
-    return n1 < n2 ? -1 : 1;
-  }
-};
-
-UnionType.prototype._updateResolver = function (resolver, type, opts) {
+WrappedUnionType.prototype._updateResolver = function (resolver, type, opts) {
   // jshint -W083
   // (The loop exits after the first function is created.)
   var i, l, typeResolver, Class;
@@ -16119,7 +16251,7 @@ UnionType.prototype._updateResolver = function (resolver, type, opts) {
   }
 };
 
-UnionType.prototype._copy = function (val, opts) {
+WrappedUnionType.prototype._copy = function (val, opts) {
   var wrap = opts && opts.wrap | 0;
   if (wrap === 2) {
     // Promote into first type (used for schema defaults).
@@ -16128,7 +16260,7 @@ UnionType.prototype._copy = function (val, opts) {
     }
     return new this._constructors[0](this._types[0]._copy(val, opts));
   }
-  if (val === null && this._indices['null'] !== undefined) {
+  if (val === null && this._branchIndices['null'] !== undefined) {
     return null;
   }
 
@@ -16137,7 +16269,7 @@ UnionType.prototype._copy = function (val, opts) {
     var keys = Object.keys(val);
     if (keys.length === 1) {
       var name = keys[0];
-      i = this._indices[name];
+      i = this._branchIndices[name];
       if (i === undefined && opts.qualifyNames) {
         // We are a bit more flexible than in `_check` here since we have
         // to deal with other serializers being less strict, so we fall
@@ -16169,27 +16301,29 @@ UnionType.prototype._copy = function (val, opts) {
     }
   }
   if (obj !== undefined) {
-    return new this._constructors[i](obj);
+    return wrap === 3 ? obj : new this._constructors[i](obj);
   }
-  throwInvalidError(null, val, this);
+  throwInvalidError(val, this);
 };
 
-UnionType.prototype.compare = function (val1, val2) {
+WrappedUnionType.prototype.compare = function (val1, val2) {
   var name1 = val1 === null ? 'null' : Object.keys(val1)[0];
   var name2 = val2 === null ? 'null' : Object.keys(val2)[0];
-  var index = this._indices[name1];
+  var index = this._branchIndices[name1];
   if (name1 === name2) {
     return name1 === 'null' ?
       0 :
       this._types[index].compare(val1[name1], val2[name1]);
   } else {
-    return utils.compare(index, this._indices[name2]);
+    return utils.compare(index, this._branchIndices[name2]);
   }
 };
 
-UnionType.prototype.getTypes = function () { return this._types.slice(); };
+WrappedUnionType.prototype.getTypeName = function () {
+  return 'union:wrapped';
+};
 
-UnionType.prototype.random = function () {
+WrappedUnionType.prototype.random = function () {
   var index = RANDOM.nextInt(this._types.length);
   var Class = this._constructors[index];
   if (!Class) {
@@ -16197,8 +16331,6 @@ UnionType.prototype.random = function () {
   }
   return new Class(this._types[index].random());
 };
-
-UnionType.prototype.toJSON = function () { return this._types; };
 
 /**
  * Avro enum type.
@@ -16214,22 +16346,16 @@ UnionType.prototype.toJSON = function () { return this._types; };
  *
  */
 function EnumType(attrs, opts) {
+  Type.call(this, attrs, opts);
+
   if (!Array.isArray(attrs.symbols) || !attrs.symbols.length) {
-    throw new Error(f('invalid %j enum symbols: %j', attrs.name, attrs));
+    throw new Error(f('invalid enum symbols: %j', attrs.symbols));
   }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
   this._symbols = attrs.symbols;
-  this._aliases = resolutions.aliases;
-  Type.call(this, 'enum', opts.registry);
 
   this._indices = {};
   this._symbols.forEach(function (symbol, i) {
-    if (!NAME_PATTERN.test(symbol)) {
+    if (!isValidName(symbol)) {
       throw new Error(f('invalid %s symbol: %j', this, symbol));
     }
     if (this._indices[symbol] !== undefined) {
@@ -16237,16 +16363,13 @@ function EnumType(attrs, opts) {
     }
     this._indices[symbol] = i;
   }, this);
-
-  opts.namespace = namespace;
 }
 util.inherits(EnumType, Type);
-EnumType.name_ = 'EnumType';
 
-EnumType.prototype._check = function (val, cb) {
+EnumType.prototype._check = function (val, path, cb) {
   var b = this._indices[val] !== undefined;
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16265,7 +16388,7 @@ EnumType.prototype._skip = function (tap) { tap.skipLong(); };
 EnumType.prototype._write = function (tap, val) {
   var index = this._indices[val];
   if (index === undefined) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeLong(index);
 };
@@ -16281,8 +16404,8 @@ EnumType.prototype.compare = function (val1, val2) {
 EnumType.prototype._updateResolver = function (resolver, type) {
   var symbols = this._symbols;
   if (
-    type._typeName === 'enum' &&
-    ~getAliases(this).indexOf(type._name) &&
+    type.getTypeName() === 'enum' &&
+    (!type._name || ~getAliases(this).indexOf(type._name)) &&
     type._symbols.every(function (s) { return ~symbols.indexOf(s); })
   ) {
     resolver._symbols = type._symbols;
@@ -16291,7 +16414,7 @@ EnumType.prototype._updateResolver = function (resolver, type) {
 };
 
 EnumType.prototype._copy = function (val) {
-  this._check(val, throwInvalidError);
+  this._check(val, undefined, throwInvalidError);
   return val;
 };
 
@@ -16299,12 +16422,19 @@ EnumType.prototype.getAliases = function () { return this._aliases; };
 
 EnumType.prototype.getSymbols = function () { return this._symbols.slice(); };
 
+EnumType.prototype.getTypeName = function () { return 'enum'; };
+
 EnumType.prototype.random = function () {
   return RANDOM.choice(this._symbols);
 };
 
 EnumType.prototype.toJSON = function () {
-  return {name: this._name, type: this._typeName, symbols: this._symbols};
+  return {
+    name: this._name,
+    type: this.getTypeName(),
+    symbols: this._symbols,
+    aliases: this._aliases
+  };
 };
 
 /**
@@ -16314,28 +16444,19 @@ EnumType.prototype.toJSON = function () {
  *
  */
 function FixedType(attrs, opts) {
+  Type.call(this, attrs, opts);
+
   if (attrs.size !== (attrs.size | 0) || attrs.size < 1) {
-    throw new Error(f('invalid %j fixed size: %j', attrs.name, attrs.size));
+    throw new Error(f('invalid %s fixed size', this.getName(true)));
   }
-
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
   this._size = attrs.size | 0;
-  this._aliases = resolutions.aliases;
-  Type.call(this, 'fixed', opts.registry);
-
-  opts.namespace = namespace;
 }
 util.inherits(FixedType, Type);
-FixedType.name_ = 'FixedType';
 
-FixedType.prototype._check = function (val, cb) {
+FixedType.prototype._check = function (val, path, cb) {
   var b = Buffer.isBuffer(val) && val.length === this._size;
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -16350,7 +16471,7 @@ FixedType.prototype._skip = function (tap) {
 
 FixedType.prototype._write = function (tap, val) {
   if (!Buffer.isBuffer(val) || val.length !== this._size) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   tap.writeFixed(val, this._size);
 };
@@ -16363,9 +16484,9 @@ FixedType.prototype.compare = Buffer.compare;
 
 FixedType.prototype._updateResolver = function (resolver, type) {
   if (
-    type._typeName === 'fixed' &&
+    type.getTypeName() === 'fixed' &&
     this._size === type._size &&
-    ~getAliases(this).indexOf(type._name)
+    (!type._name || ~getAliases(this).indexOf(type._name))
   ) {
     resolver._size = this._size;
     resolver._read = this._read;
@@ -16378,12 +16499,19 @@ FixedType.prototype.getAliases = function () { return this._aliases; };
 
 FixedType.prototype.getSize = function () { return this._size; };
 
+FixedType.prototype.getTypeName = function () { return 'fixed'; };
+
 FixedType.prototype.random = function () {
   return RANDOM.nextBuffer(this._size);
 };
 
 FixedType.prototype.toJSON = function () {
-  return {name: this._name, type: this._typeName, size: this._size};
+  return {
+    name: this._name,
+    type: this.getTypeName(),
+    size: this._size,
+    aliases: this._aliases
+  };
 };
 
 /**
@@ -16393,20 +16521,19 @@ FixedType.prototype.toJSON = function () {
  *
  */
 function MapType(attrs, opts) {
+  Type.call(this);
+
   if (!attrs.values) {
     throw new Error(f('missing map values: %j', attrs));
   }
-
-  Type.call(this, 'map');
   this._values = createType(attrs.values, opts);
 }
 util.inherits(MapType, Type);
-MapType.name_ = 'MapType';
 
-MapType.prototype._check = function (val, cb) {
+MapType.prototype._check = function (val, path, cb) {
   if (!val || typeof val != 'object' || Array.isArray(val)) {
     if (cb) {
-      cb(PATH.slice(), val, this);
+      cb(val, this);
     }
     return false;
   }
@@ -16416,18 +16543,18 @@ MapType.prototype._check = function (val, cb) {
   var i, l, j, key;
   if (cb) {
     // Slow path.
-    j = PATH.length;
-    PATH.push('');
+    j = path.length;
+    path.push('');
     for (i = 0, l = keys.length; i < l; i++) {
-      key = PATH[j] = keys[i];
-      if (!this._values._check(val[key], cb)) {
+      key = path[j] = keys[i];
+      if (!this._values._check(val[key], path, cb)) {
         b = false;
       }
     }
-    PATH.pop();
+    path.pop();
   } else {
     for (i = 0, l = keys.length; i < l; i++) {
-      if (!this._values._check(val[keys[i]], cb)) {
+      if (!this._values._check(val[keys[i]])) {
         return false;
       }
     }
@@ -16466,7 +16593,7 @@ MapType.prototype._skip = function (tap) {
 
 MapType.prototype._write = function (tap, val) {
   if (!val || typeof val != 'object' || Array.isArray(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
 
   var values = this._values;
@@ -16489,7 +16616,7 @@ MapType.prototype._match = function () {
 };
 
 MapType.prototype._updateResolver = function (resolver, type, opts) {
-  if (type._typeName === 'map') {
+  if (type.getTypeName() === 'map') {
     resolver._values = this._values.createResolver(type._values, opts);
     resolver._read = this._read;
   }
@@ -16507,10 +16634,12 @@ MapType.prototype._copy = function (val, opts) {
     }
     return copy;
   }
-  throwInvalidError(null, val, this);
+  throwInvalidError(val, this);
 };
 
 MapType.prototype.compare = MapType.prototype._match;
+
+MapType.prototype.getTypeName = function () { return 'map'; };
 
 MapType.prototype.getValuesType = function () { return this._values; };
 
@@ -16524,7 +16653,7 @@ MapType.prototype.random = function () {
 };
 
 MapType.prototype.toJSON = function () {
-  return {type: this._typeName, values: this._values};
+  return {type: this.getTypeName(), values: this._values};
 };
 
 /**
@@ -16534,20 +16663,19 @@ MapType.prototype.toJSON = function () {
  *
  */
 function ArrayType(attrs, opts) {
+  Type.call(this);
+
   if (!attrs.items) {
     throw new Error(f('missing array items: %j', attrs));
   }
-
   this._items = createType(attrs.items, opts);
-  Type.call(this, 'array');
 }
 util.inherits(ArrayType, Type);
-ArrayType.name_ = 'ArrayType';
 
-ArrayType.prototype._check = function (val, cb) {
+ArrayType.prototype._check = function (val, path, cb) {
   if (!Array.isArray(val)) {
     if (cb) {
-      cb(PATH.slice(), val, this);
+      cb(val, this);
     }
     return false;
   }
@@ -16556,18 +16684,18 @@ ArrayType.prototype._check = function (val, cb) {
   var i, l, j;
   if (cb) {
     // Slow path.
-    j = PATH.length;
-    PATH.push('');
+    j = path.length;
+    path.push('');
     for (i = 0, l = val.length; i < l; i++) {
-      PATH[j] = '' + i;
-      if (!this._items._check(val[i], cb)) {
+      path[j] = '' + i;
+      if (!this._items._check(val[i], path, cb)) {
         b = false;
       }
     }
-    PATH.pop();
+    path.pop();
   } else {
     for (i = 0, l = val.length; i < l; i++) {
-      if (!this._items._check(val[i], cb)) {
+      if (!this._items._check(val[i])) {
         return false;
       }
     }
@@ -16578,14 +16706,14 @@ ArrayType.prototype._check = function (val, cb) {
 ArrayType.prototype._read = function (tap) {
   var items = this._items;
   var val = [];
-  var n;
+  var i, n;
   while ((n = tap.readLong())) {
     if (n < 0) {
       n = -n;
       tap.skipLong(); // Skip size.
     }
-    while (n--) {
-      val.push(items._read(tap));
+    for (i = 0; i < n; i++) {
+      val[i] = items._read(tap);
     }
   }
   return val;
@@ -16607,7 +16735,7 @@ ArrayType.prototype._skip = function (tap) {
 
 ArrayType.prototype._write = function (tap, val) {
   if (!Array.isArray(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
 
   var n = val.length;
@@ -16641,7 +16769,7 @@ ArrayType.prototype._match = function (tap1, tap2) {
 };
 
 ArrayType.prototype._updateResolver = function (resolver, type, opts) {
-  if (type._typeName === 'array') {
+  if (type.getTypeName() === 'array') {
     resolver._items = this._items.createResolver(type._items, opts);
     resolver._read = this._read;
   }
@@ -16649,12 +16777,12 @@ ArrayType.prototype._updateResolver = function (resolver, type, opts) {
 
 ArrayType.prototype._copy = function (val, opts) {
   if (!Array.isArray(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
-  var items = [];
+  var items = new Array(val.length);
   var i, l;
   for (i = 0, l = val.length; i < l; i++) {
-    items.push(this._items._copy(val[i], opts));
+    items[i] = this._items._copy(val[i], opts);
   }
   return items;
 };
@@ -16673,6 +16801,8 @@ ArrayType.prototype.compare = function (val1, val2) {
 
 ArrayType.prototype.getItemsType = function () { return this._items; };
 
+ArrayType.prototype.getTypeName = function () { return 'array'; };
+
 ArrayType.prototype.random = function () {
   var arr = [];
   var i, l;
@@ -16683,7 +16813,7 @@ ArrayType.prototype.random = function () {
 };
 
 ArrayType.prototype.toJSON = function () {
-  return {type: this._typeName, items: this._items};
+  return {type: this.getTypeName(), items: this._items};
 };
 
 /**
@@ -16703,42 +16833,52 @@ ArrayType.prototype.toJSON = function () {
  *
  */
 function RecordType(attrs, opts) {
-  var namespace = opts && opts.namespace;
-  opts = updateOpts(opts, attrs);
-
-  var typeName = attrs.type;
-  var resolutions = resolveNames(attrs, opts.namespace);
-  this._name = resolutions.name;
-  this._aliases = resolutions.aliases;
-  Type.call(this, typeName, opts.registry);
+  Type.call(this, attrs, opts);
 
   if (!Array.isArray(attrs.fields)) {
-    throw new Error(f('non-array %s fields', this._name));
+    throw new Error(f('non-array record fields: %j', attrs.fields));
   }
-  this._fields = attrs.fields.map(function (f) {
-    return new Field(f, opts);
-  });
   if (utils.hasDuplicates(attrs.fields, function (f) { return f.name; })) {
-    throw new Error(f('duplicate %s field name', this._name));
+    throw new Error(f('duplicate field name: %j', attrs.fields));
   }
 
-  this._constructor = this._createConstructor(this._typeName === 'error');
+  var namespace;
+  if (opts) {
+    // Save current namespace.
+    namespace = opts.namespace;
+    if (attrs.namespace !== undefined) {
+      opts.namespace = attrs.namespace;
+    } else {
+      var match = /^(.*)\.[^.]+$/.exec(this._name);
+      opts.namespace = match ? match[1] : '';
+    }
+  }
+  this._fields = attrs.fields.map(function (f) { return new Field(f, opts); });
+  if (opts) {
+    opts.namespace = namespace;
+  }
+
+  this._isError = attrs.type === 'error';
+  this._constructor = this._createConstructor();
   this._read = this._createReader();
   this._skip = this._createSkipper();
   this._write = this._createWriter();
   this._check = this._createChecker();
-
-  opts.namespace = namespace;
 }
 util.inherits(RecordType, Type);
-RecordType.name_ = 'RecordType';
 
-RecordType.prototype._createConstructor = function (isError) {
+RecordType.prototype._getConstructorName = function () {
+  return this._name ?
+    unqualify(this._name) :
+    this._isError ? 'Error$' : 'Record$';
+};
+
+RecordType.prototype._createConstructor = function () {
   // jshint -W054
   var outerArgs = [];
   var innerArgs = [];
   var ds = []; // Defaults.
-  var innerBody = isError ? '  Error.call(this);\n' : '';
+  var innerBody = this._isError ? '  Error.call(this);\n' : '';
   // Not calling `Error.captureStackTrace` because this wouldn't be compatible
   // with browsers other than Chrome.
   var i, l, field, name, getDefault;
@@ -16758,57 +16898,33 @@ RecordType.prototype._createConstructor = function (isError) {
       ds.push(getDefault);
     }
   }
-  var outerBody = 'return function ' + unqualify(this._name) + '(';
+  var outerBody = 'return function ' + this._getConstructorName() + '(';
   outerBody += innerArgs.join() + ') {\n' + innerBody + '};';
   var Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
 
   var self = this;
-  var msg = 'deprecated: please use method without the $ prefix instead';
-  Record.getType = getType;
-  Record.prototype = {
-    constructor: Record,
-    clone: clone,
-    compare: compare,
-    // This might clash with other outside defined getters.
-    getType: util.deprecate(getType, 'deprecated: use constructor.getType'),
-    isValid: isValid,
-    toBuffer: toBuffer,
-    toString: toString,
-    // Legacy names. These were prefixed with `$` because it is an invalid
-    // property name in Avro but not in JavaScript (and therefore are
-    // guaranteed not to collide with field names). However, the prefixed name
-    // was not as unintuitive (e.g. `$toString`) so these will be removed in
-    // the next major release.
-    $clone: util.deprecate(clone, msg),
-    $compare: util.deprecate(compare, msg),
-    $getType: util.deprecate(getType, msg),
-    $isValid: util.deprecate(isValid, msg),
-    $toBuffer: util.deprecate(toBuffer, msg),
-    $toString: util.deprecate(toString, msg)
-  };
-  if (isError) {
+  Record.getType = function () { return self; };
+  if (this._isError) {
     util.inherits(Record, Error);
     // Not setting the error's name on the prototype to be consistent with how
     // object fields are mapped to (only if defined in the schema as a field).
   }
+  Record.prototype.clone = function (o) { return self.clone(this, o); };
+  Record.prototype.compare = function (v) { return self.compare(this, v); };
+  Record.prototype.isValid = function (o) { return self.isValid(this, o); };
+  Record.prototype.toBuffer = function () { return self.toBuffer(this); };
+  Record.prototype.toString = function () { return self.toString(this); };
   return Record;
-
-  // Convenience functions, attached to records' prototype.
-  function clone(o) { /* jshint -W040 */ return self.clone(this, o); }
-  function compare(v) { /* jshint -W040 */ return self.compare(this, v); }
-  function getType() { /* jshint -W040 */ return self; }
-  function isValid(o) { /* jshint -W040 */ return self.isValid(this, o); }
-  function toBuffer() { /* jshint -W040 */ return self.toBuffer(this); }
-  function toString() { /* jshint -W040 */ return self.toString(this); }
 };
 
 RecordType.prototype._createChecker = function () {
   // jshint -W054
-  var names = ['t', 'P'];
-  var values = [this, PATH];
-  var body = 'return function check' + unqualify(this._name) + '(val, cb) {\n';
-  body += '  if (val === null || typeof val != \'object\') {\n';
-  body += '    if (cb) { cb(P.slice(), val, t); }\n';
+  var names = ['t'];
+  var values = [this];
+  var name = this._getConstructorName();
+  var body = 'return function check' + name + '(v, p, c) {\n';
+  body += '  if (v === null || typeof v != \'object\') {\n';
+  body += '    if (c) { c(v, t); }\n';
   body += '    return false;\n';
   body += '  }\n';
   if (!this._fields.length) {
@@ -16820,30 +16936,30 @@ RecordType.prototype._createChecker = function () {
       names.push('t' + i);
       values.push(field._type);
       if (field.getDefault() !== undefined) {
-        body += '  var v' + i + ' = val.' + field._name + ';\n';
+        body += '  var v' + i + ' = v.' + field._name + ';\n';
       }
     }
-    body += '  if (cb) {\n';
+    body += '  if (c) {\n';
     body += '    var b = 1;\n';
-    body += '    var j = P.length;\n';
-    body += '    P.push(\'\');\n';
+    body += '    var j = p.length;\n';
+    body += '    p.push(\'\');\n';
     var i, l, field;
     for (i = 0, l = this._fields.length; i < l; i++) {
       field = this._fields[i];
-      body += '    P[j] = \'' + field._name + '\';\n';
+      body += '    p[j] = \'' + field._name + '\';\n';
       if (field.getDefault() === undefined) {
-        body += '    b &= t' + i + '._check(val.' + field._name + ', cb);\n';
+        body += '    b &= t' + i + '._check(v.' + field._name + ', p, c);\n';
       } else {
         body += '    b &= v' + i + ' === undefined || ';
-        body += 't' + i + '._check(v' + i + ', cb);\n';
+        body += 't' + i + '._check(v' + i + ', p, c);\n';
       }
     }
-    body += '    P.pop();\n';
+    body += '    p.pop();\n';
     body += '    return !!b;\n';
     body += '  } else {\n    return (\n      ';
     body += this._fields.map(function (field, i) {
       if (field.getDefault() === undefined) {
-        return 't' + i + '._check(val.' + field._name + ')';
+        return 't' + i + '._check(v.' + field._name + ')';
       } else {
         return '(v' + i + ' === undefined || t' + i + '._check(v' + i + '))';
       }
@@ -16856,7 +16972,6 @@ RecordType.prototype._createChecker = function () {
 
 RecordType.prototype._createReader = function () {
   // jshint -W054
-  var uname = unqualify(this._name);
   var names = [];
   var values = [this._constructor];
   var i, l;
@@ -16864,11 +16979,12 @@ RecordType.prototype._createReader = function () {
     names.push('t' + i);
     values.push(this._fields[i]._type);
   }
-  var body = 'return function read' + uname + '(tap) {\n';
-  body += '  return new ' + uname + '(';
+  var name = this._getConstructorName();
+  var body = 'return function read' + name + '(tap) {\n';
+  body += '  return new ' + name + '(';
   body += names.map(function (t) { return t + '._read(tap)'; }).join();
   body += ');\n};';
-  names.unshift(uname);
+  names.unshift(name);
   // We can do this since the JS spec guarantees that function arguments are
   // evaluated from left to right.
   return new Function(names.join(), body).apply(undefined, values);
@@ -16877,7 +16993,7 @@ RecordType.prototype._createReader = function () {
 RecordType.prototype._createSkipper = function () {
   // jshint -W054
   var args = [];
-  var body = 'return function skip' + unqualify(this._name) + '(tap) {\n';
+  var body = 'return function skip' + this._getConstructorName() + '(tap) {\n';
   var values = [];
   var i, l;
   for (i = 0, l = this._fields.length; i < l; i++) {
@@ -16893,7 +17009,8 @@ RecordType.prototype._createWriter = function () {
   // jshint -W054
   // We still do default handling here, in case a normal JS object is passed.
   var args = [];
-  var body = 'return function write' + unqualify(this._name) + '(tap, val) {\n';
+  var name = this._getConstructorName();
+  var body = 'return function write' + name + '(tap, v) {\n';
   var values = [];
   var i, l, field, value;
   for (i = 0, l = this._fields.length; i < l; i++) {
@@ -16902,7 +17019,7 @@ RecordType.prototype._createWriter = function () {
     values.push(field._type);
     body += '  ';
     if (field.getDefault() === undefined) {
-      body += 't' + i + '._write(tap, val.' + field._name + ');\n';
+      body += 't' + i + '._write(tap, v.' + field._name + ');\n';
     } else {
       value = field._type.toBuffer(field.getDefault()).toString('binary');
       // Convert the default value to a binary string ahead of time. We aren't
@@ -16910,7 +17027,7 @@ RecordType.prototype._createWriter = function () {
       // had our own buffer pool, this could be an idea in the future.
       args.push('d' + i);
       values.push(value);
-      body += 'var v' + i + ' = val.' + field._name + '; ';
+      body += 'var v' + i + ' = v.' + field._name + '; ';
       body += 'if (v' + i + ' === undefined) { ';
       body += 'tap.writeBinary(d' + i + ', ' + value.length + ');';
       body += ' } else { t' + i + '._write(tap, v' + i + '); }\n';
@@ -16922,8 +17039,8 @@ RecordType.prototype._createWriter = function () {
 
 RecordType.prototype._updateResolver = function (resolver, type, opts) {
   // jshint -W054
-  if (!~getAliases(this).indexOf(type._name)) {
-    throw new Error(f('no alias for %s in %s', type._name, this._name));
+  if (type._name && !~getAliases(this).indexOf(type._name)) {
+    throw new Error(f('no alias found for %s', type._name));
   }
 
   var rFields = this._fields;
@@ -16968,7 +17085,7 @@ RecordType.prototype._updateResolver = function (resolver, type, opts) {
     lazyIndex = i;
   }
 
-  var uname = unqualify(this._name);
+  var uname = this._getConstructorName();
   var args = [uname];
   var values = [this._constructor];
   var body = '  return function read' + uname + '(tap,lazy) {\n';
@@ -16993,7 +17110,7 @@ RecordType.prototype._updateResolver = function (resolver, type, opts) {
   if (~lazyIndex) {
     body += '  }\n';
   }
-  body +=  '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
+  body += '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
 
   resolver._read = new Function(args.join(), body).apply(undefined, values);
 };
@@ -17066,33 +17183,54 @@ RecordType.prototype.random = function () {
 
 RecordType.prototype.getAliases = function () { return this._aliases; };
 
+RecordType.prototype.getField = function (name) {
+  var fields = this._fields;
+  var i, l, field;
+  for (i = 0, l = fields.length; i < l; i++) {
+    field = fields[i];
+    if (field._name === name) {
+      return field;
+    }
+  }
+};
+
 RecordType.prototype.getFields = function () { return this._fields.slice(); };
 
 RecordType.prototype.getRecordConstructor = function () {
   return this._constructor;
 };
 
+RecordType.prototype.getTypeName = function () {
+  return this._isError ? 'error' : 'record';
+};
+
 RecordType.prototype.toJSON = function () {
-  return {name: this._name, type: this._typeName, fields: this._fields};
+  // The nested JSONification of fields isn't required for `getSchema` (it
+  // would call it recursively anyway), but it makes other things simpler by
+  // letting us return valid "canonical attributes" directly (e.g. meta types).
+  return {
+    name: this._name,
+    type: this.getTypeName(),
+    fields: this._fields.map(function (f) { return f.toJSON(); }),
+    aliases: this._aliases
+  };
 };
 
 /**
  * Derived type abstract class.
  *
  */
-function LogicalType(attrs, opts, Types) {
-  Type.call(this, '(logical)');
+function LogicalType(attrs, opts) {
+  this._logicalTypeName = attrs.logicalType;
+  Type.call(this);
   LOGICAL_TYPE = this;
   this._underlyingType = createType(attrs, opts);
-
-  // Convenience type check.
-  if (Types && !~Types.indexOf(this._underlyingType.constructor)) {
-    var lType = attrs.logicalType;
-    var uType = this._underlyingType;
-    throw new Error(f('invalid underlying type for %s: %s', lType, uType));
-  }
 }
 util.inherits(LogicalType, Type);
+
+LogicalType.prototype.getTypeName = function () {
+  return 'logical:' + this._logicalTypeName;
+};
 
 LogicalType.prototype.getUnderlyingType = function () {
   return this._underlyingType;
@@ -17106,16 +17244,19 @@ LogicalType.prototype._write = function (tap, any) {
   this._underlyingType._write(tap, this._toValue(any));
 };
 
-LogicalType.prototype._check = function (any, cb) {
+LogicalType.prototype._check = function (any, path, cb) {
   try {
     var val = this._toValue(any);
   } catch (err) {
+    // Handled below.
+  }
+  if (val === undefined) {
     if (cb) {
-      cb(PATH.slice(), any, this);
+      cb(any, this);
     }
     return false;
   }
-  return this._underlyingType._check(val, cb);
+  return this._underlyingType._check(val, path, cb);
 };
 
 LogicalType.prototype._copy = function (any, opts) {
@@ -17148,8 +17289,20 @@ LogicalType.prototype.compare = function (obj1, obj2) {
 };
 
 LogicalType.prototype.toJSON = function () {
-  return this._underlyingType.toJSON();
+  var attrs = this.getUnderlyingType().toJSON();
+  if (EXPORT_ATTRS) {
+    if (typeof attrs == 'string') {
+      attrs = {type: attrs};
+    }
+    attrs.logicalType = this._logicalTypeName;
+    this._export(attrs);
+  }
+  return attrs;
 };
+
+// Unlike the other methods below, `_export` has a reasonable default which we
+// can provide (not exporting anything).
+LogicalType.prototype._export = function (/* attrs */) {};
 
 // Methods to be implemented.
 LogicalType.prototype._fromValue = utils.abstractFunction;
@@ -17163,7 +17316,9 @@ LogicalType.prototype._resolve = utils.abstractFunction;
  * Customizable long.
  *
  * This allows support of arbitrarily large long (e.g. larger than
- * `Number.MAX_SAFE_INTEGER`). See `LongType.__with` method above.
+ * `Number.MAX_SAFE_INTEGER`). See `LongType.__with` method above. Note that we
+ * can't use a logical type because we need a "lower-level" hook here: passing
+ * through through the standard long would cause a loss of precision.
  *
  */
 function AbstractLongType(noUnpack) {
@@ -17172,10 +17327,10 @@ function AbstractLongType(noUnpack) {
 }
 util.inherits(AbstractLongType, LongType);
 
-AbstractLongType.prototype._check = function (val, cb) {
+AbstractLongType.prototype._check = function (val, path, cb) {
   var b = this._isValid(val);
   if (!b && cb) {
-    cb(PATH.slice(), val, this);
+    cb(val, this);
   }
   return b;
 };
@@ -17196,7 +17351,7 @@ AbstractLongType.prototype._read = function (tap) {
 
 AbstractLongType.prototype._write = function (tap, val) {
   if (!this._isValid(val)) {
-    throwInvalidError(null, val, this);
+    throwInvalidError(val, this);
   }
   var buf = this._toBuffer(val);
   if (this._noUnpack) {
@@ -17240,7 +17395,7 @@ AbstractLongType.prototype.compare = utils.abstractFunction;
  */
 function Field(attrs, opts) {
   var name = attrs.name;
-  if (typeof name != 'string' || !NAME_PATTERN.test(name)) {
+  if (typeof name != 'string' || !isValidName(name)) {
     throw new Error(f('invalid field name: %s', name));
   }
 
@@ -17270,7 +17425,7 @@ function Field(attrs, opts) {
     var type = this._type;
     var val = type._copy(value, {coerce: 2, wrap: 2});
     // The clone call above will throw an error if the default is invalid.
-    if (isPrimitive(type._typeName) && type._typeName !== 'bytes') {
+    if (isPrimitive(type.getTypeName()) && type.getTypeName() !== 'bytes') {
       // These are immutable.
       this.getDefault = function () { return val; };
     } else {
@@ -17278,10 +17433,6 @@ function Field(attrs, opts) {
     }
   }
 }
-
-Field.isField = function (obj) {
-  return obj && typeof obj.getDefault == 'function';
-};
 
 Field.prototype.getAliases = function () { return this._aliases; };
 
@@ -17295,14 +17446,22 @@ Field.prototype.getOrder = function () {
 
 Field.prototype.getType = function () { return this._type; };
 
-Field.prototype.inspect = function () {
+Field.prototype.toJSON = function () {
+  var val = this.getDefault();
+  if (val !== undefined) {
+    // We must both unwrap all unions and coerce buffers to strings.
+    val = this._type._copy(val, {coerce: 3, wrap: 3});
+  }
   return {
     name: this._name,
     type: this._type,
+    'default': val,
     order: this.getOrder(),
-    'default': this.getDefault()
+    aliases: this._aliases
   };
 };
+
+Field.prototype.inspect = Field.prototype.toJSON;
 
 /**
  * Resolver to read a writer's schema as a new schema.
@@ -17343,51 +17502,6 @@ function readValue(type, tap, resolver, lazy) {
 }
 
 /**
- * Create default parsing options.
- *
- * @param attrs {Object} Schema to populate options with.
- * @param opts {Object} Base options.
- *
- */
-function updateOpts(opts, attrs) {
-  var namespace = attrs && attrs.namespace;
-
-  opts = opts || {};
-  opts.namespace = namespace !== undefined ? namespace : opts.namespace;
-  opts.registry = opts.registry || {};
-  opts.logicalTypes = opts.logicalTypes || {};
-  return opts;
-}
-
-/**
- * Resolve a schema's name and aliases.
- *
- * @param attrs {Object} True schema (can't be a string).
- * @param namespace {String} Optional parent namespace.
- *
- */
-function resolveNames(attrs, namespace) {
-  namespace = attrs.namespace || namespace;
-
-  var name = attrs.name;
-  if (!name) {
-    throw new Error(f('missing name property in schema: %j', attrs));
-  }
-  name = qualify(name, namespace);
-  if (isPrimitive(name)) {
-    // Avro doesn't allow redefining primitive names.
-    throw new Error(f('cannot rename primitive type: %j', name));
-  }
-
-  return {
-    name: name,
-    aliases: attrs.aliases ?
-      attrs.aliases.map(function (str) { return qualify(str, namespace); }) :
-      []
-  };
-}
-
-/**
  * Remove namespace from a name.
  *
  * @param name {String} Full or short name.
@@ -17413,7 +17527,7 @@ function qualify(name, namespace) {
     name = namespace + '.' + name;
   }
   name.split('.').forEach(function (part) {
-    if (!NAME_PATTERN.test(part)) {
+    if (!isValidName(part)) {
       throw new Error(f('invalid name: %j', name));
     }
   });
@@ -17430,7 +17544,10 @@ function qualify(name, namespace) {
  *
  */
 function getAliases(obj) {
-  var names = [obj._name];
+  var names = [];
+  if (obj._name) {
+    names.push(obj._name);
+  }
   var aliases = obj._aliases;
   var i, l;
   for (i = 0, l = aliases.length; i < l; i++) {
@@ -17446,9 +17563,35 @@ function getAliases(obj) {
  *
  */
 function isPrimitive(typeName) {
-  // Since we use this own module's `TYPES` object, we can use `instanceof`.
+  // Since we use this module's own `TYPES` object, we can use `instanceof`.
   var type = TYPES[typeName];
-  return type !== undefined && type.prototype instanceof PrimitiveType;
+  return type && type.prototype instanceof PrimitiveType;
+}
+
+/**
+ * Return a type's class name from its Avro type name.
+ *
+ * We can't simply use `constructor.name` since it isn't supported in all
+ * browsers.
+ *
+ * @param typeName {String} Type name.
+ *
+ */
+function getClassName(typeName) {
+  if (typeName === 'error') {
+    typeName = 'record';
+  } else {
+    var match = /^([^:]+):(.*)$/.exec(typeName);
+    if (match) {
+      if (match[1] === 'union') {
+        typeName = match[2] + 'Union';
+      } else {
+        // Logical type.
+        typeName = match[1];
+      }
+    }
+  }
+  return utils.capitalize(typeName) + 'Type';
 }
 
 /**
@@ -17472,25 +17615,54 @@ function readArraySize(tap) {
  * @param obj {Object} The object to stringify. Typically, a type itself or an
  * object containing types. Any types inside will be expanded only once then
  * referenced by name.
- * @param noDeref {Boolean} Always reference types by name when possible,
- * rather than expand it the first time it is encountered.
+ * @param opts {Object} Options:
+ *  + `exportAttrs` {Boolean} Include field and logical type attributes.
+ *  + `noDeref` {Boolean} Always reference types by name when possible,
+ *    rather than expand it the first time it is encountered.
  *
  */
-function stringify(obj, noDeref) {
+function stringify(obj, opts) {
+  EXPORT_ATTRS = opts && opts.exportAttrs;
+  var noDeref = opts && opts.noDeref;
+
   // Since JS objects are unordered, this implementation (unfortunately)
   // relies on engines returning properties in the same order that they are
   // inserted in. This is not in the JS spec, but can be "somewhat" safely
   // assumed (more here: http://stackoverflow.com/q/5525795/1062617).
   return (function (registry) {
     return JSON.stringify(obj, function (key, value) {
-      if (Field.isField(value)) {
-        return {name: value._name, type: value._type};
-      } else if (value && value.name) {
-        var name = value.name;
-        if (noDeref || registry[name]) {
-          return name;
+      if (value) {
+        if (
+          typeof value == 'object' &&
+          value.hasOwnProperty('default') &&
+          !value.hasOwnProperty('logicalType')
+        ) {
+          // This is a field.
+          if (EXPORT_ATTRS) {
+            return {
+              name: value.name,
+              type: value.type,
+              'default': value['default'],
+              order: value.order !== 'ascending' ? value.order : undefined,
+              aliases: value.aliases.length ? value.aliases : undefined
+            };
+          } else {
+            return {name: value.name, type: value.type};
+          }
+        } else if (value.aliases) {
+          // This is a named type (enum, fixed, record, error).
+          var name = value.name;
+          if (name) {
+            // If the type is anonymous, we always dereference it.
+            if (noDeref || registry[name]) {
+              return name;
+            }
+            registry[name] = true;
+          }
+          if (!EXPORT_ATTRS || !value.aliases.length) {
+            value.aliases = undefined;
+          }
         }
-        registry[name] = true;
       }
       return value;
     });
@@ -17514,6 +17686,20 @@ function isSafeLong(n) {
 }
 
 /**
+ * Check whether an object is the JSON representation of a buffer.
+ *
+ */
+function isJsonBuffer(obj) {
+  return obj && obj.type === 'Buffer' && Array.isArray(obj.data);
+}
+
+/**
+ * Check whether a string is a valid Avro identifier.
+ *
+ */
+function isValidName(str) { return NAME_PATTERN.test(str); }
+
+/**
  * Throw a somewhat helpful error on invalid object.
  *
  * @param path {Array} Passed from hook, but unused (because empty where this
@@ -17526,30 +17712,86 @@ function isSafeLong(n) {
  * with a hook since the path is not propagated (for efficiency reasons).
  *
  */
-function throwInvalidError(path, val, type) {
+function throwInvalidError(val, type) {
   throw new Error(f('invalid %s: %j', type, val));
+}
+
+/**
+ * Get a type's bucket when included inside an unwrapped union.
+ *
+ * @param type {Type} Any type.
+ *
+ */
+function getTypeBucket(type) {
+  var typeName = type.getTypeName();
+  switch (typeName) {
+    case 'double':
+    case 'float':
+    case 'int':
+    case 'long':
+      return 'number';
+    case 'bytes':
+    case 'fixed':
+      return 'buffer';
+    case 'enum':
+      return 'string';
+    case 'map':
+    case 'error':
+    case 'record':
+      return 'object';
+    default:
+      return typeName;
+  }
+}
+
+/**
+ * Infer a value's bucket (see unwrapped unions for more details).
+ *
+ * @param val {...} Any value.
+ *
+ */
+function getValueBucket(val) {
+  if (val === null) {
+    return 'null';
+  }
+  var bucket = typeof val;
+  if (bucket === 'object') {
+    // Could be bytes, fixed, array, map, or record.
+    if (Array.isArray(val)) {
+      return 'array';
+    } else if (Buffer.isBuffer(val)) {
+      return 'buffer';
+    }
+  }
+  return bucket;
 }
 
 
 module.exports = {
   Type: Type,
   createType: createType,
+  getTypeBucket: getTypeBucket,
+  getValueBucket: getValueBucket,
+  isValidName: isValidName,
   stringify: stringify,
   builtins: (function () {
-    // Base type is redundant but exported for backwards compatibility.
-    var obj = {Type: Type, LogicalType: LogicalType};
-    var types = Object.keys(TYPES);
-    var i, l, Class;
-    for (i = 0, l = types.length; i < l; i++) {
-      Class = TYPES[types[i]];
-      obj[Class.name_] = Class;
+    var types = {
+      LogicalType: LogicalType,
+      UnwrappedUnionType: UnwrappedUnionType,
+      WrappedUnionType: WrappedUnionType
+    };
+    var typeNames = Object.keys(TYPES);
+    var i, l, typeName;
+    for (i = 0, l = typeNames.length; i < l; i++) {
+      typeName = typeNames[i];
+      types[getClassName(typeName)] = TYPES[typeName];
     }
-    return obj;
+    return types;
   })()
 };
 
 }).call(this,require("buffer").Buffer)
-},{"./utils":52,"buffer":16,"util":42}],52:[function(require,module,exports){
+},{"./utils":51,"buffer":16,"util":42}],51:[function(require,module,exports){
 (function (Buffer){
 /* jshint node: true */
 
@@ -17559,7 +17801,7 @@ module.exports = {
 'use strict';
 
 /**
- * Various utilities used accross this library.
+ * Various utilities used across this library.
  *
  */
 
@@ -17824,6 +18066,9 @@ OrderedQueue.prototype.pop = function () {
 function Tap(buf, pos) {
   this.buf = buf;
   this.pos = pos | 0;
+  if (this.pos < 0) {
+    throw new Error('negative offset');
+  }
 }
 
 /**
@@ -17836,12 +18081,6 @@ function Tap(buf, pos) {
  *
  */
 Tap.prototype.isValid = function () { return this.pos <= this.buf.length; };
-
-/**
- * Returns the contents of the tap up to the current position.
- *
- */
-Tap.prototype.getValue = function () { return this.buf.slice(0, this.pos); };
 
 // Read, skip, write methods.
 //
@@ -18198,7 +18437,372 @@ module.exports = {
 };
 
 }).call(this,require("buffer").Buffer)
-},{"buffer":16,"crypto":46}],53:[function(require,module,exports){
+},{"buffer":16,"crypto":45}],52:[function(require,module,exports){
+(function (Buffer){
+/* jshint node: true */
+
+'use strict';
+
+// TODO: Add a few built-in logical types to help inference (e.g. dates)?
+
+/**
+ * From values to types.
+ *
+ * This file also contains the (very related) logic to combine types.
+ *
+ */
+
+var types = require('./types'),
+    utils = require('./utils');
+
+
+// Convenience imports.
+var f = utils.format;
+var createType = types.createType;
+var getTypeBucket = types.getTypeBucket;
+
+// Placeholder type used when inferring the type of an empty array.
+var EMPTY_ARRAY_TYPE = createType({type: 'array', items: 'null'});
+
+/**
+ * Infer a type from a value.
+ *
+ */
+function infer(val, opts) {
+  opts = opts || {};
+
+  if (opts.valueHook) {
+    var type = opts.valueHook(val, opts);
+    if (type !== undefined) {
+      if (!types.Type.isType(type)) {
+        throw new Error(f('invalid value hook return value: %j', type));
+      }
+      return type;
+    }
+  }
+
+  // Default inference logic.
+  switch (typeof val) {
+    case 'string':
+      return createType('string', opts);
+    case 'boolean':
+      return createType('boolean', opts);
+    case 'number':
+      if ((val | 0) === val) {
+        return createType('int', opts);
+      } else if (Math.abs(val) < 9007199254740991) {
+        return createType('float', opts);
+      }
+      return createType('double', opts);
+    case 'object':
+      if (val === null) {
+        return createType('null', opts);
+      } else if (Array.isArray(val)) {
+        if (!val.length) {
+          return EMPTY_ARRAY_TYPE;
+        }
+        return createType({
+          type: 'array',
+          items: combine(val.map(function (v) { return infer(v, opts); }))
+        }, opts);
+      } else if (Buffer.isBuffer(val)) {
+        return createType('bytes', opts);
+      }
+      var fieldNames = Object.keys(val);
+      if (fieldNames.some(function (s) { return !types.isValidName(s); })) {
+        // We have to fall back to a map.
+        return createType({
+          type: 'map',
+          values: combine(fieldNames.map(function (s) {
+            return infer(val[s], opts);
+          }), opts)
+        }, opts);
+      }
+      return createType({
+        type: 'record',
+        fields: fieldNames.map(function (s) {
+          return {name: s, type: infer(val[s], opts)};
+        })
+      }, opts);
+    default:
+      throw new Error(f('cannot infer type from: %j', val));
+  }
+}
+
+/**
+ * Combine types into one.
+ *
+ */
+function combine(types, opts) {
+  if (!types.length) {
+    throw new Error('no types to combine');
+  }
+  if (types.length === 1) {
+    return types[0]; // Nothing to do.
+  }
+
+  // Extract any union types.
+  var expanded = [];
+  types.forEach(function (type) {
+    switch (type.getTypeName()) {
+      case 'union:wrapped':
+        throw new Error('wrapped unions cannot be combined');
+      case 'union:unwrapped':
+        expanded = expanded.concat(type.getTypes());
+        break;
+      default:
+        expanded.push(type);
+    }
+  });
+
+  // Group types by category, similar to the logic for unwrapped unions.
+  var bucketized = {};
+  expanded.forEach(function (type) {
+    var bucket = getTypeBucket(type);
+    var bucketTypes = bucketized[bucket];
+    if (!bucketTypes) {
+      bucketized[bucket] = bucketTypes = [];
+    }
+    bucketTypes.push(type);
+  });
+
+  // Generate the "augmented" type for each group.
+  var buckets = Object.keys(bucketized);
+  var augmented = buckets.map(function (bucket) {
+    var bucketTypes = bucketized[bucket];
+    if (bucketTypes.length === 1) {
+      return bucketTypes[0];
+    } else {
+      switch (bucket) {
+        case 'null':
+        case 'boolean':
+          return bucketTypes[0];
+        case 'number':
+          return combineNumbers(bucketTypes);
+        case 'string':
+          return combineStrings(bucketTypes, opts);
+        case 'buffer':
+          return combineBuffers(bucketTypes, opts);
+        case 'array':
+          // Remove any sentinel arrays (used when inferring from empty arrays)
+          // to avoid making things nullable when they shouldn't be.
+          bucketTypes = bucketTypes.filter(function (t) {
+            return t !== EMPTY_ARRAY_TYPE;
+          });
+          if (!bucketTypes.length) {
+            // We still don't have a real type, just return the sentinel.
+            return EMPTY_ARRAY_TYPE;
+          }
+          return createType({
+            type: 'array',
+            items: combine(bucketTypes.map(function (t) {
+              return t.getItemsType();
+            }))
+          }, opts);
+        default:
+          return combineObjects(bucketTypes, opts);
+      }
+    }
+  });
+
+  if (augmented.length === 1) {
+    return augmented[0];
+  } else {
+    // We return an (unwrapped) union of all augmented types.
+    return createType(augmented, opts);
+  }
+}
+
+/**
+ * Combine number types.
+ *
+ * Note that never have to create a new type here, we are guaranteed to be able
+ * to reuse one of the input types as super-type.
+ *
+ */
+function combineNumbers(types) {
+  var typeNames = ['int', 'long', 'float', 'double'];
+  var superIndex = -1;
+  var superType = null;
+  var i, l, type, index;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    index = typeNames.indexOf(type.getTypeName());
+    if (index > superIndex) {
+      superIndex = index;
+      superType = type;
+    }
+  }
+  return superType;
+}
+
+/**
+ * Combine enums and strings.
+ *
+ * The order of the returned symbols is undefined and the returned enum is
+ * anonymous.
+ *
+ */
+function combineStrings(types, opts) {
+  var symbols = {};
+  var i, l, type, typeSymbols;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    if (type.getTypeName() === 'string') {
+      // If at least one of the types is a string, it will be the supertype.
+      return type;
+    }
+    typeSymbols = type.getSymbols();
+    var j, m;
+    for (j = 0, m = typeSymbols.length; j < m; j++) {
+      symbols[typeSymbols[j]] = true;
+    }
+  }
+  return createType({type: 'enum', symbols: Object.keys(symbols)}, opts);
+}
+
+/**
+ * Combine bytes and fixed.
+ *
+ * This function is optimized to avoid creating new types when possible: in
+ * case of a size mismatch between fixed types, it will continue looking
+ * through the array to find an existing bytes type (rather than exit early by
+ * creating one eagerly).
+ *
+ */
+function combineBuffers(types, opts) {
+  var size = -1;
+  var i, l, type;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    if (type.getTypeName() === 'bytes') {
+      return type;
+    }
+    if (size === -1) {
+      size = type.getSize();
+    } else if (type.getSize() != size) {
+      // Don't create a bytes type right away, we might be able to reuse one
+      // later on in the types array. Just mark this for now.
+      size = -2;
+    }
+  }
+  return size < 0 ? createType('bytes', opts) : types[0];
+}
+
+/**
+ * Combine maps and records.
+ *
+ * Field defaults are kept, with later definitions overriding previous ones.
+ *
+ */
+function combineObjects(types, opts) {
+  opts = opts || {};
+
+  var allTypes = []; // Field and value types.
+  var fieldTypes = {}; // Record field types grouped by field name.
+  var fieldDefaults = {};
+  var isValidRecord = true;
+
+  // Check whether the final type will be a map or a record.
+  var i, l, type, fields;
+  for (i = 0, l = types.length; i < l; i++) {
+    type = types[i];
+    if (!isValidRecord || type.getTypeName() === 'map') {
+      isValidRecord = false;
+      allTypes.push(type.getValuesType());
+    } else {
+      fields = type.getFields();
+
+      var j, m, field, fieldDefault, fieldName, fieldType;
+      for (j = 0, m = fields.length; j < m; j++) {
+        field = fields[j];
+        fieldName = field.getName();
+        fieldType = field.getType();
+        allTypes.push(fieldType);
+        if (!fieldTypes[fieldName]) {
+          fieldTypes[fieldName] = [];
+        }
+        fieldTypes[fieldName].push(fieldType);
+        fieldDefault = field.getDefault();
+        if (fieldDefault !== undefined) {
+          // Later defaults will override any previous ones.
+          fieldDefaults[fieldName] = fieldDefault;
+        }
+      }
+    }
+  }
+
+  if (isValidRecord) {
+    // Check that no fields are missing, or that we have the approriate
+    // defaults for those which are.
+    var fieldNames = Object.keys(fieldTypes);
+    for (i = 0, l = fieldNames.length; i < l; i++) {
+      fieldName = fieldNames[i];
+      if (
+        fieldTypes[fieldName].length < types.length &&
+        fieldDefaults[fieldName] === undefined
+      ) {
+        // At least one of the records is missing a field with no default.
+        if (opts && opts.strictDefaults) {
+          isValidRecord = false;
+        } else {
+          fieldTypes[fieldName].unshift(createType('null', opts));
+          fieldDefaults[fieldName] = null;
+        }
+      }
+    }
+  }
+
+  var attrs;
+  if (isValidRecord) {
+    attrs = {
+      type: 'record',
+      fields: fieldNames.map(function (s) {
+        var fieldType = combine(fieldTypes[s], opts);
+        var fieldDefault = fieldDefaults[s];
+        if (
+          fieldDefault !== undefined &&
+          ~fieldType.getTypeName().indexOf('union')
+        ) {
+          // Ensure that the default's corresponding type is first.
+          var unionTypes = fieldType.getTypes();
+          var i, l;
+          for (i = 0, l = unionTypes.length; i < l; i++) {
+            if (unionTypes[i].isValid(fieldDefault)) {
+              break;
+            }
+          }
+          if (i > 0) {
+            var unionType = unionTypes[0];
+            unionTypes[0] = unionTypes[i];
+            unionTypes[i] = unionType;
+            fieldType = createType(unionTypes, opts);
+          }
+        }
+        return {
+          name: s,
+          type: fieldType,
+          'default': fieldDefaults[s]
+        };
+      })
+    };
+  } else {
+    attrs = {
+      type: 'map',
+      values: combine(allTypes, opts)
+    };
+  }
+  return createType(attrs, opts);
+}
+
+
+module.exports = {
+  combine: combine,
+  infer: infer
+};
+
+}).call(this,{"isBuffer":require("../../../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js")})
+},{"../../../../../.npmprefix/lib/node_modules/browserify/node_modules/insert-module-globals/node_modules/is-buffer/index.js":22,"./types":50,"./utils":51}],53:[function(require,module,exports){
 // CodeMirror, copyright (c) by Marijn Haverbeke and others
 // Distributed under an MIT license: http://codemirror.net/LICENSE
 
@@ -27896,4 +28500,4 @@ CodeMirror.defineMIME("application/typescript", { name: "javascript", typescript
 
 });
 
-},{"../../lib/codemirror":54}]},{},[44]);
+},{"../../lib/codemirror":54}]},{},[43]);
