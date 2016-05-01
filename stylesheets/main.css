@@ -40,7 +40,7 @@ body {
   resize: none;
   border: none;
   background-color: #EBEBEF;
-  margin : 10px 0px 0px 0px;
+  margin : 0px 0px 0px 0px;
   padding-bottom: 50px;
 }
 .-container- {
@@ -48,6 +48,8 @@ body {
   display: inline-block;
   position: relative;
   vertical-align: top;
+  padding-top: 10px; /* To have some room after heading, 
+  but not for all pages, because that would be ugly.*/
 }
 #output {
   font-family: 'Roboto Mono', sans-serif;
@@ -153,7 +155,6 @@ a {
 .-centered- {
   overflow: hidden;
   white-space: nowrap; /* To be able to scroll */
-  padding-left: 10px;
   margin-left: auto;
   margin-right: auto; /* To be centered */
   width: 1000px;

@@ -1,8 +1,13 @@
+/* To position footer correctly:
+ * http://matthewjamestaylor.com/blog/keeping-footers-at-the-bottom-of-the-page */
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
 .-content- {
-  height: 83vh;
+  padding-bottom: 40px; /* = Height of footer */
   width: 100%;
-  margin-top: 40px;
-  position: fixed;
 }
 
 #header-image {
@@ -12,6 +17,11 @@
   font-family: 'Coustard', serif;
 }
 
+.-body-{
+  min-height: 100%;
+  position: relative;
+}
+
 .-header-{
   font-family: 'Open Sans', sans-serif;
   width: 100%;
@@ -19,7 +29,6 @@
   left: 0;
   right: 0;
   height: 40px;
-  position: fixed;
   z-index: 500;
 }
 
@@ -56,11 +65,11 @@ li a.-disabled- {
 
 #footer {
   width: 100%;
-  height: 6vh;
   font-family: 'Coustard', serif;
   font-size: 12px;
-  position: fixed;
   bottom: 0px;
+  position: absolute;
+  height: 40px;
 }
 
 #footer a {

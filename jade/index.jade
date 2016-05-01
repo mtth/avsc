@@ -10,92 +10,93 @@ html(lang='en')
     script(src='js/index-bundle.js' async)
   
   body
-    div.-header-
-      div
-        a.-level1-(href="https://github.com/mtth/avsc")
-          img#github(src='https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67', alt="Fork me on GitHub", data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" )
-      div#header-image
-        ul
-          li
-            a#reset(href='index.html') Home 
-          li
-            a(href='assemble.html') IDL assembler
-    div.-content-
-      div.-centered-
-        div.-container-
-          div.-outer-
-            div#template
-              | Enter, #[a#uploadLink(href="#") upload], or drag your schema here. 
-            pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
-            div#random(title="Generate a random input" style="display:none;")
-              img(src='assets/random.png').-random-icon-
-            div.-label-
-              img#schema-valid(src='assets/valid.png').-icon-.-hidden-
+    div.-body-
+      div.-header-
+        div
+          a.-level1-(href="https://github.com/mtth/avsc")
+            img#github(src='https://camo.githubusercontent.com/e7bbb0521b397edbd5fe43e7f760759336b5e05f/68747470733a2f2f73332e616d617a6f6e6177732e636f6d2f6769746875622f726962626f6e732f666f726b6d655f72696768745f677265656e5f3030373230302e706e67', alt="Fork me on GitHub", data-canonical-src="https://s3.amazonaws.com/github/ribbons/forkme_right_green_007200.png" )
+        div#header-image
+          ul
+            li
+              a#reset(href='index.html') Home 
+            li
+              a(href='assemble.html') IDL assembler
+      div.-content-
+        div.-centered-
+          div.-container-
+            div.-outer-
+              div#template
+                | Enter, #[a#uploadLink(href="#") upload], or drag your schema here. 
+              pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
+              div#random(title="Generate a random input" style="display:none;")
+                img(src='assets/random.png').-random-icon-
+              div.-label-
+                img#schema-valid(src='assets/valid.png').-icon-.-hidden-
 
-            div.-footer-
-              div#schema-error.-message-.-hidden-.-error-
-              div.-message-
-                |Schema
+              div.-footer-
+                div#schema-error.-message-.-hidden-.-error-
+                div.-message-
+                  |Schema
 
-        div.-help-column-.-level1-
-          div.-center-
-            div.-logo-
-            div
-              H1
-                |Welcome to Avro playground!
-              P
-                |Avro playground is an online tool to learn, build, and test Avro schemas.
-
-              input#upload.-hidden-(type="file", accept=".avsc")
-              p.
-                Not sure where to start? Enter your schema or select from one of these templates! 
+          div.-help-column-.-level1-
+            div.-center-
+              div.-logo-
               div
-                select.-styled-select-.-blue-.-semi-square-#schema-template
-                  option(value="")
-                    |-Select a template-
-                  option(value="Cake")
-                    |Cake
-                  option(value="Coupon")
-                    |Coupon
-                  option(value="Human")
-                    |Human
-                  option(value="Person")
-                    |Person
-                  option(value="Bytes")
-                    |Bytes
-                  option(value="String")
-                    |String
-                  option(value="Long")
-                    |Long
-                  option(value="Enum")
-                    |Enum
-                  option(value="ArrayString")
-                    |ArrayString
-            
-        div.-container-.-level2-.-hidden-
-          div.-outer-
-            div
-              //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
-              pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
-            div.-label-
-              img#input-valid(src='assets/valid.png').-icon-.-hidden-
-            div.-footer-
-              div#decoded-error.-message-.-hidden-.-error-
-              div.-message-
-                |Input Record
+                H1
+                  |Welcome to Avro playground!
+                P
+                  |Avro playground is an online tool to learn, build, and test Avro schemas.
 
-        div.-container-.-hidden-.-level2-
-          div.-outer-
-            div 
+                input#upload.-hidden-(type="file", accept=".avsc")
+                p.
+                  Not sure where to start? Enter your schema or select from one of these templates! 
+                div
+                  select.-styled-select-.-blue-.-semi-square-#schema-template
+                    option(value="")
+                      |-Select a template-
+                    option(value="Cake")
+                      |Cake
+                    option(value="Coupon")
+                      |Coupon
+                    option(value="Human")
+                      |Human
+                    option(value="Person")
+                      |Person
+                    option(value="Bytes")
+                      |Bytes
+                    option(value="String")
+                      |String
+                    option(value="Long")
+                      |Long
+                    option(value="Enum")
+                      |Enum
+                    option(value="ArrayString")
+                      |ArrayString
+              
+          div.-container-.-level2-.-hidden-
+            div.-outer-
               div
-                div(contentEditable='true', spellcheck='false')#output.-textbox-.-highlightable- 
-            div.-label-
-              img#output-valid(src='assets/valid.png').-icon-.-hidden-
-            div.-footer-
-              div#encoded-error.-message-.-hidden-.-error-
-              div.-message-
-                |Encoded Record
+                //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
+                pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
+              div.-label-
+                img#input-valid(src='assets/valid.png').-icon-.-hidden-
+              div.-footer-
+                div#decoded-error.-message-.-hidden-.-error-
+                div.-message-
+                  |Input Record
 
-    div#footer
-      p.
-        Powered by #[a(href="https://github.com/mtth/avsc") Avsc], a pure JavaScript implementation of the #[a(href="https://avro.apache.org/docs/current/spec.html") Avro Specification]. 
+          div.-container-.-hidden-.-level2-
+            div.-outer-
+              div 
+                div
+                  div(contentEditable='true', spellcheck='false')#output.-textbox-.-highlightable- 
+              div.-label-
+                img#output-valid(src='assets/valid.png').-icon-.-hidden-
+              div.-footer-
+                div#encoded-error.-message-.-hidden-.-error-
+                div.-message-
+                  |Encoded Record
+
+      div#footer
+        p.
+          Powered by #[a(href="https://github.com/mtth/avsc") Avsc], a pure JavaScript implementation of the #[a(href="https://avro.apache.org/docs/current/spec.html") Avro Specification]. 
