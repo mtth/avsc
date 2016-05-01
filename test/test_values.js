@@ -4,9 +4,11 @@
 
 var types = require('../lib/types'),
     values = require('../lib/values'),
-    assert = require('assert');
+    assert = require('assert'),
+    util = require('util');
 
 
+var LogicalType = types.builtins.LogicalType;
 var createType = types.createType;
 
 suite('values', function () {
@@ -86,6 +88,64 @@ suite('values', function () {
       );
       t3 = combine([t1, t2], {noNullDefaults: true});
       assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
+    });
+
+    test('logical types', function () {
+      var opts = {logicalTypes: {even: EvenType, odd: OddType}};
+
+      function EvenType(attrs, opts) { LogicalType.call(this, attrs, opts); }
+      util.inherits(EvenType, LogicalType);
+      EvenType.prototype._fromValue = function (val) { return 2 * val; };
+      EvenType.prototype._toValue = function (any) {
+        if (any === (any | 0) && any % 2 === 0) {
+          return any / 2;
+        }
+      };
+
+      function OddType(attrs, opts) { LogicalType.call(this, attrs, opts); }
+      util.inherits(OddType, LogicalType);
+      OddType.prototype._fromValue = function (val) { return 2 * val + 1; };
+      OddType.prototype._toValue = function (any) {
+        if (any === (any | 0) && any % 2 === 1) {
+          return any / 2;
+        }
+      };
+
+      var t1 = createType({type: 'int', logicalType: 'even'}, opts);
+      var t2 = createType({type: 'long', logicalType: 'odd'}, opts);
+      assertUnionsEqual(combine([t1, t2]), createType([t1, t2]));
+      assert.throws(function () { combine([t1, t1]); });
+    });
+
+    test('unwrapped unions', function () {
+      var t1 = createType(['int', 'string', 'null']);
+      var t2 = createType(['null', 'long']);
+      assertUnionsEqual(
+        combine([t1, t2]),
+        createType(['long', 'string', 'null'])
+      );
+    });
+
+    test('buffers', function () {
+      var t1 = createType({type: 'fixed', size: 2});
+      var t2 = createType({type: 'fixed', size: 4});
+      var t3 = createType('bytes');
+      assert.strictEqual(combine([t1, t1]), t1);
+      assert.strictEqual(combine([t1, t3]), t3);
+      assert(combine([t1, t2]).equals(t3));
+    });
+
+    test('strings', function () {
+      var t1 = createType({type: 'enum', symbols: ['A', 'b']});
+      var t2 = createType({type: 'enum', symbols: ['A', 'B']});
+      var t3 = createType('string');
+      var symbols;
+      symbols = combine([t1, t1]).getSymbols();
+      assert.deepEqual(symbols.sort(), ['A', 'b']);
+      assert.strictEqual(combine([t1, t3]), t3);
+      assert.strictEqual(combine([t1, t2, t3]), t3);
+      symbols = combine([t1, t2]).getSymbols();
+      assert.deepEqual(symbols.sort(), ['A', 'B', 'b']);
     });
 
   });
