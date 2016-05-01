@@ -69,7 +69,7 @@ suite('values', function () {
         type: 'record',
         fields: []
       });
-      var t3 = combine([t1, t2], {noNullDefaults: true});
+      var t3 = combine([t1, t2], {strictDefaults: true});
       assert.deepEqual(
         JSON.parse(t3.getSchema({exportAttrs: true})),
         {
@@ -90,7 +90,7 @@ suite('values', function () {
         type: 'record',
         fields: [{name: 'foo', type: 'int', 'default': 2}]
       });
-      var t3 = combine([t1, t2], {noNullDefaults: true});
+      var t3 = combine([t1, t2], {strictDefaults: true});
       assert.deepEqual(
         JSON.parse(t3.getSchema({exportAttrs: true})),
         {
@@ -125,7 +125,7 @@ suite('values', function () {
           ]
         }
       );
-      t3 = combine([t1, t2], {noNullDefaults: true});
+      t3 = combine([t1, t2], {strictDefaults: true});
       assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
     });
 
