@@ -11,7 +11,8 @@ var containers = require('../../lib/containers'),
     files = require('./lib/files'),
     protocols = require('../../lib/protocols'),
     schemas = require('../../lib/schemas'),
-    types = require('../../lib/types');
+    types = require('../../lib/types'),
+    values = require('../../lib/values');
 
 
 function parse(schema, opts) {
@@ -26,6 +27,8 @@ module.exports = {
   Protocol: protocols.Protocol,
   Type: types.Type,
   assemble: schemas.assemble,
+  combine: values.combine,
+  infer: values.infer,
   parse: parse,
   streams: containers.streams,
   types: types.builtins

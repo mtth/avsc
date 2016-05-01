@@ -10,7 +10,8 @@
  */
 
 var files = require('./lib/files'),
-    types = require('../../lib/types');
+    types = require('../../lib/types'),
+    values = require('../../lib/values');
 
 
 function parse(schema, opts) {
@@ -20,6 +21,8 @@ function parse(schema, opts) {
 
 module.exports = {
   Type: types.Type,
+  combine: values.combine,
+  infer: values.infer,
   parse: parse,
   types: types.builtins
 };

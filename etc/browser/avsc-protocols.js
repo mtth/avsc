@@ -12,7 +12,8 @@
 var protocols = require('../../lib/protocols'),
     files = require('./lib/files'),
     schemas = require('../../lib/schemas'),
-    types = require('../../lib/types');
+    types = require('../../lib/types'),
+    values = require('../../lib/values');
 
 
 function parse(schema, opts) {
@@ -27,6 +28,8 @@ module.exports = {
   Protocol: protocols.Protocol,
   Type: types.Type,
   assemble: schemas.assemble,
+  combine: values.combine,
+  infer: values.infer,
   parse: parse,
   types: types.builtins
 };
