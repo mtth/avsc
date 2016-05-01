@@ -27,6 +27,8 @@ html(lang='en')
             div#template
               | Enter, #[a#uploadLink(href="#") upload], or drag your schema here. 
             pre(contentEditable='true', spellcheck='false')#schema.-textbox-.-highlightable-
+            div#random(title="Generate a random input" style="display:none;")
+              img(src='assets/random.png').-random-icon-
             div.-label-
               img#schema-valid(src='assets/valid.png').-icon-.-hidden-
 
@@ -75,8 +77,6 @@ html(lang='en')
             div
               //- TODO: Needs to be `pre` to keep the json indentations. Maybe there is a better way? 
               pre(contentEditable='true', spellcheck='false')#input.-textbox-.-highlightable-
-            div(title="Generate a random input")
-              img#random(src='assets/random.png').-random-icon-.-level2-
             div.-label-
               img#input-valid(src='assets/valid.png').-icon-.-hidden-
             div.-footer-

@@ -58,9 +58,9 @@
     }).on('output-changed', function(outputStr) {
       decode(outputStr);
     }).on('valid-schema', function() {
-      hideError(schemaErrorElement, schemaValidElement);
-      randomElement.removeClass('-disabled-');
+      hideError(schemaErrorElement, schemaValidElement, 'schema');
     }).on('invalid-schema', function (message) {
+      randomElement.fadeOut('slow');
       showError(schemaErrorElement, message);
     }).on('valid-input', function () { 
       hideError(inputErrorElement, decodedValidElement);
@@ -80,7 +80,6 @@
         });
       }
     }).on('reset-layout', function() {
-      randomElement.addClass('-disabled-');
       firstPageElements.each(function(i, element) {
         $(element).removeClass('-hidden-');
       });
@@ -93,6 +92,7 @@
       hideError(schemaErrorElement);
       hideError(inputErrorElement);
       hideError(outputErrorElement);
+      randomElement.hide();
       template.show();
     }).on('schema-loaded', function(rawSchema) {
       template.hide();
@@ -654,11 +654,18 @@
       errorElem.show();
     };
 
-    function hideError(errorElem, validElem) {
+    function hideError(errorElem, validElem, elementName) {
       errorElem.text("");
       errorElem.hide();
       if (validElem) {
-        validElem.fadeIn('slow').delay(500).fadeOut('slow');
+        if ("schema" === elementName) {
+          randomElement.hide();
+        }
+        validElem.fadeIn('slow').delay(500).fadeOut('slow', function () {
+          if ("schema" === elementName) {
+            randomElement.fadeIn('slow');
+          }
+        });
       }
     }
     
@@ -699,7 +706,8 @@
         schema = schema.getSchema();
       }
       var refs = [];
-      return avsc.parse(schema, {typeHook: hook});
+      return avsc.parse(schema, {typeHook: hook,
+                                 wrapUnions: true});
 
       function hook(schema, opts) {
         if (~refs.indexOf(schema)) {
@@ -724,6 +732,7 @@
           fields: [{name: 'value', type: schema}]
         };
         refs.push(wrappedSchema);
+        opts.wrapUnions = true;
 
         var type = avsc.parse(wrappedSchema, opts);
         var read = type._read;

@@ -193,7 +193,7 @@ var metaType = avro.parse({
      "name": "value"
    }
   ]
-}, {logicalTypes: {'meta': MetaType}});
+}, {logicalTypes: {'meta': MetaType}, wrapUnions: true});
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 

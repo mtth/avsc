@@ -90,10 +90,10 @@ a {
   opacity: 0.8;
   font-size: 19px;
   background-color: #EBEBEF;
-  bottom:28px;
+  top: 10px;
   position:absolute;
-  width: 40px;
-  right: 150px; /* To be in the middle */
+  width: 30px;
+  right: 20px; /* To be in the middle */
   margin: 10px auto;
 }
 
