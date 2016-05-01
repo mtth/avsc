@@ -12532,7 +12532,7 @@ function hasOwnProperty(obj, prop) {
           }
           var attrs = JSON.parse(rawInput);
           // Throw more useful error if not valid.
-          window.type.isValid(attrs, {wrapUnions: true, errorHook:
+          window.type.isValid(attrs, {errorHook:
             function(path, any, type) {
               if (
                 typeof any == 'string' &&
