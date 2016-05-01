@@ -78,10 +78,9 @@ li a.-disabled- {
 
 #footer p {
   text-align: center;
-  width : 500px;
-  border-top: medium solid #494A50;
+  width : 100%;
+  border-top: thin solid #9D9D9D;
   margin: 0 auto;
-  margin-top: 10px;
   padding-top: 5px;
 }
 
@@ -90,6 +89,7 @@ li a.-disabled- {
   top: 0;
   right: 0;
   border: 0;
+  z-index: 400;
 }
 
 

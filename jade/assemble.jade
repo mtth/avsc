@@ -7,7 +7,7 @@ html(lang='en')
     link(href='https://fonts.googleapis.com/css?family=Coustard|Roboto+Mono|Open+Sans' rel='stylesheet' type='text/css')
     link(rel='icon', type='image/png', href='data:image/png;base64,iVBORw0KGgo=')
     script(src='js/assemble-bundle.js')
-  body
+  body.-body-
     div.-header-
       div
         a.-level1-(href="https://github.com/mtth/avsc")
@@ -20,9 +20,9 @@ html(lang='en')
             a(href='assemble.html') IDL assembler
 
     div.-content-
-      .half-width
+      .half-width.left
         textarea#idl
-      .half-width
+      .half-width.right
         textarea#avsc
       div(style='display: none')
         #placeholder
@@ -128,6 +128,6 @@ html(lang='en')
         }
 
 
-div#footer
+    div#footer
       p.
         Powered by #[a(href="https://github.com/mtth/avsc") Avsc], a pure JavaScript implementation of the #[a(href="https://avro.apache.org/docs/current/spec.html") Avro Specification]. 

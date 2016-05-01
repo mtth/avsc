@@ -350,8 +350,16 @@ body {
 }
 .half-width {
   float: left;
-  height: 100%;
   width: 50%;
+  position: absolute;
+  top:40px;
+  bottom: 40px;
+}
+.half-width.left {
+  left: 0px
+}
+.half-width.right {
+  right: 0px;
 }
 .documentation {
   margin-left: 25px;
