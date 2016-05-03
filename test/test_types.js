@@ -2124,6 +2124,17 @@ suite('types', function () {
       assert(t.isValid({}));
     });
 
+    test('isValid no undeclared fields', function () {
+      var t = createType({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int'}]
+      });
+      var obj = {foo: 1, bar: 'bar'};
+      assert(t.isValid(obj));
+      assert(!t.isValid(obj, {noUndeclaredFields: true}));
+      assert(t.isValid({foo: 23}, {noUndeclaredFields: true}));
+    });
+
   });
 
   suite('AbstractLongType', function () {
