@@ -9,7 +9,7 @@
  *
  */
 
-var avsc = require('../../lib'),
+var avsc = require('../../../lib'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
     msgpack = require('msgpack-lite'),
