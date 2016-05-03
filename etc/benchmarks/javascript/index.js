@@ -26,31 +26,22 @@ function generateStats(schema, opts) {
   var type = avsc.parse(schema);
   return [DecodeSuite, EncodeSuite].map(function (Suite) {
     var stats = [];
-    var l = opts.numValues || 1;
-    var i = 0;
-    var suite;
-    while (i++ < l) {
-      suite = new Suite(type, opts);
-      suite
-        .on('start', onStart)
-        .on('cycle', onCycle)
-        .run();
-      stats.push({
-        value: suite.getValue(),
-        stats: suite.map(function (benchmark) {
-          var stats = benchmark.stats;
-          return {
-            name: benchmark.name,
-            mean: stats.mean,
-            rme: stats.rme
-          };
-        })
-      });
-    }
+    var suite = new Suite(type, opts)
+      .on('start', function () { console.error(Suite.key_ + ' ' + type); })
+      .on('cycle', function (evt) { console.error('' + evt.target); })
+      .run();
+    stats.push({
+      value: suite.getValue(),
+      stats: suite.map(function (benchmark) {
+        var stats = benchmark.stats;
+        return {
+          name: benchmark.name,
+          mean: stats.mean,
+          rme: stats.rme
+        };
+      })
+    });
     return {name: Suite.key_, stats: stats};
-
-    function onStart() { console.error(Suite.key_ + ' ' + type + ' #' + i); }
-    function onCycle(evt) { console.error('' + evt.target); }
   });
 }
 

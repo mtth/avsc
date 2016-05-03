@@ -11,19 +11,19 @@ First install the required dependencies:
 $ npm install
 ```
 
-Then run a sample benchmark comparing throughputs of Avro, built-in JSON, and
-`msgpack-lite`:
+We can then run (for example) a benchmark comparing throughputs of Avro,
+built-in JSON, and MessagePack on a sample schema:
 
 ```bash
-$ node . ../../schemas/Coupon.avsc --avro --json --msgpack
-decode "Coupon" #1
-avro x 851,909 ops/sec ±3.34% (85 runs sampled)
-json x 303,416 ops/sec ±2.61% (81 runs sampled)
-msgpack x 101,048 ops/sec ±2.13% (86 runs sampled)
-encode "Coupon" #1
-avro x 521,903 ops/sec ±1.69% (87 runs sampled)
-json x 92,348 ops/sec ±9.77% (77 runs sampled)
-msgpack x 120,446 ops/sec ±3.81% (76 runs sampled)
+$ node . --avro --json --msgpack ../../schemas/Coupon.avsc
+decode "Coupon"
+avro x 946,599 ops/sec ±1.27% (88 runs sampled)
+json x 331,370 ops/sec ±1.75% (83 runs sampled)
+msgpack x 103,387 ops/sec ±1.67% (85 runs sampled)
+encode "Coupon"
+avro x 642,643 ops/sec ±1.48% (86 runs sampled)
+json x 100,664 ops/sec ±1.31% (90 runs sampled)
+msgpack x 126,208 ops/sec ±3.08% (77 runs sampled)
 ```
 
 You can run `node . -h` to view the full list of available options.
