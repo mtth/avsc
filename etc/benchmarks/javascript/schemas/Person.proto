@@ -1,3 +1,5 @@
+syntax = "proto3";
+
 message Address {
   int32 zipcode = 1;
 }

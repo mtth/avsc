@@ -1,3 +1,5 @@
+syntax = "proto3";
+
 enum Duration {
   FOREVER = 0;
   ONCE = 1;

@@ -15,6 +15,7 @@ var avro = require('../../../lib'),
     fs = require('fs'),
     msgpack = require('msgpack-lite'),
     protobuf = require('protocol-buffers'),
+    protobufjs = require('protobufjs'),
     util = require('util');
 
 
@@ -141,6 +142,19 @@ DecodeSuite.prototype.__msgpackLite = function () {
   };
 };
 
+DecodeSuite.prototype.__protobufjs = function (args) {
+  var parts = args.split(':');
+  var builder = protobufjs.loadProtoFile(parts[0]);
+  var message = builder.build(parts[1]);
+  var buf = message.encode(this.getValue());
+  return function () {
+    var obj = message.decode(buf);
+    if (obj.$) {
+      throw new Error();
+    }
+  };
+};
+
 DecodeSuite.prototype.__protocolBuffers = function (args) {
   var parts = args.split(':');
   var messages = protobuf(fs.readFileSync(parts[0]));
@@ -223,11 +237,11 @@ EncodeSuite.prototype.__msgpackLite = function () {
 
 EncodeSuite.prototype.__protobufjs = function (args) {
   var parts = args.split(':');
-  var messages = protobuf(fs.readFileSync(parts[0]));
-  var message = messages[parts[1]];
-  var val = this.getType(true).fromBuffer(this.getType().toBuffer(this.getValue()));
+  var builder = protobufjs.loadProtoFile(parts[0]);
+  var message = builder.build(parts[1]);
+  var val = this.getValue();
   return function () {
-    var buf = message.encode(val);
+    var buf = message.encode(val).toBuffer();
     if (!buf.length) {
       throw new Error();
     }
@@ -256,8 +270,8 @@ commander
   .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')
   .option('--json-string', 'Benchmark JSON (pre-parsing bytes to strings).')
   .option('--msgpack-lite', 'Benchmark `msgpack-lite`.')
-  .option('--protobufjs <schema:message>', 'Benchmark `protobufjs`.')
-  .option('--protocol-buffers <schema:message>', 'Benchmark `protocol-buffers`.')
+  .option('--protobufjs <path:message>', 'Benchmark `protobufjs`.')
+  .option('--protocol-buffers <path:message>', 'Benchmark `protocol-buffers`.')
   .parse(process.argv);
 
 var schema = commander.args[0];
