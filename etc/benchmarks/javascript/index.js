@@ -9,10 +9,12 @@
  *
  */
 
-var avsc = require('../../../lib'),
+var avro = require('../../../lib'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
+    fs = require('fs'),
     msgpack = require('msgpack-lite'),
+    protobuf = require('protocol-buffers'),
     util = require('util');
 
 
@@ -23,7 +25,7 @@ var avsc = require('../../../lib'),
 function generateStats(schema, opts) {
   opts = opts || {};
 
-  var type = avsc.parse(schema);
+  var type = avro.parse(schema);
   return [DecodeSuite, EncodeSuite].map(function (Suite) {
     var stats = [];
     var suite = new Suite(type, opts)
@@ -55,6 +57,7 @@ function Suite(type, opts) {
 
   opts = opts || {};
   this._type = type;
+  this._compatibleType = avro.parse(type.getSchema(), {typeHook: typeHook});
   this._value = opts.value ? type.fromString(opts.value) : type.random();
 
   Object.keys(opts).forEach(function (name) {
@@ -63,12 +66,16 @@ function Suite(type, opts) {
     }
     var fn = this['__' + name];
     if (typeof fn == 'function') {
-      this.add(name, fn.call(this, opts.name)); // Add benchmark.
+      this.add(name, fn.call(this, opts[name])); // Add benchmark.
     }
   }, this);
 }
 util.inherits(Suite, Benchmark.Suite);
-Suite.prototype.getType = function () { return this._type; };
+
+Suite.prototype.getType = function (isProtobuf) {
+  return isProtobuf ? this._compatibleType : this._type;
+};
+
 Suite.prototype.getValue = function () { return this._value; };
 
 
@@ -80,22 +87,11 @@ function DecodeSuite(type, opts) { Suite.call(this, type, opts); }
 util.inherits(DecodeSuite, Suite);
 DecodeSuite.key_ = 'decode';
 
-DecodeSuite.prototype.__avro = function () {
+DecodeSuite.prototype.__avsc = function () {
   var type = this.getType();
   var buf = type.toBuffer(this.getValue());
   return function () {
     var val = type.fromBuffer(buf);
-    if (val.$) {
-      throw new Error();
-    }
-  };
-};
-
-DecodeSuite.prototype.__avroJson = function () {
-  var type = this.getType();
-  var str = type.toString(this.getValue());
-  return function () {
-    var val = type.fromString(str);
     if (val.$) {
       throw new Error();
     }
@@ -135,10 +131,24 @@ DecodeSuite.prototype.__jsonBinary = function () {
   };
 };
 
-DecodeSuite.prototype.__msgpack = function () {
+DecodeSuite.prototype.__msgpackLite = function () {
   var buf = msgpack.encode(this.getValue());
   return function () {
     var obj = msgpack.decode(buf);
+    if (obj.$) {
+      throw new Error();
+    }
+  };
+};
+
+DecodeSuite.prototype.__protocolBuffers = function (args) {
+  var parts = args.split(':');
+  var messages = protobuf(fs.readFileSync(parts[0]));
+  var message = messages[parts[1]];
+  var val = this.getType(true).fromBuffer(this.getType().toBuffer(this.getValue()));
+  var buf = message.encode(val);
+  return function () {
+    var obj = message.decode(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -154,23 +164,12 @@ function EncodeSuite(type, opts) { Suite.call(this, type, opts); }
 util.inherits(EncodeSuite, Suite);
 EncodeSuite.key_ = 'encode';
 
-EncodeSuite.prototype.__avro = function () {
+EncodeSuite.prototype.__avsc = function () {
   var type = this.getType();
   var val = this.getValue();
   return function () {
     var buf = type.toBuffer(val);
     if (!buf.length) {
-      throw new Error();
-    }
-  };
-};
-
-EncodeSuite.prototype.__avroJson = function () {
-  var type = this.getType();
-  var val = this.getValue();
-  return function () {
-    var str = type.toString(val);
-    if (!str.length) {
       throw new Error();
     }
   };
@@ -212,10 +211,36 @@ EncodeSuite.prototype.__jsonString = function () {
   };
 };
 
-EncodeSuite.prototype.__msgpack = function () {
+EncodeSuite.prototype.__msgpackLite = function () {
   var val = this.getValue();
   return function () {
     var buf = msgpack.encode(val);
+    if (!buf.length) {
+      throw new Error();
+    }
+  };
+};
+
+EncodeSuite.prototype.__protobufjs = function (args) {
+  var parts = args.split(':');
+  var messages = protobuf(fs.readFileSync(parts[0]));
+  var message = messages[parts[1]];
+  var val = this.getType(true).fromBuffer(this.getType().toBuffer(this.getValue()));
+  return function () {
+    var buf = message.encode(val);
+    if (!buf.length) {
+      throw new Error();
+    }
+  };
+};
+
+EncodeSuite.prototype.__protocolBuffers = function (args) {
+  var parts = args.split(':');
+  var messages = protobuf(fs.readFileSync(parts[0]));
+  var message = messages[parts[1]];
+  var val = this.getType(true).fromBuffer(this.getType().toBuffer(this.getValue()));
+  return function () {
+    var buf = message.encode(val);
     if (!buf.length) {
       throw new Error();
     }
@@ -226,13 +251,13 @@ EncodeSuite.prototype.__msgpack = function () {
 commander
   .usage('[options] <schema>')
   .option('-v, --value <val>', 'Use this value for benchmarking.')
-  .option('--avro', 'Benchmark `avsc`.')
-  .option('--avro-json', 'Benchmark `avsc` (JSON serialization).')
-  .option('--json', 'Benchmark JSON.')
+  .option('--avsc', 'Benchmark `avsc`.')
+  .option('--json', 'Benchmark built-in JSON.')
   .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')
   .option('--json-string', 'Benchmark JSON (pre-parsing bytes to strings).')
-  .option('--msgpack', 'Benchmark `msgpack-lite`.')
-  .option('--protobuf <schema>', 'Benchmark `protobufjs`.')
+  .option('--msgpack-lite', 'Benchmark `msgpack-lite`.')
+  .option('--protobufjs <schema:message>', 'Benchmark `protobufjs`.')
+  .option('--protocol-buffers <schema:message>', 'Benchmark `protocol-buffers`.')
   .parse(process.argv);
 
 var schema = commander.args[0];
@@ -243,3 +268,15 @@ if (!schema) {
 
 var stats = generateStats(schema, commander);
 console.log(JSON.stringify(stats));
+
+// Helpers.
+
+/**
+ * Typehook to represent enums as integers, required for `protocol-buffers`.
+ *
+ */
+function typeHook(attrs, opts) {
+  if (attrs.type === 'enum') {
+    return avro.parse('int', opts);
+  }
+}

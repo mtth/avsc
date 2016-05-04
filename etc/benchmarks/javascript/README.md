@@ -12,18 +12,20 @@ $ npm install
 ```
 
 We can then run (for example) a benchmark comparing throughputs of Avro,
-built-in JSON, and MessagePack on a sample schema:
+built-in JSON, MessagePack, and Protocol Buffers on a sample schema:
 
 ```bash
-$ node . --avro --json --msgpack ../../schemas/Coupon.avsc
-decode "Coupon"
-avro x 946,599 ops/sec ±1.27% (88 runs sampled)
-json x 331,370 ops/sec ±1.75% (83 runs sampled)
-msgpack x 103,387 ops/sec ±1.67% (85 runs sampled)
-encode "Coupon"
-avro x 642,643 ops/sec ±1.48% (86 runs sampled)
-json x 100,664 ops/sec ±1.31% (90 runs sampled)
-msgpack x 126,208 ops/sec ±3.08% (77 runs sampled)
+$ node . --avsc --json --msgpack-lite --protocol-buffers schemas/Person.proto:Person ../../schemas/Person.avsc
+decode "Person"
+avsc x 10,744,017 ops/sec ±4.00% (81 runs sampled)
+json x 969,565 ops/sec ±2.74% (85 runs sampled)
+msgpackLite x 367,800 ops/sec ±3.18% (82 runs sampled)
+protocolBuffers x 4,633,326 ops/sec ±2.45% (84 runs sampled)
+encode "Person"
+avsc x 1,573,218 ops/sec ±2.75% (83 runs sampled)
+json x 1,164,215 ops/sec ±0.99% (91 runs sampled)
+msgpackLite x 205,621 ops/sec ±1.42% (85 runs sampled)
+protocolBuffers x 1,489,432 ops/sec ±1.53% (91 runs sampled)
 ```
 
 You can run `node . -h` to view the full list of available options.

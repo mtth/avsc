@@ -1,0 +1,14 @@
+message Address {
+  int32 zipcode = 1;
+}
+
+enum Gender {
+  FEMALE = 0;
+  MALE = 1;
+}
+
+message Person {
+  optional int32 age = 1;
+  Gender gender = 2;
+  Address address = 3;
+}
