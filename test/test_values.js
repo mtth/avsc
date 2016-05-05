@@ -49,7 +49,10 @@ suite('values', function () {
         fields: [{name: 'foo', type: 'int', 'default': 2}]
       });
       var t2 = createType({type: 'map', values: 'string'});
-      var t3 = combine([t1, t2]);
+      var t3;
+      t3 = combine([t1, t2]);
+      assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
+      t3 = combine([t2, t1]);
       assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
     });
 
