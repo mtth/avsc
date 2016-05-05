@@ -43,7 +43,7 @@ Inside a node.js module, or using browserify:
 var avro = require('avsc');
 ```
 
-+ Encode and decode values:
++ Encode and decode values from a known schema:
 
   ```javascript
   var type = avro.parse({
@@ -56,6 +56,18 @@ var avro = require('avsc');
   });
   var buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
   var val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
+  ```
+
++ Infer a value's type:
+
+  ```javascript
+  var val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 24};
+  var type = avro.infer(val);
+  // This type can then be used to encode or decode similar values:
+  var bufs = [
+    type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
+    type.toBuffer({city: 'NYC', zipCodes: [], visits: 0})
+  ];
   ```
 
 + Get a [readable stream][readable-stream] of decoded values from an Avro
@@ -71,8 +83,10 @@ var avro = require('avsc');
 
   ```javascript
   avro.assemble('./Ping.avdl', function (err, attrs) {
-    var protocol = avro.parse(attrs);
-    protocol.on('ping', function (req, ee, cb) { cb(null, 'pong'); });
+    // Generate the protocol and attach a handler for `ping` messages:
+    var protocol = avro.parse(attrs)
+      .on('ping', function (req, ee, cb) { cb(null, 'pong'); });
+    // Respond on any incoming connection:
     require('net').createServer()
       .on('connection', function (con) { protocol.createListener(con); })
       .listen(8000);
