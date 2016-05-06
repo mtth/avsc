@@ -61,7 +61,7 @@ var avro = require('avsc');
 + Infer a value's type:
 
   ```javascript
-  var val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 24};
+  var val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 2};
   var type = avro.infer(val);
   // This type can then be used to encode or decode similar values:
   var bufs = [
