@@ -11,9 +11,9 @@
  *
  * Usages (input is always read from stdin):
  *
- *  $ meta compress # Encode schema as Avro bytes.
- *  $ meta decompress # Decompress schema from above representation.
- *  $ meta random # Generate random schema (might overflow, just retry if so).
+ *  ./meta compress # Encode schema as Avro bytes.
+ *  ./meta decompress # Decompress schema from above representation.
+ *  ./meta random # Generate random schema (might overflow, just retry if so).
  *
  * Warning: randomly generated schemas aren't guaranteed to compile since they
  * might include empty fields and unions or undefined references.

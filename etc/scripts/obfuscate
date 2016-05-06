@@ -10,6 +10,13 @@
  * Returns a new (canonical) schema with the names of records, fixed, enums,
  * fields, and symbols mangled.
  *
+ * Usage:
+ *
+ *  ./obfuscate SCHEMA
+ *
+ * Arguments:
+ *
+ *  SCHEMA          Schema or a path to a file containing a schema.
  *
  */
 
@@ -22,7 +29,7 @@ var RANDOM = new utils.Lcg();
 
 var fpath = process.argv[2];
 if (!fpath) {
-  console.error(util.format('usage: %s PATH', process.argv[1]));
+  console.error(util.format('usage: %s SCHEMA', process.argv[1]));
   process.exit(1);
 }
 

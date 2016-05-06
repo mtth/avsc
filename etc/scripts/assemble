@@ -7,6 +7,14 @@
 /**
  * Assemble an IDL and print out the corresponding schema.
  *
+ * Usage:
+ *
+ *  ./assemble PATH
+ *
+ * Arguments:
+ *
+ *  PATH          Path to IDL file.
+ *
  */
 
 var avro = require('../../lib'),

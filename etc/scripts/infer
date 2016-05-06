@@ -7,7 +7,7 @@
  *
  * Usage:
  *
- *  infer [JSON]
+ *  ./infer [JSON]
  *
  * Arguments:
  *
