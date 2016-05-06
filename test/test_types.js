@@ -2926,6 +2926,9 @@ suite('types', function () {
       assert.strictEqual(t.getName(), undefined);
       assert.strictEqual(t.getName(true), 'record');
       assert(t.isValid({foo: 3}));
+      assert.throws(function () {
+        createType({name: '', type: 'record', fields: []});
+      });
     });
 
   });
