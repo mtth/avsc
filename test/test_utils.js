@@ -32,6 +32,18 @@ suite('utils', function () {
     assert.throws(utils.abstractFunction, utils.Error);
   });
 
+  test('jsonEnd', function () {
+    assert.equal(utils.jsonEnd(''), -1);
+    assert.equal(utils.jsonEnd('{}a'), 2);
+    assert.equal(utils.jsonEnd('{a'), -1);
+    assert.equal(utils.jsonEnd('123'), 3);
+    assert.equal(utils.jsonEnd('[1,2]'), 5);
+    assert.equal(utils.jsonEnd('true'), 4);
+    assert.equal(utils.jsonEnd('null'), 4);
+    assert.equal(utils.jsonEnd('falseish'), 5);
+    assert.equal(utils.jsonEnd('"false"'), 7);
+  });
+
   test('OrderedQueue', function () {
 
     var seqs = [
