@@ -8,8 +8,8 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 + Blazingly [fast and compact][benchmarks] serialization! Typically faster than
   JSON with much smaller encodings.
-+ All the Avro goodness, including schema inference,
-  [evolution][schema-evolution] and [remote procedure calls][rpc].
++ All the Avro goodness and more: [type inference][type-inference], [schema
+  evolution][schema-evolution], and [remote procedure calls][rpc].
 + Support for [serializing arbitrary JavaScript objects][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 
@@ -63,7 +63,7 @@ var avro = require('avsc');
   ```javascript
   var val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 2};
   var type = avro.infer(val);
-  // This type can then be used to encode or decode similar values:
+  // This type can then be used to encode or decode other values:
   var bufs = [
     type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
     type.toBuffer({city: 'NYC', zipCodes: [], visits: 0})
@@ -96,6 +96,7 @@ var avro = require('avsc');
 
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
+[type-inference]: https://github.com/mtth/avsc/wiki/Advanced-usage#type-inference
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
 [logical-types]: https://github.com/mtth/avsc/wiki/Advanced-usage#logical-types
 [custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
