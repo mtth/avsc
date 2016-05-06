@@ -27,10 +27,9 @@ if (!fpath) {
 }
 
 var type = avro.parse(fpath, {typeHook: function (attrs) {
-  if (!attrs.name) {
-    return; // Nothing to mangle.
+  if (attrs.name) {
+    attrs.name = RANDOM.nextString(8);
   }
-  attrs.name = RANDOM.nextString(8);
   var fields, symbols;
   if ((fields = attrs.fields)) {
     fields.forEach(function (o) { o.name = RANDOM.nextString(8); });
