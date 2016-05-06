@@ -8,8 +8,8 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 + Blazingly [fast and compact][benchmarks] serialization! Typically faster than
   JSON with much smaller encodings.
-+ All the Avro goodness, including [schema evolution][schema-evolution] and
-  [remote procedure calls][rpc].
++ All the Avro goodness, including schema inference,
+  [evolution][schema-evolution] and [remote procedure calls][rpc].
 + Support for [serializing arbitrary JavaScript objects][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 
@@ -58,7 +58,7 @@ var avro = require('avsc');
   var val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
   ```
 
-+ Infer a value's type:
++ Infer a value's type and encode similar values:
 
   ```javascript
   var val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 2};
