@@ -36,7 +36,11 @@ util.inherits(MetaType, avro.types.LogicalType);
 
 MetaType.prototype._fromValue = function (val) {
   var obj = val.value;
-  return obj[Object.keys(obj)[0]];
+  var attrs = obj[Object.keys(obj)[0]];
+  if (attrs.name === '') {
+    attrs.name = undefined;
+  }
+  return attrs;
 };
 
 MetaType.prototype._toValue = function (any) {
@@ -51,7 +55,7 @@ MetaType.prototype._toValue = function (any) {
       this._state.references[name] = true;
     }
     obj = {};
-    obj[any.constructor.name_] = any.toJSON();
+    obj[capitalize(any.getTypeName()) + 'Type'] = any.toJSON();
   }
   return {value: obj};
 };
@@ -77,11 +81,11 @@ var META_TYPE = avro.parse({
         primitive('bytes'),
         primitive('double'),
         derived('enum', [
-          {name: 'name', type: 'string'},
+          {name: 'name', type: 'string', 'default': ''},
           {name: 'symbols', type: {type: 'array', items: 'string'}}
         ]),
         derived('fixed', [
-          {name: 'name', type: 'string'},
+          {name: 'name', type: 'string', 'default': ''},
           {name: 'size', type: 'int'}
         ]),
         primitive('float'),
@@ -90,7 +94,7 @@ var META_TYPE = avro.parse({
         primitive('long'),
         primitive('null'),
         derived('record', [
-          {name: 'name', type: 'string'},
+          {name: 'name', type: 'string', 'default': ''},
           {
             name: 'fields',
             type: {
@@ -146,6 +150,9 @@ switch (process.argv[2]) {
     readInput(function (err, buf) {
       if (err) {
         throw err;
+      }
+      if (!buf.length) {
+        throw new Error('empty input');
       }
       process.stdout.write(META_TYPE.fromBuffer(buf).getSchema());
     });
