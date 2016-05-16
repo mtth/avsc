@@ -23,7 +23,7 @@
     if (this.pos > buf.length) {
       return;
     }
-    return String.fromCharCode.apply(null, this.buf.slice(pos, pos + len));
+    return String.fromCharCode.apply(null, new Uint8Array(buf.buffer ? buf.buffer : buf, pos, len));
   };
 
   Tap.prototype.writeString = function (s) {
