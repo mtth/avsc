@@ -2,10 +2,11 @@
   "name": "Person",
   "type": "record",
   "fields": [
-    {"name": "age", "type": ["null", "int"], "default": null},
+    {"name": "age", "type": "int"},
     {
       "name": "gender",
-      "type": {"name": "Gender", "type": "enum", "symbols": ["FEMALE", "MALE"]}
+      "type": ["null", {"name": "Gender", "type": "enum", "symbols": ["FEMALE", "MALE"]}],
+      "default": null
     },
     {
       "name": "address",

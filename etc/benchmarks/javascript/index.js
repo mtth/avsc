@@ -1,7 +1,5 @@
 /* jshint node: true */
 
-// TODO: Add support for protobufjs.
-
 'use strict';
 
 /**
@@ -159,7 +157,8 @@ DecodeSuite.prototype.__protocolBuffers = function (args) {
   var parts = args.split(':');
   var messages = protobuf(fs.readFileSync(parts[0]));
   var message = messages[parts[1]];
-  var val = this.getType(true).fromBuffer(this.getType().toBuffer(this.getValue()));
+  var type = this.getType(true); // Read enum values as integers.
+  var val = type.fromBuffer(this.getType().toBuffer(this.getValue()));
   var buf = message.encode(val);
   return function () {
     var obj = message.decode(buf);
@@ -252,7 +251,8 @@ EncodeSuite.prototype.__protocolBuffers = function (args) {
   var parts = args.split(':');
   var messages = protobuf(fs.readFileSync(parts[0]));
   var message = messages[parts[1]];
-  var val = this.getType(true).fromBuffer(this.getType().toBuffer(this.getValue()));
+  var type = this.getType(true); // Read enum values as integers.
+  var val = type.fromBuffer(this.getType().toBuffer(this.getValue()));
   return function () {
     var buf = message.encode(val);
     if (!buf.length) {

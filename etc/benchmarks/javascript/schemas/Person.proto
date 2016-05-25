@@ -10,7 +10,7 @@ enum Gender {
 }
 
 message Person {
-  optional int32 age = 1;
-  Gender gender = 2;
+  int32 age = 1;
+  optional Gender gender = 2;
   Address address = 3;
 }
