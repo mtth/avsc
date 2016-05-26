@@ -2774,6 +2774,17 @@ suite('types', function () {
       assert.equal(type._fields[1]._type._name, 'Id');
     });
 
+    test('namespace reset with qualified name', function () {
+      var type = createType({
+        type: 'record',
+        name: 'earth.Human',
+        namespace: '',
+        fields: [{name: 'id', type: {type: 'fixed', name: 'Id', size: 2}}]
+      });
+      assert.equal(type._name, 'earth.Human');
+      assert.equal(type._fields[0]._type._name, 'Id');
+    });
+
     test('absolute reference', function () {
       var type = createType({
         type: 'record',

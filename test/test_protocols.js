@@ -78,17 +78,17 @@ suite('protocols', function () {
     });
 
     test('special character in name', function () {
-      var ptcl = createProtocol({
-        protocol: 'Ping',
-        messages: {
-          'ping/1': {
-            request: [],
-            response: 'string'
+      assert.throws(function () {
+        createProtocol({
+          protocol: 'Ping',
+          messages: {
+            'ping/1': {
+              request: [],
+              response: 'string'
+            }
           }
-        }
-      });
-      var message = ptcl.getMessage('ping/1');
-      assert.equal(message.getResponseType().getName(true), 'string');
+        });
+      }, /invalid message name/);
     });
 
     test('get messages', function () {
