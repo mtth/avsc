@@ -707,10 +707,15 @@ suite('protocols', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
+      var err;
       ptcl.createListener(function (cb) {
         cb(new Error('bar'));
         return new stream.PassThrough();
-      }).on('eot', function () { done(); });
+      }).on('error', function () { err = arguments[0]; })
+        .on('eot', function () {
+          assert(/bar/.test(err));
+          done();
+        });
     });
 
     test('delayed writable', function (done) {
