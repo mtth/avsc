@@ -162,6 +162,51 @@ suite('protocols', function () {
       assert.deepEqual(p.getMessages(), []);
     });
 
+    test('namespacing', function () {
+      var p;
+
+      p = createProtocol('foo.Foo', '');
+      assert.equal(p.getName(), 'foo.Foo');
+      assert(p.getType('Bar'));
+      assert(p.getType('Baz'));
+
+      p = createProtocol('foo.Foo');
+      assert.equal(p.getName(), 'foo.Foo');
+      assert(p.getType('foo.Bar'));
+      assert(p.getType('Baz'));
+
+      p = createProtocol('Foo', 'bar');
+      assert.equal(p.getName(), 'bar.Foo');
+      assert(p.getType('bar.Bar'));
+      assert(p.getType('Baz'));
+
+      p = createProtocol('Foo', 'bar', {namespace: 'opt'});
+      assert.equal(p.getName(), 'bar.Foo');
+      assert(p.getType('bar.Bar'));
+      assert(p.getType('Baz'));
+
+      p = createProtocol('Foo', undefined, {namespace: 'opt'});
+      assert.equal(p.getName(), 'opt.Foo');
+      assert(p.getType('opt.Bar'));
+      assert(p.getType('Baz'));
+
+      p = createProtocol('.Foo', undefined, {namespace: 'opt'});
+      assert.equal(p.getName(), 'Foo');
+      assert(p.getType('Bar'));
+      assert(p.getType('Baz'));
+
+      function createProtocol(name, namespace, opts) {
+        return new protocols.Protocol({
+          protocol: name,
+          namespace: namespace,
+          types: [
+            {type: 'record', name: 'Bar', fields: []},
+            {type: 'record', name: '.Baz', fields: []}
+          ]
+        }, opts);
+      }
+    });
+
   });
 
   suite('Message', function () {
