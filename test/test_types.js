@@ -2135,6 +2135,17 @@ suite('types', function () {
       assert(t.isValid({foo: 23}, {noUndeclaredFields: true}));
     });
 
+    test('qualified name namespacing', function () {
+      var t = createType({
+        type: 'record',
+        name: '.Foo',
+        fields: [
+          {name: 'id', type: {type: 'record', name: 'Bar', fields: []}}
+        ]
+      }, {namespace: 'bar'});
+      assert.equal(t.getField('id').getType().getName(), 'Bar');
+    });
+
   });
 
   suite('AbstractLongType', function () {
