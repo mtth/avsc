@@ -602,6 +602,24 @@ suite('protocols', function () {
       transports[0].writable.end();
     });
 
+    test('keep writable open', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      // We must use object mode here since ending the encoding stream won't
+      // end the underlying writable stream.
+      var transports = createPassthroughTransports(true);
+      var ee = ptcl.createEmitter(
+        transports[0],
+        {objectMode: true, endWritable: false}
+      ).on('eot', function () {
+        transports[0].writable.write({}); // Doesn't fail.
+        done();
+      });
+      ee.destroy();
+    });
+
     test('discover protocol', function (done) {
       // Check that we can interrupt a handshake part-way, so that we can ping
       // a remote server for its protocol, but still reuse the same connection
@@ -626,6 +644,28 @@ suite('protocols', function () {
             done();
           });
         });
+    });
+
+    test('destroy listener end', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Math',
+        messages: {
+          negate: {
+            request: [{name: 'n', type: 'int'}],
+            response: 'int'
+          }
+        }
+      }).on('negate', function (req, ee, cb) {
+        ee.destroy(true);
+        cb(null, -req.n);
+      });
+      var transports = createPassthroughTransports(true);
+      var ee = ptcl.createEmitter(transports[0], {objectMode: true});
+      var env = {request: {n: 20}};
+      ee.emitMessage('negate', env, {timeout: 10}, function (err) {
+        assert(/timeout/.test(err));
+        done();
+      });
     });
 
   });
@@ -661,6 +701,31 @@ suite('protocols', function () {
         assert.deepEqual(err, {string: 'foobar'});
         assert(!ee.isDestroyed());
         done();
+      });
+    });
+
+    test('reuse writable', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'null'}}
+      });
+      var readable = new stream.PassThrough({objectMode: true});
+      var writable = new stream.PassThrough({objectMode: true})
+        .on('data', function (data) {
+          var hres = new Buffer([0, 0, 0, 0]); // Encoded handshake response.
+          var res = new Buffer([0, 0]); // Encoded response (flag and meta).
+          readable.write({id: data.id, payload: [hres, res]});
+        });
+      var ee = ptcl.createEmitter(function (cb) {
+        cb(null, readable);
+        return writable;
+      }, {noPing: true, objectMode: true, endWritable: false});
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert(!err);
+        ptcl.emit('ping', {}, ee, function (err) {
+          assert(!err); // We can reuse it.
+          done();
+        });
       });
     });
 
@@ -789,6 +854,41 @@ suite('protocols', function () {
           new Buffer([3]) // Invalid request contents.
         ]
       });
+    });
+
+    test('reuse writable', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'null'}}
+      }).on('ping', function (req, ee, cb) {
+        cb(null, null);
+      });
+      var payload = [
+        protocols.HANDSHAKE_REQUEST_TYPE.toBuffer({
+          clientHash: ptcl.getFingerprint(),
+          serverHash: ptcl.getFingerprint()
+        }),
+        new Buffer('\x00\x08ping')
+      ];
+      var objs = [];
+      var readable = new stream.PassThrough({objectMode: true});
+      var writable = new stream.PassThrough({objectMode: true})
+        .on('data', function (obj) { objs.push(obj); });
+      var ee;
+      ee = createListener()
+        .on('eot', function () {
+          assert.deepEqual(objs.length, 2);
+          done();
+        });
+      readable.write({id: 0, payload: payload});
+      readable.end({id: 1, payload: payload});
+
+      function createListener() {
+        return ptcl.createListener(function (cb) {
+          cb(null, writable);
+          return readable;
+        }, {endWritable: false, noPing: true, objectMode: true});
+      }
     });
 
   });
@@ -1572,7 +1672,7 @@ suite('protocols', function () {
             }
           }
         });
-        setupFn(ptcl, ptcl, function (ee) {
+        setupFn(ptcl, ptcl, {endWritable: false}, function (ee) {
           ptcl.on('negate', function (req, ee, cb) {
             ee.destroy(true);
             cb(null, -req.n);
