@@ -1548,6 +1548,24 @@ suite('protocols', function () {
         });
       });
 
+      test('duplicate message callback', function (done) {
+        var ptcl = createProtocol({
+          protocol: 'ptcl',
+          messages: {ping: {request: [], response: 'null'}} // Not one-way.
+        });
+        setupFn(ptcl, ptcl, function (ee) {
+          ptcl.on('ping', function (req, ee, cb) {
+            ee.on('error', function (err) {
+              assert(/multiple/.test(err));
+              done();
+            });
+            cb(null, null);
+            cb(null, null);
+          });
+          ptcl.emit('ping', {}, ee);
+        });
+      });
+
       test('unknown message', function (done) {
         var ptcl = createProtocol({protocol: 'Empty'});
         setupFn(ptcl, ptcl, function (ee) {
