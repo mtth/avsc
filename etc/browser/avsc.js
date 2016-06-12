@@ -66,7 +66,7 @@ BlobReader.prototype._read = function () {
  * Read an Avro-container stored as a blob.
  *
  */
-function createBlobReader(blob, opts) {
+function createBlobDecoder(blob, opts) {
   return new BlobReader(blob).pipe(new containers.streams.BlockDecoder(opts));
 }
 
@@ -96,7 +96,7 @@ BlobWriter.prototype._flush = function (cb) {
  * The returned stream will emit a single value, the blob, when ended.
  *
  */
-function createBlobWriter(schema, opts) {
+function createBlobEncoder(schema, opts) {
   var encoder = new containers.streams.BlockEncoder(schema, opts);
   var builder = new BlobWriter();
   encoder.pipe(builder);
@@ -130,8 +130,8 @@ module.exports = {
   Type: types.Type,
   assemble: schemas.assemble,
   combine: values.combine,
-  createBlobReader: createBlobReader,
-  createBlobWriter: createBlobWriter,
+  createBlobDecoder: createBlobDecoder,
+  createBlobEncoder: createBlobEncoder,
   infer: values.infer,
   parse: parse,
   streams: containers.streams,
