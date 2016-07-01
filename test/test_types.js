@@ -493,7 +493,7 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
-    test('resolve [string, int] to [float, bytes]', function () {
+    test('resolve [string, int] to unwrapped [float, bytes]', function () {
       var t1 = new builtins.WrappedUnionType(['string', 'int']);
       var t2 = new builtins.UnwrappedUnionType(['float', 'bytes']);
       var a = t2.createResolver(t1);
@@ -666,15 +666,26 @@ suite('types', function () {
       assert.deepEqual(t2.fromBuffer(new Buffer(0), a), null);
     });
 
-    test('resolve [string, int] to [long, string]', function () {
+    test('resolve [string, int] to [long, bytes]', function () {
       var t1 = new builtins.WrappedUnionType(['string', 'int']);
-      var t2 = new builtins.WrappedUnionType(['int', 'bytes']);
+      var t2 = new builtins.WrappedUnionType(['long', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
       buf = t1.toBuffer({string: 'hi'});
       assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': new Buffer('hi')});
       buf = t1.toBuffer({'int': 1});
-      assert.deepEqual(t2.fromBuffer(buf, a), {'int': 1});
+      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
+    });
+
+    test('resolve unwrapped [string, int] to [long, bytes]', function () {
+      var t1 = new builtins.UnwrappedUnionType(['string', 'int']);
+      var t2 = new builtins.WrappedUnionType(['long', 'bytes']);
+      var a = t2.createResolver(t1);
+      var buf;
+      buf = t1.toBuffer('hi');
+      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': new Buffer('hi')});
+      buf = t1.toBuffer(1);
+      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
     });
 
     test('clone', function () {

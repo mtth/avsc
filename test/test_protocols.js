@@ -1193,6 +1193,42 @@ suite('protocols', function () {
         });
       });
 
+      test('wrapped remote protocol', function (done) {
+        var ptcl1 = createProtocol({
+          protocol: 'Math',
+          messages: {
+            invert: {
+              request: [{name: 'n', type: ['int', 'float']}],
+              response: ['int', 'float']
+            }
+          }
+        }, {wrapUnions: true});
+        var ptcl2 = createProtocol({
+          protocol: 'Math',
+          messages: {
+            invert: {
+              request: [{name: 'n', type: ['int', 'float']}],
+              response: ['float', 'int']
+            }
+          }
+        }, {wrapUnions: true}).on('invert', function (req, ee, cb) {
+          if (req.n.int) {
+            cb(null, {float: 1 / req.n.int});
+          } else {
+            cb(null, {int: (1 / req.n.float) | 0});
+          }
+        });
+        setupFn(ptcl1, ptcl2, function (ee) {
+          ptcl1.emit('invert', {n: {int: 10}}, ee, function (err, res) {
+            assert(Math.abs(res.float - 0.1) < 1e-5);
+            ptcl1.emit('invert', {n: {float: 10}}, ee, function (err, res) {
+              assert.equal(res.int, 0);
+              done();
+            });
+          });
+        });
+      });
+
       test('invalid response', function (done) {
         var ptcl = createProtocol({
           protocol: 'Math',
