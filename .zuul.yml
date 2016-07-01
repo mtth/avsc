@@ -2,8 +2,6 @@ ui: mocha-tdd
 browsers:
   - name: chrome
     version: -2..latest
-  - name: firefox
-    version: -2..latest
   - name: safari
     version: 6..latest
   - name: ie
@@ -14,5 +12,3 @@ browsers:
     version: 11..latest
   - name: android
     version: 4.4..latest
-  - name: iphone
-    version: latest
