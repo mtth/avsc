@@ -215,8 +215,8 @@ suite('schemas', function () {
       var hook = createImportHook({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
-          protocol: 'B',
-          namespace: 'b',
+          protocol: 'bb.B',
+          namespace: 'b', // Takes precedence.
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         }),
         'C': JSON.stringify({
@@ -233,6 +233,27 @@ suite('schemas', function () {
           types: [
             {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']},
             {namespace: 'c', name: 'Letter', type: 'enum', symbols: ['A']}
+          ]
+        });
+        done();
+      });
+    });
+
+    test('import protocol with namespaced name', function (done) {
+      var hook = createImportHook({
+        'A': 'import protocol "B";protocol A {}',
+        'B': JSON.stringify({
+          protocol: 'b.B',
+          types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
+        })
+      });
+      assemble('A', {importHook: hook}, function (err, attrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(attrs, {
+          protocol: 'A',
+          messages: {},
+          types: [
+            {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']}
           ]
         });
         done();
