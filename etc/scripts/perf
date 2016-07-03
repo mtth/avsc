@@ -9,7 +9,11 @@
  *
  * Usage:
  *
- *   ./perf [-u] SCHEMA ...
+ *   ./perf [-w] SCHEMA ...
+ *
+ * Options:
+ *
+ *   -w     Use wrapped unions.
  *
  */
 
@@ -19,11 +23,11 @@ var avro = require('../../lib'),
 
 
 var paths = process.argv.slice(2);
-var index = paths.indexOf('-u');
-var unwrap = false;
+var index = paths.indexOf('-w');
+var wrap = false;
 if (~index) {
   paths.splice(index, 1);
-  unwrap = true;
+  wrap = true;
 }
 
 // Number of random values to generate to try per schema. This is mostly to
@@ -36,7 +40,7 @@ console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t|\t'));
 console.log(['---------:', '-------:', '------: ', '---------'].join('\t|\t'));
 
 paths.forEach(function (fpath) {
-  var type = avro.parse(fpath, {unwrapUnions: unwrap});
+  var type = avro.parse(fpath, {wrapUnions: wrap});
   var values = [];
   var bufs = [];
 
