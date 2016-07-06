@@ -12,6 +12,9 @@ var avro = require('../../../lib'),
     commander = require('commander'),
     fs = require('fs'),
     msgpack = require('msgpack-lite'),
+    Pbf = require('pbf'),
+    pbCompile = require('pbf/compile'),
+    pbSchema = require('protocol-buffers-schema'),
     protobuf = require('protocol-buffers'),
     protobufjs = require('protobufjs'),
     util = require('util');
@@ -75,7 +78,14 @@ Suite.prototype.getType = function (isProtobuf) {
   return isProtobuf ? this._compatibleType : this._type;
 };
 
-Suite.prototype.getValue = function () { return this._value; };
+Suite.prototype.getValue = function (isProtobuf) {
+  if (isProtobuf) {
+    var type = this.getType(true); // Read enum values as integers.
+    return type.fromBuffer(this.getType().toBuffer(this._value));
+  } else {
+    return this._value;
+  }
+};
 
 
 /**
@@ -140,11 +150,26 @@ DecodeSuite.prototype.__msgpackLite = function () {
   };
 };
 
+DecodeSuite.prototype.__pbf = function (args) {
+  var parts = args.split(':');
+  var proto = pbSchema.parse(fs.readFileSync(parts[0]));
+  var message = pbCompile(proto)[parts[1]];
+  var pbf = new Pbf();
+  message.write(this.getValue(true), pbf);
+  var buf = pbf.finish();
+  return function () {
+    var obj = message.read(new Pbf(buf));
+    if (obj.$) {
+      throw new Error();
+    }
+  };
+};
+
 DecodeSuite.prototype.__protobufjs = function (args) {
   var parts = args.split(':');
   var builder = protobufjs.loadProtoFile(parts[0]);
   var message = builder.build(parts[1]);
-  var buf = message.encode(this.getValue());
+  var buf = message.encode(this.getValue(true));
   return function () {
     var obj = message.decode(buf);
     if (obj.$) {
@@ -157,9 +182,7 @@ DecodeSuite.prototype.__protocolBuffers = function (args) {
   var parts = args.split(':');
   var messages = protobuf(fs.readFileSync(parts[0]));
   var message = messages[parts[1]];
-  var type = this.getType(true); // Read enum values as integers.
-  var val = type.fromBuffer(this.getType().toBuffer(this.getValue()));
-  var buf = message.encode(val);
+  var buf = message.encode(this.getValue(true));
   return function () {
     var obj = message.decode(buf);
     if (obj.$) {
@@ -234,11 +257,26 @@ EncodeSuite.prototype.__msgpackLite = function () {
   };
 };
 
+EncodeSuite.prototype.__pbf = function (args) {
+  var parts = args.split(':');
+  var proto = pbSchema.parse(fs.readFileSync(parts[0]));
+  var message = pbCompile(proto)[parts[1]];
+  var val = this.getValue(true);
+  return function () {
+    var pbf = new Pbf();
+    message.write(val, pbf);
+    var buf = pbf.finish();
+    if (!buf.length) {
+      throw new Error();
+    }
+  };
+};
+
 EncodeSuite.prototype.__protobufjs = function (args) {
   var parts = args.split(':');
   var builder = protobufjs.loadProtoFile(parts[0]);
   var message = builder.build(parts[1]);
-  var val = this.getValue();
+  var val = this.getValue(true);
   return function () {
     var buf = message.encode(val).toBuffer();
     if (!buf.length) {
@@ -251,8 +289,7 @@ EncodeSuite.prototype.__protocolBuffers = function (args) {
   var parts = args.split(':');
   var messages = protobuf(fs.readFileSync(parts[0]));
   var message = messages[parts[1]];
-  var type = this.getType(true); // Read enum values as integers.
-  var val = type.fromBuffer(this.getType().toBuffer(this.getValue()));
+  var val = this.getValue(true);
   return function () {
     var buf = message.encode(val);
     if (!buf.length) {
@@ -270,6 +307,7 @@ commander
   .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')
   .option('--json-string', 'Benchmark JSON (pre-parsing bytes to strings).')
   .option('--msgpack-lite', 'Benchmark `msgpack-lite`.')
+  .option('--pbf <path:message>', 'Benchmark `pbf`.')
   .option('--protobufjs <path:message>', 'Benchmark `protobufjs`.')
   .option('--protocol-buffers <path:message>', 'Benchmark `protocol-buffers`.')
   .parse(process.argv);
