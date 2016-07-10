@@ -1,0 +1,10 @@
+{
+  "name": "ArrayInt",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": {"type": "array", "items": "int"}
+    }
+  ]
+}

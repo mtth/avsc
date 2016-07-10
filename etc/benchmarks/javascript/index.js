@@ -27,7 +27,7 @@ var avro = require('../../../lib'),
 function generateStats(schema, opts) {
   opts = opts || {};
 
-  var type = avro.parse(schema);
+  var type = avro.parse(schema, {wrapUnions: opts.wrapUnions});
   return [DecodeSuite, EncodeSuite].map(function (Suite) {
     var stats = [];
     var suite = new Suite(type, opts)
@@ -59,7 +59,10 @@ function Suite(type, opts) {
 
   opts = opts || {};
   this._type = type;
-  this._compatibleType = avro.parse(type.getSchema(), {typeHook: typeHook});
+  this._compatibleType = avro.parse(type.getSchema(), {
+    typeHook: typeHook,
+    wrapUnions: opts.wrapUnions
+  });
   this._value = opts.value ? type.fromString(opts.value) : type.random();
 
   Object.keys(opts).forEach(function (name) {
@@ -302,6 +305,7 @@ EncodeSuite.prototype.__protocolBuffers = function (args) {
 commander
   .usage('[options] <schema>')
   .option('-v, --value <val>', 'Use this value for benchmarking.')
+  .option('-w, --wrap-unions', 'Wrap unions.')
   .option('--avsc', 'Benchmark `avsc`.')
   .option('--json', 'Benchmark built-in JSON.')
   .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')
