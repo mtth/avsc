@@ -1,0 +1,11 @@
+{
+  "age": "varint",
+  "pwd": ["uint8"],
+  "gender": "uint8",
+  "number": "varint",
+  "address": {
+    "city": "string",
+    "street": "string",
+    "number": "varint"
+  }
+}

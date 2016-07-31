@@ -17,6 +17,7 @@ var avro = require('../../../lib'),
     pbSchema = require('protocol-buffers-schema'),
     protobuf = require('protocol-buffers'),
     protobufjs = require('protobufjs'),
+    spack = require('schemapack'),
     util = require('util');
 
 
@@ -194,6 +195,17 @@ DecodeSuite.prototype.__protocolBuffers = function (args) {
   };
 };
 
+DecodeSuite.prototype.__schemapack = function (args) {
+  var schema = spack.build(JSON.parse(fs.readFileSync(args)));
+  var buf = schema.encode(this.getValue(true));
+  return function () {
+    var obj = schema.decode(buf);
+    if (obj.$) {
+      throw new Error();
+    }
+  };
+};
+
 
 /**
  * Basic encoding benchmark.
@@ -301,6 +313,17 @@ EncodeSuite.prototype.__protocolBuffers = function (args) {
   };
 };
 
+EncodeSuite.prototype.__schemapack = function (args) {
+  var schema = spack.build(JSON.parse(fs.readFileSync(args)));
+  var val = this.getValue(true);
+  return function () {
+    var buf = schema.encode(val);
+    if (!buf.length) {
+      throw new Error();
+    }
+  };
+};
+
 
 commander
   .usage('[options] <schema>')
@@ -314,6 +337,7 @@ commander
   .option('--pbf <path:message>', 'Benchmark `pbf`.')
   .option('--protobufjs <path:message>', 'Benchmark `protobufjs`.')
   .option('--protocol-buffers <path:message>', 'Benchmark `protocol-buffers`.')
+  .option('--schemapack <path>', 'Benchmark `schemapack`.')
   .parse(process.argv);
 
 var schema = commander.args[0];

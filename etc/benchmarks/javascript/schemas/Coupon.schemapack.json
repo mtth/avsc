@@ -1,0 +1,16 @@
+{
+  "id": "string",
+  "object": "string",
+  "livemode": "bool",
+  "created": "float64",
+  "duration": "uint8",
+  "metadata": ["uint8"],
+  "times_redeemed": "varint",
+  "valid": "bool",
+  "amount_off": "varint",
+  "currency": "uint8",
+  "duration_in_months": "varint",
+  "max_redemptions": "varint",
+  "percent_off": "float64",
+  "redeem_by": "varint"
+}
