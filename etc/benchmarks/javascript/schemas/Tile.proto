@@ -1,6 +1,4 @@
 // Inspired by https://github.com/mapbox/pbf/blob/master/bench/vector_tile.proto
-//
-// WARNING: This proto file only seems to work with pbf.
 
 syntax = "proto2";
 
@@ -13,33 +11,24 @@ message Tile {
   }
 
   message Value {
-    // Exactly one of these values may be present in a valid message
-    optional string string = 1;
-    optional float float = 2;
-    optional double double = 3;
-    optional int64 long = 4;
-    optional bool boolean = 7;
-    extensions 8 to max;
+    uint32 value = 1;
   }
 
   message Feature {
-    optional uint64 id = 1 [ default = 0 ];
+    uint64 id = 1;
     repeated uint32 tags = 2 [ packed = true ];
-    optional GeomType type = 3 [ default = UNKNOWN ];
+    GeomType type = 3;
     repeated uint32 geometry = 4 [ packed = true ];
   }
 
   message Layer {
-    required uint32 version = 15 [ default = 1 ];
-    required string name = 1;
+    uint32 version = 15;
+    string name = 1;
     repeated Feature features = 2;
     repeated string keys = 3;
     repeated Value values = 4;
-    optional uint32 extent = 5 [ default = 4096 ];
-    extensions 16 to max;
+    uint32 extent = 5;
   }
 
   repeated Layer layers = 3;
-
-  extensions 16 to 8191;
 }

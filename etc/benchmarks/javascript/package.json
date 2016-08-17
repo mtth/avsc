@@ -9,6 +9,6 @@
     "protocol-buffers": "^3.1.6",
     "protocol-buffers-schema": "^3.1.0",
     "pson": "^2.0.0",
-    "schemapack": "^1.1.0"
+    "schemapack": "^1.4.2"
   }
 }

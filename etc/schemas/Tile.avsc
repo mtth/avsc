@@ -40,7 +40,16 @@
                     },
                     {
                       "name": "type",
-                      "type": "int"
+                      "type": {
+                        "type": "enum",
+                        "name": "GeomType",
+                        "symbols": [
+                          "UNKNOWN",
+                          "POINT",
+                          "LINESTRING",
+                          "POLYGON"
+                        ]
+                      }
                     },
                     {
                       "name": "geometry",
@@ -65,11 +74,16 @@
               "type": {
                 "type": "array",
                 "items": [
-                  "string",
-                  "boolean",
-                  "double",
-                  "float",
-                  "long"
+                  {
+                    "name": "Value",
+                    "type": "record",
+                    "fields": [
+                      {
+                        "name": "value",
+                        "type": "int"
+                      }
+                    ]
+                  }
                 ]
               }
             },
