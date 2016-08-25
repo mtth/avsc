@@ -1,7 +1,7 @@
 language: node_js
 node_js:
-  - node
   - iojs
+  - '5'
   - '4'
   - '3'
   - '2'
@@ -11,12 +11,15 @@ node_js:
   - '0.11'
 matrix:
   include:
+    # SauceLabs tests are flaky.
+    # - node_js: node
+    #   env: AVSC_RUN_ZUUL=1
     - node_js: node
-      env: AVSC_RUN_ZUUL=1
+      env: AVSC_COVERAGE=1
 script:
   - if [ -z "$AVSC_RUN_ZUUL" ] ; then npm run cover ; elif [ "$TRAVIS_PULL_REQUEST" == 'false' ] ; then npm install zuul && npm run zuul ; fi
 after_script:
-  - if [ -z "$AVSC_RUN_ZUUL" ] ; then cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js ; fi
+  - if [ -n "$AVSC_COVERAGE" ] ; then cat ./coverage/lcov.info | ./node_modules/coveralls/bin/coveralls.js ; fi
 deploy:
   provider: npm
   email: monsch@alum.mit.edu
