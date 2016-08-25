@@ -77,8 +77,8 @@ const avro = require('avsc');
 
   ```javascript
   avro.createFileDecoder('./values.avro')
-    .on('metadata', type => { /* `type` is the writer's type. */ })
-    .on('data', val => { /* Do something with the decoded value. */ });
+    .on('metadata', (type) => { /* `type` is the writer's type. */ })
+    .on('data', (val) => { /* Do something with the decoded value. */ });
   ```
 
 + Implement a TCP server for an [IDL-defined][idl] protocol:
@@ -92,7 +92,9 @@ const avro = require('avsc');
       });
     // Respond on any incoming connection:
     require('net').createServer()
-      .on('connection', con => { protocol.createListener(con); })
+      .on('connection', (con) => {
+        protocol.createListener(con);
+      })
       .listen(8000);
   });
   ```
