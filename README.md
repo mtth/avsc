@@ -40,13 +40,13 @@ distributions with the [releases][] (but please host your own copy).
 Inside a node.js module, or using browserify:
 
 ```javascript
-var avro = require('avsc');
+const avro = require('avsc');
 ```
 
 + Encode and decode values from a known schema:
 
   ```javascript
-  var type = avro.parse({
+  const type = avro.parse({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -54,19 +54,19 @@ var avro = require('avsc');
       {name: 'name', type: 'string'}
     ]
   });
-  var buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
-  var val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
+  const buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
+  const val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
   ```
 
 + Infer a value's type and encode similar values:
 
   ```javascript
-  var val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 2};
-  var type = avro.infer(val);
+  const val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 2};
+  const type = avro.infer(val);
   // We can now encode the value:
-  var buf = type.toBuffer(val);
+  const buf = type.toBuffer(val);
   // And also any values with a matching structure:
-  var bufs = [
+  const bufs = [
     type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
     type.toBuffer({city: 'NYC', zipCodes: [], visits: 0})
   ];
@@ -77,20 +77,24 @@ var avro = require('avsc');
 
   ```javascript
   avro.createFileDecoder('./values.avro')
-    .on('metadata', function (type) { /* `type` is the writer's type. */ })
-    .on('data', function (val) { /* Do something with the decoded value. */ });
+    .on('metadata', (type) => { /* `type` is the writer's type. */ })
+    .on('data', (val) => { /* Do something with the decoded value. */ });
   ```
 
 + Implement a TCP server for an [IDL-defined][idl] protocol:
 
   ```javascript
-  avro.assemble('./Ping.avdl', function (err, attrs) {
+  avro.assemble('./Ping.avdl', (err, attrs) => {
     // Generate the protocol and attach a handler for `ping` messages:
-    var protocol = avro.parse(attrs)
-      .on('ping', function (req, ee, cb) { cb(null, 'pong'); });
+    const protocol = avro.parse(attrs)
+      .on('ping', (req, ee, cb) => {
+        cb(null, 'pong');
+      });
     // Respond on any incoming connection:
     require('net').createServer()
-      .on('connection', function (con) { protocol.createListener(con); })
+      .on('connection', (con) => {
+        protocol.createListener(con);
+      })
       .listen(8000);
   });
   ```
