@@ -23,6 +23,7 @@
     "protocol",
     "rpc",
     "schema",
+    "serde",
     "serialization",
     "type"
   ],
