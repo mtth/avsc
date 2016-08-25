@@ -99,6 +99,7 @@ const avro = require('avsc');
   });
   ```
 
+
 [node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [type-inference]: https://github.com/mtth/avsc/wiki/Advanced-usage#type-inference
