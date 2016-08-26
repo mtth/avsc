@@ -2910,6 +2910,32 @@ suite('types', function () {
       function hook() { return 'int'; }
     });
 
+    test('type hook for aliases', function () {
+      var a1 = {
+        type: 'record',
+        name: 'R1',
+        fields: [
+          {name: 'r2', type: 'R2'},
+        ]
+      };
+      var a2 = {
+        type: 'record',
+        name: 'R2',
+        fields: [
+          {name: 'r1', type: 'R1'},
+        ]
+      };
+      var opts = {typeHook: hook};
+      createType(a1, opts);
+      assert.deepEqual(Object.keys(opts.registry), ['R1', 'R2']);
+
+      function hook(name, opts) {
+        if (name === 'R2') {
+          return createType(a2, opts);
+        }
+      }
+    });
+
     test('fingerprint', function () {
       var t = createType('int');
       var buf = new Buffer('ef524ea1b91e73173d938ade36c1db32', 'hex');
