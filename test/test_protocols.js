@@ -77,6 +77,82 @@ suite('protocols', function () {
       });
     });
 
+    test('hoisted types', function () {
+      var p = createProtocol({
+        protocol: 'Hello',
+        types: [
+          {
+            name: 'Ping',
+            type: 'record',
+            fields: [{name: 'pong', type: 'Pong'}]
+          },
+          {
+            name: 'Pong',
+            type: 'record',
+            fields: [{name: 'ping', type: 'Ping'}]
+          }
+        ]
+      });
+      assert.equal(p.getType('Ping').getTypeName(), 'record');
+      assert.equal(p.getType('Pong').getTypeName(), 'record');
+    });
+
+    test('hoisted types with type hook', function () {
+      var n = 0;
+      var p = createProtocol({
+        protocol: 'Hello',
+        types: [
+          {
+            name: 'Ping',
+            type: 'record',
+            fields: [{name: 'pong', type: 'Pong'}]
+          },
+          {
+            name: 'Pong',
+            type: 'record',
+            fields: [{name: 'ping', type: 'Ping'}]
+          }
+        ]
+      }, {typeHook: hook});
+      assert.equal(p.getType('Ping').getTypeName(), 'record');
+      assert.equal(p.getType('Pong').getTypeName(), 'record');
+      assert.equal(n, 4); // 2 type declarations, 2 references.
+
+      function hook() { n++; }
+    });
+
+    test('hoisted types with type hook and logical type', function () {
+      var n = 0;
+
+      function BoomType(attrs, opts) {
+        types.builtins.LogicalType.call(this, attrs, opts);
+        throw new Error('boom'); // Don't apply type.
+      }
+      util.inherits(BoomType, types.builtins.LogicalType);
+
+      var p = createProtocol({
+        protocol: 'Hello',
+        types: [
+          {
+            name: 'Ping',
+            logicalType: 'boom',
+            type: 'record',
+            fields: [{name: 'pong', type: 'Pong'}]
+          },
+          {
+            name: 'Pong',
+            type: 'record',
+            fields: [{name: 'ping', type: 'Ping'}]
+          }
+        ]
+      }, {logicalTypes: {boom: BoomType}, typeHook: hook});
+      assert.equal(p.getType('Ping').getTypeName(), 'record');
+      assert.equal(p.getType('Pong').getTypeName(), 'record');
+      assert.equal(n, 8); // 1 logical / 3 raw type declarations, 4 references.
+
+      function hook() { n++; }
+    });
+
     test('special character in name', function () {
       assert.throws(function () {
         createProtocol({
@@ -165,37 +241,37 @@ suite('protocols', function () {
     test('namespacing', function () {
       var p;
 
-      p = createProtocol('foo.Foo', '');
+      p = newProtocol('foo.Foo', '');
       assert.equal(p.getName(), 'foo.Foo');
       assert(p.getType('Bar'));
       assert(p.getType('Baz'));
 
-      p = createProtocol('foo.Foo');
+      p = newProtocol('foo.Foo');
       assert.equal(p.getName(), 'foo.Foo');
       assert(p.getType('foo.Bar'));
       assert(p.getType('Baz'));
 
-      p = createProtocol('Foo', 'bar');
+      p = newProtocol('Foo', 'bar');
       assert.equal(p.getName(), 'bar.Foo');
       assert(p.getType('bar.Bar'));
       assert(p.getType('Baz'));
 
-      p = createProtocol('Foo', 'bar', {namespace: 'opt'});
+      p = newProtocol('Foo', 'bar', {namespace: 'opt'});
       assert.equal(p.getName(), 'bar.Foo');
       assert(p.getType('bar.Bar'));
       assert(p.getType('Baz'));
 
-      p = createProtocol('Foo', undefined, {namespace: 'opt'});
+      p = newProtocol('Foo', undefined, {namespace: 'opt'});
       assert.equal(p.getName(), 'opt.Foo');
       assert(p.getType('opt.Bar'));
       assert(p.getType('Baz'));
 
-      p = createProtocol('.Foo', undefined, {namespace: 'opt'});
+      p = newProtocol('.Foo', undefined, {namespace: 'opt'});
       assert.equal(p.getName(), 'Foo');
       assert(p.getType('Bar'));
       assert(p.getType('Baz'));
 
-      function createProtocol(name, namespace, opts) {
+      function newProtocol(name, namespace, opts) {
         return new protocols.Protocol({
           protocol: name,
           namespace: namespace,
