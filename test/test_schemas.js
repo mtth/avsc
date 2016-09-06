@@ -111,7 +111,7 @@ suite('schemas', function () {
       var hook = createImportHook({'foo.avdl': 'protocol Foo {}'});
       assemble('foo.avdl', {importHook: hook}, function (err, attrs) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {protocol: 'Foo', messages: {}, types: []});
+        assert.deepEqual(attrs, {protocol: 'Foo'});
         done();
       });
     });
@@ -135,8 +135,7 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'First',
-          messages: {one: {request: [], response: 'int'}},
-          types: []
+          messages: {one: {request: [], response: 'int'}}
         });
         done();
       });
@@ -178,7 +177,6 @@ suite('schemas', function () {
       assemble('1.avdl', {importHook: hook}, function (err, attrs) {
         assert.deepEqual(attrs, {
           protocol: 'A',
-          messages: {},
           types: [
             {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''},
             {name: 'Number', type: 'enum', symbols: ['ONE'], namespace: ''}
@@ -229,7 +227,6 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          messages: {},
           types: [
             {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']},
             {namespace: 'c', name: 'Letter', type: 'enum', symbols: ['A']}
@@ -251,7 +248,6 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          messages: {},
           types: [
             {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']}
           ]
@@ -287,7 +283,6 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          messages: {},
           types: [
             {name: 'Number', type: 'enum', symbols: ['1'], namespace: ''}
           ]
@@ -306,6 +301,20 @@ suite('schemas', function () {
       };
       assemble('A.avdl', {importHook: hook}, function (err) {
         assert(/foo/.test(err.message));
+        done();
+      });
+    });
+
+    test('import hook idl error', function (done) {
+      var hook = function (fpath, kind, cb) {
+        if (path.basename(fpath) === 'A.avdl') {
+          cb(null, 'import idl "hi"; protocol A {}');
+        } else {
+          cb(new Error('bar'));
+        }
+      };
+      assemble('A.avdl', {importHook: hook}, function (err) {
+        assert(/bar/.test(err.message));
         done();
       });
     });
@@ -338,7 +347,6 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          types: [],
           messages: {
             foo: {
               response: ['null', 'int'],
@@ -370,8 +378,7 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          types: [{name: 'one.One', type: 'fixed', size: 1}],
-          messages: {}
+          types: [{name: 'one.One', type: 'fixed', size: 1}]
         });
         done();
       });
@@ -391,8 +398,7 @@ suite('schemas', function () {
             fields: [
               {name: 'one', type: {name: 'One', type: 'fixed', size: 1}}
             ]
-          }],
-          messages: {}
+          }]
         });
         done();
       });
@@ -407,7 +413,6 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          types: [],
           messages: {
             ping: {response: 'null', request: [], 'one-way': true},
             pong: {
@@ -431,9 +436,8 @@ suite('schemas', function () {
         assert.deepEqual(attrs, {
           protocol: 'A',
           types: [
-            {name: 'One', type: 'fixed', size: 1, doc: '2'}
-          ],
-          messages: {}
+            {name: 'One', type: 'fixed', size: 1, doc: 2}
+          ]
         });
         done();
       });
@@ -484,8 +488,7 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}],
-          messages: {}
+          types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}]
         });
         done();
       });
@@ -501,8 +504,7 @@ suite('schemas', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(attrs, {
           protocol: 'A',
-          types: [{name: 'Two', type: 'fixed', size: 1, namespace: ''}],
-          messages: {}
+          types: [{name: 'Two', type: 'fixed', size: 1, namespace: ''}]
         });
         done();
       });
