@@ -1088,7 +1088,7 @@ suite('protocols', function () {
         });
       });
 
-      test('prefixed transports', function (done) {
+      test('scoped transports', function (done) {
         var transports = createPassthroughTransports();
         var ptcl = createProtocol({
           protocol: 'Case',
@@ -1101,10 +1101,10 @@ suite('protocols', function () {
         }).on('upper', function (req, ee, cb) {
           cb(null, req.str.toUpperCase());
         });
-        var meA = ptcl.createEmitter(transports[1], {prefix: 'a'});
-        ptcl.createListener(transports[0], {prefix: 'a'});
-        var meB = ptcl.createEmitter(transports[0], {prefix: 'b'});
-        ptcl.createListener(transports[1], {prefix: 'b'});
+        var meA = ptcl.createEmitter(transports[1], {scope: 'a'});
+        ptcl.createListener(transports[0], {scope: 'a'});
+        var meB = ptcl.createEmitter(transports[0], {scope: 'b'});
+        ptcl.createListener(transports[1], {scope: 'b'});
         ptcl.emit('upper', {str: 'hi'}, meA, function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'HI');
