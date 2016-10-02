@@ -589,6 +589,23 @@ suite('protocols', function () {
       }
     });
 
+    test('mask', function (done) {
+      var ctx = {one: 1};
+      var n = 0;
+      var reg = new Registry(ctx, 31);
+      assert.equal(reg.add(10, fn), 1);
+      assert.equal(reg.add(10, fn), 0);
+      reg.get(4)(null);
+      reg.get(3)(null);
+
+      function fn(err) {
+        assert.strictEqual(err, null);
+        if (++n == 2) {
+          done();
+        }
+      }
+    });
+
   });
 
   suite('StatefulEmitter', function () {
@@ -1068,6 +1085,34 @@ suite('protocols', function () {
               done();
             });
           p1.createEmitter(transports[1]);
+        });
+      });
+
+      test('prefixed transports', function (done) {
+        var transports = createPassthroughTransports();
+        var ptcl = createProtocol({
+          protocol: 'Case',
+          messages: {
+            upper: {
+              request: [{name: 'str', type: 'string'}],
+              response: 'string'
+            }
+          }
+        }).on('upper', function (req, ee, cb) {
+          cb(null, req.str.toUpperCase());
+        });
+        var meA = ptcl.createEmitter(transports[1], {prefix: 'a'});
+        ptcl.createListener(transports[0], {prefix: 'a'});
+        var meB = ptcl.createEmitter(transports[0], {prefix: 'b'});
+        ptcl.createListener(transports[1], {prefix: 'b'});
+        ptcl.emit('upper', {str: 'hi'}, meA, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, 'HI');
+          ptcl.emit('upper', {str: 'hey'}, meB, function (err, res) {
+            assert.strictEqual(err, null);
+            assert.equal(res, 'HEY');
+            done();
+          });
         });
       });
 
