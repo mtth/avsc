@@ -77,78 +77,34 @@ suite('protocols', function () {
       });
     });
 
-    test('hoisted types', function () {
+    test('multiple references to namespaced types', function () {
+      // This test is a useful sanity check for hoisting implementations.
+      var n = 0;
       var p = createProtocol({
         protocol: 'Hello',
+        namespace: 'ping',
         types: [
           {
             name: 'Ping',
             type: 'record',
-            fields: [{name: 'pong', type: 'Pong'}]
+            fields: []
           },
           {
             name: 'Pong',
             type: 'record',
             fields: [{name: 'ping', type: 'Ping'}]
-          }
-        ]
-      });
-      assert.equal(p.getType('Ping').getTypeName(), 'record');
-      assert.equal(p.getType('Pong').getTypeName(), 'record');
-    });
-
-    test('hoisted types with type hook', function () {
-      var n = 0;
-      var p = createProtocol({
-        protocol: 'Hello',
-        types: [
-          {
-            name: 'Ping',
-            type: 'record',
-            fields: [{name: 'pong', type: 'Pong'}]
           },
           {
-            name: 'Pong',
+            name: 'Pung',
             type: 'record',
             fields: [{name: 'ping', type: 'Ping'}]
           }
         ]
       }, {typeHook: hook});
-      assert.equal(p.getType('Ping').getTypeName(), 'record');
-      assert.equal(p.getType('Pong').getTypeName(), 'record');
-      assert.equal(n, 4); // 2 type declarations, 2 references.
-
-      function hook() { n++; }
-    });
-
-    test('hoisted types with type hook and logical type', function () {
-      var n = 0;
-
-      function BoomType(attrs, opts) {
-        types.builtins.LogicalType.call(this, attrs, opts);
-        throw new Error('boom'); // Don't apply type.
-      }
-      util.inherits(BoomType, types.builtins.LogicalType);
-
-      var p = createProtocol({
-        protocol: 'Hello',
-        types: [
-          {
-            name: 'Ping',
-            logicalType: 'boom',
-            type: 'record',
-            fields: [{name: 'pong', type: 'Pong'}]
-          },
-          {
-            name: 'Pong',
-            type: 'record',
-            fields: [{name: 'ping', type: 'Ping'}]
-          }
-        ]
-      }, {logicalTypes: {boom: BoomType}, typeHook: hook});
-      assert.equal(p.getType('Ping').getTypeName(), 'record');
-      assert.equal(p.getType('Pong').getTypeName(), 'record');
-      assert.equal(n, 8); // 1 logical / 3 raw type declarations, 4 references.
+      assert.equal(p.getType('ping.Ping').getTypeName(), 'record');
+      assert.equal(p.getType('ping.Pong').getTypeName(), 'record');
+      assert.equal(p.getType('ping.Pung').getTypeName(), 'record');
+      assert.equal(n, 5);
 
       function hook() { n++; }
     });
