@@ -21,11 +21,6 @@ suite('values', function () {
       assert.throws(function () { combine([]); });
     });
 
-    test('unwrapped', function () {
-      var t = createType(['int'], {wrapUnions: true});
-      assert.throws(function () { combine([t, t]); });
-    });
-
     test('numbers', function () {
       var t1 = createType('int');
       var t2 = createType('long');
@@ -159,7 +154,45 @@ suite('values', function () {
       assert.throws(function () { combine([t1, t1]); });
     });
 
-    test('unwrapped unions', function () {
+    test('invalid wrapped union', function () {
+      var t1 = createType(['int'], {wrapUnions: true});
+      var t2 = createType('string');
+      assert.throws(function () { combine([t1, t2]); }, /cannot combine/);
+    });
+
+    test('error while creating wrapped union', function () {
+      var opts = {typeHook: hook, wrapUnions: false};
+      var t1 = createType(['int'], {wrapUnions: true});
+      var t2 = createType(['string'], {wrapUnions: true});
+      assert.throws(function () { combine([t1, t2], opts); }, /foo/);
+      assert(!opts.wrapUnions);
+
+      function hook() { throw new Error('foo'); }
+    });
+
+    test('inconsistent wrapped union', function () {
+      var t1 = createType(
+        [{type: 'fixed', name: 'Id', size: 2}],
+        {wrapUnions: true}
+      );
+      var t2 = createType(
+        [{type: 'fixed', name: 'Id', size: 3}],
+        {wrapUnions: true}
+      );
+      assert.throws(function () { combine([t1, t2]); }, /inconsistent/);
+    });
+
+    test('valid wrapped unions', function () {
+      var opts = {wrapUnions: true};
+      var t1 = createType(['int', 'string', 'null'], opts);
+      var t2 = createType(['null', 'long'], opts);
+      assertUnionsEqual(
+        combine([t1, t2]),
+        createType(['int', 'long', 'string', 'null'], opts)
+      );
+    });
+
+    test('valid unwrapped unions', function () {
       var t1 = createType(['int', 'string', 'null']);
       var t2 = createType(['null', 'long']);
       assertUnionsEqual(
@@ -188,6 +221,18 @@ suite('values', function () {
       assert.strictEqual(combine([t1, t2, t3]), t3);
       symbols = combine([t1, t2]).getSymbols();
       assert.deepEqual(symbols.sort(), ['A', 'B', 'b']);
+    });
+
+    test('strings', function () {
+      var opts = {wrapUnions: true};
+      var t1 = createType(['null', 'int'], opts);
+      var t2 = createType(['null', 'long', 'string'], opts);
+      var t3 = createType(['string'], opts);
+      var t4 = combine([t1, t2, t3]);
+      assert.deepEqual(
+        JSON.parse(t4.getSchema()),
+        ['null', 'int', 'long', 'string']
+      );
     });
 
   });
