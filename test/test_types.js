@@ -1767,6 +1767,63 @@ suite('types', function () {
       });
       assert.throws(function () { v2.createResolver(v1); });
     });
+    
+    test('RecordType.fromBuffer INSERT HERE', function() {
+      var v1 = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'phone', type: 'string'}
+        ]
+      });
+      var v2 = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'phone', type: 'string'},
+          {name: 'number', type: 'string'}
+        ]
+      });
+      
+      var msg = { phone: 'mobile' };
+      
+      var encoded = v1.toBuffer(msg);
+      
+      assert.throws(function () { v2.fromBuffer(encoded); });
+    });
+    
+    test('RecordType.fromBuffer with new schema with default values when encoded with old schema', function() {
+      var v1 = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'phone', type: 'string'},
+          {name: 'number', type: 'string', default: '123'},
+          {name: 'make', type: 'string'}
+        ]
+      });
+      var v2 = createType({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'phone', type: 'string'},
+          {name: 'number', type: 'string', default: '123'},
+          {name: 'make', type: 'string'},
+          {name: 'work', type: 'boolean', default: true},
+          {name: 'model', type: 'string', default: '6s'},
+          {name: 'contacts', type: 'int', default: 11}
+        ]
+      });
+      
+      var msg = { phone: 'mobile', number: '546', make: 'Iphone' };
+      var expected = { phone: 'mobile', number: '546', make: 'Iphone', work: true, 'model': '6s', contacts: 11 };
+      
+      var encoded = v1.toBuffer(msg);
+      
+      var decoded = v2.fromBuffer(encoded);
+      
+      assert.deepEqual(decoded, expected);
+    });
 
     test('getName', function () {
       var t = createType({
