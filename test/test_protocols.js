@@ -778,6 +778,40 @@ suite('protocols', function () {
       });
     });
 
+    test('interrupt writable', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'null'}}
+      });
+      // Fake handshake response.
+      var hres = protocols.HANDSHAKE_RESPONSE_TYPE.clone({
+        match: 'NONE',
+        serverProtocol: ptcl.toString(),
+        serverHash: ptcl.getFingerprint()
+      });
+      var readable = new stream.PassThrough({objectMode: true});
+      var writable = new stream.PassThrough({objectMode: true})
+        .on('data', function (data) {
+          readable.write({id: data.id, payload: [hres.toBuffer()]});
+        });
+      var numHandshakes = 0;
+      ptcl.createEmitter(function (cb) {
+        cb(null, readable);
+        return writable;
+      }, {objectMode: true}).on('handshake', function (hreq, actualHres) {
+        numHandshakes++;
+        assert.deepEqual(actualHres, hres);
+        this.destroy(true);
+      }).on('error', function (err) {
+        assert(/interrupted/.test(err));
+      });
+      setTimeout(function () {
+        // Only a single handshake should have occurred.
+        assert.equal(numHandshakes, 1);
+        done();
+      }, 50);
+    });
+
   });
 
   suite('StatefulListener', function () {
