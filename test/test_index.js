@@ -80,7 +80,7 @@ suite('index', function () {
   });
 
   test('createFileEncoder', function (cb) {
-    var type = types.createType({
+    var type = types.Type.create({
       type: 'record',
       name: 'Person',
       fields: [

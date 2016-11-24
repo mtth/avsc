@@ -409,7 +409,7 @@ suite('protocols', function () {
     });
 
     test('roundtrip', function (done) {
-      var type = types.createType({
+      var type = types.Type.create({
         type: 'record',
         name: 'Record',
         fields: [
@@ -465,7 +465,7 @@ suite('protocols', function () {
     });
 
     test('roundtrip', function (done) {
-      var type = types.createType({
+      var type = types.Type.create({
         type: 'record',
         name: 'Record',
         fields: [

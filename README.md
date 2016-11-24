@@ -46,7 +46,7 @@ const avro = require('avsc');
 + Encode and decode values from a known schema:
 
   ```javascript
-  const type = avro.parse({
+  const type = avro.Type.create({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -58,14 +58,16 @@ const avro = require('avsc');
   const val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
   ```
 
-+ Infer a value's type and encode similar values:
++ Infer a value's schema and encode similar values:
 
   ```javascript
-  const val = {city: 'Cambridge', zipCodes: ['02138', '02139'], visits: 2};
-  const type = avro.infer(val);
-  // We can now encode the value:
-  const buf = type.toBuffer(val);
-  // And also any values with a matching structure:
+  const attrs = avro.Type.inferAttributes({
+    city: 'Cambridge',
+    zipCodes: ['02138', '02139'],
+    visits: 2
+  });
+  // We can now use this inferred schema to encode similar values:
+  const type = avro.Type.create(attrs);
   const bufs = [
     type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
     type.toBuffer({city: 'NYC', zipCodes: [], visits: 0})

@@ -9,7 +9,7 @@ var types = require('../lib/types'),
 
 
 var LogicalType = types.builtins.LogicalType;
-var createType = types.createType;
+var Type = types.Type;
 
 suite('values', function () {
 
@@ -22,10 +22,10 @@ suite('values', function () {
     });
 
     test('numbers', function () {
-      var t1 = createType('int');
-      var t2 = createType('long');
-      var t3 = createType('float');
-      var t4 = createType('double');
+      var t1 = Type.create('int');
+      var t2 = Type.create('long');
+      var t3 = Type.create('float');
+      var t4 = Type.create('double');
       assert.strictEqual(combine([t1, t2]), t2);
       assert.strictEqual(combine([t1, t2, t3, t4]), t4);
       assert.strictEqual(combine([t3, t2]), t3);
@@ -33,37 +33,37 @@ suite('values', function () {
     });
 
     test('string & int', function () {
-      var t1 = createType('int');
-      var t2 = createType('string');
-      assertUnionsEqual(combine([t1, t2]), createType(['int', 'string']));
+      var t1 = Type.create('int');
+      var t2 = Type.create('string');
+      assertUnionsEqual(combine([t1, t2]), Type.create(['int', 'string']));
     });
 
     test('records & maps', function () {
-      var t1 = createType({
+      var t1 = Type.create({
         type: 'record',
         fields: [{name: 'foo', type: 'int', 'default': 2}]
       });
-      var t2 = createType({type: 'map', values: 'string'});
+      var t2 = Type.create({type: 'map', values: 'string'});
       var t3;
       t3 = combine([t1, t2]);
-      assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
+      assertUnionsEqual(t3.getValuesType(), Type.create(['int', 'string']));
       t3 = combine([t2, t1]);
-      assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
+      assertUnionsEqual(t3.getValuesType(), Type.create(['int', 'string']));
     });
 
     test('arrays', function () {
-      var t1 = createType({type: 'array', items: 'null'});
-      var t2 = createType({type: 'array', items: 'int'});
+      var t1 = Type.create({type: 'array', items: 'null'});
+      var t2 = Type.create({type: 'array', items: 'int'});
       var t3 = combine([t1, t2]);
-      assertUnionsEqual(t3.getItemsType(), createType(['null', 'int']));
+      assertUnionsEqual(t3.getItemsType(), Type.create(['null', 'int']));
     });
 
     test('field single default', function () {
-      var t1 = createType({
+      var t1 = Type.create({
         type: 'record',
         fields: [{name: 'foo', type: 'int', 'default': 2}]
       });
-      var t2 = createType({
+      var t2 = Type.create({
         type: 'record',
         fields: []
       });
@@ -80,11 +80,11 @@ suite('values', function () {
     });
 
     test('field multiple types default', function () {
-      var t1 = createType({
+      var t1 = Type.create({
         type: 'record',
         fields: [{name: 'foo', type: 'string'}]
       });
-      var t2 = createType({
+      var t2 = Type.create({
         type: 'record',
         fields: [{name: 'foo', type: 'int', 'default': 2}]
       });
@@ -102,11 +102,11 @@ suite('values', function () {
     });
 
     test('missing fields no null default', function () {
-      var t1 = createType({
+      var t1 = Type.create({
         type: 'record',
         fields: [{name: 'foo', type: 'int'}, {name: 'bar', type: 'string'}]
       });
-      var t2 = createType({
+      var t2 = Type.create({
         type: 'record',
         fields: [{name: 'bar', type: 'string'}]
       });
@@ -124,7 +124,7 @@ suite('values', function () {
         }
       );
       t3 = combine([t1, t2], {strictDefaults: true});
-      assertUnionsEqual(t3.getValuesType(), createType(['int', 'string']));
+      assertUnionsEqual(t3.getValuesType(), Type.create(['int', 'string']));
     });
 
     test('logical types', function () {
@@ -148,22 +148,22 @@ suite('values', function () {
         }
       };
 
-      var t1 = createType({type: 'int', logicalType: 'even'}, opts);
-      var t2 = createType({type: 'long', logicalType: 'odd'}, opts);
-      assertUnionsEqual(combine([t1, t2]), createType([t1, t2]));
+      var t1 = Type.create({type: 'int', logicalType: 'even'}, opts);
+      var t2 = Type.create({type: 'long', logicalType: 'odd'}, opts);
+      assertUnionsEqual(combine([t1, t2]), Type.create([t1, t2]));
       assert.throws(function () { combine([t1, t1]); });
     });
 
     test('invalid wrapped union', function () {
-      var t1 = createType(['int'], {wrapUnions: true});
-      var t2 = createType('string');
+      var t1 = Type.create(['int'], {wrapUnions: true});
+      var t2 = Type.create('string');
       assert.throws(function () { combine([t1, t2]); }, /cannot combine/);
     });
 
     test('error while creating wrapped union', function () {
       var opts = {typeHook: hook, wrapUnions: false};
-      var t1 = createType(['int'], {wrapUnions: true});
-      var t2 = createType(['string'], {wrapUnions: true});
+      var t1 = Type.create(['int'], {wrapUnions: true});
+      var t2 = Type.create(['string'], {wrapUnions: true});
       assert.throws(function () { combine([t1, t2], opts); }, /foo/);
       assert(!opts.wrapUnions);
 
@@ -171,11 +171,11 @@ suite('values', function () {
     });
 
     test('inconsistent wrapped union', function () {
-      var t1 = createType(
+      var t1 = Type.create(
         [{type: 'fixed', name: 'Id', size: 2}],
         {wrapUnions: true}
       );
-      var t2 = createType(
+      var t2 = Type.create(
         [{type: 'fixed', name: 'Id', size: 3}],
         {wrapUnions: true}
       );
@@ -184,36 +184,36 @@ suite('values', function () {
 
     test('valid wrapped unions', function () {
       var opts = {wrapUnions: true};
-      var t1 = createType(['int', 'string', 'null'], opts);
-      var t2 = createType(['null', 'long'], opts);
+      var t1 = Type.create(['int', 'string', 'null'], opts);
+      var t2 = Type.create(['null', 'long'], opts);
       assertUnionsEqual(
         combine([t1, t2]),
-        createType(['int', 'long', 'string', 'null'], opts)
+        Type.create(['int', 'long', 'string', 'null'], opts)
       );
     });
 
     test('valid unwrapped unions', function () {
-      var t1 = createType(['int', 'string', 'null']);
-      var t2 = createType(['null', 'long']);
+      var t1 = Type.create(['int', 'string', 'null']);
+      var t2 = Type.create(['null', 'long']);
       assertUnionsEqual(
         combine([t1, t2]),
-        createType(['long', 'string', 'null'])
+        Type.create(['long', 'string', 'null'])
       );
     });
 
     test('buffers', function () {
-      var t1 = createType({type: 'fixed', size: 2});
-      var t2 = createType({type: 'fixed', size: 4});
-      var t3 = createType('bytes');
+      var t1 = Type.create({type: 'fixed', size: 2});
+      var t2 = Type.create({type: 'fixed', size: 4});
+      var t3 = Type.create('bytes');
       assert.strictEqual(combine([t1, t1]), t1);
       assert.strictEqual(combine([t1, t3]), t3);
       assert(combine([t1, t2]).equals(t3));
     });
 
     test('strings', function () {
-      var t1 = createType({type: 'enum', symbols: ['A', 'b']});
-      var t2 = createType({type: 'enum', symbols: ['A', 'B']});
-      var t3 = createType('string');
+      var t1 = Type.create({type: 'enum', symbols: ['A', 'b']});
+      var t2 = Type.create({type: 'enum', symbols: ['A', 'B']});
+      var t3 = Type.create('string');
       var symbols;
       symbols = combine([t1, t1]).getSymbols();
       assert.deepEqual(symbols.sort(), ['A', 'b']);
@@ -225,9 +225,9 @@ suite('values', function () {
 
     test('strings', function () {
       var opts = {wrapUnions: true};
-      var t1 = createType(['null', 'int'], opts);
-      var t2 = createType(['null', 'long', 'string'], opts);
-      var t3 = createType(['string'], opts);
+      var t1 = Type.create(['null', 'int'], opts);
+      var t2 = Type.create(['null', 'long', 'string'], opts);
+      var t3 = Type.create(['string'], opts);
       var t4 = combine([t1, t2, t3]);
       assert.deepEqual(
         JSON.parse(t4.getSchema()),
@@ -274,7 +274,7 @@ suite('values', function () {
       var t2 = infer({0: [], 1: [true], 2: [null]});
       assertUnionsEqual(
         t2.getValuesType().getItemsType(),
-        createType(['boolean', 'null'])
+        Type.create(['boolean', 'null'])
       );
       var t3 = infer({0: [], 1: []});
       assert.equal(t3.getValuesType().getItemsType().getTypeName(), 'null');
@@ -290,7 +290,7 @@ suite('values', function () {
 
       function hook(val, opts) {
         if (typeof val == 'number') {
-          return createType('long', opts);
+          return Type.create('long', opts);
         }
         if (typeof val == 'function') {
           // This will throw an error.
