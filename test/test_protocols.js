@@ -10,6 +10,7 @@ var types = require('../lib/types'),
 
 
 var createProtocol = protocols.createProtocol;
+var Protocol = protocols.Protocol;
 
 
 suite('protocols', function () {
@@ -1904,6 +1905,110 @@ suite('protocols', function () {
       });
 
     }
+
+  });
+
+  suite('discover attributes', function () {
+
+    test('stateful ok', function (done) {
+      var attrs = {
+        protocol: 'Case',
+        messages: {
+          upper: {
+            request: [{name: 'str', type: 'string'}],
+            response: 'string'
+          }
+        }
+      };
+      var ptcl = createProtocol(attrs).on('upper', function (req, ee, cb) {
+        cb(null, req.str.toUpperCase());
+      });
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[1]);
+      Protocol.discoverAttributes(transports[0], function (err, actualAttrs) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(actualAttrs, attrs);
+        // Check that the transport is still usable.
+        var me = ptcl.createEmitter(transports[0]).on('eot', function() {
+          done();
+        });
+        ptcl.emit('upper', {str: 'foo'}, me, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, 'FOO');
+          me.destroy();
+        });
+      });
+    });
+
+    test('stateless ok', function (done) {
+      var attrs = {
+        protocol: 'Case',
+        messages: {
+          upper: {
+            request: [{name: 'str', type: 'string'}],
+            response: 'string'
+          }
+        }
+      };
+      var ptcl = createProtocol(attrs).on('upper', function (req, ee, cb) {
+        cb(null, req.str.toUpperCase());
+      });
+      Protocol.discoverAttributes(writableFactory, function (err, actual) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(actual, attrs);
+        // Check that the transport is still usable.
+        var me = ptcl.createEmitter(writableFactory).on('eot', function() {
+          done();
+        });
+        ptcl.emit('upper', {str: 'foo'}, me, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, 'FOO');
+          me.destroy();
+        });
+      });
+
+      function writableFactory(emitterCb) {
+        var reqPt = new stream.PassThrough()
+          .on('finish', function () {
+            ptcl.createListener(function (listenerCb) {
+              var resPt = new stream.PassThrough()
+                .on('finish', function () { emitterCb(null, resPt); });
+              listenerCb(null, resPt);
+              return reqPt;
+            });
+          });
+        return reqPt;
+      }
+    });
+
+    test('stateful wrong scope', function (done) {
+      var attrs = {
+        protocol: 'Case',
+        messages: {
+          upper: {
+            request: [{name: 'str', type: 'string'}],
+            response: 'string'
+          }
+        }
+      };
+      var ptcl = createProtocol(attrs).on('upper', function (req, ee, cb) {
+        cb(null, req.str.toUpperCase());
+      });
+      var scope = 'bar';
+      var transports = createPassthroughTransports();
+      ptcl.createListener(transports[1], {scope: scope});
+      Protocol.discoverAttributes(transports[0], {timeout: 5}, function (err) {
+        assert(/timeout/.test(err));
+        // Check that the transport is still usable.
+        var me = ptcl.createEmitter(transports[0], {scope: scope})
+          .on('eot', function() { done(); });
+        ptcl.emit('upper', {str: 'foo'}, me, function (err, res) {
+          assert.strictEqual(err, null);
+          assert.equal(res, 'FOO');
+          me.destroy();
+        });
+      });
+    });
 
   });
 
