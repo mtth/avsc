@@ -19,7 +19,7 @@ var protocols = require('../../lib/protocols'),
 function parse(schema, opts) {
   var obj = files.load(schema);
   return obj.protocol ?
-    protocols.createProtocol(obj, opts) :
+    protocols.Protocol.create(obj, opts) :
     types.createType(obj, opts);
 }
 

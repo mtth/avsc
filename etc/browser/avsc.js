@@ -20,7 +20,7 @@ var containers = require('../../lib/containers'),
 function parse(schema, opts) {
   var attrs = files.load(schema);
   return attrs.protocol ?
-    protocols.createProtocol(attrs, opts) :
+    protocols.Protocol.create(attrs, opts) :
     types.createType(attrs, opts);
 }
 
