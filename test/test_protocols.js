@@ -301,6 +301,15 @@ suite('protocols', function () {
       assert(m.inspect()['one-way']);
     });
 
+    test('toString', function () {
+      var attrs = {
+        request: [{name: 'ping', type: 'string'}],
+        response: 'null',
+      };
+      var m = new Message('Ping', attrs);
+      assert.deepEqual(JSON.parse(m.toString()), attrs);
+    });
+
   });
 
   suite('FrameDecoder & FrameEncoder', function () {
@@ -565,6 +574,23 @@ suite('protocols', function () {
   });
 
   suite('StatefulEmitter', function () {
+
+    test('connection timeout', function (done) {
+      var ptcl = createProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = {
+        readable: new stream.PassThrough(),
+        writable: new stream.PassThrough()
+      };
+      ptcl.createEmitter(transport, {timeout: 5})
+        .on('error', function (err) {
+          assert(/connection timeout/.test(err));
+          assert(this.isDestroyed());
+          done();
+        });
+    });
 
     test('custom timeout', function (done) {
       var ptcl = createProtocol({
@@ -1062,7 +1088,7 @@ suite('protocols', function () {
           }
         });
         var ml1 = p2.createListener(transports[0]);
-        var me1 = p1.createEmitter(transports[1]);
+        var me1 = p1.createEmitter(transports[1], {timeout: 0});
         me1.on('handshake', function (hreq, hres) {
           if (hres.match === 'NONE') {
             return;
