@@ -28,9 +28,9 @@ suite('schemas', function () {
     });
 
     test('single file', function (done) {
-      assemble(path.join(DPATH, 'Hello.avdl'), function (err, attrs) {
+      assemble(path.join(DPATH, 'Hello.avdl'), function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           namespace: 'org.apache.avro.test',
           protocol: 'Simple',
           doc: 'An example protocol in Avro IDL.\n\nInspired by the Avro specification IDL page:\nhttps://avro.apache.org/docs/current/idl.html#example',
@@ -109,9 +109,9 @@ suite('schemas', function () {
 
     test('custom import hook', function (done) {
       var hook = createImportHook({'foo.avdl': 'protocol Foo {}'});
-      assemble('foo.avdl', {importHook: hook}, function (err, attrs) {
+      assemble('foo.avdl', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {protocol: 'Foo'});
+        assert.deepEqual(schema, {protocol: 'Foo'});
         done();
       });
     });
@@ -131,9 +131,9 @@ suite('schemas', function () {
         '1.avdl': 'import idl "2.avdl"; protocol First {}',
         '2.avdl': 'protocol Second { int one(); }'
       });
-      assemble('1.avdl', {importHook: hook}, function (err, attrs) {
+      assemble('1.avdl', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'First',
           messages: {one: {request: [], response: 'int'}}
         });
@@ -146,9 +146,9 @@ suite('schemas', function () {
         '1.avdl': 'protocol First {int two(); import idl "2.avdl";}',
         '2.avdl': 'protocol Second { fixed Foo(1); }'
       });
-      assemble('1.avdl', {importHook: hook}, function (err, attrs) {
+      assemble('1.avdl', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'First',
           messages: {two: {request: [], response: 'int'}},
           types: [{name: 'Foo', type: 'fixed', size: 1, namespace: ''}]
@@ -174,8 +174,8 @@ suite('schemas', function () {
         '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
         '3.avdl': 'protocol C { enum Letter { A } }'
       });
-      assemble('1.avdl', {importHook: hook}, function (err, attrs) {
-        assert.deepEqual(attrs, {
+      assemble('1.avdl', {importHook: hook}, function (err, schema) {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [
             {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''},
@@ -196,9 +196,9 @@ suite('schemas', function () {
         }),
         '3.avpr': '{"protocol": "C"}'
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           messages: {ping: {request: [], response: 'boolean'}},
           types: [
@@ -223,9 +223,9 @@ suite('schemas', function () {
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         })
       });
-      assemble('A', {importHook: hook}, function (err, attrs) {
+      assemble('A', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [
             {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']},
@@ -244,9 +244,9 @@ suite('schemas', function () {
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         })
       });
-      assemble('A', {importHook: hook}, function (err, attrs) {
+      assemble('A', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [
             {namespace: 'b', name: 'Letter', type: 'enum', symbols: ['A']}
@@ -279,9 +279,9 @@ suite('schemas', function () {
         '1': 'import schema "2"; protocol A {}',
         '2': JSON.stringify({name: 'Number', type: 'enum', symbols: ['1']})
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [
             {name: 'Number', type: 'enum', symbols: ['1'], namespace: ''}
@@ -343,9 +343,9 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1': 'protocol A { /** 1 */ @bar(true) union { null, int } foo(); }'
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           messages: {
             foo: {
@@ -374,9 +374,9 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1': 'protocol A { fixed one.One(1); }',
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [{name: 'one.One', type: 'fixed', size: 1}]
         });
@@ -388,9 +388,9 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1': 'protocol A { record Two { fixed One(1) one; } }',
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [{
             name: 'Two',
@@ -409,9 +409,9 @@ suite('schemas', function () {
         '1': 'protocol A { void ping(); @foo(true) void pong(); }',
       });
       var opts = {importHook: hook, oneWayVoid: true};
-      assemble('1', opts, function (err, attrs) {
+      assemble('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           messages: {
             ping: {response: 'null', request: [], 'one-way': true},
@@ -431,9 +431,9 @@ suite('schemas', function () {
         '1': 'protocol A {/**1*/ @doc(2) fixed One(1);}',
       });
       var opts = {importHook: hook, reassignJavadoc: true};
-      assemble('1', opts, function (err, attrs) {
+      assemble('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [
             {name: 'One', type: 'fixed', size: 1, doc: 2}
@@ -450,9 +450,9 @@ suite('schemas', function () {
         '3': 'protocol C{record R{/**1*/int v1;int v2;/**3*/@foo(1)int v3;}}'
       });
       var opts = {importHook: hook, reassignJavadoc: true};
-      assemble('1', opts, function (err, attrs) {
+      assemble('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [
             {
@@ -484,9 +484,9 @@ suite('schemas', function () {
         '1': 'protocol A { import idl "2"; }',
         '2': '@namespace("b") protocol B { @namespace("") fixed One(1); }'
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}]
         });
@@ -500,9 +500,9 @@ suite('schemas', function () {
         '2': 'import idl "3"; @namespace("b") protocol B {}',
         '3': 'protocol C { fixed Two(1); }'
       });
-      assemble('1', {importHook: hook}, function (err, attrs) {
+      assemble('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
-        assert.deepEqual(attrs, {
+        assert.deepEqual(schema, {
           protocol: 'A',
           types: [{name: 'Two', type: 'fixed', size: 1, namespace: ''}]
         });

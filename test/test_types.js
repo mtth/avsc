@@ -860,12 +860,12 @@ suite('types', function () {
     });
 
     test('missing name', function () {
-      var attrs = {type: 'enum', symbols: ['A', 'B']};
-      var t = Type.create(attrs);
+      var schema = {type: 'enum', symbols: ['A', 'B']};
+      var t = Type.create(schema);
       assert.strictEqual(t.getName(), undefined);
       assert.strictEqual(t.getName(true), 'enum');
       assert.throws(function () {
-        Type.create(attrs, {noAnonymousTypes: true});
+        Type.create(schema, {noAnonymousTypes: true});
       });
     });
 
@@ -1023,8 +1023,11 @@ suite('types', function () {
     test('getSchema with extra fields', function () {
       var t = Type.create({type: 'fixed', name: 'Id', size: 2, three: 3});
       t.one = 1;
-      assert.equal(t.getSchema(), '{"name":"Id","type":"fixed","size":2}');
-      assert.equal(t.getSchema({noDeref: true}), '"Id"');
+      assert.equal(
+        t.getSchema({asString: true}),
+        '{"name":"Id","type":"fixed","size":2}'
+      );
+      assert.equal(t.getSchema({asString: true, noDeref: true}), '"Id"');
     });
 
     test('fromString', function () {
@@ -1480,7 +1483,7 @@ suite('types', function () {
 
     test('record default', function () {
       var d = {street: null, zip: 123};
-      var attrs = {
+      var schema = {
         name: 'Person',
         type: 'record',
         fields: [
@@ -1500,11 +1503,11 @@ suite('types', function () {
       };
       var Person, person;
       // Wrapped
-      Person = Type.create(attrs, {wrapUnions: true}).getRecordConstructor();
+      Person = Type.create(schema, {wrapUnions: true}).getRecordConstructor();
       person = new Person();
       assert.deepEqual(person.address, {street: null, zip: {'int': 123}});
       // Unwrapped.
-      Person = Type.create(attrs).getRecordConstructor();
+      Person = Type.create(schema).getRecordConstructor();
       person = new Person();
       assert.deepEqual(person.address, {street: null, zip: 123});
     });
@@ -1803,11 +1806,10 @@ suite('types', function () {
           }
         ]
       });
-      assert.equal(
-        t.getSchema(),
-        '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}'
-      );
-      assert.deepEqual(JSON.parse(t.getSchema({exportAttrs: true})), {
+      var schemaStr =         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}';
+      assert.equal(t.getSchema({asString: true}), schemaStr);
+      assert.deepEqual(t.getSchema(), JSON.parse(schemaStr));
+      assert.deepEqual(t.getSchema({exportAttrs: true}), {
         type: 'record',
         name: 'earth.Person',
         aliases: ['earth.Human'],
@@ -1822,7 +1824,7 @@ suite('types', function () {
           }
         ]
       });
-      assert.equal(t.getSchema({noDeref: true}), '"earth.Person"');
+      assert.equal(t.getSchema({noDeref: true}), 'earth.Person');
     });
 
     test('getSchema recursive schema', function () {
@@ -1835,10 +1837,13 @@ suite('types', function () {
         ]
       });
       assert.equal(
-        t.getSchema(),
+        t.getSchema({asString: true}),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"earth.Person"}}]}'
       );
-      assert.equal(t.getSchema({noDeref: true}), '"earth.Person"');
+      assert.equal(
+        t.getSchema({asString: true, noDeref: true}),
+        '"earth.Person"'
+      );
     });
 
     test('fromString', function () {
@@ -1939,18 +1944,18 @@ suite('types', function () {
           ]
         }, {wrapUnions: false});
       });
-      var attrs = {
+      var schema = {
         type: 'record',
         name: 'Person',
         fields: [
           {name: 'name', type: ['string', 'null'], 'default': 'Bob'}
         ]
       };
-      var t = Type.create(attrs, {wrapUnions: false});
+      var t = Type.create(schema, {wrapUnions: false});
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
-      assert.deepEqual(JSON.parse(t.getSchema({exportAttrs: true})), attrs);
+      assert.deepEqual(t.getSchema({exportAttrs: true}), schema);
     });
 
     test('wrapped union field default', function () {
@@ -1963,18 +1968,18 @@ suite('types', function () {
           ]
         }, {wrapUnions: true});
       });
-      var attrs = {
+      var schema = {
         type: 'record',
         name: 'Person',
         fields: [
           {name: 'name', type: ['string', 'null'], 'default': 'Bob'}
         ]
       };
-      var t = Type.create(attrs, {wrapUnions: true});
+      var t = Type.create(schema, {wrapUnions: true});
       var o = {name: {string: 'Ann'}};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: {string: 'Bob'}});
-      assert.deepEqual(JSON.parse(t.getSchema({exportAttrs: true})), attrs);
+      assert.deepEqual(t.getSchema({exportAttrs: true}), schema);
     });
 
     test('get full name & aliases', function () {
@@ -2310,8 +2315,8 @@ suite('types', function () {
 
   suite('LogicalType', function () {
 
-    function DateType(attrs, opts) {
-      types.builtins.LogicalType.call(this, attrs, opts);
+    function DateType(schema, opts) {
+      types.builtins.LogicalType.call(this, schema, opts);
       if (!types.Type.isType(this.getUnderlyingType(), 'long', 'string')) {
         throw new Error('invalid underlying date type');
       }
@@ -2338,8 +2343,8 @@ suite('types', function () {
       }
     };
 
-    function AgeType(attrs, opts) {
-      types.builtins.LogicalType.call(this, attrs, opts);
+    function AgeType(schema, opts) {
+      types.builtins.LogicalType.call(this, schema, opts);
     }
     util.inherits(AgeType, types.builtins.LogicalType);
 
@@ -2370,21 +2375,21 @@ suite('types', function () {
       assert.deepEqual(t.fromString('123'), d);
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
-      assert.equal(t.getSchema(), '"long"');
+      assert.equal(t.getSchema(), 'long');
     });
 
     test('invalid type', function () {
-      var attrs = {
+      var schema = {
         type: 'int',
         logicalType: 'date'
       };
       var t;
-      t = Type.create(attrs); // Missing.
+      t = Type.create(schema); // Missing.
       assert(t instanceof builtins.IntType);
-      t = Type.create(attrs, {logicalTypes: logicalTypes}); // Invalid.
+      t = Type.create(schema, {logicalTypes: logicalTypes}); // Invalid.
       assert(t instanceof builtins.IntType);
       assert.throws(function () {
-        Type.create(attrs, {
+        Type.create(schema, {
           logicalTypes: logicalTypes,
           assertLogicalTypes: true
         });
@@ -2400,7 +2405,7 @@ suite('types', function () {
     });
 
     test('nested types', function () {
-      var attrs = {
+      var schema = {
         name: 'Person',
         type: 'record',
         fields: [
@@ -2408,8 +2413,8 @@ suite('types', function () {
           {name: 'time', type: {type: 'long', logicalType: 'date'}}
         ]
       };
-      var base = Type.create(attrs);
-      var derived = Type.create(attrs, {logicalTypes: logicalTypes});
+      var base = Type.create(schema);
+      var derived = Type.create(schema, {logicalTypes: logicalTypes});
       var fields = derived.getFields();
       var ageType = fields[0].getType();
       ageType.constructor = undefined; // Mimic missing constructor name.
@@ -2440,8 +2445,8 @@ suite('types', function () {
     test('recursive', function () {
       function Person(friends) { this.friends = friends || []; }
 
-      function PersonType(attrs, opts) {
-        types.builtins.LogicalType.call(this, attrs, opts);
+      function PersonType(schema, opts) {
+        types.builtins.LogicalType.call(this, schema, opts);
       }
       util.inherits(PersonType, types.builtins.LogicalType);
 
@@ -2451,7 +2456,7 @@ suite('types', function () {
 
       PersonType.prototype._toValue = function (val) { return val; };
 
-      var attrs = {
+      var schema = {
         type: 'record',
         name: 'Person',
         logicalType: 'person',
@@ -2459,7 +2464,7 @@ suite('types', function () {
           {name: 'friends', type: {type: 'array', items: 'Person'}},
         ]
       };
-      var t = Type.create(attrs, {logicalTypes: {'person': PersonType}});
+      var t = Type.create(schema, {logicalTypes: {'person': PersonType}});
 
       var p1 = new Person([new Person()]);
       var buf = t.toBuffer(p1);
@@ -2467,10 +2472,7 @@ suite('types', function () {
       assert(p2 instanceof Person);
       assert(p2.friends[0] instanceof Person);
       assert.deepEqual(p2, p1);
-      assert.deepEqual(
-        JSON.parse(t.getSchema({exportAttrs: true})),
-        attrs
-      );
+      assert.deepEqual(t.getSchema({exportAttrs: true}), schema);
     });
 
     test('resolve underlying > logical', function () {
@@ -2503,8 +2505,8 @@ suite('types', function () {
     });
 
     test('even integer', function () {
-      function EvenIntType(attrs, opts) {
-        types.builtins.LogicalType.call(this, attrs, opts);
+      function EvenIntType(schema, opts) {
+        types.builtins.LogicalType.call(this, schema, opts);
       }
       util.inherits(EvenIntType, types.builtins.LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
@@ -2523,9 +2525,9 @@ suite('types', function () {
       assert.equal(t.fromBuffer(new Buffer([4])), 2);
       assert.equal(t.clone(4), 4);
       assert.equal(t.fromString('6'), 6);
-      assert.equal(t.getSchema(), '"long"');
+      assert.equal(t.getSchema(), 'long');
       assert.deepEqual(
-        t.getSchema({exportAttrs: true}),
+        t.getSchema({asString: true, exportAttrs: true}),
         '{"type":"long","logicalType":"even-integer"}'
       );
       assert(types.Type.isType(t));
@@ -2562,8 +2564,8 @@ suite('types', function () {
     });
 
     test('inside unwrapped union with duplicate underlying type', function () {
-      function FooType(attrs, opts) {
-        types.builtins.LogicalType.call(this, attrs, opts);
+      function FooType(schema, opts) {
+        types.builtins.LogicalType.call(this, schema, opts);
       }
       util.inherits(FooType, types.builtins.LogicalType);
       assert.throws(function () {
@@ -2575,8 +2577,8 @@ suite('types', function () {
     });
 
     test('inside wrapped union', function () {
-      function EvenIntType(attrs, opts) {
-        types.builtins.LogicalType.call(this, attrs, opts);
+      function EvenIntType(schema, opts) {
+        types.builtins.LogicalType.call(this, schema, opts);
       }
       util.inherits(EvenIntType, types.builtins.LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
@@ -2613,10 +2615,10 @@ suite('types', function () {
 
       function createUnionTypeHook(Type) {
         var visited = [];
-        return function(attrs, opts) {
-          if (Array.isArray(attrs) && !~visited.indexOf(attrs)) {
-            visited.push(attrs);
-            return new Type(attrs, opts);
+        return function(schema, opts) {
+          if (Array.isArray(schema) && !~visited.indexOf(schema)) {
+            visited.push(schema);
+            return new Type(schema, opts);
           }
         };
       }
@@ -2632,8 +2634,8 @@ suite('types', function () {
         * be able to cover ambiguous unions).
         *
         */
-        function UnwrappedUnionType(attrs, opts) {
-          types.builtins.LogicalType.call(this, attrs, opts);
+        function UnwrappedUnionType(schema, opts) {
+          types.builtins.LogicalType.call(this, schema, opts);
         }
         util.inherits(UnwrappedUnionType, types.builtins.LogicalType);
 
@@ -2675,8 +2677,8 @@ suite('types', function () {
         *   for `_toValue`).
         *
         */
-        function OptionalType(attrs, opts) {
-          types.builtins.LogicalType.call(this, attrs, opts);
+        function OptionalType(schema, opts) {
+          types.builtins.LogicalType.call(this, schema, opts);
           var type = this.getUnderlyingType().getTypes()[1];
           this._name = type.getName(true);
         }
@@ -2953,7 +2955,7 @@ suite('types', function () {
         ]
       });
       assert.deepEqual(
-        JSON.parse(type.getSchema()),
+        type.getSchema(),
         {
           type: 'record',
           name: 'Human',
@@ -3214,7 +3216,7 @@ suite('types', function () {
         {type: 'record', fields: [{name: 'foo', type: 'string'}]}
       ]);
       assert.equal(
-        t.getSchema(),
+        t.getSchema({asString: true}),
         '[{"type":"enum","symbols":["A"]},"int",{"type":"record","fields":[{"name":"foo","type":"string"}]}]'
       );
     });

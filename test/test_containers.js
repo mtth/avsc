@@ -557,8 +557,8 @@ suite('containers', function () {
       encoder.write({Celia: 48});
       encoder.end();
 
-      function parseHook(attrs) {
-        assert.deepEqual(attrs, JSON.parse(t1.getSchema()));
+      function parseHook(schema) {
+        assert.deepEqual(schema, t1.getSchema());
         return t2;
       }
     });

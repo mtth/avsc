@@ -69,7 +69,7 @@ suite('values', function () {
       });
       var t3 = combine([t1, t2], {strictDefaults: true});
       assert.deepEqual(
-        JSON.parse(t3.getSchema({exportAttrs: true})),
+        t3.getSchema({exportAttrs: true}),
         {
           type: 'record',
           fields: [
@@ -90,7 +90,7 @@ suite('values', function () {
       });
       var t3 = combine([t1, t2], {strictDefaults: true});
       assert.deepEqual(
-        JSON.parse(t3.getSchema({exportAttrs: true})),
+        t3.getSchema({exportAttrs: true}),
         {
           type: 'record',
           fields: [
@@ -113,7 +113,7 @@ suite('values', function () {
       var t3;
       t3 = combine([t1, t2]);
       assert.deepEqual(
-        JSON.parse(t3.getSchema({exportAttrs: true})),
+        t3.getSchema({exportAttrs: true}),
         {
           type: 'record',
           fields: [
@@ -130,7 +130,7 @@ suite('values', function () {
     test('logical types', function () {
       var opts = {logicalTypes: {even: EvenType, odd: OddType}};
 
-      function EvenType(attrs, opts) { LogicalType.call(this, attrs, opts); }
+      function EvenType(schema, opts) { LogicalType.call(this, schema, opts); }
       util.inherits(EvenType, LogicalType);
       EvenType.prototype._fromValue = function (val) { return 2 * val; };
       EvenType.prototype._toValue = function (any) {
@@ -139,7 +139,7 @@ suite('values', function () {
         }
       };
 
-      function OddType(attrs, opts) { LogicalType.call(this, attrs, opts); }
+      function OddType(schema, opts) { LogicalType.call(this, schema, opts); }
       util.inherits(OddType, LogicalType);
       OddType.prototype._fromValue = function (val) { return 2 * val + 1; };
       OddType.prototype._toValue = function (any) {
@@ -230,7 +230,7 @@ suite('values', function () {
       var t3 = Type.create(['string'], opts);
       var t4 = combine([t1, t2, t3]);
       assert.deepEqual(
-        JSON.parse(t4.getSchema()),
+        t4.getSchema(),
         ['null', 'int', 'long', 'string']
       );
     });
@@ -254,7 +254,7 @@ suite('values', function () {
     test('record', function () {
       var t = infer({b: true, n: null, s: '', f: new Buffer(0)});
       assert.deepEqual(
-        JSON.parse(t.getSchema()),
+        t.getSchema(),
         {
           type: 'record',
           fields: [

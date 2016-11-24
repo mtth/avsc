@@ -302,12 +302,12 @@ suite('protocols', function () {
     });
 
     test('toString', function () {
-      var attrs = {
+      var schema = {
         request: [{name: 'ping', type: 'string'}],
         response: 'null',
       };
-      var m = new Message('Ping', attrs);
-      assert.deepEqual(JSON.parse(m.toString()), attrs);
+      var m = new Message('Ping', schema);
+      assert.deepEqual(JSON.parse(m.toString()), schema);
     });
 
   });
@@ -1910,7 +1910,7 @@ suite('protocols', function () {
   suite('discover attributes', function () {
 
     test('stateful ok', function (done) {
-      var attrs = {
+      var schema = {
         protocol: 'Case',
         messages: {
           upper: {
@@ -1919,14 +1919,14 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.create(attrs).on('upper', function (req, ee, cb) {
+      var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
         cb(null, req.str.toUpperCase());
       });
       var transports = createPassthroughTransports();
       ptcl.createListener(transports[1]);
       Protocol.discoverAttributes(transports[0], function (err, actualAttrs) {
         assert.strictEqual(err, null);
-        assert.deepEqual(actualAttrs, attrs);
+        assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
         var me = ptcl.createEmitter(transports[0]).on('eot', function() {
           done();
@@ -1940,7 +1940,7 @@ suite('protocols', function () {
     });
 
     test('stateless ok', function (done) {
-      var attrs = {
+      var schema = {
         protocol: 'Case',
         messages: {
           upper: {
@@ -1949,12 +1949,12 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.create(attrs).on('upper', function (req, ee, cb) {
+      var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
         cb(null, req.str.toUpperCase());
       });
       Protocol.discoverAttributes(writableFactory, function (err, actual) {
         assert.strictEqual(err, null);
-        assert.deepEqual(actual, attrs);
+        assert.deepEqual(actual, schema);
         // Check that the transport is still usable.
         var me = ptcl.createEmitter(writableFactory).on('eot', function() {
           done();
@@ -1981,7 +1981,7 @@ suite('protocols', function () {
     });
 
     test('stateful wrong scope', function (done) {
-      var attrs = {
+      var schema = {
         protocol: 'Case',
         messages: {
           upper: {
@@ -1990,7 +1990,7 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.create(attrs).on('upper', function (req, ee, cb) {
+      var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
         cb(null, req.str.toUpperCase());
       });
       var scope = 'bar';
