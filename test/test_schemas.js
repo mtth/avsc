@@ -28,9 +28,8 @@ suite('schemas', function () {
     });
 
     test('single file', function (done) {
-      var opts = {ackVoidMessages: true};
       var fpath = path.join(DPATH, 'Hello.avdl');
-      assembleProtocolSchema(fpath, opts, function (err, schema) {
+      assembleProtocolSchema(fpath, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           namespace: 'org.apache.avro.test',
@@ -114,7 +113,8 @@ suite('schemas', function () {
               request: [],
               errors: ['TestError', 'EmptyError']
             },
-            ping: {response: 'null', request: [], 'one-way': true}
+            ping: {response: 'null', request: [], 'one-way': true},
+            pong: {response: 'null', request: [], 'one-way': true}
           }
         });
         done();

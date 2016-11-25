@@ -58,4 +58,5 @@ protocol Simple {
   void `error`() throws TestError;
   string `errors`() throws TestError, EmptyError;
   void ping() oneway;
+  void pong();
 }
