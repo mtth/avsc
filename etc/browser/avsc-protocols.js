@@ -6,30 +6,32 @@
  * Optional entry point for browser builds.
  *
  * To use it: `require('avsc/etc/browser/avsc-protocols')`.
- *
  */
 
-var protocols = require('../../lib/protocols'),
-    files = require('./lib/files'),
-    schemas = require('../../lib/schemas'),
-    types = require('../../lib/types'),
-    values = require('../../lib/values');
+var avroTypes = require('./avsc-types'),
+    protocols = require('../../lib/protocols'),
+    schemas = require('../../lib/schemas');
 
 
-function parse(schema, opts) {
-  var obj = files.load(schema);
-  return obj.protocol ?
-    protocols.Protocol.create(obj, opts) :
-    types.createType(obj, opts);
+/** Slightly enhanced parsing, supporting IDL declarations. */
+function parse(any, opts) {
+  var schema = schemas.parseSchema(any);
+  return schema.protocol ?
+    protocols.Protocol.forSchema(schema, opts) :
+    avroTypes.Type.forSchema(schema, opts);
 }
 
 
 module.exports = {
   Protocol: protocols.Protocol,
-  Type: types.Type,
-  assemble: schemas.assemble,
-  combine: values.combine,
-  infer: values.infer,
+  Type: avroTypes.Type,
+  assembleProtocolSchema: schemas.assembleProtocolSchema,
+  discoverProtocolSchema: protocols.discoverProtocolSchema,
   parse: parse,
-  types: types.builtins
+  parseProtocolSchema: schemas.parseProtocolSchema,
+  parseTypeSchema: schemas.parseTypeSchema,
+  // Deprecated exports.
+  assemble: schemas.assembleProtocolSchema,
+  combine: avroTypes.combine,
+  infer: avroTypes.infer
 };

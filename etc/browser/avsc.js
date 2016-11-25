@@ -5,31 +5,17 @@
 /**
  * Main browserify entry point.
  *
+ * This version of the entry point adds a couple browser-specific utilities to
+ * read and write blobs.
  */
 
-var containers = require('../../lib/containers'),
-    files = require('./lib/files'),
-    protocols = require('../../lib/protocols'),
-    schemas = require('../../lib/schemas'),
-    types = require('../../lib/types'),
-    values = require('../../lib/values'),
+var avroProtocols = require('./avsc-protocols'),
+    containers = require('../../lib/containers'),
     stream = require('stream'),
     util = require('util');
 
 
-function parse(schema, opts) {
-  var attrs = files.load(schema);
-  return attrs.protocol ?
-    protocols.Protocol.create(attrs, opts) :
-    types.createType(attrs, opts);
-}
-
-// We also add a couple browser-specific utilities to read and write blobs.
-
-/**
- * Transform stream which lazily reads a blob's contents.
- *
- */
+/** Transform stream which lazily reads a blob's contents. */
 function BlobReader(blob, opts) {
   stream.Readable.call(this);
   opts = opts || {};
@@ -62,18 +48,7 @@ BlobReader.prototype._read = function () {
   reader.readAsArrayBuffer(blob);
 };
 
-/**
- * Read an Avro-container stored as a blob.
- *
- */
-function createBlobDecoder(blob, opts) {
-  return new BlobReader(blob).pipe(new containers.streams.BlockDecoder(opts));
-}
-
-/**
- * Transform stream which builds a blob from all data written to it.
- *
- */
+/** Transform stream which builds a blob from all data written to it. */
 function BlobWriter() {
   stream.Transform.call(this, {readableObjectMode: true});
   this._bufs = [];
@@ -90,11 +65,15 @@ BlobWriter.prototype._flush = function (cb) {
   cb();
 };
 
+/** Read an Avro-container stored as a blob. */
+function createBlobDecoder(blob, opts) {
+  return new BlobReader(blob).pipe(new containers.streams.BlockDecoder(opts));
+}
+
 /**
  * Store Avro values into an Avro-container blob.
  *
  * The returned stream will emit a single value, the blob, when ended.
- *
  */
 function createBlobEncoder(schema, opts) {
   var encoder = new containers.streams.BlockEncoder(schema, opts);
@@ -126,14 +105,19 @@ function createBlobEncoder(schema, opts) {
 
 
 module.exports = {
-  Protocol: protocols.Protocol,
-  Type: types.Type,
-  assemble: schemas.assemble,
-  combine: values.combine,
+  Protocol: avroProtocols.Protocol,
+  Type: avroProtocols.Type,
+  assembleProtocolSchema: avroProtocols.assembleProtocolSchema,
   createBlobDecoder: createBlobDecoder,
   createBlobEncoder: createBlobEncoder,
-  infer: values.infer,
-  parse: parse,
+  discoverProtocolSchema: avroProtocols.discoverProtocolSchema,
+  parse: avroProtocols.parse,
+  parseProtocolSchema: avroProtocols.parseProtocolSchema,
+  parseTypeSchema: avroProtocols.parseTypeSchema,
   streams: containers.streams,
-  types: types.builtins
+  types: avroProtocols.types,
+  // Deprecated exports.
+  assemble: avroProtocols.assemble,
+  combine: avroProtocols.combine,
+  infer: avroProtocols.infer
 };
