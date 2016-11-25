@@ -84,17 +84,14 @@ const avro = require('avsc');
 + Implement a TCP server for an [IDL-defined][idl] protocol:
 
   ```javascript
-  avro.assembleProtocolSchema('Ping.avdl', (err, attrs) => {
-    // Generate the protocol and attach a handler for `ping` messages:
-    const protocol = avro.Protocol.forSchema(attrs)
-      .on('ping', (req, ee, cb) => {
-        cb(null, 'pong');
-      });
-    // Respond on any incoming connection:
+  // First assemble the schema from the IDL specification.
+  avro.assembleProtocolSchema('Ping.avdl', (err, schema) => {
+    // Then create the protocol, attaching a handler for `ping` messages.
+    const protocol = avro.Protocol.forSchema(schema)
+      .on('ping', (req, ee, cb) => { cb(null, 'pong'); });
+    // Finally, respond to incoming TCP connections.
     require('net').createServer()
-      .on('connection', (con) => {
-        protocol.createListener(con);
-      })
+      .on('connection', (con) => { protocol.createListener(con); })
       .listen(8000);
   });
   ```
