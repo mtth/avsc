@@ -8,6 +8,7 @@ var types = require('../lib/types'),
     util = require('util');
 
 
+var LogicalType = types.builtins.LogicalType;
 var Tap = utils.Tap;
 var Type = types.Type;
 var builtins = types.builtins;
@@ -2316,12 +2317,12 @@ suite('types', function () {
   suite('LogicalType', function () {
 
     function DateType(schema, opts) {
-      types.builtins.LogicalType.call(this, schema, opts);
+      LogicalType.call(this, schema, opts);
       if (!types.Type.isType(this.getUnderlyingType(), 'long', 'string')) {
         throw new Error('invalid underlying date type');
       }
     }
-    util.inherits(DateType, types.builtins.LogicalType);
+    util.inherits(DateType, LogicalType);
 
     DateType.prototype._fromValue = function (val) { return new Date(val); };
 
@@ -2344,9 +2345,9 @@ suite('types', function () {
     };
 
     function AgeType(schema, opts) {
-      types.builtins.LogicalType.call(this, schema, opts);
+      LogicalType.call(this, schema, opts);
     }
-    util.inherits(AgeType, types.builtins.LogicalType);
+    util.inherits(AgeType, LogicalType);
 
     AgeType.prototype._fromValue = function (val) { return val; };
 
@@ -2446,9 +2447,9 @@ suite('types', function () {
       function Person(friends) { this.friends = friends || []; }
 
       function PersonType(schema, opts) {
-        types.builtins.LogicalType.call(this, schema, opts);
+        LogicalType.call(this, schema, opts);
       }
-      util.inherits(PersonType, types.builtins.LogicalType);
+      util.inherits(PersonType, LogicalType);
 
       PersonType.prototype._fromValue = function (val) {
         return new Person(val.friends);
@@ -2506,9 +2507,9 @@ suite('types', function () {
 
     test('even integer', function () {
       function EvenIntType(schema, opts) {
-        types.builtins.LogicalType.call(this, schema, opts);
+        LogicalType.call(this, schema, opts);
       }
-      util.inherits(EvenIntType, types.builtins.LogicalType);
+      util.inherits(EvenIntType, LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
         if (val !== (val | 0) || val % 2) {
           throw new Error('invalid');
@@ -2565,9 +2566,9 @@ suite('types', function () {
 
     test('inside unwrapped union with duplicate underlying type', function () {
       function FooType(schema, opts) {
-        types.builtins.LogicalType.call(this, schema, opts);
+        LogicalType.call(this, schema, opts);
       }
-      util.inherits(FooType, types.builtins.LogicalType);
+      util.inherits(FooType, LogicalType);
       assert.throws(function () {
         types.Type.forSchema([
           'int',
@@ -2578,9 +2579,9 @@ suite('types', function () {
 
     test('inside wrapped union', function () {
       function EvenIntType(schema, opts) {
-        types.builtins.LogicalType.call(this, schema, opts);
+        LogicalType.call(this, schema, opts);
       }
-      util.inherits(EvenIntType, types.builtins.LogicalType);
+      util.inherits(EvenIntType, LogicalType);
       EvenIntType.prototype._fromValue = function (val) {
         if (val !== (val | 0) || val % 2) {
           throw new Error('invalid');
@@ -2635,9 +2636,9 @@ suite('types', function () {
         *
         */
         function UnwrappedUnionType(schema, opts) {
-          types.builtins.LogicalType.call(this, schema, opts);
+          LogicalType.call(this, schema, opts);
         }
-        util.inherits(UnwrappedUnionType, types.builtins.LogicalType);
+        util.inherits(UnwrappedUnionType, LogicalType);
 
         UnwrappedUnionType.prototype._fromValue = function (val) {
           return val === null ? null : val[Object.keys(val)[0]];
@@ -2678,11 +2679,11 @@ suite('types', function () {
         *
         */
         function OptionalType(schema, opts) {
-          types.builtins.LogicalType.call(this, schema, opts);
+          LogicalType.call(this, schema, opts);
           var type = this.getUnderlyingType().getTypes()[1];
           this._name = type.getName(true);
         }
-        util.inherits(OptionalType, types.builtins.LogicalType);
+        util.inherits(OptionalType, LogicalType);
 
         OptionalType.prototype._fromValue = function (val) {
           return val === null ? null : val[this._name];
@@ -3331,6 +3332,294 @@ suite('types', function () {
     assert.deepEqual(buf, new Buffer([2, 1]));
   });
 
+  suite('forTypes', function () {
+
+    var combine = Type.forTypes;
+
+    test('empty', function () {
+      assert.throws(function () { combine([]); });
+    });
+
+    test('numbers', function () {
+      var t1 = Type.forSchema('int');
+      var t2 = Type.forSchema('long');
+      var t3 = Type.forSchema('float');
+      var t4 = Type.forSchema('double');
+      assert.strictEqual(combine([t1, t2]), t2);
+      assert.strictEqual(combine([t1, t2, t3, t4]), t4);
+      assert.strictEqual(combine([t3, t2]), t3);
+      assert.strictEqual(combine([t2]), t2);
+    });
+
+    test('string & int', function () {
+      var t1 = Type.forSchema('int');
+      var t2 = Type.forSchema('string');
+      assertUnionsEqual(combine([t1, t2]), Type.forSchema(['int', 'string']));
+    });
+
+    test('records & maps', function () {
+      var t1 = Type.forSchema({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int', 'default': 2}]
+      });
+      var t2 = Type.forSchema({type: 'map', values: 'string'});
+      var t3;
+      t3 = combine([t1, t2]);
+      assertUnionsEqual(t3.getValuesType(), Type.forSchema(['int', 'string']));
+      t3 = combine([t2, t1]);
+      assertUnionsEqual(t3.getValuesType(), Type.forSchema(['int', 'string']));
+    });
+
+    test('arrays', function () {
+      var t1 = Type.forSchema({type: 'array', items: 'null'});
+      var t2 = Type.forSchema({type: 'array', items: 'int'});
+      var t3 = combine([t1, t2]);
+      assertUnionsEqual(t3.getItemsType(), Type.forSchema(['null', 'int']));
+    });
+
+    test('field single default', function () {
+      var t1 = Type.forSchema({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int', 'default': 2}]
+      });
+      var t2 = Type.forSchema({
+        type: 'record',
+        fields: []
+      });
+      var t3 = combine([t1, t2], {strictDefaults: true});
+      assert.deepEqual(
+        t3.getSchema({exportAttrs: true}),
+        {
+          type: 'record',
+          fields: [
+            {name: 'foo', type: 'int', 'default': 2}
+          ]
+        }
+      );
+    });
+
+    test('field multiple types default', function () {
+      var t1 = Type.forSchema({
+        type: 'record',
+        fields: [{name: 'foo', type: 'string'}]
+      });
+      var t2 = Type.forSchema({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int', 'default': 2}]
+      });
+      var t3 = combine([t1, t2], {strictDefaults: true});
+      assert.deepEqual(
+        t3.getSchema({exportAttrs: true}),
+        {
+          type: 'record',
+          fields: [
+            // Int should be first in the union.
+            {name: 'foo', type: ['int', 'string'], 'default': 2}
+          ]
+        }
+      );
+    });
+
+    test('missing fields no null default', function () {
+      var t1 = Type.forSchema({
+        type: 'record',
+        fields: [{name: 'foo', type: 'int'}, {name: 'bar', type: 'string'}]
+      });
+      var t2 = Type.forSchema({
+        type: 'record',
+        fields: [{name: 'bar', type: 'string'}]
+      });
+      var t3;
+      t3 = combine([t1, t2]);
+      assert.deepEqual(
+        t3.getSchema({exportAttrs: true}),
+        {
+          type: 'record',
+          fields: [
+            // The null branch should always be first here.
+            {name: 'foo', type: ['null', 'int'], 'default': null},
+            {name: 'bar', type: 'string'}
+          ]
+        }
+      );
+      t3 = combine([t1, t2], {strictDefaults: true});
+      assertUnionsEqual(t3.getValuesType(), Type.forSchema(['int', 'string']));
+    });
+
+    test('logical types', function () {
+      var opts = {logicalTypes: {even: EvenType, odd: OddType}};
+
+      function EvenType(schema, opts) { LogicalType.call(this, schema, opts); }
+      util.inherits(EvenType, LogicalType);
+      EvenType.prototype._fromValue = function (val) { return 2 * val; };
+      EvenType.prototype._toValue = function (any) {
+        if (any === (any | 0) && any % 2 === 0) {
+          return any / 2;
+        }
+      };
+
+      function OddType(schema, opts) { LogicalType.call(this, schema, opts); }
+      util.inherits(OddType, LogicalType);
+      OddType.prototype._fromValue = function (val) { return 2 * val + 1; };
+      OddType.prototype._toValue = function (any) {
+        if (any === (any | 0) && any % 2 === 1) {
+          return any / 2;
+        }
+      };
+
+      var t1 = Type.forSchema({type: 'int', logicalType: 'even'}, opts);
+      var t2 = Type.forSchema({type: 'long', logicalType: 'odd'}, opts);
+      assertUnionsEqual(combine([t1, t2]), Type.forSchema([t1, t2]));
+      assert.throws(function () { combine([t1, t1]); });
+    });
+
+    test('invalid wrapped union', function () {
+      var t1 = Type.forSchema(['int'], {wrapUnions: true});
+      var t2 = Type.forSchema('string');
+      assert.throws(function () { combine([t1, t2]); }, /cannot combine/);
+    });
+
+    test('error while creating wrapped union', function () {
+      var opts = {typeHook: hook, wrapUnions: false};
+      var t1 = Type.forSchema(['int'], {wrapUnions: true});
+      var t2 = Type.forSchema(['string'], {wrapUnions: true});
+      assert.throws(function () { combine([t1, t2], opts); }, /foo/);
+      assert(!opts.wrapUnions);
+
+      function hook() { throw new Error('foo'); }
+    });
+
+    test('inconsistent wrapped union', function () {
+      var t1 = Type.forSchema(
+        [{type: 'fixed', name: 'Id', size: 2}],
+        {wrapUnions: true}
+      );
+      var t2 = Type.forSchema(
+        [{type: 'fixed', name: 'Id', size: 3}],
+        {wrapUnions: true}
+      );
+      assert.throws(function () { combine([t1, t2]); }, /inconsistent/);
+    });
+
+    test('valid wrapped unions', function () {
+      var opts = {wrapUnions: true};
+      var t1 = Type.forSchema(['int', 'string', 'null'], opts);
+      var t2 = Type.forSchema(['null', 'long'], opts);
+      assertUnionsEqual(
+        combine([t1, t2]),
+        Type.forSchema(['int', 'long', 'string', 'null'], opts)
+      );
+    });
+
+    test('valid unwrapped unions', function () {
+      var t1 = Type.forSchema(['int', 'string', 'null']);
+      var t2 = Type.forSchema(['null', 'long']);
+      assertUnionsEqual(
+        combine([t1, t2]),
+        Type.forSchema(['long', 'string', 'null'])
+      );
+    });
+
+    test('buffers', function () {
+      var t1 = Type.forSchema({type: 'fixed', size: 2});
+      var t2 = Type.forSchema({type: 'fixed', size: 4});
+      var t3 = Type.forSchema('bytes');
+      assert.strictEqual(combine([t1, t1]), t1);
+      assert.strictEqual(combine([t1, t3]), t3);
+      assert(combine([t1, t2]).equals(t3));
+    });
+
+    test('strings', function () {
+      var t1 = Type.forSchema({type: 'enum', symbols: ['A', 'b']});
+      var t2 = Type.forSchema({type: 'enum', symbols: ['A', 'B']});
+      var t3 = Type.forSchema('string');
+      var symbols;
+      symbols = combine([t1, t1]).getSymbols();
+      assert.deepEqual(symbols.sort(), ['A', 'b']);
+      assert.strictEqual(combine([t1, t3]), t3);
+      assert.strictEqual(combine([t1, t2, t3]), t3);
+      symbols = combine([t1, t2]).getSymbols();
+      assert.deepEqual(symbols.sort(), ['A', 'B', 'b']);
+    });
+
+    test('strings', function () {
+      var opts = {wrapUnions: true};
+      var t1 = Type.forSchema(['null', 'int'], opts);
+      var t2 = Type.forSchema(['null', 'long', 'string'], opts);
+      var t3 = Type.forSchema(['string'], opts);
+      var t4 = combine([t1, t2, t3]);
+      assert.deepEqual(
+        t4.getSchema(),
+        ['null', 'int', 'long', 'string']
+      );
+    });
+
+  });
+
+  suite('forValue', function () {
+
+    var infer = Type.forValue;
+
+    test('numbers', function () {
+      assert.equal(infer(1).getTypeName(), 'int');
+      assert.equal(infer(1.2).getTypeName(), 'float');
+      assert.equal(infer(9007199254740991).getTypeName(), 'double');
+    });
+
+    test('function', function () {
+      assert.throws(function () { infer(function () {}); });
+    });
+
+    test('record', function () {
+      var t = infer({b: true, n: null, s: '', f: new Buffer(0)});
+      assert.deepEqual(
+        t.getSchema(),
+        {
+          type: 'record',
+          fields: [
+            {name: 'b', type: 'boolean'},
+            {name: 'n', type: 'null'},
+            {name: 's', type: 'string'},
+            {name: 'f', type: 'bytes'}
+          ]
+        }
+      );
+    });
+
+    test('empty array', function () {
+      // Mostly check that the sentinel behaves correctly.
+      var t1 = infer({0: [], 1: [true]});
+      assert.equal(t1.getValuesType().getItemsType().getTypeName(), 'boolean');
+      var t2 = infer({0: [], 1: [true], 2: [null]});
+      assertUnionsEqual(
+        t2.getValuesType().getItemsType(),
+        Type.forSchema(['boolean', 'null'])
+      );
+      var t3 = infer({0: [], 1: []});
+      assert.equal(t3.getValuesType().getItemsType().getTypeName(), 'null');
+    });
+
+    test('value hook', function () {
+      var t = infer({foo: 23, bar: 'hi'}, {valueHook: hook});
+      assert.equal(t.getField('foo').getType().getTypeName(), 'long');
+      assert.equal(t.getField('bar').getType().getTypeName(), 'string');
+      assert.throws(function () {
+        infer({foo: function () {}}, {valueHook: hook});
+      });
+
+      function hook(val, opts) {
+        if (typeof val == 'number') {
+          return Type.forSchema('long', opts);
+        }
+        if (typeof val == 'function') {
+          // This will throw an error.
+          return null;
+        }
+      }
+    });
+
+  });
+
 });
 
 function testType(Type, data, invalidSchemas) {
@@ -3399,4 +3688,14 @@ function invert(buf) {
   while (len--) {
     buf[len] = ~buf[len];
   }
+}
+
+function assertUnionsEqual(t1, t2) {
+  // The order of branches in combined unions is undefined, this function
+  // allows a safe equality check.
+  var b1 = {};
+  var b2 = {};
+  t1.getTypes().forEach(function (t) { b1[t.getName(true)] = t; });
+  t2.getTypes().forEach(function (t) { b2[t.getName(true)] = t; });
+  assert.deepEqual(b1, b2);
 }
