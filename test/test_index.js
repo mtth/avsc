@@ -124,36 +124,4 @@ suite('index', function () {
     assert(header !== null);
   });
 
-  suite('patched Type', function () {
-
-    var Type = index.Type;
-
-    test('infer attributes', function () {
-      assert.equal(Type.inferAttributes(123), 'int');
-    });
-
-  });
-
-  suite('patched Protocol', function () {
-
-    var Protocol = index.Protocol;
-
-    test('parse attributes no imports', function () {
-      var str = 'protocol Foo { string ping(); }';
-      assert.deepEqual(Protocol.parseAttributes(str), {
-        protocol: 'Foo',
-        messages: {
-          ping: {request: [], response: 'string'}
-        }
-      });
-    });
-
-    test('parse attributes with imports', function () {
-      assert.throws(function () {
-        Protocol.parseAttributes('import idl "Foo.avdl"; protocol Bar {}');
-      }, /handle imports/);
-    });
-
-  });
-
 });

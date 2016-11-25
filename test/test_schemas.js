@@ -16,19 +16,21 @@ var DPATH = path.join(__dirname, 'dat');
 
 suite('schemas', function () {
 
-  suite('assemble', function () {
+  suite('assembleProtocolSchema', function () {
 
-    var assemble = schemas.assemble;
+    var assembleProtocolSchema = schemas.assembleProtocolSchema;
 
     test('missing file', function (done) {
-      assemble('./dat/foo', function (err) {
+      assembleProtocolSchema('./dat/foo', function (err) {
         assert(err);
         done();
       });
     });
 
     test('single file', function (done) {
-      assemble(path.join(DPATH, 'Hello.avdl'), function (err, schema) {
+      var opts = {ackVoidMessages: true};
+      var fpath = path.join(DPATH, 'Hello.avdl');
+      assembleProtocolSchema(fpath, opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           namespace: 'org.apache.avro.test',
@@ -37,14 +39,16 @@ suite('schemas', function () {
           types: [
             {
               aliases: ['org.foo.KindOf'],
+              doc: 'An enum.',
               type: 'enum',
               name: 'Kind',
               symbols: ['FOO', 'BAR', 'BAZ']
             },
-            {type: 'fixed', name: 'MD5', size: 16},
+            {type: 'fixed', doc: 'A fixed.', name: 'MD5', size: 16},
             {
               type: 'record',
               name: 'TestRecord',
+              doc: 'A record.',
               fields: [
                 {
                   type: {type: 'string', foo: 'first and last'},
@@ -54,6 +58,7 @@ suite('schemas', function () {
                 {type: 'Kind', order: 'descending', name: 'kind'},
                 {type: 'MD5', name: 'hash'},
                 {
+                  doc: 'A field.',
                   type: ['MD5', 'null'],
                   aliases: ['hash'],
                   name: 'nullableHash'
@@ -75,12 +80,14 @@ suite('schemas', function () {
             {
               type: 'error',
               name: 'TestError',
+              doc: 'An error.',
               fields: [{type: 'string', name: 'message'}]
-            }
+            },
+            {type: 'error', name: 'EmptyError', fields: []}
           ],
           messages: {
             hello: {
-              doc: 'greet',
+              doc: 'Greeting.',
               response: 'string',
               request: [{ type: 'string', name: 'greeting', 'default': 'hi'}]
             },
@@ -89,6 +96,7 @@ suite('schemas', function () {
               request: [{type: 'TestRecord', name: 'record'}]
             },
             add: {
+              doc: 'Adding.',
               response: 'int',
               request: [
                 {type: 'int', name: 'arg1'},
@@ -96,10 +104,16 @@ suite('schemas', function () {
               ]
             },
             echoBytes: {
+              doc: 'Echoing.',
               response: 'bytes',
               request: [{type: 'bytes', name: 'data'}]
             },
             error: {response: 'null', request: [], errors: ['TestError']},
+            errors: {
+              response: 'string',
+              request: [],
+              errors: ['TestError', 'EmptyError']
+            },
             ping: {response: 'null', request: [], 'one-way': true}
           }
         });
@@ -107,9 +121,45 @@ suite('schemas', function () {
       });
     });
 
+    test('custom file', function (done) {
+      var fpath = path.join(DPATH, 'Custom.avdl');
+      assembleProtocolSchema(fpath, function (err, schema) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(schema, {
+          doc: 'A protocol using advanced features.',
+          namespace: 'org.apache.avro.test',
+          messages: {
+            ok: {
+              response: {type: 'enum', symbols: ['SUCCESS', 'FAILURE']},
+              request: []
+            },
+            hash: {
+              response: 'int',
+              request: [
+                {
+                  name: 'fixed',
+                  type: {type: 'fixed', size: 2},
+                  'default': 'aa'
+                },
+                {type: 'long', name: 'length'}
+              ]
+            },
+            import: {
+              response: 'null',
+              request: [],
+              'one-way': true
+            }
+          }
+        });
+        done();
+      });
+    });
+
     test('custom import hook', function (done) {
-      var hook = createImportHook({'foo.avdl': 'protocol Foo {}'});
-      assemble('foo.avdl', {importHook: hook}, function (err, schema) {
+      var opts = {
+        importHook: createImportHook({'foo.avdl': 'protocol Foo {}'})
+      };
+      assembleProtocolSchema('foo.avdl', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {protocol: 'Foo'});
         done();
@@ -120,18 +170,20 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1.avdl': 'protocol First { double one(); int one(); }'
       });
-      assemble('1.avdl', {importHook: hook}, function (err) {
+      assembleProtocolSchema('1.avdl', {importHook: hook}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('import idl', function (done) {
-      var hook = createImportHook({
-        '1.avdl': 'import idl "2.avdl"; protocol First {}',
-        '2.avdl': 'protocol Second { int one(); }'
-      });
-      assemble('1.avdl', {importHook: hook}, function (err, schema) {
+      var opts = {
+        importHook: createImportHook({
+          '1.avdl': 'import idl "2.avdl"; protocol First {}',
+          '2.avdl': 'protocol Second { int one(); }'
+        })
+      };
+      assembleProtocolSchema('1.avdl', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'First',
@@ -142,11 +194,13 @@ suite('schemas', function () {
     });
 
     test('import idl inside protocol', function (done) {
-      var hook = createImportHook({
-        '1.avdl': 'protocol First {int two(); import idl "2.avdl";}',
-        '2.avdl': 'protocol Second { fixed Foo(1); }'
-      });
-      assemble('1.avdl', {importHook: hook}, function (err, schema) {
+      var opts = {
+        importHook: createImportHook({
+          '1.avdl': 'protocol First {int two(); import idl "2.avdl";}',
+          '2.avdl': 'protocol Second { fixed Foo(1); }'
+        })
+      };
+      assembleProtocolSchema('1.avdl', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'First',
@@ -162,19 +216,21 @@ suite('schemas', function () {
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
         '2.avdl': 'protocol Second { int one(); }'
       });
-      assemble('1.avdl', {importHook: hook}, function (err) {
+      assembleProtocolSchema('1.avdl', {importHook: hook}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
     });
 
     test('repeated import', function (done) {
-      var hook = createImportHook({
-        '1.avdl': 'import idl "2.avdl";import idl "3.avdl";protocol A {}',
-        '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
-        '3.avdl': 'protocol C { enum Letter { A } }'
-      });
-      assemble('1.avdl', {importHook: hook}, function (err, schema) {
+      var opts = {
+        importHook: createImportHook({
+          '1.avdl': 'import idl "2.avdl";import idl "3.avdl";protocol A {}',
+          '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
+          '3.avdl': 'protocol C { enum Letter { A } }'
+        })
+      };
+      assembleProtocolSchema('1.avdl', opts, function (err, schema) {
         assert.deepEqual(schema, {
           protocol: 'A',
           types: [
@@ -187,16 +243,18 @@ suite('schemas', function () {
     });
 
     test('import protocol', function (done) {
-      var hook = createImportHook({
-        '1': 'import protocol "2";import protocol "3.avpr"; protocol A {}',
-        '2': JSON.stringify({
-          protocol: 'B',
-          types: [{name: 'Letter', type: 'enum', symbols: ['A']}],
-          messages: {ping: {request: [], response: 'boolean'}}
-        }),
-        '3.avpr': '{"protocol": "C"}'
-      });
-      assemble('1', {importHook: hook}, function (err, schema) {
+      var opts = {
+        importHook: createImportHook({
+          '1': 'import protocol "2";import protocol "3.avpr"; protocol A {}',
+          '2': JSON.stringify({
+            protocol: 'B',
+            types: [{name: 'Letter', type: 'enum', symbols: ['A']}],
+            messages: {ping: {request: [], response: 'boolean'}}
+          }),
+          '3.avpr': '{"protocol": "C"}'
+        })
+      };
+      assembleProtocolSchema('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -223,7 +281,7 @@ suite('schemas', function () {
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         })
       });
-      assemble('A', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('A', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -244,7 +302,7 @@ suite('schemas', function () {
           types: [{name: 'Letter', type: 'enum', symbols: ['A']}]
         })
       });
-      assemble('A', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('A', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -268,7 +326,7 @@ suite('schemas', function () {
           messages: {ping: {request: [], response: 'boolean'}}
         })
       });
-      assemble('A', {importHook: hook}, function (err) {
+      assembleProtocolSchema('A', {importHook: hook}, function (err) {
         assert(/duplicate message/.test(err.message));
         done();
       });
@@ -279,7 +337,7 @@ suite('schemas', function () {
         '1': 'import schema "2"; protocol A {}',
         '2': JSON.stringify({name: 'Number', type: 'enum', symbols: ['1']})
       });
-      assemble('1', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -299,7 +357,7 @@ suite('schemas', function () {
           cb(new Error('foo'));
         }
       };
-      assemble('A.avdl', {importHook: hook}, function (err) {
+      assembleProtocolSchema('A.avdl', {importHook: hook}, function (err) {
         assert(/foo/.test(err.message));
         done();
       });
@@ -313,7 +371,7 @@ suite('schemas', function () {
           cb(new Error('bar'));
         }
       };
-      assemble('A.avdl', {importHook: hook}, function (err) {
+      assembleProtocolSchema('A.avdl', {importHook: hook}, function (err) {
         assert(/bar/.test(err.message));
         done();
       });
@@ -321,7 +379,7 @@ suite('schemas', function () {
 
     test('import invalid kind', function (done) {
       var hook = createImportHook({'A.avdl': 'import foo "2";protocol A {}'});
-      assemble('A.avdl', {importHook: hook}, function (err) {
+      assembleProtocolSchema('A.avdl', {importHook: hook}, function (err) {
         assert(/invalid import/.test(err.message));
         done();
       });
@@ -332,7 +390,7 @@ suite('schemas', function () {
         '1': 'import schema "2"; protocol A {}',
         '2': '{'
       });
-      assemble('1', {importHook: hook}, function (err) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err) {
         assert(err);
         assert.equal(err.path, '2');
         done();
@@ -343,17 +401,8 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1': 'protocol A { /** 1 */ @bar(true) union { null, int } foo(); }'
       });
-      assemble('1', {importHook: hook}, function (err, schema) {
-        assert.strictEqual(err, null);
-        assert.deepEqual(schema, {
-          protocol: 'A',
-          messages: {
-            foo: {
-              response: ['null', 'int'],
-              request: []
-            }
-          }
-        });
+      assembleProtocolSchema('1', {importHook: hook}, function (err) {
+        assert(/union annotations/.test(err.message));
         done();
       });
     });
@@ -364,7 +413,7 @@ suite('schemas', function () {
         '2': 'foo', // Invalid IDL.
         '3': 'bar'  // Same.
       });
-      assemble('1', {importHook: hook}, function (err) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err) {
         assert.strictEqual(err, null);
         done();
       });
@@ -374,7 +423,7 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1': 'protocol A { fixed one.One(1); }',
       });
-      assemble('1', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -388,7 +437,7 @@ suite('schemas', function () {
       var hook = createImportHook({
         '1': 'protocol A { record Two { fixed One(1) one; } }',
       });
-      assemble('1', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -409,7 +458,7 @@ suite('schemas', function () {
         '1': 'protocol A { void ping(); @foo(true) void pong(); }',
       });
       var opts = {importHook: hook, oneWayVoid: true};
-      assemble('1', opts, function (err, schema) {
+      assembleProtocolSchema('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -431,7 +480,7 @@ suite('schemas', function () {
         '1': 'protocol A {/**1*/ @doc(2) fixed One(1);}',
       });
       var opts = {importHook: hook, reassignJavadoc: true};
-      assemble('1', opts, function (err, schema) {
+      assembleProtocolSchema('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -443,48 +492,12 @@ suite('schemas', function () {
       });
     });
 
-    test('reassign javadoc', function (done) {
-      var hook = createImportHook({
-        '1': 'import idl "2"; protocol A {/** 2 */ void pong();}',
-        '2': 'import idl "3"; protocol B { /**\n * 1 */ fixed One(1); }',
-        '3': 'protocol C{record R{/**1*/int v1;int v2;/**3*/@foo(1)int v3;}}'
-      });
-      var opts = {importHook: hook, reassignJavadoc: true};
-      assemble('1', opts, function (err, schema) {
-        assert.strictEqual(err, null);
-        assert.deepEqual(schema, {
-          protocol: 'A',
-          types: [
-            {
-              name: 'R',
-              namespace: '',
-              type: 'record',
-              fields: [
-                {name: 'v1', type: 'int', doc: '1'},
-                {name: 'v2', type: 'int'},
-                {name: 'v3', type: {type: 'int', foo: 1}, doc: '3'}
-              ]
-            },
-            {name: 'One', type: 'fixed', size: 1, doc: '1', namespace: ''}
-          ],
-          messages: {
-            pong: {
-              doc: '2',
-              response: 'null',
-              request: [],
-            }
-          }
-        });
-        done();
-      });
-    });
-
     test('reset namespace', function (done) {
       var hook = createImportHook({
         '1': 'protocol A { import idl "2"; }',
         '2': '@namespace("b") protocol B { @namespace("") fixed One(1); }'
       });
-      assemble('1', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -500,7 +513,7 @@ suite('schemas', function () {
         '2': 'import idl "3"; @namespace("b") protocol B {}',
         '3': 'protocol C { fixed Two(1); }'
       });
-      assemble('1', {importHook: hook}, function (err, schema) {
+      assembleProtocolSchema('1', {importHook: hook}, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
@@ -522,6 +535,120 @@ suite('schemas', function () {
 
   });
 
+
+  suite('parseTypeSchema', function () {
+
+    var parseTypeSchema = schemas.parseTypeSchema;
+
+    test('anonymous record', function () {
+      assert.deepEqual(
+        parseTypeSchema('/** A foo. */ record { int foo; }'),
+        {
+          doc: 'A foo.',
+          type: 'record',
+          fields: [{type: 'int', name: 'foo'}]
+        }
+      );
+    });
+
+    test('fixed', function () {
+      assert.deepEqual(
+        parseTypeSchema('@logicalType("address") @live(true) fixed Address(6)'),
+        {
+          type: 'fixed',
+          size: 6,
+          live: true,
+          name: 'Address',
+          logicalType: 'address'
+        }
+      );
+    });
+
+    test('implicit collection tags', function () {
+      assert.deepEqual(
+        parseTypeSchema('record { array int bars; }'),
+        {
+          type: 'record',
+          fields: [{type: {type: 'array', items: 'int'}, name: 'bars'}]
+        }
+      );
+    });
+
+    test('mismatched implicit collection tags', function () {
+      assert.throws(function () {
+        parseTypeSchema('record { array < int bars; }');
+      }, />/);
+    });
+
+  });
+
+  suite('parseProtocolSchema', function () {
+
+    var parseProtocolSchema = schemas.parseProtocolSchema;
+
+    test('anonymous protocol with javadoced type', function () {
+      assert.deepEqual(
+        parseProtocolSchema('protocol { /** Foo. */ int; }'),
+        {types: [{doc: 'Foo.', type: 'int'}]}
+      );
+    });
+
+    test('invalid message suffix', function () {
+      assert.throws(function () {
+        parseProtocolSchema('protocol { void foo() repeated; }');
+      }, /suffix/);
+    });
+
+    test('imports', function () {
+      assert.throws(function () {
+        parseProtocolSchema('protocol { import idl "Foo.avdl"; }');
+      }, /unresolvable/);
+    });
+  });
+
+  suite('parseSchema', function () {
+
+    var parseSchema = schemas.parseSchema;
+
+    test('inline protocol', function () {
+      assert.deepEqual(
+        parseSchema('protocol { /** Foo. */ int; }'),
+        {types: [{doc: 'Foo.', type: 'int'}]}
+      );
+    });
+
+    test('protocol path', function () {
+      assert.deepEqual(
+        parseSchema(path.join(DPATH, 'Ping.avdl')),
+        {
+          protocol: 'Ping',
+          messages: {ping: {request: [], response: 'id.Id'}},
+          types: [{type: 'fixed', name: 'Id', size: 64, namespace: 'id'}]
+        }
+      );
+    });
+
+    test('path to type schema', function () {
+      assert.deepEqual(
+        parseSchema(path.join(DPATH, 'Id.avsc')),
+        {type: 'fixed', name: 'Id', size: 64, namespace: 'id'}
+      );
+    });
+
+    test('path to type IDL', function () {
+      assert.deepEqual(
+        parseSchema(path.join(DPATH, 'Id.avdl')),
+        {type: 'fixed', name: 'Id', size: 64, namespace: 'id'}
+      );
+    });
+
+    test('invalid string', function () {
+      var str = 'protocol { void foo() repeated; }';
+      assert.equal(parseSchema(str), str);
+    });
+
+  });
+
   suite('Tokenizer', function () {
 
     var Tokenizer = schemas.Tokenizer;
@@ -530,23 +657,17 @@ suite('schemas', function () {
       assert.deepEqual(
         getTokens('hello; "you"'),
         [
-          {id: 'name', val: 'hello'},
-          {id: 'operator', val: ';'},
-          {id: 'string', val: '"you"'}
+          {id: 'name', pos: 0, val: 'hello'},
+          {id: 'operator', pos: 5, val: ';'},
+          {id: 'string', pos: 6, val: '"you"'}
         ]
       );
     });
 
-    test('prev', function () {
+    test('next silent', function () {
       var t = new Tokenizer('fee 1');
       assert.equal(t.next().val, 'fee');
-      assert.equal(t.next().val, '1');
-      t.prev();
-      assert.equal(t.next().val, '1');
-      t.prev();
-      t.prev();
-      assert.throws(function () { t.prev(); });
-      assert.equal(t.next().val, 'fee');
+      assert.strictEqual(t.next({val: '2', silent: true}), undefined);
       assert.equal(t.next().val, '1');
     });
 
@@ -606,14 +727,10 @@ suite('schemas', function () {
       var tokenizer = new Tokenizer(str);
       var tokens = [];
       var token;
-      try {
-        while ((token = tokenizer.next())) {
-          tokens.push(token);
-        }
-      } catch (err) {
-        assert(/end of input/.test(err.message));
-        return tokens;
+      while ((token = tokenizer.next()).id !== '(eof)') {
+        tokens.push(token);
       }
+      return tokens;
     }
 
   });

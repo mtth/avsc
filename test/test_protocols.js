@@ -1909,6 +1909,8 @@ suite('protocols', function () {
 
   suite('discover attributes', function () {
 
+    var discoverProtocolSchema = protocols.discoverProtocolSchema;
+
     test('stateful ok', function (done) {
       var schema = {
         protocol: 'Case',
@@ -1924,7 +1926,7 @@ suite('protocols', function () {
       });
       var transports = createPassthroughTransports();
       ptcl.createListener(transports[1]);
-      Protocol.discoverAttributes(transports[0], function (err, actualAttrs) {
+      discoverProtocolSchema(transports[0], function (err, actualAttrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
@@ -1952,7 +1954,7 @@ suite('protocols', function () {
       var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
         cb(null, req.str.toUpperCase());
       });
-      Protocol.discoverAttributes(writableFactory, function (err, actual) {
+      discoverProtocolSchema(writableFactory, function (err, actual) {
         assert.strictEqual(err, null);
         assert.deepEqual(actual, schema);
         // Check that the transport is still usable.
@@ -1996,7 +1998,7 @@ suite('protocols', function () {
       var scope = 'bar';
       var transports = createPassthroughTransports();
       ptcl.createListener(transports[1], {scope: scope});
-      Protocol.discoverAttributes(transports[0], {timeout: 5}, function (err) {
+      discoverProtocolSchema(transports[0], {timeout: 5}, function (err) {
         assert(/timeout/.test(err));
         // Check that the transport is still usable.
         var me = ptcl.createEmitter(transports[0], {scope: scope})

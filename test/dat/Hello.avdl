@@ -1,3 +1,5 @@
+import idl "Hello.avdl"; // Test circular import.
+
 /**
  * An example protocol in Avro IDL.
  *
@@ -5,11 +7,10 @@
  * https://avro.apache.org/docs/current/idl.html#example
  *
  */
-import idl "Hello.avdl"; // Test circular import.
-
 @namespace("org.apache.avro.test")
 protocol Simple {
 
+  /** An enum. */
   @aliases(["org.foo.KindOf"])
   enum Kind {
     FOO,
@@ -17,8 +18,10 @@ protocol Simple {
     BAZ
   }
 
+  /** A fixed. */
   fixed MD5(16);
 
+  /** A record. */
   record TestRecord {
     @foo("first and last")
     string @order("ignore") name;
@@ -27,6 +30,7 @@ protocol Simple {
 
     MD5 hash;
 
+    /** A field. */
     union { MD5, null} @aliases(["hash"]) nullableHash;
 
     array<@logicalType("date") long> arrayOfDates;
@@ -34,14 +38,24 @@ protocol Simple {
     map<boolean> someMap = {"true": true};
   }
 
+  @doc("An error.")
   error TestError {
     string message;
   }
 
-  string @doc("greet") hello(string greeting = "hi");
-  TestRecord echo(TestRecord `record`);
-  int add(int arg1, int arg2);
+  /* Another error (not docstring-ed). */
+  error EmptyError {}
+
+  /** An overridden message docstring. */
+  string @doc("Greeting.") hello(string greeting = "hi");
+
+  int @doc("Adding.") add(int arg1, int arg2);
+
+  /** Echoing. */
   bytes echoBytes(bytes data);
+
+  TestRecord /** Ignored. */ echo(TestRecord `record`);
   void `error`() throws TestError;
+  string `errors`() throws TestError, EmptyError;
   void ping() oneway;
 }

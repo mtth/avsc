@@ -61,13 +61,11 @@ const avro = require('avsc');
 + Infer a value's schema and encode similar values:
 
   ```javascript
-  const attrs = avro.Type.inferAttributes({
+  const type = avro.Type.infer({
     city: 'Cambridge',
     zipCodes: ['02138', '02139'],
     visits: 2
   });
-  // We can now use this inferred schema to encode similar values:
-  const type = avro.Type.create(attrs);
   const bufs = [
     type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
     type.toBuffer({city: 'NYC', zipCodes: [], visits: 0})
@@ -86,7 +84,7 @@ const avro = require('avsc');
 + Implement a TCP server for an [IDL-defined][idl] protocol:
 
   ```javascript
-  avro.Protocol.assembleAttributes('Ping.avdl', (err, attrs) => {
+  avro.assembleProtocolSchema('Ping.avdl', (err, attrs) => {
     // Generate the protocol and attach a handler for `ping` messages:
     const protocol = avro.Protocol.create(attrs)
       .on('ping', (req, ee, cb) => {
