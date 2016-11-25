@@ -17,7 +17,7 @@ suite('protocols', function () {
   suite('Protocol', function () {
 
     test('get name and types', function () {
-      var p = Protocol.create({
+      var p = Protocol.forSchema({
         namespace: 'foo',
         protocol: 'HelloWorld',
         types: [
@@ -50,7 +50,7 @@ suite('protocols', function () {
     });
 
     test('missing message', function () {
-      var ptcl = Protocol.create({namespace: 'com.acme', protocol: 'Hello'});
+      var ptcl = Protocol.forSchema({namespace: 'com.acme', protocol: 'Hello'});
       assert.throws(function () {
         ptcl.on('add', function () {});
       }, /unknown/);
@@ -58,13 +58,13 @@ suite('protocols', function () {
 
     test('missing name', function () {
       assert.throws(function () {
-        Protocol.create({namespace: 'com.acme', messages: {}});
+        Protocol.forSchema({namespace: 'com.acme', messages: {}});
       });
     });
 
     test('missing type', function () {
       assert.throws(function () {
-        Protocol.create({
+        Protocol.forSchema({
           namespace: 'com.acme',
           protocol: 'HelloWorld',
           messages: {
@@ -80,7 +80,7 @@ suite('protocols', function () {
     test('multiple references to namespaced types', function () {
       // This test is a useful sanity check for hoisting implementations.
       var n = 0;
-      var p = Protocol.create({
+      var p = Protocol.forSchema({
         protocol: 'Hello',
         namespace: 'ping',
         types: [
@@ -111,7 +111,7 @@ suite('protocols', function () {
 
     test('special character in name', function () {
       assert.throws(function () {
-        Protocol.create({
+        Protocol.forSchema({
           protocol: 'Ping',
           messages: {
             'ping/1': {
@@ -125,9 +125,9 @@ suite('protocols', function () {
 
     test('get messages', function () {
       var ptcl;
-      ptcl = Protocol.create({protocol: 'Empty'});
+      ptcl = Protocol.forSchema({protocol: 'Empty'});
       assert.deepEqual(ptcl.getMessages(), {});
-      ptcl = Protocol.create({
+      ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {
           ping: {
@@ -141,7 +141,7 @@ suite('protocols', function () {
     });
 
     test('subprotocol', function () {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         namespace: 'com.acme',
         protocol: 'Hello',
         types: [{name: 'Id', type: 'fixed', size: 2}],
@@ -154,8 +154,8 @@ suite('protocols', function () {
     });
 
     test('invalid emitter', function (done) {
-      var p1 = Protocol.create({protocol: 'Hey'});
-      var p2 = Protocol.create({protocol: 'Hi'});
+      var p1 = Protocol.forSchema({protocol: 'Hey'});
+      var p2 = Protocol.forSchema({protocol: 'Hi'});
       var ee = p2.createEmitter(new stream.PassThrough(), {noPing: true});
       assert.throws(
         function () { p1.emit('hi', {}, ee); },
@@ -165,7 +165,7 @@ suite('protocols', function () {
     });
 
     test('getFingerprint', function () {
-      var p = Protocol.create({
+      var p = Protocol.forSchema({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -173,7 +173,7 @@ suite('protocols', function () {
     });
 
     test('toString', function () {
-      var p = Protocol.create({
+      var p = Protocol.forSchema({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -181,7 +181,7 @@ suite('protocols', function () {
     });
 
     test('inspect', function () {
-      var p = Protocol.create({
+      var p = Protocol.forSchema({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -409,7 +409,7 @@ suite('protocols', function () {
     });
 
     test('roundtrip', function (done) {
-      var type = types.Type.create({
+      var type = types.Type.forSchema({
         type: 'record',
         name: 'Record',
         fields: [
@@ -465,7 +465,7 @@ suite('protocols', function () {
     });
 
     test('roundtrip', function (done) {
-      var type = types.Type.create({
+      var type = types.Type.forSchema({
         type: 'record',
         name: 'Record',
         fields: [
@@ -576,7 +576,7 @@ suite('protocols', function () {
   suite('StatefulEmitter', function () {
 
     test('connection timeout', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -593,7 +593,7 @@ suite('protocols', function () {
     });
 
     test('custom timeout', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -611,7 +611,7 @@ suite('protocols', function () {
     });
 
     test('missing message & callback', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -628,7 +628,7 @@ suite('protocols', function () {
     });
 
     test('invalid response', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -655,7 +655,7 @@ suite('protocols', function () {
     });
 
     test('readable ended', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -665,7 +665,7 @@ suite('protocols', function () {
     });
 
     test('writable finished', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -678,7 +678,7 @@ suite('protocols', function () {
     });
 
     test('keep writable open', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -699,8 +699,8 @@ suite('protocols', function () {
       // Check that we can interrupt a handshake part-way, so that we can ping
       // a remote server for its protocol, but still reuse the same connection
       // for a later trasnmission.
-      var p1 = Protocol.create({protocol: 'Empty'});
-      var p2 = Protocol.create({
+      var p1 = Protocol.forSchema({protocol: 'Empty'});
+      var p2 = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }).on('ping', function (req, ml, cb) { cb(null, true); });
@@ -722,7 +722,7 @@ suite('protocols', function () {
     });
 
     test('destroy listener end', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Math',
         messages: {
           negate: {
@@ -748,7 +748,7 @@ suite('protocols', function () {
   suite('StatelessEmitter', function () {
 
     test('factory error', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
@@ -764,7 +764,7 @@ suite('protocols', function () {
     });
 
     test('default encoder error', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
@@ -780,7 +780,7 @@ suite('protocols', function () {
     });
 
     test('reuse writable', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
@@ -805,7 +805,7 @@ suite('protocols', function () {
     });
 
     test('interrupt writable', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
@@ -843,7 +843,7 @@ suite('protocols', function () {
   suite('StatefulListener', function () {
 
     test('custom handler', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Math',
         messages: {
           negate: {
@@ -892,7 +892,7 @@ suite('protocols', function () {
     });
 
     test('readable ended', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -905,7 +905,7 @@ suite('protocols', function () {
     });
 
     test('writable finished', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -922,7 +922,7 @@ suite('protocols', function () {
   suite('StatelessListener', function () {
 
     test('factory error', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -938,7 +938,7 @@ suite('protocols', function () {
     });
 
     test('delayed writable', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -966,7 +966,7 @@ suite('protocols', function () {
     });
 
     test('reuse writable', function (done) {
-      var ptcl = Protocol.create({
+      var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       }).on('ping', function (req, ee, cb) {
@@ -1021,7 +1021,7 @@ suite('protocols', function () {
 
       test('explicit server fingerprint', function (done) {
         var transports = createPassthroughTransports();
-        var p1 = Protocol.create({
+        var p1 = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1030,7 +1030,7 @@ suite('protocols', function () {
             }
           }
         });
-        var p2 = Protocol.create({
+        var p2 = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1069,7 +1069,7 @@ suite('protocols', function () {
 
       test('cached client fingerprint', function (done) {
         var transports = createPassthroughTransports();
-        var p1 = Protocol.create({
+        var p1 = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1078,7 +1078,7 @@ suite('protocols', function () {
             }
           }
         });
-        var p2 = Protocol.create({
+        var p2 = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1106,7 +1106,7 @@ suite('protocols', function () {
 
       test('scoped transports', function (done) {
         var transports = createPassthroughTransports();
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Case',
           messages: {
             upper: {
@@ -1162,7 +1162,7 @@ suite('protocols', function () {
     function run(setupFn) {
 
       test('primitive types', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1198,7 +1198,7 @@ suite('protocols', function () {
       });
 
       test('emit receive error', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1220,7 +1220,7 @@ suite('protocols', function () {
       });
 
       test('complex type', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Literature',
           messages: {
             generate: {
@@ -1254,7 +1254,7 @@ suite('protocols', function () {
       });
 
       test('invalid request', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1273,7 +1273,7 @@ suite('protocols', function () {
       });
 
       test('error response', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1302,7 +1302,7 @@ suite('protocols', function () {
       });
 
       test('wrapped error response', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1331,7 +1331,7 @@ suite('protocols', function () {
       });
 
       test('wrapped remote protocol', function (done) {
-        var ptcl1 = Protocol.create({
+        var ptcl1 = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             invert: {
@@ -1340,7 +1340,7 @@ suite('protocols', function () {
             }
           }
         }, {wrapUnions: true});
-        var ptcl2 = Protocol.create({
+        var ptcl2 = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             invert: {
@@ -1367,7 +1367,7 @@ suite('protocols', function () {
       });
 
       test('invalid response', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1397,7 +1397,7 @@ suite('protocols', function () {
       });
 
       test('invalid strict error', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1432,7 +1432,7 @@ suite('protocols', function () {
       });
 
       test('out of order', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Delay',
           messages: {
             w: {
@@ -1483,7 +1483,7 @@ suite('protocols', function () {
       });
 
       test('compatible protocols', function (done) {
-        var emitterPtcl = Protocol.create({
+        var emitterPtcl = Protocol.forSchema({
           protocol: 'emitterProtocol',
           messages: {
             age: {
@@ -1492,7 +1492,7 @@ suite('protocols', function () {
             }
           }
         });
-        var listenerPtcl = Protocol.create({
+        var listenerPtcl = Protocol.forSchema({
           protocol: 'serverProtocol',
           messages: {
             age: {
@@ -1526,7 +1526,7 @@ suite('protocols', function () {
       });
 
       test('compatible protocol with a complex type', function (done) {
-        var ptcl1 = Protocol.create({
+        var ptcl1 = Protocol.forSchema({
           protocol: 'Literature',
           messages: {
             generate: {
@@ -1543,7 +1543,7 @@ suite('protocols', function () {
             }
           }
         });
-        var ptcl2 = Protocol.create({
+        var ptcl2 = Protocol.forSchema({
           protocol: 'Literature',
           messages: {
             generate: {
@@ -1578,7 +1578,7 @@ suite('protocols', function () {
       });
 
       test('cached compatible protocols', function (done) {
-        var ptcl1 = Protocol.create({
+        var ptcl1 = Protocol.forSchema({
           protocol: 'emitterProtocol',
           messages: {
             age: {
@@ -1587,7 +1587,7 @@ suite('protocols', function () {
             }
           }
         });
-        var ptcl2 = Protocol.create({
+        var ptcl2 = Protocol.forSchema({
           protocol: 'serverProtocol',
           namespace: 'foo',
           messages: {
@@ -1626,13 +1626,13 @@ suite('protocols', function () {
       });
 
       test('incompatible protocols missing message', function (done) {
-        var emitterPtcl = Protocol.create({
+        var emitterPtcl = Protocol.forSchema({
           protocol: 'emitterProtocol',
           messages: {
             age: {request: [{name: 'name', type: 'string'}], response: 'long'}
           }
         }, {wrapUnions: true});
-        var listenerPtcl = Protocol.create({protocol: 'serverProtocol'});
+        var listenerPtcl = Protocol.forSchema({protocol: 'serverProtocol'});
         setupFn(
           emitterPtcl,
           listenerPtcl,
@@ -1647,13 +1647,13 @@ suite('protocols', function () {
       });
 
       test('incompatible protocols', function (done) {
-        var emitterPtcl = Protocol.create({
+        var emitterPtcl = Protocol.forSchema({
           protocol: 'emitterProtocol',
           messages: {
             age: {request: [{name: 'name', type: 'string'}], response: 'long'}
           }
         }, {wrapUnions: true});
-        var listenerPtcl = Protocol.create({
+        var listenerPtcl = Protocol.forSchema({
           protocol: 'serverProtocol',
           messages: {
             age: {request: [{name: 'name', type: 'int'}], response: 'long'}
@@ -1673,11 +1673,11 @@ suite('protocols', function () {
       });
 
       test('incompatible protocols one way message', function (done) {
-        var ptcl1 = Protocol.create({
+        var ptcl1 = Protocol.forSchema({
           protocol: 'ptcl1',
           messages: {ping: {request: [], response: 'null', 'one-way': true}}
         });
-        var ptcl2 = Protocol.create({
+        var ptcl2 = Protocol.forSchema({
           protocol: 'ptcl2',
           messages: {ping: {request: [], response: 'null'}}
         });
@@ -1694,7 +1694,7 @@ suite('protocols', function () {
       });
 
       test('one way message', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'ptcl',
           messages: {ping: {request: [], response: 'null', 'one-way': true}}
         });
@@ -1708,7 +1708,7 @@ suite('protocols', function () {
       });
 
       test('ignored response', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'ptcl',
           messages: {ping: {request: [], response: 'null'}} // Not one-way.
         });
@@ -1722,7 +1722,7 @@ suite('protocols', function () {
       });
 
       test('duplicate message callback', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'ptcl',
           messages: {ping: {request: [], response: 'null'}} // Not one-way.
         });
@@ -1740,7 +1740,7 @@ suite('protocols', function () {
       });
 
       test('unknown message', function (done) {
-        var ptcl = Protocol.create({protocol: 'Empty'});
+        var ptcl = Protocol.forSchema({protocol: 'Empty'});
         setupFn(ptcl, ptcl, function (ee) {
           assert.throws(
             function () { ptcl.emit('echo', {}, ee); },
@@ -1751,7 +1751,7 @@ suite('protocols', function () {
       });
 
       test('unhandled message', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Echo',
           messages: {
             echo: {
@@ -1770,7 +1770,7 @@ suite('protocols', function () {
       });
 
       test('timeout', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Echo',
           messages: {
             echo: {
@@ -1797,7 +1797,7 @@ suite('protocols', function () {
       });
 
       test('destroy emitter noWait', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Delay',
           messages: {
             wait: {
@@ -1830,7 +1830,7 @@ suite('protocols', function () {
       });
 
       test('destroy emitter', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1854,7 +1854,7 @@ suite('protocols', function () {
       });
 
       test('destroy listener noWait', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1877,7 +1877,7 @@ suite('protocols', function () {
       });
 
       test('catch server error', function (done) {
-        var ptcl = Protocol.create({
+        var ptcl = Protocol.forSchema({
           protocol: 'Math',
           messages: {
             error1: {request: [], response: 'null'},
@@ -1921,9 +1921,10 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
-        cb(null, req.str.toUpperCase());
-      });
+      var ptcl = Protocol.forSchema(schema)
+        .on('upper', function (req, ee, cb) {
+          cb(null, req.str.toUpperCase());
+        });
       var transports = createPassthroughTransports();
       ptcl.createListener(transports[1]);
       discoverProtocolSchema(transports[0], function (err, actualAttrs) {
@@ -1951,9 +1952,10 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
-        cb(null, req.str.toUpperCase());
-      });
+      var ptcl = Protocol.forSchema(schema)
+        .on('upper', function (req, ee, cb) {
+          cb(null, req.str.toUpperCase());
+        });
       discoverProtocolSchema(writableFactory, function (err, actual) {
         assert.strictEqual(err, null);
         assert.deepEqual(actual, schema);
@@ -1992,9 +1994,10 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.create(schema).on('upper', function (req, ee, cb) {
-        cb(null, req.str.toUpperCase());
-      });
+      var ptcl = Protocol.forSchema(schema)
+        .on('upper', function (req, ee, cb) {
+          cb(null, req.str.toUpperCase());
+        });
       var scope = 'bar';
       var transports = createPassthroughTransports();
       ptcl.createListener(transports[1], {scope: scope});

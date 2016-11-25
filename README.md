@@ -46,7 +46,7 @@ const avro = require('avsc');
 + Encode and decode values from a known schema:
 
   ```javascript
-  const type = avro.Type.create({
+  const type = avro.Type.forSchema({
     name: 'Pet',
     type: 'record',
     fields: [
@@ -61,7 +61,7 @@ const avro = require('avsc');
 + Infer a value's schema and encode similar values:
 
   ```javascript
-  const type = avro.Type.infer({
+  const type = avro.Type.forValue({
     city: 'Cambridge',
     zipCodes: ['02138', '02139'],
     visits: 2
@@ -86,7 +86,7 @@ const avro = require('avsc');
   ```javascript
   avro.assembleProtocolSchema('Ping.avdl', (err, attrs) => {
     // Generate the protocol and attach a handler for `ping` messages:
-    const protocol = avro.Protocol.create(attrs)
+    const protocol = avro.Protocol.forSchema(attrs)
       .on('ping', (req, ee, cb) => {
         cb(null, 'pong');
       });
