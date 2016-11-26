@@ -10,7 +10,8 @@
 
 var avroTypes = require('./avsc-types'),
     protocols = require('../../lib/protocols'),
-    schemas = require('../../lib/schemas');
+    schemas = require('../../lib/schemas'),
+    utils = require('../../lib/utils');
 
 
 /** Slightly enhanced parsing, supporting IDL declarations. */
@@ -24,7 +25,6 @@ function parse(any, opts) {
 
 module.exports = {
   Protocol: protocols.Protocol,
-  Type: avroTypes.Type,
   assembleProtocolSchema: schemas.assembleProtocolSchema,
   discoverProtocolSchema: protocols.discoverProtocolSchema,
   parse: parse,
@@ -32,6 +32,6 @@ module.exports = {
   parseTypeSchema: schemas.parseTypeSchema,
   // Deprecated exports.
   assemble: schemas.assembleProtocolSchema,
-  combine: avroTypes.combine,
-  infer: avroTypes.infer
 };
+
+utils.copyOwnProperties(avroTypes, module.exports);

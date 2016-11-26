@@ -11,6 +11,7 @@
 
 var avroProtocols = require('./avsc-protocols'),
     containers = require('../../lib/containers'),
+    utils = require('../../lib/utils'),
     stream = require('stream'),
     util = require('util');
 
@@ -105,19 +106,9 @@ function createBlobEncoder(schema, opts) {
 
 
 module.exports = {
-  Protocol: avroProtocols.Protocol,
-  Type: avroProtocols.Type,
-  assembleProtocolSchema: avroProtocols.assembleProtocolSchema,
   createBlobDecoder: createBlobDecoder,
   createBlobEncoder: createBlobEncoder,
-  discoverProtocolSchema: avroProtocols.discoverProtocolSchema,
-  parse: avroProtocols.parse,
-  parseProtocolSchema: avroProtocols.parseProtocolSchema,
-  parseTypeSchema: avroProtocols.parseTypeSchema,
-  streams: containers.streams,
-  types: avroProtocols.types,
-  // Deprecated exports.
-  assemble: avroProtocols.assemble,
-  combine: avroProtocols.combine,
-  infer: avroProtocols.infer
+  streams: containers.streams
 };
+
+utils.copyOwnProperties(avroProtocols, module.exports);
