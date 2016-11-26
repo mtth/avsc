@@ -164,6 +164,18 @@ suite('protocols', function () {
       done();
     });
 
+    test('getSchema', function () {
+      var schema = {protocol: 'Hello', doc: 'Hey'};
+      var p = Protocol.forSchema(schema);
+      assert.deepEqual(p.getSchema({exportAttrs: true}), schema);
+      assert.equal(p.getSchema({asString: true}), '{"protocol":"Hello"}');
+    });
+
+    test('getDocumentation', function () {
+      var p = Protocol.forSchema({protocol: 'Hello', doc: 'Hey'});
+      assert.equal(p.getDocumentation(), 'Hey');
+    });
+
     test('getFingerprint', function () {
       var p = Protocol.forSchema({
         namespace: 'hello',
@@ -308,6 +320,16 @@ suite('protocols', function () {
       };
       var m = new Message('Ping', schema);
       assert.deepEqual(JSON.parse(m.toString()), schema);
+    });
+
+    test('getDocumentation', function () {
+      var schema = {
+        request: [{name: 'ping', type: 'string'}],
+        response: 'null',
+        doc: 'Pong'
+      };
+      var m = new Message('Ping', schema);
+      assert.equal(m.getDocumentation(), 'Pong');
     });
 
   });
@@ -709,7 +731,7 @@ suite('protocols', function () {
       p1.createEmitter(transports[1])
         .on('handshake', function (hreq, hres) {
           this.destroy();
-          assert.equal(hres.serverProtocol, p2.getSchema());
+          assert.equal(hres.serverProtocol, p2.getSchema({asString: true}));
         })
         .on('eot', function () {
           // The transports are still available for a connection.

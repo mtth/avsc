@@ -1796,6 +1796,7 @@ suite('types', function () {
         doc: 'Hi!',
         namespace: 'earth',
         aliases: ['Human'],
+        foo: 'bar',
         fields: [
           {name: 'friends', type: {type: 'array', items: 'string'}},
           {
@@ -1807,13 +1808,14 @@ suite('types', function () {
           }
         ]
       });
-      var schemaStr =         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}';
+      var schemaStr = '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}';
       assert.equal(t.getSchema({asString: true}), schemaStr);
       assert.deepEqual(t.getSchema(), JSON.parse(schemaStr));
       assert.deepEqual(t.getSchema({exportAttrs: true}), {
         type: 'record',
         name: 'earth.Person',
         aliases: ['earth.Human'],
+        doc: 'Hi!',
         fields: [
           {name: 'friends', type: {type: 'array', items: 'string'}},
           {
@@ -3314,6 +3316,21 @@ suite('types', function () {
     assert(t2.equals(t1));
     assert(!t1.equals(Type.forSchema('long')));
     assert(!t1.equals(null));
+  });
+
+  test('getDocumentation', function () {
+    assert.strictEqual(Type.forSchema('int').getDocumentation(), undefined);
+    var t1 = Type.forSchema({
+      type: 'record',
+      doc: 'A foo.',
+      fields: [
+        {name: 'bar', doc: 'Bar', type: 'int'}
+      ]
+    });
+    assert.equal(t1.getDocumentation(), 'A foo.');
+    assert.equal(t1.getField('bar').getDocumentation(), 'Bar');
+    var t2 = Type.forSchema({type: 'int', doc: 'A foo.'});
+    assert.strictEqual(t2.getDocumentation(), undefined);
   });
 
   test('isType', function () {
