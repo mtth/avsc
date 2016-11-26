@@ -184,6 +184,27 @@ suite('protocols', function () {
       assert.deepEqual(p.getFingerprint('md5'), p.getFingerprint());
     });
 
+    test('isProtocol', function () {
+      var p = Protocol.forSchema({
+        namespace: 'hello',
+        protocol: 'World',
+      });
+      assert(Protocol.isProtocol(p));
+      assert(!Protocol.isProtocol(undefined));
+      assert(!Protocol.isProtocol({protocol: 'bar'}));
+    });
+
+    test('equals', function () {
+      var p = Protocol.forSchema({
+        namespace: 'hello',
+        protocol: 'World',
+      });
+      assert(p.equals(p));
+      assert(!p.equals(undefined));
+      assert(!p.equals(Protocol.forSchema({protocol: 'Foo'})));
+      assert(p.equals(Protocol.forSchema({protocol: 'hello.World'})));
+    });
+
     test('toString', function () {
       var p = Protocol.forSchema({
         namespace: 'hello',
