@@ -5,7 +5,7 @@
     "commander": "^2.9.0",
     "msgpack-lite": "^0.1.26",
     "pbf": "^3.0.2",
-    "protobufjs": "^5.0.1",
+    "protobufjs": "^6.0.1",
     "protocol-buffers": "^3.1.6",
     "protocol-buffers-schema": "^3.1.0",
     "pson": "^2.0.0",

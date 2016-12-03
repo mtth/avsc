@@ -171,9 +171,9 @@ DecodeSuite.prototype.__pbf = function (args) {
 
 DecodeSuite.prototype.__protobufjs = function (args) {
   var parts = args.split(':');
-  var builder = protobufjs.loadProtoFile(parts[0]);
-  var message = builder.build(parts[1]);
-  var buf = message.encode(this.getValue(true));
+  var root = protobufjs.parse(fs.readFileSync(parts[0])).root;
+  var message = root.lookup(parts[1]);
+  var buf = message.encode(this.getValue(true)).finish();
   return function () {
     var obj = message.decode(buf);
     if (obj.$) {
@@ -289,11 +289,11 @@ EncodeSuite.prototype.__pbf = function (args) {
 
 EncodeSuite.prototype.__protobufjs = function (args) {
   var parts = args.split(':');
-  var builder = protobufjs.loadProtoFile(parts[0]);
-  var message = builder.build(parts[1]);
+  var root = protobufjs.parse(fs.readFileSync(parts[0])).root;
+  var message = root.lookup(parts[1]);
   var val = this.getValue(true);
   return function () {
-    var buf = message.encode(val).toBuffer();
+    var buf = message.encode(val).finish();
     if (!buf.length) {
       throw new Error();
     }

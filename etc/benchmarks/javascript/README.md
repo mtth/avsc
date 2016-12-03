@@ -16,7 +16,7 @@ built-in JSON, MessagePack, SchemaPack, and Protocol Buffers on a sample
 schema:
 
 ```bash
-$ node . \
+node . \
   --avsc \
   --json \
   --msgpack-lite \
@@ -25,19 +25,19 @@ $ node . \
   --schemapack=schemas/Coupon.schemapack.json \
   ../../schemas/Coupon.avsc
 decode "Coupon"
-avsc x 933,993 ops/sec ±1.62% (83 runs sampled)
-json x 262,768 ops/sec ±3.10% (81 runs sampled)
-msgpackLite x 74,712 ops/sec ±3.84% (85 runs sampled)
-protobufjs x 76,688 ops/sec ±1.50% (86 runs sampled)
-protocolBuffers x 445,859 ops/sec ±3.40% (85 runs sampled)
-schemapack x 865,788 ops/sec ±1.46% (86 runs sampled)
+avsc x 873,395 ops/sec ±6.06% (82 runs sampled)
+json x 304,785 ops/sec ±1.71% (88 runs sampled)
+msgpackLite x 59,397 ops/sec ±1.51% (88 runs sampled)
+protobufjs x 654,275 ops/sec ±1.99% (85 runs sampled)
+protocolBuffers x 466,255 ops/sec ±1.37% (91 runs sampled)
+schemapack x 762,265 ops/sec ±2.16% (85 runs sampled)
 encode "Coupon"
-avsc x 523,396 ops/sec ±3.74% (78 runs sampled)
-json x 51,622 ops/sec ±1.17% (89 runs sampled)
-msgpackLite x 74,697 ops/sec ±5.94% (67 runs sampled)
-protobufjs x 20,731 ops/sec ±2.56% (79 runs sampled)
-protocolBuffers x 354,428 ops/sec ±3.27% (78 runs sampled)
-schemapack x 497,618 ops/sec ±1.27% (85 runs sampled)
+avsc x 503,947 ops/sec ±2.30% (84 runs sampled)
+json x 97,496 ops/sec ±2.98% (81 runs sampled)
+msgpackLite x 58,076 ops/sec ±4.41% (66 runs sampled)
+protobufjs x 292,524 ops/sec ±6.64% (58 runs sampled)
+protocolBuffers x 128,208 ops/sec ±9.22% (59 runs sampled)
+schemapack x 235,291 ops/sec ±9.73% (59 runs sampled)
 ```
 
 You can run `node . -h` to view the full list of available options.
