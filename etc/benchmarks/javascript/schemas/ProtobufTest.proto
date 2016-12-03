@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+// https://github.com/dcodeIO/protobuf.js/blob/master/bench/bench.proto
+
+message Test {
+
+  message Inner {
+    int32    int    = 1;
+    InnerInner innerInner = 2;
+    Outer    outer    = 3;
+    message InnerInner {
+      int32  int   = 1;
+      Enum   enum   = 2;
+      int32 int2 = 3;
+    }
+  }
+
+  enum Enum {
+    ONE   = 0;
+    TWO   = 1;
+    THREE = 2;
+    FOUR  = 3;
+    FIVE  = 4;
+  }
+
+  string  string = 1;
+  int32  int = 2;
+  Inner inner  = 3;
+}
+
+message Outer {
+  repeated bool bool = 1;
+}
