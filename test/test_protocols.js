@@ -1773,6 +1773,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('ping', function (req, ee, cb) {
+            debugger;
             ee.on('error', function (err) {
               assert(/multiple/.test(err));
               done();
@@ -1952,6 +1953,95 @@ suite('protocols', function () {
 
   });
 
+  suite('emit v5', function () {
+
+    suite('stateful', function () {
+
+      run(function (clientPtcl, serverPtcl, opts, cb) {
+        if (!cb) {
+          cb = opts;
+          opts = undefined;
+        }
+        var pt1 = new stream.PassThrough();
+        var pt2 = new stream.PassThrough();
+        var client = clientPtcl.createClient(
+          {readable: pt1, writable: pt2},
+          opts
+        );
+        var server = serverPtcl.createServer(opts);
+        server.createListener({readable: pt2, writable: pt1}, opts);
+        cb(client, server);
+      });
+
+    });
+
+    suite('stateless', function () {
+
+      run(function (clientPtcl, serverPtcl, opts, cb) {
+        if (!cb) {
+          cb = opts;
+          opts = undefined;
+        }
+        var client = clientPtcl.createClient(writableFactory, opts);
+        var server = serverPtcl.createServer(opts);
+        cb(client, server);
+
+        function writableFactory(emitterCb) {
+          var reqPt = new stream.PassThrough()
+            .on('finish', function () {
+              server.createListener(function (listenerCb) {
+                var resPt = new stream.PassThrough()
+                  .on('finish', function () { emitterCb(null, resPt); });
+                listenerCb(null, resPt);
+                return reqPt;
+              }, opts);
+            });
+          return reqPt;
+        }
+      });
+
+    });
+
+    function run(setupFn) {
+
+      test('primitive types', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            negate: {
+              request: [{name: 'n', type: 'int'}],
+              response: 'long'
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          server.onNegate(function (n, cb) { cb(null, -n); });
+          client.getEmitter()
+            .on('eot', function () {
+              done();
+            })
+            .once('handshake', function (hreq, hres) {
+              // Allow the initial ping to complete.
+              assert.equal(hres.match, 'BOTH');
+              process.nextTick(function () {
+                client.negate(20, function (err, res) {
+                  assert.equal(this, client.getEmitter());
+                  assert.strictEqual(err, null);
+                  assert.equal(res, -20);
+                  client.negate('ni',  function (err) {
+                    assert(/invalid "int"/.test(err));
+                    this.destroy();
+                  });
+                });
+              });
+            });
+        });
+      });
+
+    }
+
+  });
+
   suite('discover attributes', function () {
 
     var discoverProtocolSchema = protocols.discoverProtocolSchema;
@@ -1966,28 +2056,31 @@ suite('protocols', function () {
           }
         }
       };
-      var ptcl = Protocol.forSchema(schema)
-        .on('upper', function (req, ee, cb) {
-          cb(null, req.str.toUpperCase());
+      var ptcl = Protocol.forSchema(schema);
+      var server = ptcl.createServer()
+        .onUpper(function (str, cb) {
+          cb(null, str.toUpperCase());
         });
       var transports = createPassthroughTransports();
-      ptcl.createListener(transports[1]);
+      server.createListener(transports[1]);
       discoverProtocolSchema(transports[0], function (err, actualAttrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
-        var me = ptcl.createEmitter(transports[0]).on('eot', function() {
+        var client = ptcl.createClient(transports[0]);
+        client.getEmitter().on('eot', function() {
           done();
         });
-        ptcl.emit('upper', {str: 'foo'}, me, function (err, res) {
+        client.upper('foo', function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
-          me.destroy();
+          this.destroy();
         });
       });
     });
 
     test('stateless ok', function (done) {
+      // Using old API.
       var schema = {
         protocol: 'Case',
         messages: {
