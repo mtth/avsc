@@ -279,7 +279,7 @@ suite('protocols', function () {
     var Message = protocols.Message;
 
     test('empty errors', function () {
-      var m = new Message('Hi', {
+      var m = Message.forSchema('Hi', {
         request: [{name: 'greeting', type: 'string'}],
         response: 'int'
       });
@@ -288,7 +288,7 @@ suite('protocols', function () {
 
     test('missing response', function () {
       assert.throws(function () {
-        new Message('Hi', {
+        Message.forSchema('Hi', {
           request: [{name: 'greeting', type: 'string'}]
         });
       });
@@ -297,7 +297,7 @@ suite('protocols', function () {
     test('invalid one-way', function () {
       // Non-null response.
       assert.throws(function () {
-        new Message('Hi', {
+        Message.forSchema('Hi', {
           request: [{name: 'greeting', type: 'string'}],
           response: 'string',
           'one-way': true
@@ -305,7 +305,7 @@ suite('protocols', function () {
       });
       // Non-empty errors.
       assert.throws(function () {
-        new Message('Hi', {
+        Message.forSchema('Hi', {
           request: [{name: 'greeting', type: 'string'}],
           response: 'null',
           errors: ['int'],
@@ -315,7 +315,7 @@ suite('protocols', function () {
     });
 
     test('getters', function () {
-      var m = new Message('Ping', {
+      var m = Message.forSchema('Ping', {
         request: [{name: 'ping', type: 'string'}],
         response: 'null'
       });
@@ -326,7 +326,7 @@ suite('protocols', function () {
     });
 
     test('inspect', function () {
-      var m = new Message('Ping', {
+      var m = Message.forSchema('Ping', {
         request: [{name: 'ping', type: 'string'}],
         response: 'null',
         'one-way': true
@@ -339,7 +339,7 @@ suite('protocols', function () {
         request: [{name: 'ping', type: 'string'}],
         response: 'null',
       };
-      var m = new Message('Ping', schema);
+      var m = Message.forSchema('Ping', schema);
       assert.deepEqual(JSON.parse(m.toString()), schema);
     });
 
@@ -349,7 +349,7 @@ suite('protocols', function () {
         response: 'null',
         doc: 'Pong'
       };
-      var m = new Message('Ping', schema);
+      var m = Message.forSchema('Ping', schema);
       assert.equal(m.getDocumentation(), 'Pong');
     });
 
@@ -908,14 +908,16 @@ suite('protocols', function () {
       };
 
       ptcl.createListener(transports[0])
-        .onMessage(function (name, env, ptcl, cb) {
+        .onMessage(function (name, env, cb) {
           // Somehow message equality fails here (but not in the response
           // envelope below). This might be because a new protocol is created
           // from handshakes on the listener, but not on the emitter?
           assert.equal(name, 'negate');
           assert.equal(this.getPending(), 1);
           assert.deepEqual(env, reqEnv);
-          assert.strictEqual(this.getProtocol().getHandler(name), skip);
+          assert.throws(function () {
+            this.getProtocol().getHandler(name)();
+          }, /no/);
           cb(null, resEnv);
         });
 
@@ -925,9 +927,9 @@ suite('protocols', function () {
           done();
         });
 
-      ee.emitMessage('negate', reqEnv, function (err, env, meta) {
+      ee.emitMessage('negate', reqEnv, function (err, env) {
         assert.deepEqual(env, resEnv);
-        assert(this.getProtocol().equals(meta.serverProtocol));
+        assert(this.getProtocol().equals(ptcl));
         this.destroy();
       });
 
