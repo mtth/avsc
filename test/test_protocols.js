@@ -1979,7 +1979,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNegate(function (n, cb) { cb(null, -n); });
-          var emitter = client.getActiveEmitters()[0];
+          var emitter = client.getEmitters()[0];
           emitter.on('eot', function () {
               done();
             })
@@ -2047,7 +2047,7 @@ suite('protocols', function () {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
           var isDone = false;
-          var emitter = client.getActiveEmitters()[0];
+          var emitter = client.getEmitters()[0];
           client
             .use(function (wreq, next) {
               // No callback.
@@ -2071,6 +2071,50 @@ suite('protocols', function () {
             .neg(2, function (err, res) {
               assert.strictEqual(err, null);
               assert.equal(res, -3);
+              assert(isDone);
+              done();
+            });
+        });
+      });
+
+      test('server middleware', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          var isDone = false;
+          var buf = new Buffer([0, 1]);
+          var listener; // Listener isn't ready yet.
+          server
+            .use(function (wreq, next) {
+              if (wreq.getMessage().isPing()) {
+                next();
+                return;
+              }
+              assert.strictEqual(this.getServer(), server);
+              listener = this;
+              assert.deepEqual(wreq.getRequest(), {n: 2});
+              next(null, function (wres, prev) {
+                assert.strictEqual(this, listener);
+                wres.getHeader().buf = buf;
+                prev();
+              });
+            })
+            .onNeg(function (n, cb) { cb(null, -n); });
+          client
+            .use(function (wreq, next) {
+              next(null, function (wres, prev) {
+                assert.deepEqual(wres.getHeader(), {buf: buf});
+                isDone = true;
+                prev();
+              });
+            })
+            .neg(2, function (err, res) {
+              assert.strictEqual(err, null);
+              assert.equal(res, -2);
               assert(isDone);
               done();
             });
