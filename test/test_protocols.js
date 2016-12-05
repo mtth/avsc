@@ -1441,42 +1441,6 @@ suite('protocols', function () {
         });
       });
 
-      test('invalid strict error', function (done) {
-        var ptcl = Protocol.forSchema({
-          protocol: 'Math',
-          messages: {
-            sqrt: {
-              request: [{name: 'n', type: 'float'}],
-              response: 'float'
-            }
-          }
-        }).on('sqrt', function (req, ee, cb) {
-          var n = req.n;
-          if (n === -1) {
-            cb(new Error('no i')); // Invalid error (should be a string).
-          } else if (n < 0) {
-            cb({error: 'complex'}); // Also invalid error.
-          } else {
-            cb(undefined, Math.sqrt(n));
-          }
-        });
-        setupFn(ptcl, ptcl, {strictErrors: true}, function (ee) {
-          ptcl.emit('sqrt', {n: -1}, ee, function (err) {
-            assert(/invalid \["string"\]/.test(err));
-            ptcl.emit('sqrt', {n: -2}, ee, function (err) {
-              assert(/invalid \["string"\]/.test(err));
-              ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
-                // The server still doesn't die (we can make a new request).
-                debugger;
-                assert.strictEqual(err, undefined);
-                assert(Math.abs(res - 10) < 1e-5);
-                done();
-              });
-            });
-          });
-        });
-      });
-
       test('out of order', function (done) {
         var ptcl = Protocol.forSchema({
           protocol: 'Delay',
@@ -1964,10 +1928,8 @@ suite('protocols', function () {
         }
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
-        var client = clientPtcl.createClient(
-          opts,
-          {readable: pt1, writable: pt2}
-        );
+        var client = clientPtcl.createClient(opts);
+        client.createEmitter({readable: pt1, writable: pt2});
         var server = serverPtcl.createServer(opts);
         server.createListener({readable: pt2, writable: pt1}, opts);
         cb(client, server);
@@ -1982,7 +1944,8 @@ suite('protocols', function () {
           cb = opts;
           opts = undefined;
         }
-        var client = clientPtcl.createClient(opts, writableFactory);
+        var client = clientPtcl.createClient(opts);
+        client.createEmitter(writableFactory);
         var server = serverPtcl.createServer(opts);
         cb(client, server);
 
@@ -2034,6 +1997,82 @@ suite('protocols', function () {
                   });
                 });
               });
+            });
+        });
+      });
+
+      test('invalid strict error', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            sqrt: {
+              request: [{name: 'n', type: 'float'}],
+              response: 'float'
+            }
+          }
+        });
+        setupFn(ptcl, ptcl, {strictErrors: true}, function (client, server) {
+          server.onSqrt(function (n, cb) {
+            if (n === -1) {
+              cb(new Error('no i')); // Invalid error (should be a string).
+            } else if (n < 0) {
+              cb({error: 'complex'}); // Also invalid error.
+            } else {
+              cb(undefined, Math.sqrt(n));
+            }
+          });
+          client.sqrt(-1, function (err) {
+            assert(/invalid \["string"\]/.test(err));
+            client.sqrt(-2, function (err) {
+              assert(/invalid \["string"\]/.test(err));
+              client.sqrt(100, function (err, res) {
+                // The server still doesn't die (we can make a new request).
+                assert.strictEqual(err, undefined);
+                assert(Math.abs(res - 10) < 1e-5);
+                done();
+              });
+            });
+          });
+        });
+      });
+
+      test('client middleware', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          server.onNeg(function (n, cb) { cb(null, -n); });
+          var buf = new Buffer([0, 1]);
+          var isDone = false;
+          var emitter = client.getActiveEmitters()[0];
+          client
+            .use(function (wreq, next) {
+              // No callback.
+              assert.strictEqual(this, emitter);
+              assert.deepEqual(wreq.getHeader(), {});
+              wreq.getHeader().buf = buf;
+              assert.deepEqual(wreq.getRequest(), {n: 2});
+              next();
+            })
+            .use(function (wreq, next) {
+              // Callback here.
+              assert.deepEqual(wreq.getHeader(), {buf: buf});
+              wreq.getRequest().n = 3;
+              next(null, function (wres, prev) {
+                assert.strictEqual(this, emitter);
+                assert.deepEqual(wres.getResponse(), -3);
+                isDone = true;
+                prev();
+              });
+            })
+            .neg(2, function (err, res) {
+              assert.strictEqual(err, null);
+              assert.equal(res, -3);
+              assert(isDone);
+              done();
             });
         });
       });
