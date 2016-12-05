@@ -671,14 +671,15 @@ suite('protocols', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = new stream.PassThrough({objectMode: true});
-      var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
-        .on('eot', function () { done(); });
+      var transports = createPassthroughTransports(true);
+      var ee = ptcl.createEmitter(
+        transports[0], {objectMode: true, timeout: 0}
+      ).on('eot', function () { done(); });
       assert.throws(function () {
         ee.emitMessage({message: ptcl.getMessage('ping'), request: {}});
       }, /missing callback/);
       ee.emitMessage('foo', {request: {}}, function (err) {
-        assert(/missing message/.test(err));
+        assert(/unknown message/.test(err));
         ee.destroy();
       });
     });
@@ -762,7 +763,7 @@ suite('protocols', function () {
       }).on('ping', function (req, ml, cb) { cb(null, true); });
       var transports = createPassthroughTransports();
       p2.createListener(transports[0]);
-      p1.createEmitter(transports[1])
+      p1.createEmitter(transports[1], {endWritable: false})
         .on('handshake', function (hreq, hres) {
           this.destroy();
           assert.equal(hres.serverProtocol, p2.getSchema({asString: true}));
@@ -771,8 +772,10 @@ suite('protocols', function () {
           // The transports are still available for a connection.
           var me = p2.createEmitter(transports[1]);
           p2.emit('ping', {}, me, function (err, res) {
+            assert.strictEqual(err, null);
             assert.strictEqual(res, true);
-            done();
+            me.on('eot', function () { done(); })
+              .destroy();
           });
         });
     });
@@ -1234,12 +1237,12 @@ suite('protocols', function () {
           var n1, n2;
           ee.on('eot', function () {
             assert.equal(n1, 1);
-            assert.equal(n2, 0);
+            assert.equal(n2, 1);
             done();
           }).once('handshake', function (hreq, hres) {
             // Allow the initial ping to complete.
             assert.equal(hres.match, 'BOTH');
-            process.nextTick(function () {
+            setTimeout(function () {
               // Also let the pending count go down.
               n1 = ptcl.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.equal(this, ptcl);
@@ -1247,10 +1250,10 @@ suite('protocols', function () {
                 assert.equal(res, -20);
                 n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
                   assert(/invalid "int"/.test(err));
-                  ee.destroy();
+                  process.nextTick(function () { ee.destroy(); });
                 });
               });
-            });
+            }, 0);
           });
         });
       });
@@ -1482,7 +1485,7 @@ suite('protocols', function () {
             assert.equal(n1, 1);
             assert.equal(n2, 2);
             assert.equal(n3, 3);
-            assert.deepEqual(ids, [null, 'b', 'a']);
+            assert.deepEqual(ids, [undefined, 'b', 'a']);
             done();
           }).once('handshake', function (hreq, hres) {
             assert.equal(hres.match, 'BOTH');
@@ -1869,7 +1872,7 @@ suite('protocols', function () {
             assert.equal(res, -20);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/no emitters available/.test(err.message));
+              assert(/destroyed/.test(err.message));
               done();
             });
           });
