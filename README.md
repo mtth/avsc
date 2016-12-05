@@ -92,7 +92,7 @@ const avro = require('avsc');
       .onPing((cb) => { cb(null, 'pong'); });
     // Finally, respond to incoming TCP connections.
     require('net').createServer()
-      .on('connection', server.callback())
+      .on('connection', (con) => { server.createListener(con); })
       .listen(8000);
   });
   ```

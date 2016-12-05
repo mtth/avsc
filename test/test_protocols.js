@@ -353,6 +353,19 @@ suite('protocols', function () {
       assert.equal(m.getDocumentation(), 'Pong');
     });
 
+    test('invalid types', function () {
+      assert.throws(function () {
+        new Message('intRequest', types.Type.forSchema('int'));
+      }, /invalid request type/);
+      assert.throws(function () {
+        new Message(
+          'intError',
+          types.Type.forSchema({type: 'record', fields: []}),
+          types.Type.forSchema('int')
+        );
+      }, /invalid error type/);
+    });
+
   });
 
   suite('FrameDecoder & FrameEncoder', function () {
