@@ -916,7 +916,7 @@ suite('protocols', function () {
           assert.equal(this.getPending(), 1);
           assert.deepEqual(env, reqEnv);
           assert.throws(function () {
-            this.getProtocol().getHandler(name)();
+            ptcl.getHandler(name)();
           }, /no/);
           cb(null, resEnv);
         });
@@ -1467,6 +1467,7 @@ suite('protocols', function () {
               assert(/invalid \["string"\]/.test(err));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
                 // The server still doesn't die (we can make a new request).
+                debugger;
                 assert.strictEqual(err, undefined);
                 assert(Math.abs(res - 10) < 1e-5);
                 done();
@@ -1773,7 +1774,6 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('ping', function (req, ee, cb) {
-            debugger;
             ee.on('error', function (err) {
               assert(/multiple/.test(err));
               done();
@@ -1892,7 +1892,7 @@ suite('protocols', function () {
             assert.equal(res, -20);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/destroyed/.test(err.message));
+              assert(/no emitters available/.test(err.message));
               done();
             });
           });
@@ -1965,8 +1965,8 @@ suite('protocols', function () {
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
         var client = clientPtcl.createClient(
-          {readable: pt1, writable: pt2},
-          opts
+          opts,
+          {readable: pt1, writable: pt2}
         );
         var server = serverPtcl.createServer(opts);
         server.createListener({readable: pt2, writable: pt1}, opts);
@@ -1982,7 +1982,7 @@ suite('protocols', function () {
           cb = opts;
           opts = undefined;
         }
-        var client = clientPtcl.createClient(writableFactory, opts);
+        var client = clientPtcl.createClient(opts, writableFactory);
         var server = serverPtcl.createServer(opts);
         cb(client, server);
 
@@ -2016,8 +2016,8 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNegate(function (n, cb) { cb(null, -n); });
-          client.getEmitter()
-            .on('eot', function () {
+          var emitter = client.getActiveEmitters()[0];
+          emitter.on('eot', function () {
               done();
             })
             .once('handshake', function (hreq, hres) {
@@ -2025,7 +2025,7 @@ suite('protocols', function () {
               assert.equal(hres.match, 'BOTH');
               process.nextTick(function () {
                 client.negate(20, function (err, res) {
-                  assert.equal(this, client.getEmitter());
+                  assert.equal(this, emitter);
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negate('ni',  function (err) {
@@ -2067,10 +2067,11 @@ suite('protocols', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
-        var client = ptcl.createClient(transports[0]);
-        client.getEmitter().on('eot', function() {
-          done();
-        });
+        var client = ptcl.createClient();
+        client.createEmitter(transports[0])
+          .on('eot', function() {
+            done();
+          });
         client.upper('foo', function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
