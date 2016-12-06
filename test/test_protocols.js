@@ -698,7 +698,7 @@ suite('protocols', function () {
         .on('eot', function () { done(); });
       assert.strictEqual(ee.getTimeout(), 0);
       ee.emitMessage('ping', {request: {}}, function (err) {
-        assert(/invalid response/.test(err));
+        assert.equal(err.rpcCode, 'INVALID_RESPONSE');
         assert(!this.isDestroyed());
         this.destroy();
       });
@@ -816,7 +816,7 @@ suite('protocols', function () {
           .on('finish', function () { cb(new Error('foobar')); });
       }, {noPing: true, objectMode: true, strictErrors: true});
       ptcl.emit('ping', {}, ee, function (err) {
-        assert.deepEqual(err, {string: 'foobar'});
+        assert(/foobar/.test(err.string));
         assert(!ee.isDestroyed());
         done();
       });
@@ -832,7 +832,7 @@ suite('protocols', function () {
           .on('finish', function () { cb(new Error('foobar')); });
       }, {noPing: true, strictErrors: true});
       ptcl.emit('ping', {}, ee, function (err) {
-        assert.deepEqual(err, {string: 'foobar'});
+        assert(/foobar/.test(err.string));
         assert(!ee.isDestroyed());
         done();
       });
@@ -1249,7 +1249,7 @@ suite('protocols', function () {
                 assert.strictEqual(err, null);
                 assert.equal(res, -20);
                 n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
-                  assert(/invalid "int"/.test(err));
+                  assert.equal(err.rpcCode, 'INVALID_REQUEST');
                   process.nextTick(function () { ee.destroy(); });
                 });
               });
@@ -1327,7 +1327,7 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function () { done(); });
           ptcl.emit('negate', {n: 'a'}, ee, function (err) {
-            assert(/invalid "int"/.test(err.message), null);
+            assert.equal(err.rpcCode, 'INVALID_REQUEST');
             ee.destroy();
           });
         });
@@ -1440,18 +1440,22 @@ suite('protocols', function () {
           var n = req.n;
           if (n < 0) {
             cb(null, 'complex'); // Invalid response.
+          } else if (n === 0) {
+            cb(new Error('zero!')); // Ok error response.
           } else {
             cb(null, Math.sqrt(n));
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
-            // The server error message is propagated to the client.
-            assert(/invalid "float"/.test(err.message));
-            ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
-              // And the server doesn't die (we can make a new request).
-              assert(Math.abs(res - 10) < 1e-5);
-              done();
+            assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+            ptcl.emit('sqrt', {n: 0}, ee, function (err) {
+              assert.equal(err.message, 'zero!');
+              ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
+                // And the server doesn't die (we can make a new request).
+                assert(Math.abs(res - 10) < 1e-5);
+                done();
+              });
             });
           });
         });
@@ -1918,7 +1922,7 @@ suite('protocols', function () {
             .on('error1', function () { throw new Error('foobar'); })
             .on('negate', function (req, ee, cb) { cb(null, -req.n); })
             .emit('error1', {}, ee, function (err) {
-              assert(/foobar/.test(err));
+              assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
               // But the server doesn't die.
               this.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.strictEqual(err, null);
@@ -1942,6 +1946,8 @@ suite('protocols', function () {
           cb = opts;
           opts = undefined;
         }
+        opts = opts || {};
+        opts.silent = true;
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
         var client = clientPtcl.createClient(opts);
@@ -1960,6 +1966,8 @@ suite('protocols', function () {
           cb = opts;
           opts = undefined;
         }
+        opts = opts || {};
+        opts.silent = true;
         var client = clientPtcl.createClient(opts);
         client.createEmitter(writableFactory);
         var server = serverPtcl.createServer(opts);
@@ -2008,7 +2016,8 @@ suite('protocols', function () {
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negate('ni',  function (err) {
-                    assert(/invalid "int"/.test(err));
+                    assert(/invalid "int"/.test(err.message));
+                    assert.equal(err.rpcCode, 'INVALID_REQUEST');
                     this.destroy();
                   });
                 });
@@ -2032,15 +2041,15 @@ suite('protocols', function () {
             if (n === -1) {
               cb(new Error('no i')); // Invalid error (should be a string).
             } else if (n < 0) {
-              cb({error: 'complex'}); // Also invalid error.
+              throw new Error('negative');
             } else {
               cb(undefined, Math.sqrt(n));
             }
           });
           client.sqrt(-1, function (err) {
-            assert(/invalid \["string"\]/.test(err));
+            assert.equal(err, 'INTERNAL_SERVER_ERROR');
             client.sqrt(-2, function (err) {
-              assert(/invalid \["string"\]/.test(err));
+              assert.equal(err, 'INTERNAL_SERVER_ERROR');
               client.sqrt(100, function (err, res) {
                 // The server still doesn't die (we can make a new request).
                 assert.strictEqual(err, undefined);
