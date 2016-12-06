@@ -2062,12 +2062,14 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
+          var id = 123;
           var isDone = false;
           var emitter = client.getEmitters()[0];
           client
             .use(function (wreq, next) {
               // No callback.
               assert.strictEqual(this, emitter);
+              this.getContext().id = id;
               assert.deepEqual(wreq.getHeader(), {});
               wreq.getHeader().buf = buf;
               assert.deepEqual(wreq.getRequest(), {n: 2});
@@ -2080,6 +2082,7 @@ suite('protocols', function () {
               next(null, function (wres, prev) {
                 assert.strictEqual(this, emitter);
                 assert.deepEqual(wres.getResponse(), -3);
+                assert.equal(this.getContext().id, 123)
                 isDone = true;
                 prev();
               });
