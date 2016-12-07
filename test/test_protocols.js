@@ -1807,7 +1807,7 @@ suite('protocols', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/unhandled/.test(err));
+            assert(/NOT_IMPLEMENTED/.test(err));
             done();
           });
         });
@@ -2056,6 +2056,7 @@ suite('protocols', function () {
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negate('ni',  function (err) {
+                    debugger;
                     assert(/invalid "int"/.test(err.message));
                     assert.equal(err.rpcCode, 'INVALID_REQUEST');
                     this.destroy();
@@ -2115,7 +2116,7 @@ suite('protocols', function () {
           var isDone = false;
           var emitter = client.getEmitters()[0];
           client
-            .use(function (wreq, next) {
+            .use(function (wreq, wres, next) {
               // No callback.
               assert.strictEqual(this, emitter);
               this.getContext().id = id;
@@ -2124,11 +2125,12 @@ suite('protocols', function () {
               assert.deepEqual(wreq.getRequest(), {n: 2});
               next();
             })
-            .use(function (wreq, next) {
+            .use(function (wreq, wres, next) {
               // Callback here.
               assert.deepEqual(wreq.getHeader(), {buf: buf});
               wreq.getRequest().n = 3;
-              next(null, function (wres, prev) {
+              next(null, function (err, prev) {
+                assert(!err);
                 assert.strictEqual(this, emitter);
                 assert.deepEqual(wres.getResponse(), -3);
                 assert.equal(this.getContext().id, 123)
@@ -2157,15 +2159,11 @@ suite('protocols', function () {
           var buf = new Buffer([0, 1]);
           var listener; // Listener isn't ready yet.
           server
-            .use(function (wreq, next) {
-              if (wreq.getMessage().isPing()) {
-                next();
-                return;
-              }
+            .use(function (wreq, wres, next) {
               assert.strictEqual(this.getServer(), server);
               listener = this;
               assert.deepEqual(wreq.getRequest(), {n: 2});
-              next(null, function (wres, prev) {
+              next(null, function (err, prev) {
                 assert.strictEqual(this, listener);
                 wres.getHeader().buf = buf;
                 prev();
@@ -2173,8 +2171,8 @@ suite('protocols', function () {
             })
             .onNeg(function (n, cb) { cb(null, -n); });
           client
-            .use(function (wreq, next) {
-              next(null, function (wres, prev) {
+            .use(function (wreq, wres, next) {
+              next(null, function (err, prev) {
                 assert.deepEqual(wres.getHeader(), {buf: buf});
                 isDone = true;
                 prev();
