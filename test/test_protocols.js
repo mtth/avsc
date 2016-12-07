@@ -272,6 +272,19 @@ suite('protocols', function () {
       }
     });
 
+    test('createClient transport option', function () {
+      var ptcl = Protocol.forSchema({protocol: 'Empty'});
+      var client = ptcl.createClient({transport: new stream.PassThrough()});
+      assert.deepEqual(client.getEmitters().length, 1);
+    });
+
+    test('createListener strict', function () {
+      var ptcl = Protocol.forSchema({protocol: 'Empty'});
+      assert.throws(function () {
+        ptcl.createListener(new stream.PassThrough(), {strictErrors: true});
+      });
+    });
+
   });
 
   suite('Message', function () {
@@ -933,7 +946,8 @@ suite('protocols', function () {
           assert.deepEqual(env, reqEnv);
           assert.throws(function () {
             ptcl.getHandler(name)();
-          }, /no/);
+          }, /nothing/);
+          assert.strictEqual(ptcl.getHandler('foo'), undefined);
           cb(null, resEnv);
         });
 
@@ -949,7 +963,7 @@ suite('protocols', function () {
         this.destroy();
       });
 
-      function skip() { throw new Error('no'); }
+      function skip() { throw new Error('nothing'); }
     });
 
     test('readable ended', function (done) {
@@ -1063,7 +1077,7 @@ suite('protocols', function () {
 
   });
 
-  suite('emit', function () {
+  suite('emitters & listeners', function () { // <5.0 API.
 
     suite('stateful', function () {
 
@@ -1937,7 +1951,33 @@ suite('protocols', function () {
 
   });
 
-  suite('emit v5', function () {
+  suite('Client', function () {
+
+    test('no emitters', function (done) {
+      var ptcl = Protocol.forSchema({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = {
+        readable: new stream.PassThrough(),
+        writable: new stream.PassThrough()
+      };
+      var client = ptcl.createClient()
+        .on('error', function (err) {
+          assert(/no emitters available/.test(err));
+          done();
+        });
+      // With callback.
+      client.ping(function (err) {
+        assert(/no emitters available/.test(err));
+        // Without
+        client.ping();
+      });
+    });
+
+  });
+
+  suite('clients & servers', function () { // >=5.0 API.
 
     suite('stateful', function () {
 
