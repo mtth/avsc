@@ -1975,6 +1975,45 @@ suite('protocols', function () {
       });
     });
 
+    test('destroy emitters', function (done) {
+      var ptcl = Protocol.forSchema({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = {
+        readable: new stream.PassThrough(),
+        writable: new stream.PassThrough()
+      };
+      var client = ptcl.createClient();
+      var emitter = client.createEmitter(transport)
+        .on('eot', function () {
+          done();
+        });
+      client.destroyEmitters({noWait: true});
+    });
+
+    test('policy', function (done) {
+      var ptcl = Protocol.forSchema({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = {
+        readable: new stream.PassThrough(),
+        writable: new stream.PassThrough()
+      };
+      var client = ptcl.createClient({emitterPolicy: policy});
+      var emitters = [
+        client.createEmitter(transport),
+        client.createEmitter(transport)
+      ];
+      client.ping();
+
+      function policy(actualEmitters) {
+        assert.deepEqual(actualEmitters, emitters);
+        done();
+      }
+    });
+
   });
 
   suite('clients & servers', function () { // >=5.0 API.
@@ -2042,7 +2081,11 @@ suite('protocols', function () {
           }
         });
         setupFn(ptcl, ptcl, function (client, server) {
-          server.onNegate(function (n, cb) { cb(null, -n); });
+          server
+            .onNegate(function (n, cb) {
+              assert.strictEqual(this.getServer(), server);
+              cb(null, -n);
+            });
           var emitter = client.getEmitters()[0];
           emitter.on('eot', function () {
               done();
@@ -2056,7 +2099,6 @@ suite('protocols', function () {
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negate('ni',  function (err) {
-                    debugger;
                     assert(/invalid "int"/.test(err.message));
                     assert.equal(err.rpcCode, 'INVALID_REQUEST');
                     this.destroy();
@@ -2185,6 +2227,33 @@ suite('protocols', function () {
               done();
             });
         });
+      });
+
+      test('error formatter', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        var opts = {errorFormatter: formatter};
+        var barErr = new Error('bar');
+        setupFn(ptcl, ptcl, opts, function (client, server) {
+          var isDone = false;
+          var buf = new Buffer([0, 1]);
+          server
+            .onNeg(function (n, cb) { throw barErr; });
+          client
+            .neg(2, function (err) {
+              assert(/FOO/.test(err));
+              done();
+            });
+        });
+
+        function formatter(err) {
+          assert.strictEqual(err, barErr);
+          return 'FOO';
+        }
       });
 
     }
