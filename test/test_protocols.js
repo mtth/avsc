@@ -1773,7 +1773,7 @@ suite('protocols', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('ping', function (req, ee, cb) {
             ee.on('error', function (err) {
-              assert(/multiple/.test(err));
+              assert(/duplicate/.test(err));
               done();
             });
             cb(null, null);
@@ -2254,6 +2254,31 @@ suite('protocols', function () {
         });
       });
 
+      test('client middleware duplicate forward calls', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          server.onNeg(function (n, cb) { cb(null, -n); });
+          client.getEmitters()[0]
+            .on('error', function (err) {
+              assert(/duplicate middleware forward/.test(err.message));
+              setTimeout(function () { done(); }, 0);
+            });
+          client
+            .use(function (wreq, wres, next) {
+              next();
+              next();
+            })
+            .neg(2, function (err, res) {
+              assert.equal(res, -2);
+            });
+        });
+      });
+
       test('server middleware', function (done) {
         var ptcl = Protocol.forSchema({
           protocol: 'Math',
@@ -2295,6 +2320,35 @@ suite('protocols', function () {
         });
       });
 
+      test('server middleware duplicate backward calls', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          server
+            .use(function (wreq, wres, next) {
+              // Attach error handler to listener.
+              this.on('error', function (err) {
+                assert(/duplicate/.test(err));
+                setTimeout(function () { done(); }, 0);
+              });
+              next(null, function (err, prev) {
+                prev();
+                prev();
+              });
+            })
+            .onNeg(function (n, cb) { cb(null, -n); });
+          client
+            .neg(2, function (err, res) {
+              assert.strictEqual(err, null);
+              assert.equal(res, -2);
+            });
+        });
+      });
+
       test('error formatter', function (done) {
         var ptcl = Protocol.forSchema({
           protocol: 'Math',
@@ -2303,18 +2357,34 @@ suite('protocols', function () {
           }
         });
         var opts = {errorFormatter: formatter};
-        var barErr = new Error('bar');
+        var numErrs = 0;
+        var numFormats = 0;
+        var barErr = new Error('baribababa');
         setupFn(ptcl, ptcl, opts, function (client, server) {
           server
-            .onNeg(function () { throw barErr; });
+            .onNeg(function () { throw barErr; })
+            .on('error', function (err) {
+              process.nextTick(function () {
+                // Allow other assertion to complete.
+                assert.strictEqual(err, barErr);
+                if (++numErrs === 2) {
+                  done();
+                }
+              });
+            });
           client
             .neg(2, function (err) {
               assert(/FOO/.test(err));
-              done();
+              client.neg(1, function (err) {
+                assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+              });
             });
         });
 
         function formatter(err) {
+          if (numFormats++) {
+            throw new Error('format!');
+          }
           assert.strictEqual(err, barErr);
           return 'FOO';
         }
