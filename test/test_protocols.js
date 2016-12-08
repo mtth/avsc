@@ -1464,7 +1464,7 @@ suite('protocols', function () {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
             assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
             ptcl.emit('sqrt', {n: 0}, ee, function (err) {
-              assert.equal(err.message, 'zero!');
+              assert(/zero!/.test(err.message));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
                 // And the server doesn't die (we can make a new request).
                 assert(Math.abs(res - 10) < 1e-5);
