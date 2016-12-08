@@ -1958,10 +1958,6 @@ suite('protocols', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = {
-        readable: new stream.PassThrough(),
-        writable: new stream.PassThrough()
-      };
       var client = ptcl.createClient()
         .on('error', function (err) {
           assert(/no emitters available/.test(err));
@@ -1985,14 +1981,32 @@ suite('protocols', function () {
         writable: new stream.PassThrough()
       };
       var client = ptcl.createClient();
-      var emitter = client.createEmitter(transport)
+      client.createEmitter(transport)
         .on('eot', function () {
           done();
         });
       client.destroyEmitters({noWait: true});
     });
 
-    test('policy', function (done) {
+    test('default policy', function (done) {
+      var ptcl = Protocol.forSchema({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'null', 'one-way': true}}
+      });
+      var transport = {
+        readable: new stream.PassThrough(),
+        writable: new stream.PassThrough()
+      };
+      var client = ptcl.createClient();
+      client.createEmitter(transport, {noPing: true});
+      client.createEmitter(transport, {noPing: true});
+      client.ping(function (err) {
+        assert(!err);
+        done();
+      });
+    });
+
+    test('custom policy', function (done) {
       var ptcl = Protocol.forSchema({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
@@ -2001,6 +2015,7 @@ suite('protocols', function () {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
+
       var client = ptcl.createClient({emitterPolicy: policy});
       var emitters = [
         client.createEmitter(transport),
@@ -2012,6 +2027,56 @@ suite('protocols', function () {
         assert.deepEqual(actualEmitters, emitters);
         done();
       }
+    });
+
+    test('remote protocol', function () {
+      var ptcl1 = Protocol.forSchema({protocol: 'Empty1'});
+      var ptcl2 = Protocol.forSchema({protocol: 'Empty2'});
+      var remotePtcls = {abc: ptcl2};
+      var client = ptcl1.createClient({remoteProtocols: remotePtcls});
+      assert.deepEqual(client.getRemoteProtocols(), remotePtcls);
+    });
+
+  });
+
+  suite('Server', function () {
+
+    test('get listeners', function (done) {
+      var ptcl = Protocol.forSchema({protocol: 'Empty1'});
+      var server = ptcl.createServer();
+      var transport = {
+        readable: new stream.PassThrough(),
+        writable: new stream.PassThrough()
+      };
+      var listeners = [
+        server.createListener(transport),
+        server.createListener(transport)
+      ];
+      assert.deepEqual(server.getListeners(), listeners);
+      listeners[0]
+        .on('eot', function () {
+          assert.deepEqual(server.getListeners(), [listeners[1]]);
+          done();
+        })
+        .destroy();
+    });
+
+    test('remote protocol', function () {
+      var ptcl1 = Protocol.forSchema({protocol: 'Empty1'});
+      var ptcl2 = Protocol.forSchema({protocol: 'Empty2'});
+      var remotePtcls = {abc: ptcl2};
+      var server = ptcl1.createServer({remoteProtocols: remotePtcls});
+      assert.deepEqual(server.getRemoteProtocols(), remotePtcls);
+    });
+
+    test('no capitalization', function () {
+      var ptcl = Protocol.forSchema({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var server = ptcl.createServer({noCapitalize: true});
+      assert(!server.onPing);
+      assert(typeof server.onping == 'function');
     });
 
   });
@@ -2175,7 +2240,7 @@ suite('protocols', function () {
                 assert(!err);
                 assert.strictEqual(this, emitter);
                 assert.deepEqual(wres.getResponse(), -3);
-                assert.equal(this.getContext().id, 123)
+                assert.equal(this.getContext().id, 123);
                 isDone = true;
                 prev();
               });
@@ -2205,6 +2270,7 @@ suite('protocols', function () {
               assert.strictEqual(this.getServer(), server);
               listener = this;
               assert.deepEqual(wreq.getRequest(), {n: 2});
+              assert.deepEqual(this.getContext(), {});
               next(null, function (err, prev) {
                 assert.strictEqual(this, listener);
                 wres.getHeader().buf = buf;
@@ -2239,10 +2305,8 @@ suite('protocols', function () {
         var opts = {errorFormatter: formatter};
         var barErr = new Error('bar');
         setupFn(ptcl, ptcl, opts, function (client, server) {
-          var isDone = false;
-          var buf = new Buffer([0, 1]);
           server
-            .onNeg(function (n, cb) { throw barErr; });
+            .onNeg(function () { throw barErr; });
           client
             .neg(2, function (err) {
               assert(/FOO/.test(err));
@@ -2254,6 +2318,41 @@ suite('protocols', function () {
           assert.strictEqual(err, barErr);
           return 'FOO';
         }
+      });
+
+      test('remote protocols', function (done) {
+        var clientPtcl = Protocol.forSchema({
+          protocol: 'Math1',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
+          }
+        });
+        var serverPtcl = Protocol.forSchema({
+          protocol: 'Math2',
+          messages: {
+            neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
+          }
+        });
+        setupFn(clientPtcl, serverPtcl, function (client, server) {
+          server
+            .onNeg(function (n, cb) { cb(null, -n); });
+          client
+            .neg(2, function (err, res) {
+              assert.equal(res, -2);
+              var ptcls, hss;
+              // Client.
+              ptcls = client.getRemoteProtocols();
+              hss = Object.keys(ptcls);
+              assert.equal(hss.length, 1);
+              assert(ptcls[hss[0]].equals(serverPtcl));
+              // Server.
+              ptcls = server.getRemoteProtocols();
+              hss = Object.keys(ptcls);
+              assert.equal(hss.length, 1);
+              assert(ptcls[hss[0]].equals(clientPtcl));
+              done();
+            });
+        });
       });
 
     }
