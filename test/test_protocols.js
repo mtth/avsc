@@ -876,6 +876,27 @@ suite('protocols', function () {
       });
     });
 
+    test('invalid handshake response', function (done) {
+      var ptcl = Protocol.forSchema({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'null'}}
+      });
+      var readable = new stream.PassThrough({objectMode: true});
+      var writable = new stream.PassThrough({objectMode: true})
+        .on('data', function (data) {
+          var buf = new Buffer([0, 0, 0, 2, 48]);
+          readable.write({id: data.id, payload: [buf]});
+        });
+      var ee = ptcl.createEmitter(function (cb) {
+        cb(null, readable);
+        return writable;
+      }, {noPing: true, objectMode: true, endWritable: false});
+      ptcl.emit('ping', {}, ee, function (err) {
+        assert(/INVALID_HANDSHAKE_RESPONSE/.test(err.rpcCode));
+        done();
+      });
+    });
+
     test('interrupt writable', function (done) {
       var ptcl = Protocol.forSchema({
         protocol: 'Ping',
@@ -2378,6 +2399,38 @@ suite('protocols', function () {
             .neg(2, function (err, res) {
               assert.strictEqual(err, null);
               assert.equal(res, -2);
+            });
+        });
+      });
+
+      test('server middleware invalid response header', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          var fooErr = new Error('foo');
+          var sawFoo = 0;
+          server
+            .on('error', function (err) {
+              if (err === fooErr) {
+                sawFoo++;
+                return;
+              }
+              assert.equal(sawFoo, 1);
+              assert(/invalid "bytes"/.test(err.message));
+              setTimeout(function () { done(); }, 0);
+            })
+            .use(function (wreq, wres, next) {
+              wres.getHeader().id = 123;
+              next();
+            })
+            .onNeg(function () { throw fooErr; });
+          client
+            .neg(2, function (err) {
+              assert(/INTERNAL_SERVER_ERROR/.test(err.message));
             });
         });
       });
