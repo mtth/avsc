@@ -2254,6 +2254,39 @@ suite('protocols', function () {
         });
       });
 
+      test('client middleware forward error', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          server.onNeg(function (n, cb) { cb(null, -n); });
+          var fwdErr = new Error('forward!');
+          var bwdErr = new Error('backward!');
+          var called = false;
+          client
+            .use(function (wreq, wres, next) {
+              next(null, function (err, prev) {
+                assert.strictEqual(err, fwdErr);
+                assert(!called);
+                prev(bwdErr); // Substitute the error.
+              });
+            })
+            .use(function (wreq, wres, next) {
+              next(fwdErr, function (err, prev) {
+                called = true;
+                prev();
+              });
+            })
+            .neg(2, function (err) {
+              assert.strictEqual(err, bwdErr);
+              done();
+            });
+        });
+      });
+
       test('client middleware duplicate forward calls', function (done) {
         var ptcl = Protocol.forSchema({
           protocol: 'Math',
