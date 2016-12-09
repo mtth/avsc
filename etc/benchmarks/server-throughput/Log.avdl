@@ -1,0 +1,10 @@
+protocol Log {
+
+  record Entry {
+    bytes id;
+    string text;
+    long time;
+  }
+
+  int createEntries(array<Entry> entries);
+}

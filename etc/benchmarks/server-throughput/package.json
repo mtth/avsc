@@ -1,0 +1,8 @@
+{
+  "name": "server-throughput",
+  "version": "0.1.0",
+  "dependencies": {
+    "body-parser": "^1.15.2",
+    "express": "^4.14.0"
+  }
+}
