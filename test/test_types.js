@@ -1936,6 +1936,23 @@ suite('types', function () {
       assert.deepEqual(c, {name: 'ANN', age: 25});
     });
 
+    test('clone missing fields', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'id', type: 'int'},
+          {name: 'name', type: ['null', 'string']},
+          {name: 'age', type: ['null', 'int'], 'default': null},
+        ]
+      });
+      assert.throws(function () { t.clone({id: 1}); }, /invalid/);
+      assert.deepEqual(
+        t.clone({id: 1}, {skipMissingFields: true}),
+        {id: 1, name: undefined, age: null}
+      );
+    });
+
     test('unwrapped union field default', function () {
       assert.throws(function () {
         Type.forSchema({
