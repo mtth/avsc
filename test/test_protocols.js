@@ -165,10 +165,16 @@ suite('protocols', function () {
     });
 
     test('getSchema', function () {
-      var schema = {protocol: 'Hello', doc: 'Hey'};
+      var schema = {
+        protocol: 'Hello',
+        messages: {
+          ping: {request: [], response: 'boolean', doc: ''},
+          pong: {request: [], response: 'null', 'one-way': true}
+        },
+        doc: 'Hey'
+      };
       var p = Protocol.forSchema(schema);
       assert.deepEqual(p.getSchema({exportAttrs: true}), schema);
-      assert.equal(p.getSchema({asString: true}), '{"protocol":"Hello"}');
     });
 
     test('getDocumentation', function () {
@@ -336,24 +342,6 @@ suite('protocols', function () {
       assert.equal(m.getRequestType().getFields()[0].getName(), 'ping');
       assert.equal(m.getResponseType().getName(true), 'null');
       assert.strictEqual(m.isOneWay(), false);
-    });
-
-    test('inspect', function () {
-      var m = Message.forSchema('Ping', {
-        request: [{name: 'ping', type: 'string'}],
-        response: 'null',
-        'one-way': true
-      });
-      assert(m.inspect()['one-way']);
-    });
-
-    test('toString', function () {
-      var schema = {
-        request: [{name: 'ping', type: 'string'}],
-        response: 'null',
-      };
-      var m = Message.forSchema('Ping', schema);
-      assert.deepEqual(JSON.parse(m.toString()), schema);
     });
 
     test('getDocumentation', function () {
@@ -779,7 +767,7 @@ suite('protocols', function () {
       p1.createEmitter(transports[1], {endWritable: false})
         .on('handshake', function (hreq, hres) {
           this.destroy();
-          assert.equal(hres.serverProtocol, p2.getSchema({asString: true}));
+          assert.equal(hres.serverProtocol, JSON.stringify(p2.getSchema()));
         })
         .on('eot', function () {
           // The transports are still available for a connection.

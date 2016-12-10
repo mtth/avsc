@@ -1025,10 +1025,10 @@ suite('types', function () {
       var t = Type.forSchema({type: 'fixed', name: 'Id', size: 2, three: 3});
       t.one = 1;
       assert.equal(
-        t.getSchema({asString: true}),
+        JSON.stringify(t.getSchema()),
         '{"name":"Id","type":"fixed","size":2}'
       );
-      assert.equal(t.getSchema({asString: true, noDeref: true}), '"Id"');
+      assert.equal(JSON.stringify(t.getSchema({noDeref: true})), '"Id"');
     });
 
     test('fromString', function () {
@@ -1809,7 +1809,7 @@ suite('types', function () {
         ]
       });
       var schemaStr = '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}';
-      assert.equal(t.getSchema({asString: true}), schemaStr);
+      assert.equal(JSON.stringify(t.getSchema()), schemaStr);
       assert.deepEqual(t.getSchema(), JSON.parse(schemaStr));
       assert.deepEqual(t.getSchema({exportAttrs: true}), {
         type: 'record',
@@ -1840,11 +1840,11 @@ suite('types', function () {
         ]
       });
       assert.equal(
-        t.getSchema({asString: true}),
+        JSON.stringify(t.getSchema()),
         '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"earth.Person"}}]}'
       );
       assert.equal(
-        t.getSchema({asString: true, noDeref: true}),
+        JSON.stringify(t.getSchema({noDeref: true})),
         '"earth.Person"'
       );
     });
@@ -1975,7 +1975,7 @@ suite('types', function () {
         type: 'record',
         name: 'Person',
         fields: [
-          {name: 'name', type: ['string', 'null'], 'default': 'Bob'}
+          {name: 'name', type: ['string', 'null'], 'default': 'Bob', doc: ''}
         ]
       };
       var t = Type.forSchema(schema, {wrapUnions: true});
@@ -2530,7 +2530,7 @@ suite('types', function () {
       assert.equal(t.fromString('6'), 6);
       assert.equal(t.getSchema(), 'long');
       assert.deepEqual(
-        t.getSchema({asString: true, exportAttrs: true}),
+        JSON.stringify(t.getSchema({exportAttrs: true})),
         '{"type":"long","logicalType":"even-integer"}'
       );
       assert(types.Type.isType(t));
@@ -3219,7 +3219,7 @@ suite('types', function () {
         {type: 'record', fields: [{name: 'foo', type: 'string'}]}
       ]);
       assert.equal(
-        t.getSchema({asString: true}),
+        JSON.stringify(t.getSchema()),
         '[{"type":"enum","symbols":["A"]},"int",{"type":"record","fields":[{"name":"foo","type":"string"}]}]'
       );
     });
@@ -3288,16 +3288,6 @@ suite('types', function () {
         Type.forSchema({type: 'fixed', name: 'Id', size: 2}).inspect(),
         '<FixedType "Id">'
       );
-    });
-
-    test('field', function () {
-      var type = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'age', type: 'int'}]
-      });
-      var field = type.getFields()[0];
-      assert.equal(field.inspect().name, 'age');
     });
 
     test('resolver', function () {
