@@ -850,8 +850,7 @@ suite('types', function () {
       var t = Type.forSchema({type: 'enum', symbols: ['A', 'B'], name: 'Letter'});
       var symbols = t.getSymbols();
       assert.deepEqual(symbols, ['A', 'B']);
-      symbols.push('Char');
-      assert.equal(t.getSymbols().length, 2);
+      assert.throws(function () { symbols.push('Char'); });
     });
 
     test('duplicate symbol', function () {
@@ -2013,8 +2012,7 @@ suite('types', function () {
       assert.deepEqual(fields[1].getAliases(), ['word']);
       assert.equal(fields[1].getName(), 'name'); // Namespaces are ignored.
       assert.deepEqual(fields[1].getType(), Type.forSchema('string'));
-      fields.push('null');
-      assert.equal(t.getFields().length, 2); // No change.
+      assert.throws(function () { fields.push('null'); });
     });
 
     test('field order', function () {
@@ -3541,11 +3539,11 @@ suite('types', function () {
       var t2 = Type.forSchema({type: 'enum', symbols: ['A', 'B']});
       var t3 = Type.forSchema('string');
       var symbols;
-      symbols = combine([t1, t1]).getSymbols();
+      symbols = combine([t1, t1]).getSymbols().slice();
       assert.deepEqual(symbols.sort(), ['A', 'b']);
       assert.strictEqual(combine([t1, t3]), t3);
       assert.strictEqual(combine([t1, t2, t3]), t3);
-      symbols = combine([t1, t2]).getSymbols();
+      symbols = combine([t1, t2]).getSymbols().slice();
       assert.deepEqual(symbols.sort(), ['A', 'B', 'b']);
     });
 
