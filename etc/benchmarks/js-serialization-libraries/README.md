@@ -16,7 +16,7 @@ built-in JSON, MessagePack, SchemaPack, and Protocol Buffers on a sample
 schema:
 
 ```bash
-node . \
+$ node . \
   --avsc \
   --json \
   --msgpack-lite \
