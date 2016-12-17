@@ -47,6 +47,11 @@ suite('protocols', function () {
       });
       assert.equal(p.getName(), 'foo.HelloWorld');
       assert.equal(p.getType('foo.Greeting').getTypeName(), 'record');
+      assert.equal(p.getTypes().length, 2);
+      assert.deepEqual(
+        p.getTypes().map(function (t) { return t.getName(); }).sort(),
+        ['foo.Curse', 'foo.Greeting']
+      );
     });
 
     test('missing message', function () {
