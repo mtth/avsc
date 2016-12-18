@@ -1142,7 +1142,7 @@ suite('protocols', function () {
             .once('handshake', onHandshake);
           p1.createEmitter(transports[1], {
             cache: me1.getCache(),
-            serverFingerprint: p2.getFingerprint()
+            remoteProtocol: p2,
           }).once('handshake', onHandshake);
 
           var n = 0;
