@@ -2504,6 +2504,37 @@ suite('protocols', function () {
         });
       });
 
+      test('client timeout', function (done) {
+        var ptcl = Protocol.forSchema({
+          protocol: 'Sleep',
+          messages: {
+            sleep: {request: [{name: 'ms', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, {defaultTimeout: 50}, function (client, server) {
+          server
+            .onSleep(function (n, cb) {
+              // Delay response by the number requested.
+              setTimeout(function () { cb(null, n); }, n);
+            });
+          client.sleep(10, function (err, res) {
+            // Default timeout used here, but delay is short enough.
+            assert.strictEqual(err, null);
+            assert.equal(res, 10);
+            client.sleep(100, function (err) {
+              // Default timeout used here, but delay is _not_ short enough.
+              assert(/timeout/.test(err));
+              client.sleep(100, {timeout: 200}, function (err, res) {
+                // Custom timeout, high enough for the delay.
+                assert.strictEqual(err, null);
+                assert.equal(res, 100);
+                done();
+              });
+            });
+          });
+        });
+      });
+
     }
 
   });
