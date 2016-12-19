@@ -182,6 +182,25 @@ suite('protocols', function () {
       assert.deepEqual(p.getSchema({exportAttrs: true}), schema);
     });
 
+    test('getSchema no top-level type references', function () {
+      var schema = {
+        protocol: 'Hello',
+        types: [
+          {
+            type: 'record',
+            name: 'Foo',
+            fields: [
+              {name: 'bar', type: {type: 'fixed', name: 'Bar', size: 4}}
+            ]
+          }
+        ]
+      };
+      var p = Protocol.forSchema(schema);
+      var t = p.getType('Foo');
+      // Bar's reference shouldn't be included in the returned types array.
+      assert.deepEqual(p.getSchema().types, [t.getSchema()]);
+    });
+
     test('getDocumentation', function () {
       var p = Protocol.forSchema({protocol: 'Hello', doc: 'Hey'});
       assert.equal(p.getDocumentation(), 'Hey');
