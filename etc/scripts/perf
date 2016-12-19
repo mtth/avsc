@@ -36,8 +36,8 @@ if (~index) {
 var NUM_VALUES = 1000;
 
 // Header formatting is done according to GitHub flavored Markdown.
-console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t|\t'));
-console.log(['---------:', '-------:', '------: ', '---------'].join('\t|\t'));
+console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t| '));
+console.log(['---------:', '-------:', '------: ', '---------'].join('\t| '));
 
 paths.forEach(function (fpath) {
   var type = avro.parse(fpath, {wrapUnions: wrap});
@@ -89,5 +89,5 @@ paths.forEach(function (fpath) {
   }}).run();
 
   stats.push(path.basename(fpath));
-  console.log(stats.join('\t|\t'));
+  console.log(stats.join('\t| '));
 });
