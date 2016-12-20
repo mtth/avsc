@@ -1161,7 +1161,7 @@ suite('protocols', function () {
             .once('handshake', onHandshake);
           p1.createEmitter(transports[1], {
             cache: me1.getCache(),
-            remoteSchema: p2.getSchema(),
+            serverFingerprint: p2.getFingerprint(),
           }).once('handshake', onHandshake);
 
           var n = 0;
@@ -1206,6 +1206,10 @@ suite('protocols', function () {
           p2.createListener(transports[0], {cache: ml1.getCache()})
             .once('handshake', function (hreq, hres) {
               assert.equal(hres.match, 'CLIENT');
+              var cache = this.getCache();
+              var adapter = cache[p1.getFingerprint()];
+              assert(adapter.getClientProtocol().equals(p1));
+              assert(adapter.getServerProtocol().equals(this.getProtocol()));
               done();
             });
           p1.createEmitter(transports[1]);
@@ -2066,7 +2070,10 @@ suite('protocols', function () {
       var ptcl1 = Protocol.forSchema({protocol: 'Empty1'});
       var ptcl2 = Protocol.forSchema({protocol: 'Empty2'});
       var remoteSchemas = {abc: ptcl2.getSchema()};
-      var client = ptcl1.createClient({remoteSchemas: remoteSchemas});
+      var client = ptcl1.createClient({
+        remoteFingerprint: 'abc',
+        remoteSchemas: remoteSchemas
+      });
       assert.deepEqual(client.getRemoteSchemas(), remoteSchemas);
     });
 
@@ -2094,13 +2101,12 @@ suite('protocols', function () {
         .destroy();
     });
 
-    test('remote protocol', function () {
+    test('remote schemas', function () {
       var ptcl1 = Protocol.forSchema({protocol: 'Empty1'});
       var ptcl2 = Protocol.forSchema({protocol: 'Empty2'});
       var remoteSchemas = {abc: ptcl2.getSchema()};
-      var server = ptcl1.createServer({remoteProtocols: remoteSchemas});
-      // No requests received yet, so no remote schemas.
-      assert.deepEqual(server.getRemoteSchemas(), {});
+      var server = ptcl1.createServer({remoteSchemas: remoteSchemas});
+      assert.deepEqual(server.getRemoteSchemas(), remoteSchemas);
     });
 
     test('no capitalization', function () {
@@ -2490,14 +2496,18 @@ suite('protocols', function () {
       });
 
       test('remote schemas', function (done) {
+        // We include non-standard attributes to make sure that they do not get
+        // discarded in the exchange.
         var clientSchema = {
           protocol: 'Math1',
+          foo: 'bar',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
           }
         };
         var serverSchema = {
           protocol: 'Math2',
+          bar: 'foo',
           messages: {
             neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
           }
