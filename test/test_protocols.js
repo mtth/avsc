@@ -1161,7 +1161,7 @@ suite('protocols', function () {
             .once('handshake', onHandshake);
           p1.createEmitter(transports[1], {
             cache: me1.getCache(),
-            remoteProtocol: p2,
+            remoteSchema: p2.getSchema(),
           }).once('handshake', onHandshake);
 
           var n = 0;
@@ -2062,12 +2062,12 @@ suite('protocols', function () {
       }
     });
 
-    test('remote protocol', function () {
+    test('remote schemas existing', function () {
       var ptcl1 = Protocol.forSchema({protocol: 'Empty1'});
       var ptcl2 = Protocol.forSchema({protocol: 'Empty2'});
-      var remotePtcls = {abc: ptcl2};
-      var client = ptcl1.createClient({remoteProtocols: remotePtcls});
-      assert.deepEqual(client.getRemoteProtocols(), remotePtcls);
+      var remoteSchemas = {abc: ptcl2.getSchema()};
+      var client = ptcl1.createClient({remoteSchemas: remoteSchemas});
+      assert.deepEqual(client.getRemoteSchemas(), remoteSchemas);
     });
 
   });
@@ -2097,9 +2097,10 @@ suite('protocols', function () {
     test('remote protocol', function () {
       var ptcl1 = Protocol.forSchema({protocol: 'Empty1'});
       var ptcl2 = Protocol.forSchema({protocol: 'Empty2'});
-      var remotePtcls = {abc: ptcl2};
-      var server = ptcl1.createServer({remoteProtocols: remotePtcls});
-      assert.deepEqual(server.getRemoteProtocols(), remotePtcls);
+      var remoteSchemas = {abc: ptcl2.getSchema()};
+      var server = ptcl1.createServer({remoteProtocols: remoteSchemas});
+      // No requests received yet, so no remote schemas.
+      assert.deepEqual(server.getRemoteSchemas(), {});
     });
 
     test('no capitalization', function () {
@@ -2488,36 +2489,36 @@ suite('protocols', function () {
         }
       });
 
-      test('remote protocols', function (done) {
-        var clientPtcl = Protocol.forSchema({
+      test('remote schemas', function (done) {
+        var clientSchema = {
           protocol: 'Math1',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
           }
-        });
-        var serverPtcl = Protocol.forSchema({
+        };
+        var serverSchema = {
           protocol: 'Math2',
           messages: {
             neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
           }
-        });
+        };
+        var clientPtcl = Protocol.forSchema(clientSchema);
+        var serverPtcl = Protocol.forSchema(serverSchema);
         setupFn(clientPtcl, serverPtcl, function (client, server) {
           server
             .onNeg(function (n, cb) { cb(null, -n); });
           client
             .neg(2, function (err, res) {
               assert.equal(res, -2);
-              var ptcls, hss;
+              var remoteSchemas;
               // Client.
-              ptcls = client.getRemoteProtocols();
-              hss = Object.keys(ptcls);
-              assert.equal(hss.length, 1);
-              assert(ptcls[hss[0]].equals(serverPtcl));
+              remoteSchemas = {};
+              remoteSchemas[serverPtcl.getFingerprint()] = serverSchema;
+              assert.deepEqual(client.getRemoteSchemas(), remoteSchemas);
               // Server.
-              ptcls = server.getRemoteProtocols();
-              hss = Object.keys(ptcls);
-              assert.equal(hss.length, 1);
-              assert(ptcls[hss[0]].equals(clientPtcl));
+              remoteSchemas = {};
+              remoteSchemas[clientPtcl.getFingerprint()] = clientSchema;
+              assert.deepEqual(server.getRemoteSchemas(), remoteSchemas);
               done();
             });
         });
