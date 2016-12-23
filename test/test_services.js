@@ -2059,15 +2059,15 @@ suite('services', function () {
       }
     });
 
-    test('remote schemas existing', function () {
+    test('remote protocols existing', function () {
       var ptcl1 = Service.forProtocol({protocol: 'Empty1'});
       var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
-      var remoteSchemas = {abc: ptcl2.getSchema()};
+      var remotePtcls = {abc: ptcl2.getSchema()};
       var client = ptcl1.createClient({
         remoteFingerprint: 'abc',
-        remoteSchemas: remoteSchemas
+        remoteProtocols: remotePtcls
       });
-      assert.deepEqual(client.getRemoteProtocols(), remoteSchemas);
+      assert.deepEqual(client.getRemoteProtocols(), remotePtcls);
     });
 
   });
@@ -2094,12 +2094,12 @@ suite('services', function () {
         .destroy();
     });
 
-    test('remote schemas', function () {
+    test('remote protocols', function () {
       var ptcl1 = Service.forProtocol({protocol: 'Empty1'});
       var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
-      var remoteSchemas = {abc: ptcl2.getSchema()};
-      var server = ptcl1.createServer({remoteSchemas: remoteSchemas});
-      assert.deepEqual(server.getRemoteProtocols(), remoteSchemas);
+      var remotePtcls = {abc: ptcl2.getSchema()};
+      var server = ptcl1.createServer({remoteProtocols: remotePtcls});
+      assert.deepEqual(server.getRemoteProtocols(), remotePtcls);
     });
 
     test('no capitalization', function () {
@@ -2488,7 +2488,7 @@ suite('services', function () {
         }
       });
 
-      test('remote schemas', function (done) {
+      test('remote protocols', function (done) {
         var clientPtcl = {
           protocol: 'Math1',
           foo: 'bar', // Custom attribute.
