@@ -9,7 +9,7 @@
  * read and write blobs.
  */
 
-var avroProtocols = require('./avsc-protocols'),
+var avroServices = require('./avsc-services'),
     containers = require('../../lib/containers'),
     utils = require('../../lib/utils'),
     stream = require('stream'),
@@ -111,4 +111,4 @@ module.exports = {
   streams: containers.streams
 };
 
-utils.copyOwnProperties(avroProtocols, module.exports);
+utils.copyOwnProperties(avroServices, module.exports);

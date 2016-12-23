@@ -3,35 +3,18 @@
 'use strict';
 
 /**
- * Optional entry point for browser builds.
+ * (Deprecated, in favor of `avsc-services`) optional entry point for browser
+ * builds.
  *
  * To use it: `require('avsc/etc/browser/avsc-protocols')`.
  */
 
-var avroTypes = require('./avsc-types'),
-    protocols = require('../../lib/protocols'),
-    schemas = require('../../lib/schemas'),
+var avroServices = require('./avsc-services'),
     utils = require('../../lib/utils');
 
-
-/** Slightly enhanced parsing, supporting IDL declarations. */
-function parse(any, opts) {
-  var schema = schemas.parseSchema(any);
-  return schema.protocol ?
-    protocols.Protocol.forSchema(schema, opts) :
-    avroTypes.Type.forSchema(schema, opts);
-}
-
-
 module.exports = {
-  Protocol: protocols.Protocol,
-  assembleProtocolSchema: schemas.assembleProtocolSchema,
-  discoverProtocolSchema: protocols.discoverProtocolSchema,
-  parse: parse,
-  parseProtocolSchema: schemas.parseProtocolSchema,
-  parseTypeSchema: schemas.parseTypeSchema,
-  // Deprecated exports.
-  assemble: schemas.assembleProtocolSchema,
+  Protocol: avroServices.Service,
+  assemble: avroServices.assembleProtocol
 };
 
-utils.copyOwnProperties(avroTypes, module.exports);
+utils.copyOwnProperties(avroServices, module.exports);
