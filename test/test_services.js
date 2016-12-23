@@ -2505,6 +2505,7 @@ suite('services', function () {
       test('remote schemas', function (done) {
         var clientPtcl = {
           protocol: 'Math1',
+          foo: 'bar', // Custom attribute.
           doc: 'hi',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
@@ -2513,6 +2514,7 @@ suite('services', function () {
         var serverPtcl = {
           protocol: 'Math2',
           doc: 'hey',
+          bar: 'foo', // Custom attribute.
           messages: {
             neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
           }
