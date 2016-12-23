@@ -16,8 +16,8 @@ suite('services', function () {
 
   suite('Service', function () {
 
-    test('get name and types', function () {
-      var p = Service.forProtocol({
+    test('get name, types, and protocol', function () {
+      var p = {
         namespace: 'foo',
         protocol: 'HelloWorld',
         types: [
@@ -44,14 +44,16 @@ suite('services', function () {
           'one-way': true
           }
         }
-      });
-      assert.equal(p.getName(), 'foo.HelloWorld');
-      assert.equal(p.getType('foo.Greeting').getTypeName(), 'record');
-      assert.equal(p.getTypes().length, 2);
+      };
+      var s = Service.forProtocol(p);
+      assert.equal(s.getName(), 'foo.HelloWorld');
+      assert.equal(s.getType('foo.Greeting').getTypeName(), 'record');
+      assert.equal(s.getTypes().length, 2);
       assert.deepEqual(
-        p.getTypes().map(function (t) { return t.getName(); }).sort(),
+        s.getTypes().map(function (t) { return t.getName(); }).sort(),
         ['foo.Curse', 'foo.Greeting']
       );
+      assert.deepEqual(s.getProtocol(), p);
     });
 
     test('missing message', function () {
@@ -238,7 +240,6 @@ suite('services', function () {
       assert(p.equals(p));
       assert(!p.equals(undefined));
       assert(!p.equals(Service.forProtocol({protocol: 'Foo'})));
-      assert(p.equals(Service.forProtocol({protocol: 'hello.World'})));
     });
 
     test('toString', function () {
@@ -1054,7 +1055,7 @@ suite('services', function () {
     test('delayed writable', function (done) {
       var ptcl = Service.forProtocol({
         protocol: 'Ping',
-        messages: {ping: {request: [], response: 'boolean'}}
+        messages: {ping: {request: [], response: 'boolean', errors: ['int']}}
       });
       var objs = [];
       var readable = new stream.PassThrough({objectMode: true});
@@ -1167,7 +1168,7 @@ suite('services', function () {
             .once('handshake', onHandshake);
           p1.createEmitter(transports[1], {
             cache: me1.getCache(),
-            serverFingerprint: p2.getFingerprint(),
+            serverHash: p2.getHash(),
           }).once('handshake', onHandshake);
 
           var n = 0;
@@ -2080,7 +2081,7 @@ suite('services', function () {
         remoteFingerprint: 'abc',
         remoteSchemas: remoteSchemas
       });
-      assert.deepEqual(client.getRemoteSchemas(), remoteSchemas);
+      assert.deepEqual(client.getRemoteProtocols(), remoteSchemas);
     });
 
   });
@@ -2112,7 +2113,7 @@ suite('services', function () {
       var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
       var remoteSchemas = {abc: ptcl2.getSchema()};
       var server = ptcl1.createServer({remoteSchemas: remoteSchemas});
-      assert.deepEqual(server.getRemoteSchemas(), remoteSchemas);
+      assert.deepEqual(server.getRemoteProtocols(), remoteSchemas);
     });
 
     test('no capitalization', function () {
@@ -2502,37 +2503,37 @@ suite('services', function () {
       });
 
       test('remote schemas', function (done) {
-        var clientSchema = {
+        var clientPtcl = {
           protocol: 'Math1',
           doc: 'hi',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
           }
         };
-        var serverSchema = {
+        var serverPtcl = {
           protocol: 'Math2',
           doc: 'hey',
           messages: {
             neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
           }
         };
-        var clientPtcl = Service.forProtocol(clientSchema);
-        var serverPtcl = Service.forProtocol(serverSchema);
-        setupFn(clientPtcl, serverPtcl, function (client, server) {
+        var clientSvc = Service.forProtocol(clientPtcl);
+        var serverSvc = Service.forProtocol(serverPtcl);
+        setupFn(clientSvc, serverSvc, function (client, server) {
           server
             .onNeg(function (n, cb) { cb(null, -n); });
           client
             .neg(2, function (err, res) {
               assert.equal(res, -2);
-              var remoteSchemas;
+              var remotePtcl;
               // Client.
-              remoteSchemas = {};
-              remoteSchemas[serverPtcl.getFingerprint()] = serverSchema;
-              assert.deepEqual(client.getRemoteSchemas(), remoteSchemas);
+              remotePtcl = {};
+              remotePtcl[serverSvc.getHash()] = serverPtcl;
+              assert.deepEqual(client.getRemoteProtocols(), remotePtcl);
               // Server.
-              remoteSchemas = {};
-              remoteSchemas[clientPtcl.getFingerprint()] = clientSchema;
-              assert.deepEqual(server.getRemoteSchemas(), remoteSchemas);
+              remotePtcl = {};
+              remotePtcl[clientSvc.getHash()] = clientPtcl;
+              assert.deepEqual(server.getRemoteProtocols(), remotePtcl);
               done();
             });
         });
