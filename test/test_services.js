@@ -203,12 +203,6 @@ suite('services', function () {
       assert.deepEqual(p.getSchema().types, [t.getSchema()]);
     });
 
-    test('toJSON', function () {
-      var schema = {protocol: 'Hello', doc: 'A greeting.'};
-      var p = Service.forProtocol(schema);
-      assert.deepEqual(p.toJSON(), schema);
-    });
-
     test('getDocumentation', function () {
       var p = Service.forProtocol({protocol: 'Hello', doc: 'Hey'});
       assert.equal(p.getDocumentation(), 'Hey');
@@ -240,14 +234,6 @@ suite('services', function () {
       assert(p.equals(p));
       assert(!p.equals(undefined));
       assert(!p.equals(Service.forProtocol({protocol: 'Foo'})));
-    });
-
-    test('toString', function () {
-      var p = Service.forProtocol({
-        namespace: 'hello',
-        protocol: 'World',
-      });
-      assert.equal(p.toString(), '{"protocol":"hello.World"}');
     });
 
     test('inspect', function () {
