@@ -166,6 +166,16 @@ suite('specs', function () {
       });
     });
 
+    test('empty file', function (done) {
+      var opts = {
+        importHook: createImportHook({'foo.avdl': ''})
+      };
+      assembleProtocol('foo.avdl', opts, function (err) {
+        assert(/eof/.test(err.message));
+        done();
+      });
+    });
+
     test('duplicate message', function (done) {
       var hook = createImportHook({
         '1.avdl': 'protocol First { double one(); int one(); }'
