@@ -2116,6 +2116,23 @@ suite('services', function () {
 
   suite('clients & servers', function () { // >=5.0 API.
 
+    test('create client with server', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Echo',
+        messages: {
+          echo: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var server = svc.createServer()
+        .onEcho(function (n, cb) { cb(null, n); });
+      var client = svc.createClient({server: server});
+      client.echo(123, function (err, n) {
+        assert(!err, err);
+        assert.equal(n, 123);
+        done();
+      });
+    });
+
     suite('stateful', function () {
 
       run(function (clientPtcl, serverPtcl, opts, cb) {
