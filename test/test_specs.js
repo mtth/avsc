@@ -574,9 +574,23 @@ suite('specs', function () {
       );
     });
 
+    test('no implicit collection tags', function () {
+      assert.throws(
+        function () { readSchema('record { array int bars; }'); },
+        /</
+      );
+    });
+
+    test('mismatched implicit collection tags', function () {
+      assert.throws(
+        function () { readSchema('array < int', {implicitTags: true}); },
+        />/
+      );
+    });
+
     test('implicit collection tags', function () {
       assert.deepEqual(
-        readSchema('record { array int bars; }'),
+        readSchema('record { array int bars; }', {implicitTags: true}),
         {
           type: 'record',
           fields: [{type: {type: 'array', items: 'int'}, name: 'bars'}]
