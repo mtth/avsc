@@ -2362,6 +2362,45 @@ suite('services', function () {
         });
       });
 
+      test('request context', function (done) {
+        var ptcl = Service.forProtocol({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(ptcl, ptcl, function (client, server) {
+          server
+            .use(function (wreq, wres, next) {
+              assert.strictEqual(wreq.getContext(), undefined);
+              next();
+            })
+            .onNeg(function (n, cb) { cb(null, -n); });
+          var numCalls = 0;
+          client
+            .use(function (wreq, wres, next) {
+              if (numCalls++ === 0) {
+                assert.equal(wreq.getContext().user, 'you');
+                next();
+              } else {
+                assert.strictEqual(wreq.getContext(), false);
+                next(new Error('bar'));
+              }
+            })
+            .neg(2, {context: {user: 'you'}}, function (err, res) {
+              assert.strictEqual(err, null);
+              assert.equal(res, -2);
+              assert.equal(numCalls, 1);
+              var opts = {context: false};
+              client.emitMessage('neg', {n: 2}, opts, function (err) {
+                assert(/bar/.test(err), err);
+                assert.equal(numCalls, 2);
+                done();
+              });
+            });
+        });
+      });
+
       test('server middleware', function (done) {
         var ptcl = Service.forProtocol({
           protocol: 'Math',
