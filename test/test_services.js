@@ -2240,7 +2240,6 @@ suite('services', function () {
       }
     });
 
-
     suite('stateful', function () {
 
       run(function (clientPtcl, serverPtcl, opts, cb) {
@@ -2675,6 +2674,34 @@ suite('services', function () {
                 done();
               });
             });
+          });
+        });
+      });
+
+      test('server error after handler', function (done) {
+        var svc = Service.forProtocol({
+          protocol: 'Math',
+          messages: {
+            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(svc, svc, function (client, server) {
+          var numErrors = 0;
+          server.onNeg(function (n, cb) {
+            this.on('error', function (err) {
+              numErrors++;
+              assert(/bar/.test(err), err);
+            });
+            cb(null, -n);
+            throw new Error('bar');
+          });
+          client.neg(2, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -2);
+            setTimeout(function () {
+              assert.equal(numErrors, 1);
+              done();
+            }, 0);
           });
         });
       });
