@@ -576,21 +576,26 @@ suite('specs', function () {
 
     test('no implicit collection tags', function () {
       assert.throws(
-        function () { readSchema('record { array int bars; }'); },
+        function () {
+          readSchema(
+            'record { array int bars; }',
+            {delimitedCollections: true}
+          );
+        },
         /</
       );
     });
 
     test('mismatched implicit collection tags', function () {
       assert.throws(
-        function () { readSchema('array < int', {implicitTags: true}); },
+        function () { readSchema('array < int'); },
         />/
       );
     });
 
     test('implicit collection tags', function () {
       assert.deepEqual(
-        readSchema('record { array int bars; }', {implicitTags: true}),
+        readSchema('record { array int bars; }'),
         {
           type: 'record',
           fields: [{type: {type: 'array', items: 'int'}, name: 'bars'}]
