@@ -2211,6 +2211,35 @@ suite('services', function () {
       });
     });
 
+    test('server default handler', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'},
+          abs: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var server = svc.createServer({defaultHandler: defaultHandler})
+        .onNeg(function (n, cb) { cb(null, -n); });
+      var client = svc.createClient({server: server});
+
+      client.neg(1, function (err, n) {
+        assert(!err, err);
+        assert.equal(n, -1);
+        client.abs(5, function (err, n) {
+          assert(!err, err);
+          assert.equal(n, 10);
+          done();
+        });
+      });
+
+      function defaultHandler(wreq, wres, cb) {
+        assert.equal(wreq.getMessage().getName(), 'abs');
+        wres.setResponse(10);
+        cb();
+      }
+    });
+
 
     suite('stateful', function () {
 
