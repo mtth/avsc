@@ -834,7 +834,7 @@ suite('services', function () {
           .on('finish', function () { cb(new Error('foobar')); });
       }, {noPing: true, objectMode: true, strictErrors: true});
       ptcl.emit('ping', {}, ee, function (err) {
-        assert(/foobar/.test(err.string));
+        assert(/foobar/.test(err.string), err);
         assert(!ee.isDestroyed());
         done();
       });
@@ -2133,6 +2133,85 @@ suite('services', function () {
       });
     });
 
+    test('client call context factory', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var server = svc.createServer()
+        .onNeg(function (n, cb) { cb(null, -n); });
+      var transports = createPassthroughTransports();
+      var opts = {id: 0};
+      var client = svc.createClient()
+        .use(function (wreq, wres, next) {
+          // Check that middleware have the right context.
+          assert.equal(this.foo,'foo');
+          next(null, function (err, prev) {
+            assert.equal(this.foo,'foo');
+            prev(err);
+          });
+        });
+      var emitter = client.createEmitter(transports[0], {
+        callContext: callContext
+      });
+      server.createListener(transports[1]);
+      client.neg(1, opts, function (err, n) {
+        assert(!err, err);
+        assert.equal(n, -1);
+        assert.equal(this.num, 0);
+        client.neg('abc', opts, function (err) {
+          assert(/invalid "int"/.test(err), err);
+          assert.equal(this.num, 1);
+          done();
+        });
+      });
+
+      function callContext(emitter_, opts_) {
+        assert.strictEqual(emitter_, emitter);
+        assert.strictEqual(opts_, opts);
+        return {foo: 'foo', num: opts.id++};
+      }
+    });
+
+    test('server call constant context', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var ctx = {numCalls: 0};
+      var server = svc.createServer()
+        .use(function (wreq, wres, next) {
+          // Check that middleware have the right context.
+          assert.strictEqual(this, ctx);
+          assert.equal(ctx.numCalls++, 0);
+          next(null, function (err, prev) {
+            assert(!err, err);
+            assert.strictEqual(this, ctx);
+            assert.equal(ctx.numCalls++, 2);
+            prev(err);
+          });
+        })
+        .onNeg(function (n, cb) {
+          assert.strictEqual(this, ctx);
+          assert.equal(ctx.numCalls++, 1);
+          cb(null, -n);
+        });
+      var transports = createPassthroughTransports();
+      var client = svc.createClient({transport: transports[0]});
+      server.createListener(transports[1], {callContext: ctx});
+      client.neg(1, function (err, n) {
+        assert(!err, err);
+        assert.equal(n, -1);
+        assert.equal(ctx.numCalls, 3);
+        done();
+      });
+    });
+
+
     suite('stateful', function () {
 
       run(function (clientPtcl, serverPtcl, opts, cb) {
@@ -2269,14 +2348,12 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
-          var id = 123;
           var isDone = false;
           var emitter = client.getEmitters()[0];
           client
             .use(function (wreq, wres, next) {
               // No callback.
               assert.strictEqual(this, emitter);
-              this.getContext().id = id;
               assert.deepEqual(wreq.getHeader(), {});
               wreq.getHeader().buf = buf;
               assert.deepEqual(wreq.getRequest(), {n: 2});
@@ -2290,7 +2367,6 @@ suite('services', function () {
                 assert(!err);
                 assert.strictEqual(this, emitter);
                 assert.deepEqual(wres.getResponse(), -3);
-                assert.equal(this.getContext().id, 123);
                 isDone = true;
                 prev();
               });
@@ -2362,45 +2438,6 @@ suite('services', function () {
         });
       });
 
-      test('request context', function (done) {
-        var ptcl = Service.forProtocol({
-          protocol: 'Math',
-          messages: {
-            neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
-          }
-        });
-        setupFn(ptcl, ptcl, function (client, server) {
-          server
-            .use(function (wreq, wres, next) {
-              assert.strictEqual(wreq.getContext(), undefined);
-              next();
-            })
-            .onNeg(function (n, cb) { cb(null, -n); });
-          var numCalls = 0;
-          client
-            .use(function (wreq, wres, next) {
-              if (numCalls++ === 0) {
-                assert.equal(wreq.getContext().user, 'you');
-                next();
-              } else {
-                assert.strictEqual(wreq.getContext(), false);
-                next(new Error('bar'));
-              }
-            })
-            .neg(2, {context: {user: 'you'}}, function (err, res) {
-              assert.strictEqual(err, null);
-              assert.equal(res, -2);
-              assert.equal(numCalls, 1);
-              var opts = {context: false};
-              client.emitMessage('neg', {n: 2}, opts, function (err) {
-                assert(/bar/.test(err), err);
-                assert.equal(numCalls, 2);
-                done();
-              });
-            });
-        });
-      });
-
       test('server middleware', function (done) {
         var ptcl = Service.forProtocol({
           protocol: 'Math',
@@ -2417,7 +2454,6 @@ suite('services', function () {
               assert.strictEqual(this.getServer(), server);
               listener = this;
               assert.deepEqual(wreq.getRequest(), {n: 2});
-              assert.deepEqual(this.getContext(), {});
               next(null, function (err, prev) {
                 assert.strictEqual(this, listener);
                 wres.getHeader().buf = buf;
