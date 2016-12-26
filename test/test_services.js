@@ -2144,8 +2144,10 @@ suite('services', function () {
         .onNeg(function (n, cb) { cb(null, -n); });
       var transports = createPassthroughTransports();
       var opts = {id: 0};
-      var client = svc.createClient()
-        .use(function (wreq, wres, next) {
+      var client = svc.createClient({
+        callContext: callContext,
+        transport: transports[0]
+      }).use(function (wreq, wres, next) {
           // Check that middleware have the right context.
           assert.equal(this.foo,'foo');
           next(null, function (err, prev) {
@@ -2153,9 +2155,7 @@ suite('services', function () {
             prev(err);
           });
         });
-      var emitter = client.createEmitter(transports[0], {
-        callContext: callContext
-      });
+      var emitter = client.getEmitters()[0];
       server.createListener(transports[1]);
       client.neg(1, opts, function (err, n) {
         assert(!err, err);
@@ -2183,7 +2183,7 @@ suite('services', function () {
         }
       });
       var ctx = {numCalls: 0};
-      var server = svc.createServer()
+      var server = svc.createServer({callContext: ctx})
         .use(function (wreq, wres, next) {
           // Check that middleware have the right context.
           assert.strictEqual(this, ctx);
@@ -2202,7 +2202,7 @@ suite('services', function () {
         });
       var transports = createPassthroughTransports();
       var client = svc.createClient({transport: transports[0]});
-      server.createListener(transports[1], {callContext: ctx});
+      server.createListener(transports[1]);
       client.neg(1, function (err, n) {
         assert(!err, err);
         assert.equal(n, -1);
