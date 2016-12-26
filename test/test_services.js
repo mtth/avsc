@@ -2211,6 +2211,38 @@ suite('services', function () {
       });
     });
 
+    test('server call context options', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var ctxOpts = 123;
+      var server = svc.createServer({callContext: callContext})
+        .use(function (wreq, wres, next) {
+          assert.strictEqual(this.id, 123);
+          next();
+        })
+        .onNeg(function (n, cb) {
+          assert.strictEqual(this.id, 123);
+          cb(null, -n);
+        });
+      var transports = createPassthroughTransports();
+      var client = svc.createClient({transport: transports[0]});
+      server.createListener(transports[1], {contextOptions: ctxOpts});
+      client.neg(1, function (err, n) {
+        assert(!err, err);
+        assert.equal(n, -1);
+        done();
+      });
+
+      function callContext(listener, opts) {
+        assert.strictEqual(opts, ctxOpts);
+        return {id: ctxOpts};
+      }
+    });
+
     test('server default handler', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Math',
