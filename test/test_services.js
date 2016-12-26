@@ -2145,7 +2145,7 @@ suite('services', function () {
       var transports = createPassthroughTransports();
       var opts = {id: 0};
       var client = svc.createClient({
-        callContext: callContext,
+        context: context,
         transport: transports[0]
       }).use(function (wreq, wres, next) {
           // Check that middleware have the right context.
@@ -2168,9 +2168,9 @@ suite('services', function () {
         });
       });
 
-      function callContext(emitter_, opts_) {
+      function context(emitter_, ctxOpts, callOpts) {
         assert.strictEqual(emitter_, emitter);
-        assert.strictEqual(opts_, opts);
+        assert.strictEqual(callOpts, opts);
         return {foo: 'foo', num: opts.id++};
       }
     });
@@ -2183,7 +2183,7 @@ suite('services', function () {
         }
       });
       var ctx = {numCalls: 0};
-      var server = svc.createServer({callContext: ctx})
+      var server = svc.createServer({context: ctx})
         .use(function (wreq, wres, next) {
           // Check that middleware have the right context.
           assert.strictEqual(this, ctx);
@@ -2219,7 +2219,7 @@ suite('services', function () {
         }
       });
       var ctxOpts = 123;
-      var server = svc.createServer({callContext: callContext})
+      var server = svc.createServer({context: context})
         .use(function (wreq, wres, next) {
           assert.strictEqual(this.id, 123);
           next();
@@ -2237,7 +2237,7 @@ suite('services', function () {
         done();
       });
 
-      function callContext(listener, opts) {
+      function context(listener, opts) {
         assert.strictEqual(opts, ctxOpts);
         return {id: ctxOpts};
       }
