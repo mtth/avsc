@@ -2012,11 +2012,11 @@ suite('services', function () {
   suite('Client', function () {
 
     test('no emitters', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var client = ptcl.createClient()
+      var client = svc.createClient()
         .on('error', function (err) {
           assert(/no stubs available/.test(err), err);
           done();
@@ -2024,13 +2024,15 @@ suite('services', function () {
       // With callback.
       client.ping(function (err) {
         assert(/no stubs available/.test(err), err);
-        // Without
+        assert.deepEqual(this.getLocals(), {});
+        assert.strictEqual(this.getStub(), undefined);
+        // Without (triggering the error above).
         client.ping();
       });
     });
 
     test('destroy emitters', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -2038,7 +2040,7 @@ suite('services', function () {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      var client = ptcl.createClient();
+      var client = svc.createClient();
       client.createStub(transport)
         .on('eot', function () {
           done();
@@ -2047,7 +2049,7 @@ suite('services', function () {
     });
 
     test('default policy', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null', 'one-way': true}}
       });
@@ -2055,17 +2057,18 @@ suite('services', function () {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      var client = ptcl.createClient();
+      var client = svc.createClient();
       client.createStub(transport, {noPing: true});
       client.createStub(transport, {noPing: true});
       client.ping(function (err) {
         assert(!err);
+        assert.strictEqual(this.getStub().getClient().service, svc);
         done();
       });
     });
 
     test('custom policy', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -2074,7 +2077,7 @@ suite('services', function () {
         writable: new stream.PassThrough()
       };
 
-      var client = ptcl.createClient({stubPolicy: policy});
+      var client = svc.createClient({stubPolicy: policy});
       var stubs = [
         client.createStub(transport),
         client.createStub(transport)
@@ -2095,7 +2098,7 @@ suite('services', function () {
         remoteFingerprint: 'abc',
         remoteProtocols: remotePtcls
       });
-      assert.deepEqual(client.getRemoteProtocols(), remotePtcls);
+      assert.deepEqual(client.remoteProtocols(), remotePtcls);
     });
 
   });
@@ -2113,10 +2116,10 @@ suite('services', function () {
         server.createStub(transport),
         server.createStub(transport)
       ];
-      assert.deepEqual(server.getStubs(), stubs);
+      assert.deepEqual(server.stubs(), stubs);
       stubs[0]
         .on('eot', function () {
-          assert.deepEqual(server.getStubs(), [stubs[1]]);
+          assert.deepEqual(server.stubs(), [stubs[1]]);
           done();
         })
         .destroy();
@@ -2127,7 +2130,7 @@ suite('services', function () {
       var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
       var remotePtcls = {abc: ptcl2.protocol};
       var server = ptcl1.createServer({remoteProtocols: remotePtcls});
-      assert.deepEqual(server.getRemoteProtocols(), remotePtcls);
+      assert.deepEqual(server.remoteProtocols(), remotePtcls);
     });
 
     test('no capitalization', function () {
@@ -2471,7 +2474,7 @@ suite('services', function () {
               assert.strictEqual(this.getStub().getServer(), server);
               cb(null, -ns[0]);
             });
-          var stub = client.getStubs()[0];
+          var stub = client.stubs()[0];
           stub.on('eot', function () {
               done();
             })
@@ -2539,7 +2542,7 @@ suite('services', function () {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
           var isDone = false;
-          var stub = client.getStubs()[0];
+          var stub = client.stubs()[0];
           client
             .use(function (wreq, wres, next) {
               // No callback.
@@ -2612,7 +2615,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          client.getStubs()[0]
+          client.stubs()[0]
             .on('error', function (err) {
               assert(/duplicate middleware forward/.test(err.message));
               setTimeout(function () { done(); }, 0);
@@ -2801,11 +2804,11 @@ suite('services', function () {
               // Client.
               remotePtcl = {};
               remotePtcl[serverSvc.hash] = serverPtcl;
-              assert.deepEqual(client.getRemoteProtocols(), remotePtcl);
+              assert.deepEqual(client.remoteProtocols(), remotePtcl);
               // Server.
               remotePtcl = {};
               remotePtcl[clientSvc.hash] = clientPtcl;
-              assert.deepEqual(server.getRemoteProtocols(), remotePtcl);
+              assert.deepEqual(server.remoteProtocols(), remotePtcl);
               done();
             });
         });
