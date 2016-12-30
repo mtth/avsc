@@ -1509,7 +1509,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
-            assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+            assert.equal(err.message, 'INVALID_RESPONSE');
             ptcl.emit('sqrt', {n: 0}, ee, function (err) {
               assert(/zero!/.test(err.message));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
@@ -1983,7 +1983,7 @@ suite('services', function () {
             .on('error1', function () { throw new Error('foobar'); })
             .on('negate', function (req, ee, cb) { cb(null, -req.n); })
             .emit('error1', {}, ee, function (err) {
-              assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+              assert.equal(err.message, 'foobar');
               // But the server doesn't die.
               this.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.strictEqual(err, null);
@@ -2325,22 +2325,78 @@ suite('services', function () {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var isCalled = false;
+      var handlerCalled = false;
+      var errorTriggered = false;
       var server = svc.createServer()
+        .on('error', function (err) {
+          assert(/foobar/.test(err), err);
+          errorTriggered = true;
+        })
         .use(function (wreq, wres, next) {
           wres.setError('foobar');
           next();
         })
         .onNeg(function (n, cb) {
-          isCalled = true;
+          handlerCalled = true;
           cb(null, -n);
         });
       svc.createClient({server: server})
         .neg(1, function (err) {
           assert(/foobar/.test(err), err);
-          assert(!isCalled);
-          done();
+          assert(!handlerCalled);
+          setTimeout(function () {
+            assert(errorTriggered);
+            done();
+          }, 0);
         });
+    });
+
+    test('server non-strict error', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var errorTriggered = false;
+      var server = svc.createServer()
+        .on('error', function () {
+          errorTriggered = true;
+        })
+        .onNeg(function (n, cb) {
+          cb(null, -n);
+        });
+      svc.createClient({server: server})
+        .neg(1, function (err, n) {
+          assert(!err, err);
+          assert.equal(n, -1);
+          setTimeout(function () {
+            assert(!errorTriggered);
+            done();
+          }, 0);
+        });
+    });
+
+    test('server one-way middleware error', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Push',
+        messages: {
+          push: {
+            request: [{name: 'n', type: 'int'}],
+            response: 'null',
+            'one-way': true
+          }
+        }
+      });
+      var server = svc.createServer()
+        .on('error', function (err) {
+          assert(/foobar/.test(err), err);
+          done();
+        })
+        .use(function (wreq, wres, next) {
+          next(new Error('foobar'));
+        });
+      svc.createClient({server: server}).push(1);
     });
 
     suite('stateful', function () {
@@ -2455,9 +2511,9 @@ suite('services', function () {
             }
           });
           client.sqrt(-1, function (err) {
-            assert.equal(err, 'INTERNAL_SERVER_ERROR');
+            assert.equal(err, 'INVALID_RESPONSE');
             client.sqrt(-2, function (err) {
-              assert.equal(err, 'INTERNAL_SERVER_ERROR');
+              assert.equal(err, 'negative');
               client.sqrt(100, function (err, res) {
                 // The server still doesn't die (we can make a new request).
                 assert.strictEqual(err, undefined);
@@ -2646,7 +2702,7 @@ suite('services', function () {
           }
         });
         setupFn(ptcl, ptcl, function (client, server) {
-          var fooErr = new Error('foo');
+          var fooErr = new Error('foobar');
           var sawFoo = 0;
           server
             .on('error', function (err) {
@@ -2665,7 +2721,7 @@ suite('services', function () {
             .onNeg(function () { throw fooErr; });
           client
             .neg(2, function (err) {
-              assert(/INTERNAL_SERVER_ERROR/.test(err.message));
+              assert(/foobar/.test(err.message), err);
             });
         });
       });
@@ -2697,7 +2753,7 @@ suite('services', function () {
             .neg(2, function (err) {
               assert(/FOO/.test(err));
               client.neg(1, function (err) {
-                assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+                assert.equal(err.message, 'INVALID_RESPONSE');
               });
             });
         });
