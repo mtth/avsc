@@ -1310,7 +1310,7 @@ suite('services', function () {
                 assert.strictEqual(err, null);
                 assert.equal(res, -20);
                 n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
-                  assert.equal(err.rpcCode, 'INVALID_REQUEST');
+                  assert(/invalid negate request/.test(err), err);
                   process.nextTick(function () { ee.destroy(); });
                 });
               });
@@ -1388,7 +1388,7 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function () { done(); });
           ptcl.emit('negate', {n: 'a'}, ee, function (err) {
-            assert.equal(err.rpcCode, 'INVALID_REQUEST');
+            assert(/invalid negate request/.test(err), err);
             ee.destroy();
           });
         });
@@ -1509,7 +1509,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
-            assert.equal(err.message, 'INVALID_RESPONSE');
+            assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
             ptcl.emit('sqrt', {n: 0}, ee, function (err) {
               assert(/zero!/.test(err.message));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
@@ -2179,7 +2179,7 @@ suite('services', function () {
         assert.equal(n, -1);
         assert.equal(this.num, 0);
         client.neg('abc', opts, function (err) {
-          assert(/invalid "int"/.test(err), err);
+          assert(/invalid neg request/.test(err), err);
           assert.equal(this.num, 1);
           done();
         });
@@ -2455,17 +2455,17 @@ suite('services', function () {
         var ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
-            negate: {
-              request: [{name: 'n', type: 'int'}],
+            negateFirst: {
+              request: [{name: 'ns', type: {type: 'array', items: 'int'}}],
               response: 'long'
             }
           }
         });
         setupFn(ptcl, ptcl, function (client, server) {
           server
-            .onNegate(function (n, cb) {
+            .onNegateFirst(function (ns, cb) {
               assert.strictEqual(this.getServer(), server);
-              cb(null, -n);
+              cb(null, -ns[0]);
             });
           var emitter = client.getEmitters()[0];
           emitter.on('eot', function () {
@@ -2475,13 +2475,12 @@ suite('services', function () {
               // Allow the initial ping to complete.
               assert.equal(hres.match, 'BOTH');
               process.nextTick(function () {
-                client.negate(20, function (err, res) {
+                client.negateFirst([20], function (err, res) {
                   assert.equal(this, emitter);
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
-                  client.negate('ni',  function (err) {
-                    assert(/invalid "int"/.test(err.message));
-                    assert.equal(err.rpcCode, 'INVALID_REQUEST');
+                  client.negateFirst([-10, 'ni'],  function (err) {
+                    assert(/invalid negateFirst request/.test(err), err);
                     this.destroy();
                   });
                 });
@@ -2511,7 +2510,7 @@ suite('services', function () {
             }
           });
           client.sqrt(-1, function (err) {
-            assert.equal(err, 'INVALID_RESPONSE');
+            assert.equal(err, 'INTERNAL_SERVER_ERROR');
             client.sqrt(-2, function (err) {
               assert.equal(err, 'INTERNAL_SERVER_ERROR');
               client.sqrt(100, function (err, res) {
