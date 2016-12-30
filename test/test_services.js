@@ -879,7 +879,7 @@ suite('services', function () {
       }, {noPing: true, strictErrors: true});
       ptcl.emit('ping', {}, ee, function (err) {
         assert(/foobar/.test(err.string));
-        assert(!ee.isDestroyed());
+        assert(!ee.destroyed);
         done();
       });
     });
@@ -2062,7 +2062,7 @@ suite('services', function () {
       client.createStub(transport, {noPing: true});
       client.ping(function (err) {
         assert(!err);
-        assert.strictEqual(this.getStub().getClient().service, svc);
+        assert.strictEqual(this.getStub().client.service, svc);
         done();
       });
     });
@@ -2275,7 +2275,7 @@ suite('services', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
             assert.equal(n, -1);
-            this.getStub().getClient().abs(5, function (err, n) {
+            this.getStub().client.abs(5, function (err, n) {
               assert(!err, err);
               assert.equal(n, 10);
               done();
@@ -2471,7 +2471,7 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server
             .onNegateFirst(function (ns, cb) {
-              assert.strictEqual(this.getStub().getServer(), server);
+              assert.strictEqual(this.getStub().server, server);
               cb(null, -ns[0]);
             });
           var stub = client.stubs()[0];
@@ -2647,7 +2647,7 @@ suite('services', function () {
           server
             .use(function (wreq, wres, next) {
               stub = this.getStub();
-              assert.strictEqual(stub.getServer(), server);
+              assert.strictEqual(stub.server, server);
               assert.deepEqual(wreq.getRequest(), {n: 2});
               next(null, function (err, prev) {
                 assert.strictEqual(this.getStub(), stub);
