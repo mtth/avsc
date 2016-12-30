@@ -1930,10 +1930,10 @@ suite('services', function () {
         server.createStub(transport),
         server.createStub(transport)
       ];
-      assert.deepEqual(server.stubs(), stubs);
+      assert.deepEqual(server.activeStubs(), stubs);
       stubs[0]
         .on('eot', function () {
-          assert.deepEqual(server.stubs(), [stubs[1]]);
+          assert.deepEqual(server.activeStubs(), [stubs[1]]);
           done();
         })
         .destroy();
@@ -2288,7 +2288,7 @@ suite('services', function () {
               assert.strictEqual(this.stub.server, server);
               cb(null, -ns[0]);
             });
-          var stub = client.stubs()[0];
+          var stub = client.activeStubs()[0];
           stub.on('eot', function () {
               done();
             })
@@ -2356,7 +2356,7 @@ suite('services', function () {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
           var isDone = false;
-          var stub = client.stubs()[0];
+          var stub = client.activeStubs()[0];
           client
             .use(function (wreq, wres, next) {
               // No callback.
@@ -2429,7 +2429,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          client.stubs()[0]
+          client.activeStubs()[0]
             .on('error', function (err) {
               assert(/duplicate middleware forward/.test(err.message));
               setTimeout(function () { done(); }, 0);
