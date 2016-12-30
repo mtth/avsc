@@ -2289,6 +2289,60 @@ suite('services', function () {
       }
     });
 
+    test('client middleware bypass', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var server = svc.createServer()
+        .onNeg(function (n, cb) { cb(null, -n); });
+      var client = svc.createClient({server: server});
+
+      var isCalled = false;
+      client
+        .use(function (wreq, wres, next) {
+          wres.setResponse(-3);
+          next();
+        })
+        .use(function (wreq, wres, next) {
+          isCalled = true;
+          next();
+        })
+        .neg(1, function (err, n) {
+          assert(!err, err);
+          assert.equal(n, -3);
+          assert(!isCalled);
+          done();
+        });
+    });
+
+    test('server middleware bypass', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var isCalled = false;
+      var server = svc.createServer()
+        .use(function (wreq, wres, next) {
+          wres.setError('foobar');
+          next();
+        })
+        .onNeg(function (n, cb) {
+          isCalled = true;
+          cb(null, -n);
+        });
+      svc.createClient({server: server})
+        .neg(1, function (err) {
+          assert(/foobar/.test(err), err);
+          assert(!isCalled);
+          done();
+        });
+    });
+
     suite('stateful', function () {
 
       run(function (clientPtcl, serverPtcl, opts, cb) {
