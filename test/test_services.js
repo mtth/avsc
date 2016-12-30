@@ -319,7 +319,7 @@ suite('services', function () {
         request: [{name: 'greeting', type: 'string'}],
         response: 'int'
       });
-      assert.deepEqual(m.getErrorType().toString(), '["string"]');
+      assert.deepEqual(m.errorType.toString(), '["string"]');
     });
 
     test('missing response', function () {
@@ -356,21 +356,21 @@ suite('services', function () {
         response: 'null'
       };
       var m = Message.forSchema('Ping', s);
-      assert.equal(m.getName(), 'Ping');
-      assert.equal(m.getRequestType().getFields()[0].getName(), 'ping');
-      assert.equal(m.getResponseType().getName(true), 'null');
+      assert.equal(m.name, 'Ping');
+      assert.equal(m.requestType.getFields()[0].getName(), 'ping');
+      assert.equal(m.responseType.getName(true), 'null');
+      assert.strictEqual(m.oneWay, false);
       assert.deepEqual(m.getSchema(), s);
-      assert.strictEqual(m.isOneWay(), false);
     });
 
-    test('getDocumentation', function () {
+    test('get documentation', function () {
       var schema = {
         request: [{name: 'ping', type: 'string'}],
         response: 'null',
         doc: 'Pong'
       };
       var m = Message.forSchema('Ping', schema);
-      assert.equal(m.getDocumentation(), 'Pong');
+      assert.equal(m.doc, 'Pong');
     });
 
     test('invalid types', function () {
@@ -2271,7 +2271,7 @@ suite('services', function () {
 
       function defaultHandler(wreq, wres, cb) {
         // jshint -W040
-        assert.equal(this.getMessage().getName(), 'abs');
+        assert.equal(this.getMessage().name, 'abs');
         wres.setResponse(10);
         cb();
       }
