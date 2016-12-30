@@ -2606,7 +2606,7 @@ suite('services', function () {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        var opts = {errorFormatter: formatter};
+        var opts = {systemErrorFormatter: formatter};
         var numErrs = 0;
         var numFormats = 0;
         var barErr = new Error('baribababa');
