@@ -2150,7 +2150,7 @@ suite('services', function () {
       });
     });
 
-    test('client call context factory', function (done) {
+    test('client context call options', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
@@ -2161,35 +2161,14 @@ suite('services', function () {
         .onNeg(function (n, cb) { cb(null, -n); });
       var transports = createPassthroughTransports();
       var opts = {id: 0};
-      var client = svc.createClient({
-        context: context,
-        transport: transports[0]
-      }).use(function (wreq, wres, next) {
-          // Check that middleware have the right context.
-          assert.equal(this.foo,'foo');
-          next(null, function (err, prev) {
-            assert.equal(this.foo,'foo');
-            prev(err);
-          });
-        });
-      var emitter = client.getEmitters()[0];
+      var client = svc.createClient({transport: transports[0]});
       server.createListener(transports[1]);
       client.neg(1, opts, function (err, n) {
         assert(!err, err);
         assert.equal(n, -1);
-        assert.equal(this.num, 0);
-        client.neg('abc', opts, function (err) {
-          assert(/invalid neg request/.test(err), err);
-          assert.equal(this.num, 1);
-          done();
-        });
+        assert.equal(this.getCallOptions().id, 0);
+        done();
       });
-
-      function context(emitter_, ctxOpts, callOpts) {
-        assert.strictEqual(emitter_, emitter);
-        assert.strictEqual(callOpts, opts);
-        return {foo: 'foo', num: opts.id++};
-      }
     });
 
     test('server call constant context', function (done) {
@@ -2199,22 +2178,23 @@ suite('services', function () {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var ctx = {numCalls: 0};
-      var server = svc.createServer({context: ctx})
+      var numCalls = 0;
+      var server = svc.createServer()
         .use(function (wreq, wres, next) {
           // Check that middleware have the right context.
-          assert.strictEqual(this, ctx);
-          assert.equal(ctx.numCalls++, 0);
+          this.getLocals().id = 123;
+          assert.equal(numCalls++, 0);
           next(null, function (err, prev) {
             assert(!err, err);
-            assert.strictEqual(this, ctx);
-            assert.equal(ctx.numCalls++, 2);
+            assert.equal(this.getLocals().id, 456);
+            assert.equal(numCalls++, 2);
             prev(err);
           });
         })
         .onNeg(function (n, cb) {
-          assert.strictEqual(this, ctx);
-          assert.equal(ctx.numCalls++, 1);
+          assert.equal(this.getLocals().id, 123);
+          this.getLocals().id = 456;
+          assert.equal(numCalls++, 1);
           cb(null, -n);
         });
       var transports = createPassthroughTransports();
@@ -2223,7 +2203,7 @@ suite('services', function () {
       client.neg(1, function (err, n) {
         assert(!err, err);
         assert.equal(n, -1);
-        assert.equal(ctx.numCalls, 3);
+        assert.equal(numCalls, 3);
         done();
       });
     });
@@ -2236,13 +2216,13 @@ suite('services', function () {
         }
       });
       var ctxOpts = 123;
-      var server = svc.createServer({context: context})
+      var server = svc.createServer()
         .use(function (wreq, wres, next) {
-          assert.strictEqual(this.id, 123);
+          assert.strictEqual(this.getContextOptions(), ctxOpts);
           next();
         })
         .onNeg(function (n, cb) {
-          assert.strictEqual(this.id, 123);
+          assert.strictEqual(this.getContextOptions(), ctxOpts);
           cb(null, -n);
         });
       var transports = createPassthroughTransports();
@@ -2253,11 +2233,6 @@ suite('services', function () {
         assert.equal(n, -1);
         done();
       });
-
-      function context(listener, opts) {
-        assert.strictEqual(opts, ctxOpts);
-        return {id: ctxOpts};
-      }
     });
 
     test('server default handler', function (done) {
@@ -2464,7 +2439,7 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server
             .onNegateFirst(function (ns, cb) {
-              assert.strictEqual(this.getServer(), server);
+              assert.strictEqual(this.getListener().getServer(), server);
               cb(null, -ns[0]);
             });
           var emitter = client.getEmitters()[0];
@@ -2476,12 +2451,12 @@ suite('services', function () {
               assert.equal(hres.match, 'BOTH');
               process.nextTick(function () {
                 client.negateFirst([20], function (err, res) {
-                  assert.equal(this, emitter);
+                  assert.equal(this.getEmitter(), emitter);
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negateFirst([-10, 'ni'],  function (err) {
                     assert(/invalid negateFirst request/.test(err), err);
-                    this.destroy();
+                    this.getEmitter().destroy();
                   });
                 });
               });
@@ -2539,7 +2514,7 @@ suite('services', function () {
           client
             .use(function (wreq, wres, next) {
               // No callback.
-              assert.strictEqual(this, emitter);
+              assert.strictEqual(this.getEmitter(), emitter);
               assert.deepEqual(wreq.getHeader(), {});
               wreq.getHeader().buf = buf;
               assert.deepEqual(wreq.getRequest(), {n: 2});
@@ -2551,7 +2526,7 @@ suite('services', function () {
               wreq.getRequest().n = 3;
               next(null, function (err, prev) {
                 assert(!err);
-                assert.strictEqual(this, emitter);
+                assert.strictEqual(this.getEmitter(), emitter);
                 assert.deepEqual(wres.getResponse(), -3);
                 isDone = true;
                 prev();
@@ -2637,11 +2612,11 @@ suite('services', function () {
           var listener; // Listener isn't ready yet.
           server
             .use(function (wreq, wres, next) {
-              assert.strictEqual(this.getServer(), server);
-              listener = this;
+              listener = this.getListener();
+              assert.strictEqual(listener.getServer(), server);
               assert.deepEqual(wreq.getRequest(), {n: 2});
               next(null, function (err, prev) {
-                assert.strictEqual(this, listener);
+                assert.strictEqual(this.getListener(), listener);
                 wres.getHeader().buf = buf;
                 prev();
               });
@@ -2675,7 +2650,7 @@ suite('services', function () {
           server
             .use(function (wreq, wres, next) {
               // Attach error handler to listener.
-              this.on('error', function (err) {
+              this.getListener().on('error', function (err) {
                 assert(/duplicate/.test(err));
                 setTimeout(function () { done(); }, 0);
               });
@@ -2846,7 +2821,7 @@ suite('services', function () {
         setupFn(svc, svc, function (client, server) {
           var numErrors = 0;
           server.onNeg(function (n, cb) {
-            this.on('error', function (err) {
+            this.getListener().on('error', function (err) {
               numErrors++;
               assert(/bar/.test(err), err);
             });
@@ -2901,7 +2876,7 @@ suite('services', function () {
         client.upper('foo', function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
-          this.destroy();
+          this.getEmitter().destroy();
         });
       });
     });
