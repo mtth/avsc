@@ -2100,7 +2100,7 @@ suite('services', function () {
       function defaultHandler(wreq, wres, cb) {
         // jshint -W040
         assert.equal(this.getMessage().name, 'abs');
-        wres.setResponse(10);
+        wres.response = 10;
         cb();
       }
     });
@@ -2117,7 +2117,7 @@ suite('services', function () {
       var isCalled = false;
       svc.createClient({server: server})
         .use(function (wreq, wres, next) {
-          wres.setResponse(-3);
+          wres.response = -3;
           next();
         })
         .use(function (wreq, wres, next) {
@@ -2149,7 +2149,7 @@ suite('services', function () {
           errorTriggered = true;
         })
         .use(function (wreq, wres, next) {
-          wres.setError('foobar');
+          wres.error = 'foobar';
           next();
         })
         .onNeg(function (n, cb) {
@@ -2361,19 +2361,19 @@ suite('services', function () {
             .use(function (wreq, wres, next) {
               // No callback.
               assert.strictEqual(this.getStub(), stub);
-              assert.deepEqual(wreq.getHeader(), {});
-              wreq.getHeader().buf = buf;
-              assert.deepEqual(wreq.getRequest(), {n: 2});
+              assert.deepEqual(wreq.headers, {});
+              wreq.headers.buf = buf;
+              assert.deepEqual(wreq.request, {n: 2});
               next();
             })
             .use(function (wreq, wres, next) {
               // Callback here.
-              assert.deepEqual(wreq.getHeader(), {buf: buf});
-              wreq.getRequest().n = 3;
+              assert.deepEqual(wreq.headers, {buf: buf});
+              wreq.request.n = 3;
               next(null, function (err, prev) {
                 assert(!err);
                 assert.strictEqual(this.getStub(), stub);
-                assert.deepEqual(wres.getResponse(), -3);
+                assert.deepEqual(wres.response, -3);
                 isDone = true;
                 prev();
               });
@@ -2462,10 +2462,10 @@ suite('services', function () {
             .use(function (wreq, wres, next) {
               stub = this.getStub();
               assert.strictEqual(stub.server, server);
-              assert.deepEqual(wreq.getRequest(), {n: 2});
+              assert.deepEqual(wreq.request, {n: 2});
               next(null, function (err, prev) {
                 assert.strictEqual(this.getStub(), stub);
-                wres.getHeader().buf = buf;
+                wres.headers.buf = buf;
                 prev();
               });
             })
@@ -2473,7 +2473,7 @@ suite('services', function () {
           client
             .use(function (wreq, wres, next) {
               next(null, function (err, prev) {
-                assert.deepEqual(wres.getHeader(), {buf: buf});
+                assert.deepEqual(wres.headers, {buf: buf});
                 isDone = true;
                 prev();
               });
@@ -2537,7 +2537,7 @@ suite('services', function () {
               setTimeout(function () { done(); }, 0);
             })
             .use(function (wreq, wres, next) {
-              wres.getHeader().id = 123;
+              wres.headers.id = 123;
               next();
             })
             .onNeg(function () { throw fooErr; });
