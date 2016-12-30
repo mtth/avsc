@@ -679,24 +679,6 @@ suite('services', function () {
         });
     });
 
-    test('custom timeout', function (done) {
-      var ptcl = Service.forProtocol({
-        protocol: 'Ping',
-        messages: {ping: {request: [], response: 'boolean'}}
-      });
-      var transport = {
-        readable: new stream.PassThrough({objectMode: true}),
-        writable: new stream.PassThrough({objectMode: true})
-      };
-      var ee = ptcl.createEmitter(transport, {objectMode: true, timeout: 0})
-        .on('eot', function () { done(); });
-      assert.equal(ee.getTimeout(), 0);
-      ee.emitMessage('ping', {request: {}}, {timeout: 10}, function (err) {
-        assert(/timeout/.test(err));
-        ee.destroy();
-      });
-    });
-
     test('ping', function (done) {
       var svc = Service.forProtocol({protocol: 'Ping' });
       var transport = {
@@ -709,51 +691,6 @@ suite('services', function () {
       stub.ping(function (err) {
         assert(/timeout/.test(err), err);
         stub.destroy();
-      });
-    });
-
-    test('missing message & callback', function (done) {
-      var ptcl = Service.forProtocol({
-        protocol: 'Ping',
-        messages: {ping: {request: [], response: 'boolean'}}
-      });
-      var transports = createPassthroughTransports(true);
-      var ee = ptcl.createEmitter(
-        transports[0], {objectMode: true, timeout: 0}
-      ).on('eot', function () { done(); });
-      assert.throws(function () {
-        ee.emitMessage({message: ptcl.getMessage('ping'), request: {}});
-      }, /missing callback/);
-      ee.emitMessage('foo', {request: {}}, function (err) {
-        assert(/unknown message/.test(err));
-        ee.destroy();
-      });
-    });
-
-    test('invalid response', function (done) {
-      var ptcl = Service.forProtocol({
-        protocol: 'Ping',
-        messages: {ping: {request: [], response: 'boolean'}}
-      });
-      var transport = {
-        readable: new stream.PassThrough({objectMode: true}),
-        writable: new stream.PassThrough({objectMode: true})
-      };
-      var opts = {noPing: true, objectMode: true, timeout: 0};
-      var ee = ptcl.createEmitter(transport, opts)
-        .on('eot', function () { done(); });
-      assert.strictEqual(ee.getTimeout(), 0);
-      ee.emitMessage('ping', {request: {}}, function (err) {
-        assert.equal(err.rpcCode, 'INVALID_RESPONSE');
-        assert(!this.isDestroyed());
-        this.destroy();
-      });
-      transport.writable.once('data', function (obj) {
-        assert.deepEqual(
-          obj,
-          {id: 1, payload: [new Buffer('\x00\x08ping', 'binary')]}
-        );
-        transport.readable.write({id: obj.id, payload: [new Buffer([3])]});
       });
     });
 
@@ -824,28 +761,6 @@ suite('services', function () {
               .destroy();
           });
         });
-    });
-
-    test('destroy listener end', function (done) {
-      var ptcl = Service.forProtocol({
-        protocol: 'Math',
-        messages: {
-          negate: {
-            request: [{name: 'n', type: 'int'}],
-            response: 'int'
-          }
-        }
-      }).on('negate', function (req, ee, cb) {
-        ee.destroy(true);
-        cb(null, -req.n);
-      });
-      var transports = createPassthroughTransports(true);
-      var ee = ptcl.createEmitter(transports[0], {objectMode: true});
-      var env = {request: {n: 20}};
-      ee.emitMessage('negate', env, {timeout: 10}, function (err) {
-        assert(/timeout/.test(err));
-        done();
-      });
     });
 
   });
@@ -967,58 +882,6 @@ suite('services', function () {
   });
 
   suite('StatefulListener', function () {
-
-    test('custom handler', function (done) {
-      var ptcl = Service.forProtocol({
-        protocol: 'Math',
-        messages: {
-          negate: {
-            request: [{name: 'num', type: 'int'}],
-            response: 'int'
-          }
-        }
-      }).on('negate', skip);
-
-      var transports = createPassthroughTransports();
-      var reqEnv = {
-        header: {one: new Buffer([1])},
-        request: {num: 23}
-      };
-      var resEnv = {
-        header: {two: new Buffer([2])},
-        response: -23,
-        error: undefined
-      };
-
-      ptcl.createListener(transports[0])
-        .onMessage(function (name, env, cb) {
-          // Somehow message equality fails here (but not in the response
-          // envelope below). This might be because a new service is created
-          // from handshakes on the listener, but not on the emitter?
-          assert.equal(name, 'negate');
-          assert.equal(this.getPending(), 1);
-          assert.deepEqual(env, reqEnv);
-          assert.throws(function () {
-            ptcl.getHandler(name)();
-          }, /nothing/);
-          assert.strictEqual(ptcl.getHandler('foo'), undefined);
-          cb(null, resEnv);
-        });
-
-      var ee = ptcl.createEmitter(transports[1])
-        .on('eot', function () {
-          assert(this.isDestroyed());
-          done();
-        });
-
-      ee.emitMessage('negate', reqEnv, function (err, env) {
-        assert.deepEqual(env, resEnv);
-        assert(this.getProtocol().equals(ptcl));
-        this.destroy();
-      });
-
-      function skip() { throw new Error('nothing'); }
-    });
 
     test('readable ended', function (done) {
       var ptcl = Service.forProtocol({
@@ -1831,13 +1694,13 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('ping', function (req, ee, cb) {
             ee.on('error', function (err) {
-              assert(/duplicate/.test(err));
+              assert(/duplicate/.test(err), err);
               done();
             });
             cb(null, null);
             cb(null, null);
           });
-          ptcl.emit('ping', {}, ee);
+          ptcl.emit('ping', {}, ee); // No error on the emitter side.
         });
       });
 
@@ -1867,33 +1730,6 @@ suite('services', function () {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
             assert(/NOT_IMPLEMENTED/.test(err), err);
             done();
-          });
-        });
-      });
-
-      test('timeout', function (done) {
-        var ptcl = Service.forProtocol({
-          protocol: 'Echo',
-          messages: {
-            echo: {
-              request: [{name: 'id', type: 'string'}],
-              response: 'string'
-            },
-            ping: {request: [], response: 'null', 'one-way': true}
-          }
-        });
-        setupFn(ptcl, ptcl, function (ee) {
-          ptcl.on('echo', function (req, ee, cb) {
-            setTimeout(function () { cb(null, req.id); }, 50);
-          });
-          var env = {request: {id: 'foo'}};
-          ee.emitMessage('echo', env, {timeout: 10}, function (err) {
-            assert(/timeout/.test(err));
-            setTimeout(function () {
-              // Give enough time for the actual response to come back and
-              // still check that nothing fails.
-              done();
-            }, 100);
           });
         });
       });
@@ -1955,28 +1791,6 @@ suite('services', function () {
         });
       });
 
-      test('destroy listener noWait', function (done) {
-        var ptcl = Service.forProtocol({
-          protocol: 'Math',
-          messages: {
-            negate: {
-              request: [{name: 'n', type: 'int'}],
-              response: 'int'
-            }
-          }
-        });
-        setupFn(ptcl, ptcl, {endWritable: false}, function (ee) {
-          ptcl.on('negate', function (req, ee, cb) {
-            ee.destroy(true);
-            cb(null, -req.n);
-          });
-          var env = {request: {n: 20}};
-          ee.emitMessage('negate', env, {timeout: 10}, function(err) {
-            assert(/timeout/.test(err));
-            done();
-          });
-        });
-      });
 
       test('catch server error', function (done) {
         var ptcl = Service.forProtocol({
