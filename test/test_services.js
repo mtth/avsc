@@ -53,7 +53,7 @@ suite('services', function () {
         s.getTypes().map(function (t) { return t.getName(); }).sort(),
         ['foo.Curse', 'foo.Greeting']
       );
-      assert.deepEqual(s.getProtocol(), p);
+      assert.deepEqual(s.protocol, p);
     });
 
     test('missing message', function () {
@@ -203,9 +203,9 @@ suite('services', function () {
       assert.deepEqual(p.getSchema().types, [t.getSchema()]);
     });
 
-    test('getDocumentation', function () {
+    test('get documentation', function () {
       var p = Service.forProtocol({protocol: 'Hello', doc: 'Hey'});
-      assert.equal(p.getDocumentation(), 'Hey');
+      assert.equal(p.doc, 'Hey');
     });
 
     test('getFingerprint', function () {
@@ -360,7 +360,8 @@ suite('services', function () {
       assert.equal(m.requestType.getFields()[0].getName(), 'ping');
       assert.equal(m.responseType.getName(true), 'null');
       assert.strictEqual(m.oneWay, false);
-      assert.deepEqual(m.getSchema(), s);
+      assert.strictEqual(m.isOneWay(), false);
+      assert.deepEqual(m.schema(), s);
     });
 
     test('get documentation', function () {
@@ -384,6 +385,16 @@ suite('services', function () {
           types.Type.forSchema('int')
         );
       }, /invalid error type/);
+    });
+
+    test('schema multiple errors', function () {
+      var s = {
+        request: [{name: 'ping', type: 'string'}],
+        response: 'null',
+        errors: ['int', 'bytes']
+      };
+      var m = Message.forSchema('Ping', s);
+      assert.deepEqual(m.schema(), s);
     });
 
   });
@@ -801,7 +812,7 @@ suite('services', function () {
       p1.createEmitter(transports[1], {endWritable: false})
         .on('handshake', function (hreq, hres) {
           this.destroy();
-          assert.equal(hres.serverProtocol, JSON.stringify(p2.getSchema()));
+          assert.equal(hres.serverProtocol, JSON.stringify(p2.protocol));
         })
         .on('eot', function () {
           // The transports are still available for a connection.
@@ -2079,7 +2090,7 @@ suite('services', function () {
     test('remote protocols existing', function () {
       var ptcl1 = Service.forProtocol({protocol: 'Empty1'});
       var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
-      var remotePtcls = {abc: ptcl2.getSchema()};
+      var remotePtcls = {abc: ptcl2.protocol};
       var client = ptcl1.createClient({
         remoteFingerprint: 'abc',
         remoteProtocols: remotePtcls
@@ -2114,7 +2125,7 @@ suite('services', function () {
     test('remote protocols', function () {
       var ptcl1 = Service.forProtocol({protocol: 'Empty1'});
       var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
-      var remotePtcls = {abc: ptcl2.getSchema()};
+      var remotePtcls = {abc: ptcl2.protocol};
       var server = ptcl1.createServer({remoteProtocols: remotePtcls});
       assert.deepEqual(server.getRemoteProtocols(), remotePtcls);
     });
@@ -2789,11 +2800,11 @@ suite('services', function () {
               var remotePtcl;
               // Client.
               remotePtcl = {};
-              remotePtcl[serverSvc.getHash()] = serverPtcl;
+              remotePtcl[serverSvc.hash] = serverPtcl;
               assert.deepEqual(client.getRemoteProtocols(), remotePtcl);
               // Server.
               remotePtcl = {};
-              remotePtcl[clientSvc.getHash()] = clientPtcl;
+              remotePtcl[clientSvc.hash] = clientPtcl;
               assert.deepEqual(server.getRemoteProtocols(), remotePtcl);
               done();
             });
