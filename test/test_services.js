@@ -686,6 +686,21 @@ suite('services', function () {
       });
     });
 
+    test('ping', function (done) {
+      var svc = Service.forProtocol({protocol: 'Ping' });
+      var transport = {
+        readable: new stream.PassThrough({objectMode: true}),
+        writable: new stream.PassThrough({objectMode: true})
+      };
+      var ee = svc.createClient()
+        .createEmitter(transport, {noPing: true, objectMode: true, timeout: 5})
+        .on('eot', function () { done(); });
+      ee.ping(function (err) {
+        assert(/timeout/.test(err), err);
+        ee.destroy();
+      });
+    });
+
     test('missing message & callback', function (done) {
       var ptcl = Service.forProtocol({
         protocol: 'Ping',
