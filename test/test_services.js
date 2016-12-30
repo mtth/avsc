@@ -295,10 +295,10 @@ suite('services', function () {
       }
     });
 
-    test('createClient transport option', function () {
-      var ptcl = Service.forProtocol({protocol: 'Empty'});
-      var client = ptcl.createClient({transport: new stream.PassThrough()});
-      assert.deepEqual(client.getEmitters().length, 1);
+    test('createClient transport option', function (done) {
+      var svc = Service.forProtocol({protocol: 'Empty'});
+      svc.createClient({transport: new stream.PassThrough()})
+        .on('emitter', function () { done(); });
     });
 
     test('createListener strict', function () {
@@ -2142,12 +2142,14 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onEcho(function (n, cb) { cb(null, n); });
-      var client = svc.createClient({server: server});
-      client.echo(123, function (err, n) {
-        assert(!err, err);
-        assert.equal(n, 123);
-        done();
-      });
+      var client = svc.createClient({server: server})
+        .on('emitter', function () {
+          client.echo(123, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, 123);
+            done();
+          });
+        });
     });
 
     test('client context call options', function (done) {
@@ -2159,16 +2161,19 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
-      var transports = createPassthroughTransports();
-      var opts = {id: 0};
-      var client = svc.createClient({transport: transports[0]});
-      server.createListener(transports[1]);
-      client.neg(1, opts, function (err, n) {
-        assert(!err, err);
-        assert.equal(n, -1);
-        assert.equal(this.getCallOptions().id, 0);
-        done();
-      });
+      var opts = {id: 123};
+      var client = svc.createClient({server: server})
+        .on('emitter', function (emitter) {
+          emitter.on('outgoingCall', function (ctx, opts) {
+            ctx.getLocals().id = opts.id;
+          });
+          client.neg(1, opts, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -1);
+            assert.equal(this.getLocals().id, 123);
+            done();
+          });
+        });
     });
 
     test('server call constant context', function (done) {
@@ -2197,15 +2202,15 @@ suite('services', function () {
           assert.equal(numCalls++, 1);
           cb(null, -n);
         });
-      var transports = createPassthroughTransports();
-      var client = svc.createClient({transport: transports[0]});
-      server.createListener(transports[1]);
-      client.neg(1, function (err, n) {
-        assert(!err, err);
-        assert.equal(n, -1);
-        assert.equal(numCalls, 3);
-        done();
-      });
+      svc.createClient({server: server})
+        .once('emitter', function () {
+          this.neg(1, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -1);
+            assert.equal(numCalls, 3);
+            done();
+          });
+        });
     });
 
     test('server call context options', function (done) {
@@ -2215,24 +2220,29 @@ suite('services', function () {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var ctxOpts = 123;
+      var locals = {num: 123};
       var server = svc.createServer()
+        .on('listener', function (listener) {
+          listener.on('incomingCall', function (ctx) {
+            ctx.getLocals().num = locals.num;
+          });
+        })
         .use(function (wreq, wres, next) {
-          assert.strictEqual(this.getContextOptions(), ctxOpts);
+          assert.deepEqual(this.getLocals(), locals);
           next();
         })
         .onNeg(function (n, cb) {
-          assert.strictEqual(this.getContextOptions(), ctxOpts);
+          assert.deepEqual(this.getLocals(), locals);
           cb(null, -n);
         });
-      var transports = createPassthroughTransports();
-      var client = svc.createClient({transport: transports[0]});
-      server.createListener(transports[1], {contextOptions: ctxOpts});
-      client.neg(1, function (err, n) {
-        assert(!err, err);
-        assert.equal(n, -1);
-        done();
-      });
+      svc.createClient({server: server})
+        .once('emitter', function () {
+          this.neg(1, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -1);
+            done();
+          });
+        });
     });
 
     test('server default handler', function (done) {
@@ -2245,20 +2255,23 @@ suite('services', function () {
       });
       var server = svc.createServer({defaultHandler: defaultHandler})
         .onNeg(function (n, cb) { cb(null, -n); });
-      var client = svc.createClient({server: server});
 
-      client.neg(1, function (err, n) {
-        assert(!err, err);
-        assert.equal(n, -1);
-        client.abs(5, function (err, n) {
-          assert(!err, err);
-          assert.equal(n, 10);
-          done();
+      svc.createClient({server: server})
+        .once('emitter', function () {
+          this.neg(1, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -1);
+            this.getEmitter().getClient().abs(5, function (err, n) {
+              assert(!err, err);
+              assert.equal(n, 10);
+              done();
+            });
+          });
         });
-      });
 
       function defaultHandler(wreq, wres, cb) {
-        assert.equal(wreq.getMessage().getName(), 'abs');
+        // jshint -W040
+        assert.equal(this.getMessage().getName(), 'abs');
         wres.setResponse(10);
         cb();
       }
@@ -2273,10 +2286,8 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
-      var client = svc.createClient({server: server});
-
       var isCalled = false;
-      client
+      svc.createClient({server: server})
         .use(function (wreq, wres, next) {
           wres.setResponse(-3);
           next();
@@ -2285,11 +2296,13 @@ suite('services', function () {
           isCalled = true;
           next();
         })
-        .neg(1, function (err, n) {
-          assert(!err, err);
-          assert.equal(n, -3);
-          assert(!isCalled);
-          done();
+        .once('emitter', function () {
+          this.neg(1, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -3);
+            assert(!isCalled);
+            done();
+          });
         });
     });
 
@@ -2316,13 +2329,15 @@ suite('services', function () {
           cb(null, -n);
         });
       svc.createClient({server: server})
-        .neg(1, function (err) {
-          assert(/foobar/.test(err), err);
-          assert(!handlerCalled);
-          setTimeout(function () {
-            assert(errorTriggered);
-            done();
-          }, 0);
+        .once('emitter', function () {
+          this.neg(1, function (err) {
+            assert(/foobar/.test(err), err);
+            assert(!handlerCalled);
+            setTimeout(function () {
+              assert(errorTriggered);
+              done();
+            }, 0);
+          });
         });
     });
 
@@ -2342,13 +2357,15 @@ suite('services', function () {
           cb(null, -n);
         });
       svc.createClient({server: server})
-        .neg(1, function (err, n) {
-          assert(!err, err);
-          assert.equal(n, -1);
-          setTimeout(function () {
-            assert(!errorTriggered);
-            done();
-          }, 0);
+        .once('emitter', function () {
+          this.neg(1, function (err, n) {
+            assert(!err, err);
+            assert.equal(n, -1);
+            setTimeout(function () {
+              assert(!errorTriggered);
+              done();
+            }, 0);
+          });
         });
     });
 
@@ -2371,7 +2388,8 @@ suite('services', function () {
         .use(function (wreq, wres, next) {
           next(new Error('foobar'));
         });
-      svc.createClient({server: server}).push(1);
+      svc.createClient({server: server})
+        .once('emitter', function () { this.push(1); });
     });
 
     suite('stateful', function () {
