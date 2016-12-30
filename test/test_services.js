@@ -351,13 +351,15 @@ suite('services', function () {
     });
 
     test('getters', function () {
-      var m = Message.forSchema('Ping', {
+      var s = {
         request: [{name: 'ping', type: 'string'}],
         response: 'null'
-      });
+      };
+      var m = Message.forSchema('Ping', s);
       assert.equal(m.getName(), 'Ping');
       assert.equal(m.getRequestType().getFields()[0].getName(), 'ping');
       assert.equal(m.getResponseType().getName(true), 'null');
+      assert.deepEqual(m.getSchema(), s);
       assert.strictEqual(m.isOneWay(), false);
     });
 
