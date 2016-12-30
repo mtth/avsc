@@ -816,9 +816,9 @@ suite('services', function () {
         return writable;
       }, {noPing: true, objectMode: true, endWritable: false});
       ptcl.emit('ping', {}, ee, function (err) {
-        assert(!err);
+        assert(!err, err);
         ptcl.emit('ping', {}, ee, function (err) {
-          assert(!err); // We can reuse it.
+          assert(!err, err); // We can reuse it.
           done();
         });
       });
@@ -1838,8 +1838,8 @@ suite('services', function () {
       // With callback.
       client.ping(function (err) {
         assert(/no stubs available/.test(err), err);
-        assert.deepEqual(this.getLocals(), {});
-        assert.strictEqual(this.getStub(), undefined);
+        assert.deepEqual(this.locals, {});
+        assert.strictEqual(this.stub, undefined);
         // Without (triggering the error above).
         client.ping();
       });
@@ -1875,8 +1875,8 @@ suite('services', function () {
       client.createStub(transport, {noPing: true});
       client.createStub(transport, {noPing: true});
       client.ping(function (err) {
-        assert(!err);
-        assert.strictEqual(this.getStub().client.service, svc);
+        assert(!err, err);
+        assert.strictEqual(this.stub.client, client);
         done();
       });
     });
@@ -1993,12 +1993,12 @@ suite('services', function () {
       var client = svc.createClient({server: server})
         .once('stub', function (stub) {
           stub.on('outgoingCall', function (ctx, opts) {
-            ctx.getLocals().id = opts.id;
+            ctx.locals.id = opts.id;
           });
           client.neg(1, opts, function (err, n) {
             assert(!err, err);
             assert.equal(n, -1);
-            assert.equal(this.getLocals().id, 123);
+            assert.equal(this.locals.id, 123);
             done();
           });
         });
@@ -2015,18 +2015,18 @@ suite('services', function () {
       var server = svc.createServer()
         .use(function (wreq, wres, next) {
           // Check that middleware have the right context.
-          this.getLocals().id = 123;
+          this.locals.id = 123;
           assert.equal(numCalls++, 0);
           next(null, function (err, prev) {
             assert(!err, err);
-            assert.equal(this.getLocals().id, 456);
+            assert.equal(this.locals.id, 456);
             assert.equal(numCalls++, 2);
             prev(err);
           });
         })
         .onNeg(function (n, cb) {
-          assert.equal(this.getLocals().id, 123);
-          this.getLocals().id = 456;
+          assert.equal(this.locals.id, 123);
+          this.locals.id = 456;
           assert.equal(numCalls++, 1);
           cb(null, -n);
         });
@@ -2052,15 +2052,15 @@ suite('services', function () {
       var server = svc.createServer()
         .on('stub', function (stub) {
           stub.on('incomingCall', function (ctx) {
-            ctx.getLocals().num = locals.num;
+            ctx.locals.num = locals.num;
           });
         })
         .use(function (wreq, wres, next) {
-          assert.deepEqual(this.getLocals(), locals);
+          assert.deepEqual(this.locals, locals);
           next();
         })
         .onNeg(function (n, cb) {
-          assert.deepEqual(this.getLocals(), locals);
+          assert.deepEqual(this.locals, locals);
           cb(null, -n);
         });
       svc.createClient({server: server})
@@ -2089,7 +2089,7 @@ suite('services', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
             assert.equal(n, -1);
-            this.getStub().client.abs(5, function (err, n) {
+            this.stub.client.abs(5, function (err, n) {
               assert(!err, err);
               assert.equal(n, 10);
               done();
@@ -2099,7 +2099,7 @@ suite('services', function () {
 
       function defaultHandler(wreq, wres, cb) {
         // jshint -W040
-        assert.equal(this.getMessage().name, 'abs');
+        assert.equal(this.message.name, 'abs');
         wres.response = 10;
         cb();
       }
@@ -2285,7 +2285,7 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server
             .onNegateFirst(function (ns, cb) {
-              assert.strictEqual(this.getStub().server, server);
+              assert.strictEqual(this.stub.server, server);
               cb(null, -ns[0]);
             });
           var stub = client.stubs()[0];
@@ -2297,12 +2297,12 @@ suite('services', function () {
               assert.equal(hres.match, 'BOTH');
               process.nextTick(function () {
                 client.negateFirst([20], function (err, res) {
-                  assert.equal(this.getStub(), stub);
+                  assert.equal(this.stub, stub);
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negateFirst([-10, 'ni'],  function (err) {
                     assert(/invalid negateFirst request/.test(err), err);
-                    this.getStub().destroy();
+                    this.stub.destroy();
                   });
                 });
               });
@@ -2360,7 +2360,7 @@ suite('services', function () {
           client
             .use(function (wreq, wres, next) {
               // No callback.
-              assert.strictEqual(this.getStub(), stub);
+              assert.strictEqual(this.stub, stub);
               assert.deepEqual(wreq.headers, {});
               wreq.headers.buf = buf;
               assert.deepEqual(wreq.request, {n: 2});
@@ -2371,8 +2371,8 @@ suite('services', function () {
               assert.deepEqual(wreq.headers, {buf: buf});
               wreq.request.n = 3;
               next(null, function (err, prev) {
-                assert(!err);
-                assert.strictEqual(this.getStub(), stub);
+                assert(!err, err);
+                assert.strictEqual(this.stub, stub);
                 assert.deepEqual(wres.response, -3);
                 isDone = true;
                 prev();
@@ -2460,11 +2460,11 @@ suite('services', function () {
           var stub;
           server
             .use(function (wreq, wres, next) {
-              stub = this.getStub();
+              stub = this.stub;
               assert.strictEqual(stub.server, server);
               assert.deepEqual(wreq.request, {n: 2});
               next(null, function (err, prev) {
-                assert.strictEqual(this.getStub(), stub);
+                assert.strictEqual(this.stub, stub);
                 wres.headers.buf = buf;
                 prev();
               });
@@ -2498,7 +2498,7 @@ suite('services', function () {
           server
             .use(function (wreq, wres, next) {
               // Attach error handler to stub.
-              this.getStub().on('error', function (err) {
+              this.stub.on('error', function (err) {
                 assert(/duplicate/.test(err));
                 setTimeout(function () { done(); }, 0);
               });
@@ -2669,7 +2669,7 @@ suite('services', function () {
         setupFn(svc, svc, function (client, server) {
           var numErrors = 0;
           server.onNeg(function (n, cb) {
-            this.getStub().on('error', function (err) {
+            this.stub.on('error', function (err) {
               numErrors++;
               assert(/bar/.test(err), err);
             });
@@ -2724,7 +2724,7 @@ suite('services', function () {
         client.upper('foo', function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
-          this.getStub().destroy();
+          this.stub.destroy();
         });
       });
     });
