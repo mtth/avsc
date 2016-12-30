@@ -1443,7 +1443,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: -10}, ee, function (err) {
-            assert(/must be non-negative/.test(err.message));
+            assert(/must be non-negative/.test(err.message), err);
             ptcl.emit('sqrt', {n: 100}, ee, function (err) {
               assert(Math.abs(err.float - 10) < 1e-5);
               done();
@@ -1854,7 +1854,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/NOT_IMPLEMENTED/.test(err));
+            assert(/NOT_IMPLEMENTED/.test(err), err);
             done();
           });
         });
@@ -1983,7 +1983,7 @@ suite('services', function () {
             .on('error1', function () { throw new Error('foobar'); })
             .on('negate', function (req, ee, cb) { cb(null, -req.n); })
             .emit('error1', {}, ee, function (err) {
-              assert.equal(err.message, 'foobar');
+              assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
               // But the server doesn't die.
               this.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.strictEqual(err, null);
@@ -2513,7 +2513,7 @@ suite('services', function () {
           client.sqrt(-1, function (err) {
             assert.equal(err, 'INVALID_RESPONSE');
             client.sqrt(-2, function (err) {
-              assert.equal(err, 'negative');
+              assert.equal(err, 'INTERNAL_SERVER_ERROR');
               client.sqrt(100, function (err, res) {
                 // The server still doesn't die (we can make a new request).
                 assert.strictEqual(err, undefined);
@@ -2721,7 +2721,7 @@ suite('services', function () {
             .onNeg(function () { throw fooErr; });
           client
             .neg(2, function (err) {
-              assert(/foobar/.test(err.message), err);
+              assert(/INTERNAL_SERVER_ERROR/.test(err.message), err);
             });
         });
       });
