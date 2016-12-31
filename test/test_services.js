@@ -307,7 +307,6 @@ suite('services', function () {
         svc.createListener(new stream.PassThrough(), {strictErrors: true});
       });
     });
-
   });
 
   suite('Message', function () {
@@ -415,7 +414,6 @@ suite('services', function () {
       var m = Message.forSchema('Ping', s);
       assert.deepEqual(m.schema(), s);
     });
-
   });
 
   suite('FrameDecoder & FrameEncoder', function () {
@@ -544,7 +542,6 @@ suite('services', function () {
           done();
         });
     });
-
   });
 
   suite('NettyDecoder & NettyEncoder', function () {
@@ -600,7 +597,6 @@ suite('services', function () {
           done();
         });
     });
-
   });
 
   suite('Adapter', function () {
@@ -697,7 +693,6 @@ suite('services', function () {
         }
       }
     });
-
   });
 
   suite('StatefulClientChannel', function () {
@@ -811,10 +806,9 @@ suite('services', function () {
           });
         });
     });
-
   });
 
-  suite('StatelessEmitter', function () {
+  suite('StatelessClientChannel', function () {
 
     test('factory error', function (done) {
       var svc = Service.forProtocol({
@@ -835,23 +829,24 @@ suite('services', function () {
     });
 
     test('default encoder error', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var ee = ptcl.createEmitter(function (cb) {
+      var client = svc.createClient({strictErrors: true});
+      var chn = client.createChannel(function (cb) {
         return new stream.PassThrough()
           .on('finish', function () { cb(new Error('foobar')); });
-      }, {noPing: true, strictErrors: true});
-      ptcl.emit('ping', {}, ee, function (err) {
+      }, {noPing: true});
+      client.ping(function (err) {
         assert(/foobar/.test(err.string));
-        assert(!ee.destroyed);
+        assert(!chn.destroyed);
         done();
       });
     });
 
     test('reuse writable', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
@@ -862,13 +857,14 @@ suite('services', function () {
           var res = new Buffer([0, 0]); // Encoded response (flag and meta).
           readable.write({id: data.id, payload: [hres, res]});
         });
-      var ee = ptcl.createEmitter(function (cb) {
+      var client = svc.createClient();
+      client.createChannel(function (cb) {
         cb(null, readable);
         return writable;
       }, {noPing: true, objectMode: true, endWritable: false});
-      ptcl.emit('ping', {}, ee, function (err) {
+      client.ping(function (err) {
         assert(!err, err);
-        ptcl.emit('ping', {}, ee, function (err) {
+        client.ping(function (err) {
           assert(!err, err); // We can reuse it.
           done();
         });
@@ -876,7 +872,7 @@ suite('services', function () {
     });
 
     test('invalid handshake response', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
@@ -886,26 +882,27 @@ suite('services', function () {
           var buf = new Buffer([0, 0, 0, 2, 48]);
           readable.write({id: data.id, payload: [buf]});
         });
-      var ee = ptcl.createEmitter(function (cb) {
+      var client = svc.createClient();
+      client.createChannel(function (cb) {
         cb(null, readable);
         return writable;
       }, {noPing: true, objectMode: true, endWritable: false});
-      ptcl.emit('ping', {}, ee, function (err) {
+      client.ping(function (err) {
         assert(/INVALID_HANDSHAKE_RESPONSE/.test(err.rpcCode));
         done();
       });
     });
 
     test('interrupt writable', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
       // Fake handshake response.
       var hres = services.HANDSHAKE_RESPONSE_TYPE.clone({
         match: 'NONE',
-        serverService: ptcl.toString(),
-        serverHash: ptcl.getFingerprint()
+        serverService: JSON.stringify(svc.protocol),
+        serverHash: svc.hash
       });
       var readable = new stream.PassThrough({objectMode: true});
       var writable = new stream.PassThrough({objectMode: true})
@@ -913,7 +910,8 @@ suite('services', function () {
           readable.write({id: data.id, payload: [hres.toBuffer()]});
         });
       var numHandshakes = 0;
-      ptcl.createEmitter(function (cb) {
+      var client = svc.createClient();
+      client.createChannel(function (cb) {
         cb(null, readable);
         return writable;
       }, {objectMode: true}).on('handshake', function (hreq, actualHres) {
@@ -929,48 +927,47 @@ suite('services', function () {
         done();
       }, 50);
     });
-
   });
 
-  suite('StatefulListener', function () {
+  suite('StatefulServerChannel', function () {
 
     test('readable ended', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       var transport = new stream.PassThrough();
-      ptcl.createListener(transport).on('eot', function () {
-        assert(this.isDestroyed());
+      svc.createServer().createChannel(transport).on('eot', function () {
+        assert(this.destroyed);
+        assert(this.isDestroyed()); // Deprecated.
         done();
       });
       transport.push(null);
     });
 
     test('writable finished', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       // We must use object mode here since ending the encoding stream won't
       // end the underlying writable stream.
       var transports = createPassthroughTransports(true);
-      ptcl.createListener(transports[0], {objectMode: true})
+      svc.createServer().createChannel(transports[0], {objectMode: true})
         .on('eot', function () { done(); });
       transports[0].writable.end();
     });
-
   });
 
-  suite('StatelessListener', function () {
+  suite('StatelessServerChannel', function () {
 
     test('factory error', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       var err;
-      ptcl.createListener(function (cb) {
+      svc.createServer({silent: true}).createChannel(function (cb) {
         cb(new Error('bar'));
         return new stream.PassThrough();
       }).on('error', function () { err = arguments[0]; })
@@ -981,7 +978,7 @@ suite('services', function () {
     });
 
     test('delayed writable', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean', errors: ['int']}}
       });
@@ -989,7 +986,7 @@ suite('services', function () {
       var readable = new stream.PassThrough({objectMode: true});
       var writable = new stream.PassThrough({objectMode: true})
         .on('data', function (obj) { objs.push(obj); });
-      ptcl.createListener(function (cb) {
+      svc.createServer({silent: true}).createChannel(function (cb) {
         setTimeout(function () { cb(null, writable); }, 50);
         return readable;
       }, {objectMode: true}).on('eot', function () {
@@ -1000,8 +997,8 @@ suite('services', function () {
         id: 0,
         payload: [
           services.HANDSHAKE_REQUEST_TYPE.toBuffer({
-            clientHash: ptcl.getFingerprint(),
-            serverHash: ptcl.getFingerprint()
+            clientHash: svc.hash,
+            serverHash: svc.hash
           }),
           new Buffer([3]) // Invalid request contents.
         ]
@@ -1009,7 +1006,7 @@ suite('services', function () {
     });
 
     test('reuse writable', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       }).on('ping', function (req, ee, cb) {
@@ -1017,8 +1014,8 @@ suite('services', function () {
       });
       var payload = [
         services.HANDSHAKE_REQUEST_TYPE.toBuffer({
-          clientHash: ptcl.getFingerprint(),
-          serverHash: ptcl.getFingerprint()
+          clientHash: svc.hash,
+          serverHash: svc.hash
         }),
         new Buffer('\x00\x08ping')
       ];
@@ -1026,23 +1023,17 @@ suite('services', function () {
       var readable = new stream.PassThrough({objectMode: true});
       var writable = new stream.PassThrough({objectMode: true})
         .on('data', function (obj) { objs.push(obj); });
-      var ee;
-      ee = createListener()
+      svc.createServer({silent: true}).createChannel(function (cb) {
+        cb(null, writable);
+        return readable;
+      }, {endWritable: false, noPing: true, objectMode: true})
         .on('eot', function () {
           assert.deepEqual(objs.length, 2);
           done();
         });
       readable.write({id: 0, payload: payload});
       readable.end({id: 1, payload: payload});
-
-      function createListener() {
-        return ptcl.createListener(function (cb) {
-          cb(null, writable);
-          return readable;
-        }, {endWritable: false, noPing: true, objectMode: true});
-      }
     });
-
   });
 
   suite('emitters & listeners', function () { // <5.0 API.
@@ -1870,7 +1861,6 @@ suite('services', function () {
       });
 
     }
-
   });
 
   suite('Client', function () {
@@ -1988,14 +1978,13 @@ suite('services', function () {
         transport.readable.write({id: 1, payload: [new Buffer([45])]});
       }, 0);
     });
-
   });
 
   suite('Server', function () {
 
     test('get channels', function (done) {
-      var ptcl = Service.forProtocol({protocol: 'Empty1'});
-      var server = ptcl.createServer();
+      var svc = Service.forProtocol({protocol: 'Empty1'});
+      var server = svc.createServer();
       var transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
@@ -2014,19 +2003,19 @@ suite('services', function () {
     });
 
     test('remote protocols', function () {
-      var ptcl1 = Service.forProtocol({protocol: 'Empty1'});
-      var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
-      var remotePtcls = {abc: ptcl2.protocol};
-      var server = ptcl1.createServer({remoteProtocols: remotePtcls});
+      var svc1 = Service.forProtocol({protocol: 'Empty1'});
+      var svc2 = Service.forProtocol({protocol: 'Empty2'});
+      var remotePtcls = {abc: svc2.protocol};
+      var server = svc1.createServer({remoteProtocols: remotePtcls});
       assert.deepEqual(server.remoteProtocols(), remotePtcls);
     });
 
     test('no capitalization', function () {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var server = ptcl.createServer({noCapitalize: true});
+      var server = svc.createServer({noCapitalize: true});
       assert(!server.onPing);
       assert(typeof server.onping == 'function');
     });
@@ -2083,7 +2072,6 @@ suite('services', function () {
         done();
       });
     });
-
   });
 
   suite('clients & servers', function () { // >=5.0 API.
@@ -2436,7 +2424,7 @@ suite('services', function () {
     function run(setupFn) {
 
       test('primitive types', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negateFirst: {
@@ -2445,7 +2433,7 @@ suite('services', function () {
             }
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           server
             .onNegateFirst(function (ns, cb) {
               assert.strictEqual(this.channel.server, server);
@@ -2474,7 +2462,7 @@ suite('services', function () {
       });
 
       test('invalid strict error', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -2483,7 +2471,7 @@ suite('services', function () {
             }
           }
         });
-        setupFn(ptcl, ptcl, {strictErrors: true}, function (client, server) {
+        setupFn(svc, svc, {strictErrors: true}, function (client, server) {
           server.onSqrt(function (n, cb) {
             if (n === -1) {
               cb(new Error('no i')); // Invalid error (should be a string).
@@ -2509,13 +2497,13 @@ suite('services', function () {
       });
 
       test('client middleware', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
           var isDone = false;
@@ -2551,13 +2539,13 @@ suite('services', function () {
       });
 
       test('client middleware forward error', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var fwdErr = new Error('forward!');
           var bwdErr = new Error('backward!');
@@ -2584,13 +2572,13 @@ suite('services', function () {
       });
 
       test('client middleware duplicate forward calls', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
           client.activeChannels()[0]
             .on('error', function (err) {
@@ -2609,13 +2597,13 @@ suite('services', function () {
       });
 
       test('server middleware', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           var isDone = false;
           var buf = new Buffer([0, 1]);
           // The server's channel won't be ready right away in the case of
@@ -2651,13 +2639,13 @@ suite('services', function () {
       });
 
       test('server middleware duplicate backward calls', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           server
             .use(function (wreq, wres, next) {
               // Attach error handler to channel.
@@ -2680,13 +2668,13 @@ suite('services', function () {
       });
 
       test('server middleware invalid response header', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, function (client, server) {
+        setupFn(svc, svc, function (client, server) {
           var fooErr = new Error('foobar');
           var sawFoo = 0;
           server
@@ -2712,7 +2700,7 @@ suite('services', function () {
       });
 
       test('error formatter', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
@@ -2722,7 +2710,7 @@ suite('services', function () {
         var numErrs = 0;
         var numFormats = 0;
         var barErr = new Error('baribababa');
-        setupFn(ptcl, ptcl, opts, function (client, server) {
+        setupFn(svc, svc, opts, function (client, server) {
           server
             .onNeg(function () { throw barErr; })
             .on('error', function (err) {
@@ -2792,13 +2780,13 @@ suite('services', function () {
       });
 
       test('client timeout', function (done) {
-        var ptcl = Service.forProtocol({
+        var svc = Service.forProtocol({
           protocol: 'Sleep',
           messages: {
             sleep: {request: [{name: 'ms', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, {timeout: 50}, function (client, server) {
+        setupFn(svc, svc, {timeout: 50}, function (client, server) {
           server
             .onSleep(function (n, cb) {
               // Delay response by the number requested.
@@ -2941,7 +2929,6 @@ suite('services', function () {
       });
 
     }
-
   });
 
   suite('discover attributes', function () {
@@ -2958,8 +2945,8 @@ suite('services', function () {
           }
         }
       };
-      var ptcl = Service.forProtocol(schema);
-      var server = ptcl.createServer()
+      var svc = Service.forProtocol(schema);
+      var server = svc.createServer()
         .onUpper(function (str, cb) {
           cb(null, str.toUpperCase());
         });
@@ -2969,7 +2956,7 @@ suite('services', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
-        var client = ptcl.createClient();
+        var client = svc.createClient();
         client.createChannel(transports[0])
           .on('eot', function() {
             done();
@@ -2993,7 +2980,7 @@ suite('services', function () {
           }
         }
       };
-      var ptcl = Service.forProtocol(schema)
+      var svc = Service.forProtocol(schema)
         .on('upper', function (req, ee, cb) {
           cb(null, req.str.toUpperCase());
         });
@@ -3001,10 +2988,10 @@ suite('services', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(actual, schema);
         // Check that the transport is still usable.
-        var me = ptcl.createEmitter(writableFactory).on('eot', function() {
+        var me = svc.createEmitter(writableFactory).on('eot', function() {
           done();
         });
-        ptcl.emit('upper', {str: 'foo'}, me, function (err, res) {
+        svc.emit('upper', {str: 'foo'}, me, function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
           me.destroy();
@@ -3014,7 +3001,7 @@ suite('services', function () {
       function writableFactory(emitterCb) {
         var reqPt = new stream.PassThrough()
           .on('finish', function () {
-            ptcl.createListener(function (listenerCb) {
+            svc.createListener(function (listenerCb) {
               var resPt = new stream.PassThrough()
                 .on('finish', function () { emitterCb(null, resPt); });
               listenerCb(null, resPt);
@@ -3035,28 +3022,26 @@ suite('services', function () {
           }
         }
       };
-      var ptcl = Service.forProtocol(schema)
+      var svc = Service.forProtocol(schema)
         .on('upper', function (req, ee, cb) {
           cb(null, req.str.toUpperCase());
         });
       var scope = 'bar';
       var transports = createPassthroughTransports();
-      ptcl.createListener(transports[1], {scope: scope});
+      svc.createListener(transports[1], {scope: scope});
       discoverProtocol(transports[0], {timeout: 5}, function (err) {
         assert(/timeout/.test(err));
         // Check that the transport is still usable.
-        var me = ptcl.createEmitter(transports[0], {scope: scope})
+        var me = svc.createEmitter(transports[0], {scope: scope})
           .on('eot', function() { done(); });
-        ptcl.emit('upper', {str: 'foo'}, me, function (err, res) {
+        svc.emit('upper', {str: 'foo'}, me, function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
           me.destroy();
         });
       });
     });
-
   });
-
 });
 
 // Helpers.
