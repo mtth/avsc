@@ -46,20 +46,20 @@ suite('services', function () {
         }
       };
       var s = Service.forProtocol(p);
-      assert.equal(s.getName(), 'foo.HelloWorld');
-      assert.equal(s.getType('foo.Greeting').getTypeName(), 'record');
-      assert.equal(s.getTypes().length, 2);
-      assert.deepEqual(
-        s.getTypes().map(function (t) { return t.getName(); }).sort(),
-        ['foo.Curse', 'foo.Greeting']
-      );
+      assert.equal(s.name, 'foo.HelloWorld');
+      assert.equal(s.type('foo.Greeting').getTypeName(), 'record');
+      assert.equal(s.type('string').getTypeName(), 'string');
+      assert.equal(s.types.length, 4);
       assert.deepEqual(s.protocol, p);
     });
 
     test('missing message', function () {
-      var ptcl = Service.forProtocol({namespace: 'com.acme', protocol: 'Hello'});
+      var svc = Service.forProtocol({
+        namespace: 'com.acme',
+        protocol: 'Hello'
+      });
       assert.throws(function () {
-        ptcl.on('add', function () {});
+        svc.on('add', function () {});
       }, /unknown/);
     });
 
@@ -87,7 +87,7 @@ suite('services', function () {
     test('multiple references to namespaced types', function () {
       // This test is a useful sanity check for hoisting implementations.
       var n = 0;
-      var p = Service.forProtocol({
+      var s = Service.forProtocol({
         protocol: 'Hello',
         namespace: 'ping',
         types: [
@@ -108,9 +108,9 @@ suite('services', function () {
           }
         ]
       }, {typeHook: hook});
-      assert.equal(p.getType('ping.Ping').getTypeName(), 'record');
-      assert.equal(p.getType('ping.Pong').getTypeName(), 'record');
-      assert.equal(p.getType('ping.Pung').getTypeName(), 'record');
+      assert.equal(s.type('ping.Ping').getTypeName(), 'record');
+      assert.equal(s.type('ping.Pong').getTypeName(), 'record');
+      assert.equal(s.type('ping.Pung').getTypeName(), 'record');
       assert.equal(n, 5);
 
       function hook() { n++; }
@@ -131,10 +131,10 @@ suite('services', function () {
     });
 
     test('get messages', function () {
-      var ptcl;
-      ptcl = Service.forProtocol({protocol: 'Empty'});
-      assert.deepEqual(ptcl.getMessages(), {});
-      ptcl = Service.forProtocol({
+      var svc;
+      svc = Service.forProtocol({protocol: 'Empty'});
+      assert.deepEqual(svc.messages, {});
+      svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {
           ping: {
@@ -143,29 +143,29 @@ suite('services', function () {
           }
         }
       });
-      var messages = ptcl.getMessages();
-      assert.deepEqual(messages, [ptcl.getMessage('ping')]);
+      var messages = svc.messages;
+      assert.deepEqual(messages, [svc.message('ping')]);
     });
 
     test('subprotocol', function () {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         namespace: 'com.acme',
         protocol: 'Hello',
         types: [{name: 'Id', type: 'fixed', size: 2}],
         messages: {ping: {request: [], response: 'null'}}
       });
-      var subptcl = ptcl.subprotocol();
-      assert(subptcl.getFingerprint().equals(ptcl.getFingerprint()));
-      assert.strictEqual(subptcl._emitterResolvers, ptcl._emitterResolvers);
-      assert.strictEqual(subptcl._listenerResolvers, ptcl._listenerResolvers);
+      var subptcl = svc.subprotocol();
+      assert(subptcl.getFingerprint().equals(svc.getFingerprint()));
+      assert.strictEqual(subptcl._emitterResolvers, svc._emitterResolvers);
+      assert.strictEqual(subptcl._listenerResolvers, svc._listenerResolvers);
     });
 
     test('invalid emitter', function (done) {
-      var p1 = Service.forProtocol({protocol: 'Hey'});
-      var p2 = Service.forProtocol({protocol: 'Hi'});
-      var ee = p2.createEmitter(new stream.PassThrough(), {noPing: true});
+      var svc1 = Service.forProtocol({protocol: 'Hey'});
+      var svc2 = Service.forProtocol({protocol: 'Hi'});
+      var ee = svc2.createEmitter(new stream.PassThrough(), {noPing: true});
       assert.throws(
-        function () { p1.emit('hi', {}, ee); },
+        function () { svc1.emit('hi', {}, ee); },
         /invalid emitter/
       );
       done();
@@ -180,8 +180,8 @@ suite('services', function () {
         },
         doc: 'Hey'
       };
-      var p = Service.forProtocol(schema);
-      assert.deepEqual(p.getSchema({exportAttrs: true}), schema);
+      var svc = Service.forProtocol(schema);
+      assert.deepEqual(svc.getSchema({exportAttrs: true}), schema);
     });
 
     test('getSchema no top-level type references', function () {
@@ -197,91 +197,91 @@ suite('services', function () {
           }
         ]
       };
-      var p = Service.forProtocol(schema);
-      var t = p.getType('Foo');
+      var svc = Service.forProtocol(schema);
+      var t = svc.type('Foo');
       // Bar's reference shouldn't be included in the returned types array.
-      assert.deepEqual(p.getSchema().types, [t.getSchema()]);
+      assert.deepEqual(svc.getSchema().types, [t.getSchema()]);
     });
 
     test('get documentation', function () {
-      var p = Service.forProtocol({protocol: 'Hello', doc: 'Hey'});
-      assert.equal(p.doc, 'Hey');
+      var svc = Service.forProtocol({protocol: 'Hello', doc: 'Hey'});
+      assert.equal(svc.doc, 'Hey');
     });
 
     test('getFingerprint', function () {
-      var p = Service.forProtocol({
+      var svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
-      assert.deepEqual(p.getFingerprint('md5'), p.getFingerprint());
+      assert.deepEqual(svc.getFingerprint('md5'), svc.getFingerprint());
     });
 
     test('isService', function () {
-      var p = Service.forProtocol({
+      var svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
-      assert(Service.isService(p));
+      assert(Service.isService(svc));
       assert(!Service.isService(undefined));
       assert(!Service.isService({protocol: 'bar'}));
     });
 
     test('equals', function () {
-      var p = Service.forProtocol({
+      var svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
-      assert(p.equals(p));
-      assert(!p.equals(undefined));
-      assert(!p.equals(Service.forProtocol({protocol: 'Foo'})));
+      assert(svc.equals(svc));
+      assert(!svc.equals(undefined));
+      assert(!svc.equals(Service.forProtocol({protocol: 'Foo'})));
     });
 
     test('inspect', function () {
-      var p = Service.forProtocol({
+      var svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
-      assert.equal(p.inspect(), '<Service "hello.World">');
+      assert.equal(svc.inspect(), '<Service "hello.World">');
     });
 
     test('using constructor', function () {
-      var p = new services.Service({protocol: 'Empty'});
-      assert.equal(p.getName(), 'Empty');
-      assert.deepEqual(p.getMessages(), []);
+      var svc = new services.Service({protocol: 'Empty'});
+      assert.equal(svc.name, 'Empty');
+      assert.deepEqual(svc.messages, []);
     });
 
     test('namespacing', function () {
-      var p;
+      var svc;
 
-      p = newService('foo.Foo', '');
-      assert.equal(p.getName(), 'foo.Foo');
-      assert(p.getType('Bar'));
-      assert(p.getType('Baz'));
+      svc = newService('foo.Foo', '');
+      assert.equal(svc.name, 'foo.Foo');
+      assert(svc.type('Bar'));
+      assert(svc.type('Baz'));
 
-      p = newService('foo.Foo');
-      assert.equal(p.getName(), 'foo.Foo');
-      assert(p.getType('foo.Bar'));
-      assert(p.getType('Baz'));
+      svc = newService('foo.Foo');
+      assert.equal(svc.name, 'foo.Foo');
+      assert(svc.type('foo.Bar'));
+      assert(svc.type('Baz'));
 
-      p = newService('Foo', 'bar');
-      assert.equal(p.getName(), 'bar.Foo');
-      assert(p.getType('bar.Bar'));
-      assert(p.getType('Baz'));
+      svc = newService('Foo', 'bar');
+      assert.equal(svc.name, 'bar.Foo');
+      assert(svc.type('bar.Bar'));
+      assert(svc.type('Baz'));
 
-      p = newService('Foo', 'bar', {namespace: 'opt'});
-      assert.equal(p.getName(), 'bar.Foo');
-      assert(p.getType('bar.Bar'));
-      assert(p.getType('Baz'));
+      svc = newService('Foo', 'bar', {namespace: 'opt'});
+      assert.equal(svc.name, 'bar.Foo');
+      assert(svc.type('bar.Bar'));
+      assert(svc.type('Baz'));
 
-      p = newService('Foo', undefined, {namespace: 'opt'});
-      assert.equal(p.getName(), 'opt.Foo');
-      assert(p.getType('opt.Bar'));
-      assert(p.getType('Baz'));
+      svc = newService('Foo', undefined, {namespace: 'opt'});
+      assert.equal(svc.name, 'opt.Foo');
+      assert(svc.type('opt.Bar'));
+      assert(svc.type('Baz'));
 
-      p = newService('.Foo', undefined, {namespace: 'opt'});
-      assert.equal(p.getName(), 'Foo');
-      assert(p.getType('Bar'));
-      assert(p.getType('Baz'));
+      svc = newService('.Foo', undefined, {namespace: 'opt'});
+      assert.equal(svc.name, 'Foo');
+      assert(svc.type('Bar'));
+      assert(svc.type('Baz'));
 
       function newService(name, namespace, opts) {
         return new services.Service({
@@ -302,9 +302,9 @@ suite('services', function () {
     });
 
     test('createListener strict', function () {
-      var ptcl = Service.forProtocol({protocol: 'Empty'});
+      var svc = Service.forProtocol({protocol: 'Empty'});
       assert.throws(function () {
-        ptcl.createListener(new stream.PassThrough(), {strictErrors: true});
+        svc.createListener(new stream.PassThrough(), {strictErrors: true});
       });
     });
 
@@ -736,71 +736,78 @@ suite('services', function () {
     });
 
     test('readable ended', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       var transports = createPassthroughTransports();
-      ptcl.createEmitter(transports[0]).on('eot', function () { done(); });
+      svc.createClient()
+        .createChannel(transports[0])
+        .on('eot', function () { done(); });
       transports[0].readable.push(null);
     });
 
     test('writable finished', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       // We must use object mode here since ending the encoding stream won't
       // end the underlying writable stream.
       var transports = createPassthroughTransports(true);
-      ptcl.createEmitter(transports[0], {objectMode: true})
+      svc.createClient()
+        .createChannel(transports[0], {objectMode: true})
         .on('eot', function () { done(); });
       transports[0].writable.end();
     });
 
     test('keep writable open', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       // We must use object mode here since ending the encoding stream won't
       // end the underlying writable stream.
       var transports = createPassthroughTransports(true);
-      var ee = ptcl.createEmitter(
-        transports[0],
-        {objectMode: true, endWritable: false}
-      ).on('eot', function () {
-        transports[0].writable.write({}); // Doesn't fail.
-        done();
-      });
-      ee.destroy();
+      svc.createClient()
+        .createChannel(transports[0], {objectMode: true, endWritable: false})
+        .on('eot', function () {
+          transports[0].writable.write({}); // Doesn't fail.
+          done();
+        })
+        .destroy();
     });
 
     test('discover service', function (done) {
       // Check that we can interrupt a handshake part-way, so that we can ping
       // a remote server for its service, but still reuse the same connection
       // for a later trasnmission.
-      var p1 = Service.forProtocol({protocol: 'Empty'});
-      var p2 = Service.forProtocol({
+      var svc1 = Service.forProtocol({protocol: 'Empty'});
+      var svc2 = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
-      }).on('ping', function (req, ml, cb) { cb(null, true); });
+      });
+
       var transports = createPassthroughTransports();
-      var l = p2.createListener(transports[0]);
-      assert.strictEqual(l.getProtocol(), p2);
-      p1.createEmitter(transports[1], {endWritable: false})
+      var server2 = svc2.createServer()
+        .onPing(function (cb) { cb(null, true); });
+      var chn1 = server2.createChannel(transports[0]);
+      assert.strictEqual(chn1.getProtocol(), svc2); // Deprecated.
+      assert.strictEqual(chn1.server.service, svc2);
+      svc1.createClient()
+        .createChannel(transports[1], {endWritable: false})
         .on('handshake', function (hreq, hres) {
           this.destroy();
-          assert.equal(hres.serverProtocol, JSON.stringify(p2.protocol));
+          assert.equal(hres.serverProtocol, JSON.stringify(svc2.protocol));
         })
         .on('eot', function () {
           // The transports are still available for a connection.
-          var me = p2.createEmitter(transports[1]);
-          p2.emit('ping', {}, me, function (err, res) {
+          var client = svc2.createClient();
+          var chn2 = client.createChannel(transports[1]);
+          client.ping(function (err, res) {
             assert.strictEqual(err, null);
             assert.strictEqual(res, true);
-            me.on('eot', function () { done(); })
-              .destroy();
+            chn2.on('eot', function () { done(); }).destroy();
           });
         });
     });
@@ -810,17 +817,19 @@ suite('services', function () {
   suite('StatelessEmitter', function () {
 
     test('factory error', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var ee = ptcl.createEmitter(function (cb) {
+      var client = svc.createClient({strictErrors: true});
+      var chn = client.createChannel(function (cb) {
         return new stream.PassThrough({objectMode: true})
           .on('finish', function () { cb(new Error('foobar')); });
-      }, {noPing: true, objectMode: true, strictErrors: true});
-      ptcl.emit('ping', {}, ee, function (err) {
+      }, {noPing: true, objectMode: true});
+      client.ping(function (err) {
         assert(/foobar/.test(err.string), err);
-        assert(!ee.isDestroyed());
+        assert(!chn.destroyed);
+        assert(!chn.isDestroyed()); // Deprecated.
         done();
       });
     });
