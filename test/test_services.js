@@ -298,7 +298,7 @@ suite('services', function () {
     test('createClient transport option', function (done) {
       var svc = Service.forProtocol({protocol: 'Empty'});
       svc.createClient({transport: new stream.PassThrough()})
-        .on('stub', function () { done(); });
+        .on('channel', function () { done(); });
     });
 
     test('createListener strict', function () {
@@ -700,7 +700,7 @@ suite('services', function () {
 
   });
 
-  suite('StatefulClientStub', function () {
+  suite('StatefulClientChannel', function () {
 
     test('connection timeout', function (done) {
       var svc = Service.forProtocol({
@@ -711,7 +711,7 @@ suite('services', function () {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      svc.createClient().createStub(transport, {timeout: 5})
+      svc.createClient().createChannel(transport, {timeout: 5})
         .on('error', function (err) {
           assert(/connection timeout/.test(err), err);
           assert.strictEqual(this.client.service, svc);
@@ -726,12 +726,12 @@ suite('services', function () {
         readable: new stream.PassThrough({objectMode: true}),
         writable: new stream.PassThrough({objectMode: true})
       };
-      var stub = svc.createClient()
-        .createStub(transport, {noPing: true, objectMode: true, timeout: 5})
+      var channel = svc.createClient()
+        .createChannel(transport, {noPing: true, objectMode: true, timeout: 5})
         .on('eot', function () { done(); });
-      stub.ping(function (err) {
+      channel.ping(function (err) {
         assert(/timeout/.test(err), err);
-        stub.destroy();
+        channel.destroy();
       });
     });
 
@@ -1825,7 +1825,7 @@ suite('services', function () {
             assert.strictEqual(ee.getProtocol(), ptcl);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/no active stubs/.test(err.message), err);
+              assert(/no active channels/.test(err.message), err);
               done();
             });
           });
@@ -1873,15 +1873,15 @@ suite('services', function () {
       });
       var client = svc.createClient({noBuffering: true})
         .on('error', function (err) {
-          assert(/no active stubs/.test(err), err);
+          assert(/no active channels/.test(err), err);
           done();
         });
       assert.strictEqual(client.service, svc);
       // With callback.
       client.ping(function (err) {
-        assert(/no active stubs/.test(err), err);
+        assert(/no active channels/.test(err), err);
         assert.deepEqual(this.locals, {});
-        assert.strictEqual(this.stub, undefined);
+        assert.strictEqual(this.channel, undefined);
         // Without (triggering the error above).
         client.ping();
       });
@@ -1897,11 +1897,11 @@ suite('services', function () {
         writable: new stream.PassThrough()
       };
       var client = svc.createClient();
-      client.createStub(transport)
+      client.createChannel(transport)
         .on('eot', function () {
           done();
         });
-      client.destroyStubs({noWait: true});
+      client.destroyChannels({noWait: true});
     });
 
     test('default policy', function (done) {
@@ -1914,11 +1914,11 @@ suite('services', function () {
         writable: new stream.PassThrough()
       };
       var client = svc.createClient();
-      client.createStub(transport, {noPing: true});
-      client.createStub(transport, {noPing: true});
+      client.createChannel(transport, {noPing: true});
+      client.createChannel(transport, {noPing: true});
       client.ping(function (err) {
         assert(!err, err);
-        assert.strictEqual(this.stub.client, client);
+        assert.strictEqual(this.channel.client, client);
         done();
       });
     });
@@ -1933,15 +1933,15 @@ suite('services', function () {
         writable: new stream.PassThrough()
       };
 
-      var client = svc.createClient({stubPolicy: policy});
-      var stubs = [
-        client.createStub(transport),
-        client.createStub(transport)
+      var client = svc.createClient({channelPolicy: policy});
+      var channels = [
+        client.createChannel(transport),
+        client.createChannel(transport)
       ];
       client.ping();
 
-      function policy(stubs_) {
-        assert.deepEqual(stubs_, stubs);
+      function policy(channels_) {
+        assert.deepEqual(channels_, channels);
         done();
       }
     });
@@ -1968,7 +1968,7 @@ suite('services', function () {
         writable: new stream.PassThrough(opts)
       };
       var client = svc.createClient();
-      client.createStub(transport, opts);
+      client.createChannel(transport, opts);
       client.ping(function (err) {
         assert(/truncated/.test(err), err);
         done();
@@ -1984,21 +1984,21 @@ suite('services', function () {
 
   suite('Server', function () {
 
-    test('get stubs', function (done) {
+    test('get channels', function (done) {
       var ptcl = Service.forProtocol({protocol: 'Empty1'});
       var server = ptcl.createServer();
       var transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      var stubs = [
-        server.createStub(transport),
-        server.createStub(transport)
+      var channels = [
+        server.createChannel(transport),
+        server.createChannel(transport)
       ];
-      assert.deepEqual(server.activeStubs(), stubs);
-      stubs[0]
+      assert.deepEqual(server.activeChannels(), channels);
+      channels[0]
         .on('eot', function () {
-          assert.deepEqual(server.activeStubs(), [stubs[1]]);
+          assert.deepEqual(server.activeChannels(), [channels[1]]);
           done();
         })
         .destroy();
@@ -2032,31 +2032,31 @@ suite('services', function () {
         .onPing(function (cb) {
           cb(null, 1);
         });
-      var stub = server.createStub(transports[0], {endWritable: false});
+      var channel = server.createChannel(transports[0], {endWritable: false});
       var client = svc.createClient()
-        .once('stub', function () {
+        .once('channel', function () {
           this.ping(function (err, n) {
             // At this point the handshake has succeeded.
             // Check that the response is as expected.
             assert(!err, err);
             assert.equal(n, 1);
-            stub.destroy(); // Destroy the server's stub (instant).
-            this.stub.destroy(); // Destroy the client's stub (instant).
+            channel.destroy(); // Destroy the server's channel (instant).
+            this.channel.destroy(); // Destroy the client's channel (instant).
             // We can now reuse the transports.
-            server.createStub(transports[0]);
+            server.createChannel(transports[0]);
             client
-              .once('stub', function () {
+              .once('channel', function () {
                 this.ping(function (err, n) {
                   assert(!err, err);
                   assert.equal(n, 1);
                   done();
                 });
               })
-              .createStub(transports[1]);
+              .createChannel(transports[1]);
           });
         });
-      // Create the first stub.
-      client.createStub(transports[1], {endWritable: false});
+      // Create the first channel.
+      client.createChannel(transports[1], {endWritable: false});
     });
 
     test('interrupted', function (done) {
@@ -2066,7 +2066,7 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onPing(function (cb) {
-          this.stub.destroy(true);
+          this.channel.destroy(true);
           cb(null, 1); // Still call the callback to make sure it is ignored.
         });
       svc.createClient({server: server}).ping({timeout: 10}, function (err) {
@@ -2107,8 +2107,8 @@ suite('services', function () {
         .onNeg(function (n, cb) { cb(null, -n); });
       var opts = {id: 123};
       var client = svc.createClient({server: server})
-        .once('stub', function (stub) {
-          stub.on('outgoingCall', function (ctx, opts) {
+        .once('channel', function (channel) {
+          channel.on('outgoingCall', function (ctx, opts) {
             ctx.locals.id = opts.id;
           });
           client.neg(1, opts, function (err, n) {
@@ -2164,8 +2164,8 @@ suite('services', function () {
       });
       var locals = {num: 123};
       var server = svc.createServer()
-        .on('stub', function (stub) {
-          stub.on('incomingCall', function (ctx) {
+        .on('channel', function (channel) {
+          channel.on('incomingCall', function (ctx) {
             ctx.locals.num = locals.num;
           });
         })
@@ -2178,7 +2178,7 @@ suite('services', function () {
           cb(null, -n);
         });
       svc.createClient({server: server})
-        .once('stub', function () {
+        .once('channel', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
             assert.equal(n, -1);
@@ -2199,11 +2199,11 @@ suite('services', function () {
         .onNeg(function (n, cb) { cb(null, -n); });
 
       svc.createClient({server: server})
-        .once('stub', function () {
+        .once('channel', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
             assert.equal(n, -1);
-            this.stub.client.abs(5, function (err, n) {
+            this.channel.client.abs(5, function (err, n) {
               assert(!err, err);
               assert.equal(n, 10);
               done();
@@ -2238,7 +2238,7 @@ suite('services', function () {
           isCalled = true;
           next();
         })
-        .once('stub', function () {
+        .once('channel', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
             assert.equal(n, -3);
@@ -2271,7 +2271,7 @@ suite('services', function () {
           cb(null, -n);
         });
       svc.createClient({server: server})
-        .once('stub', function () {
+        .once('channel', function () {
           this.neg(1, function (err) {
             assert(/foobar/.test(err), err);
             assert(!handlerCalled);
@@ -2299,7 +2299,7 @@ suite('services', function () {
           cb(null, -n);
         });
       svc.createClient({server: server})
-        .once('stub', function () {
+        .once('channel', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
             assert.equal(n, -1);
@@ -2331,7 +2331,7 @@ suite('services', function () {
           next(new Error('foobar'));
         });
       svc.createClient({server: server})
-        .once('stub', function () { this.push(1); });
+        .once('channel', function () { this.push(1); });
     });
 
     suite('stateful', function () {
@@ -2346,9 +2346,9 @@ suite('services', function () {
         var pt1 = new stream.PassThrough();
         var pt2 = new stream.PassThrough();
         var client = clientPtcl.createClient(opts);
-        client.createStub({readable: pt1, writable: pt2});
+        client.createChannel({readable: pt1, writable: pt2});
         var server = serverPtcl.createServer(opts);
-        server.createStub({readable: pt2, writable: pt1}, opts);
+        server.createChannel({readable: pt2, writable: pt1}, opts);
         cb(client, server);
       });
 
@@ -2364,17 +2364,17 @@ suite('services', function () {
         opts = opts || {};
         opts.silent = true;
         var client = clientPtcl.createClient(opts);
-        client.createStub(writableFactory);
+        client.createChannel(writableFactory);
         var server = serverPtcl.createServer(opts);
         cb(client, server);
 
         function writableFactory(transportCt) {
           var reqPt = new stream.PassThrough()
             .on('finish', function () {
-              server.createStub(function (stubCb) {
+              server.createChannel(function (channelCb) {
                 var resPt = new stream.PassThrough()
                   .on('finish', function () { transportCt(null, resPt); });
-                stubCb(null, resPt);
+                channelCb(null, resPt);
                 return reqPt;
               }, opts);
             });
@@ -2399,11 +2399,11 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server
             .onNegateFirst(function (ns, cb) {
-              assert.strictEqual(this.stub.server, server);
+              assert.strictEqual(this.channel.server, server);
               cb(null, -ns[0]);
             });
-          var stub = client.activeStubs()[0];
-          stub.on('eot', function () {
+          var channel = client.activeChannels()[0];
+          channel.on('eot', function () {
               done();
             })
             .once('handshake', function (hreq, hres) {
@@ -2411,12 +2411,12 @@ suite('services', function () {
               assert.equal(hres.match, 'BOTH');
               process.nextTick(function () {
                 client.negateFirst([20], function (err, res) {
-                  assert.equal(this.stub, stub);
+                  assert.equal(this.channel, channel);
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negateFirst([-10, 'ni'],  function (err) {
                     assert(/invalid negateFirst request/.test(err), err);
-                    this.stub.destroy();
+                    this.channel.destroy();
                   });
                 });
               });
@@ -2470,11 +2470,11 @@ suite('services', function () {
           server.onNeg(function (n, cb) { cb(null, -n); });
           var buf = new Buffer([0, 1]);
           var isDone = false;
-          var stub = client.activeStubs()[0];
+          var channel = client.activeChannels()[0];
           client
             .use(function (wreq, wres, next) {
               // No callback.
-              assert.strictEqual(this.stub, stub);
+              assert.strictEqual(this.channel, channel);
               assert.deepEqual(wreq.headers, {});
               wreq.headers.buf = buf;
               assert.deepEqual(wreq.request, {n: 2});
@@ -2486,7 +2486,7 @@ suite('services', function () {
               wreq.request.n = 3;
               next(null, function (err, prev) {
                 assert(!err, err);
-                assert.strictEqual(this.stub, stub);
+                assert.strictEqual(this.channel, channel);
                 assert.deepEqual(wres.response, -3);
                 isDone = true;
                 prev();
@@ -2543,7 +2543,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          client.activeStubs()[0]
+          client.activeChannels()[0]
             .on('error', function (err) {
               assert(/duplicate middleware forward/.test(err.message));
               setTimeout(function () { done(); }, 0);
@@ -2569,16 +2569,16 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           var isDone = false;
           var buf = new Buffer([0, 1]);
-          // The server's stub won't be ready right away in the case of
+          // The server's channel won't be ready right away in the case of
           // stateless transports.
-          var stub;
+          var channel;
           server
             .use(function (wreq, wres, next) {
-              stub = this.stub;
-              assert.strictEqual(stub.server, server);
+              channel = this.channel;
+              assert.strictEqual(channel.server, server);
               assert.deepEqual(wreq.request, {n: 2});
               next(null, function (err, prev) {
-                assert.strictEqual(this.stub, stub);
+                assert.strictEqual(this.channel, channel);
                 wres.headers.buf = buf;
                 prev();
               });
@@ -2611,8 +2611,8 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (client, server) {
           server
             .use(function (wreq, wres, next) {
-              // Attach error handler to stub.
-              this.stub.on('error', function (err) {
+              // Attach error handler to channel.
+              this.channel.on('error', function (err) {
                 assert(/duplicate/.test(err));
                 setTimeout(function () { done(); }, 0);
               });
@@ -2783,7 +2783,7 @@ suite('services', function () {
         setupFn(svc, svc, function (client, server) {
           var numErrors = 0;
           server.onNeg(function (n, cb) {
-            this.stub.on('error', function (err) {
+            this.channel.on('error', function (err) {
               numErrors++;
               assert(/bar/.test(err), err);
             });
@@ -2801,7 +2801,7 @@ suite('services', function () {
         });
       });
 
-      test('client stub destroy no wait', function (done) {
+      test('client channel destroy no wait', function (done) {
         var svc = Service.forProtocol({
           protocol: 'Delay',
           messages: {
@@ -2816,8 +2816,8 @@ suite('services', function () {
           server.onWait(function (ms, cb) {
             setTimeout(function () { cb(null, 'ok'); }, ms);
           });
-          var stub = client.activeStubs()[0];
-          stub.on('eot', function (pending) {
+          var channel = client.activeChannels()[0];
+          channel.on('eot', function (pending) {
             assert.equal(pending, 2);
             setTimeout(function () {
               assert.equal(interrupted, 2);
@@ -2828,7 +2828,7 @@ suite('services', function () {
           client.wait(50, interruptedCb);
           client.wait(10, function (err, res) {
             assert.equal(res, 'ok');
-            stub.destroy(true);
+            channel.destroy(true);
           });
 
           function interruptedCb(err) {
@@ -2862,8 +2862,8 @@ suite('services', function () {
             setTimeout(function () { cb(null, id); }, delay);
           });
           var n1, n2, n3;
-          var stub = client.activeStubs()[0];
-          stub.on('eot', function (pending) {
+          var channel = client.activeChannels()[0];
+          channel.on('eot', function (pending) {
             assert.equal(pending, 0);
             assert.equal(n1, 1);
             assert.equal(n2, 2);
@@ -2880,7 +2880,7 @@ suite('services', function () {
               n2 = client.w(10, 'b', function (err, res) {
                 assert.strictEqual(err, null);
                 ids.push(res);
-                stub.destroy();
+                channel.destroy();
               });
               n3 = client.w(-10, 'c', function (err, res) {
                 assert(/non-negative/.test(err));
@@ -2915,20 +2915,20 @@ suite('services', function () {
           cb(null, str.toUpperCase());
         });
       var transports = createPassthroughTransports();
-      server.createStub(transports[1]);
+      server.createChannel(transports[1]);
       discoverProtocol(transports[0], function (err, actualAttrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
         var client = ptcl.createClient();
-        client.createStub(transports[0])
+        client.createChannel(transports[0])
           .on('eot', function() {
             done();
           });
         client.upper('foo', function (err, res) {
           assert.strictEqual(err, null);
           assert.equal(res, 'FOO');
-          this.stub.destroy();
+          this.channel.destroy();
         });
       });
     });
