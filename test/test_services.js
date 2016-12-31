@@ -700,10 +700,10 @@ suite('services', function () {
 
   });
 
-  suite('StatefulEmitter', function () {
+  suite('StatefulClientStub', function () {
 
     test('connection timeout', function (done) {
-      var ptcl = Service.forProtocol({
+      var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -711,11 +711,11 @@ suite('services', function () {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      ptcl.createEmitter(transport, {timeout: 5})
+      svc.createClient().createStub(transport, {timeout: 5})
         .on('error', function (err) {
-          assert(/connection timeout/.test(err));
-          assert.strictEqual(this.getProtocol(), ptcl);
-          assert(this.isDestroyed());
+          assert(/connection timeout/.test(err), err);
+          assert.strictEqual(this.client.service, svc);
+          assert(this.destroyed);
           done();
         });
     });
@@ -1787,9 +1787,11 @@ suite('services', function () {
         var interrupted = 0;
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function (pending) {
-            assert.equal(interrupted, 2);
             assert.equal(pending, 2);
-            done();
+            setTimeout(function () {
+              assert.equal(interrupted, 2);
+              done();
+            }, 5);
           });
           ptcl.emit('wait', {ms: 75}, ee, interruptedCb);
           ptcl.emit('wait', {ms: 50}, ee, interruptedCb);
@@ -1820,6 +1822,7 @@ suite('services', function () {
           ptcl.emit('negate', {n: 20}, ee, function (err, res) {
             assert.strictEqual(err, null);
             assert.equal(res, -20);
+            assert.strictEqual(ee.getProtocol(), ptcl);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
               assert(/no active stubs/.test(err.message), err);
@@ -2746,7 +2749,7 @@ suite('services', function () {
             sleep: {request: [{name: 'ms', type: 'int'}], response: 'int'}
           }
         });
-        setupFn(ptcl, ptcl, {defaultTimeout: 50}, function (client, server) {
+        setupFn(ptcl, ptcl, {timeout: 50}, function (client, server) {
           server
             .onSleep(function (n, cb) {
               // Delay response by the number requested.
@@ -2794,6 +2797,96 @@ suite('services', function () {
               assert.equal(numErrors, 1);
               done();
             }, 0);
+          });
+        });
+      });
+
+      test('client stub destroy no wait', function (done) {
+        var svc = Service.forProtocol({
+          protocol: 'Delay',
+          messages: {
+            wait: {
+              request: [{name: 'ms', type: 'int'}],
+              response: 'string'
+            }
+          }
+        });
+        var interrupted = 0;
+        setupFn(svc, svc, function (client, server) {
+          server.onWait(function (ms, cb) {
+            setTimeout(function () { cb(null, 'ok'); }, ms);
+          });
+          var stub = client.activeStubs()[0];
+          stub.on('eot', function (pending) {
+            assert.equal(pending, 2);
+            setTimeout(function () {
+              assert.equal(interrupted, 2);
+              done();
+            }, 5);
+          });
+          client.wait(75, interruptedCb);
+          client.wait(50, interruptedCb);
+          client.wait(10, function (err, res) {
+            assert.equal(res, 'ok');
+            stub.destroy(true);
+          });
+
+          function interruptedCb(err) {
+            assert(/interrupted/.test(err.message));
+            interrupted++;
+          }
+
+        });
+      });
+
+      test('out of order requests', function (done) {
+        var svc = Service.forProtocol({
+          protocol: 'Delay',
+          messages: {
+            w: {
+              request: [
+                {name: 'ms', type: 'float'},
+                {name: 'id', type: 'string'}
+              ],
+              response: 'string'
+            }
+          }
+        });
+        var ids = [];
+        setupFn(svc, svc, function (client, server) {
+          server.onW(function (delay, id, cb) {
+            if (delay < 0) {
+              cb('delay must be non-negative');
+              return;
+            }
+            setTimeout(function () { cb(null, id); }, delay);
+          });
+          var n1, n2, n3;
+          var stub = client.activeStubs()[0];
+          stub.on('eot', function (pending) {
+            assert.equal(pending, 0);
+            assert.equal(n1, 1);
+            assert.equal(n2, 2);
+            assert.equal(n3, 3);
+            assert.deepEqual(ids, [undefined, 'b', 'a']);
+            done();
+          }).once('handshake', function (hreq, hres) {
+            assert.equal(hres.match, 'BOTH');
+            process.nextTick(function () {
+              n1 = client.w(500, 'a', function (err, res) {
+                assert.strictEqual(err, null);
+                ids.push(res);
+              });
+              n2 = client.w(10, 'b', function (err, res) {
+                assert.strictEqual(err, null);
+                ids.push(res);
+                stub.destroy();
+              });
+              n3 = client.w(-10, 'c', function (err, res) {
+                assert(/non-negative/.test(err));
+                ids.push(res);
+              });
+            });
           });
         });
       });
