@@ -2056,6 +2056,22 @@ suite('services', function () {
       client.createStub(transports[1], {endWritable: false});
     });
 
+    test('interrupted', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'int'}}
+      });
+      var server = svc.createServer()
+        .onPing(function (cb) {
+          this.stub.destroy(true);
+          cb(null, 1); // Still call the callback to make sure it is ignored.
+        });
+      svc.createClient({server: server}).ping({timeout: 10}, function (err) {
+        assert(/interrupted/.test(err), err);
+        done();
+      });
+    });
+
   });
 
   suite('clients & servers', function () { // >=5.0 API.
