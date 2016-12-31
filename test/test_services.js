@@ -445,7 +445,7 @@ suite('services', function () {
         .pipe(createWritableStream(messages));
     });
 
-    test('decode with trailing data', function (done) {
+    test('decode with allowed trailing data', function (done) {
       var frames = [
         new Buffer([0, 1]),
         new Buffer([2]),
@@ -455,6 +455,26 @@ suite('services', function () {
       var messages = [];
       createReadableStream(frames)
         .pipe(new FrameDecoder())
+        .on('end', function () {
+          assert.deepEqual(
+            messages,
+            [{id: null, payload: [new Buffer([0, 1]), new Buffer([2])]}]
+          );
+          done();
+        })
+        .pipe(createWritableStream(messages));
+    });
+
+    test('decode with disallowed trailing data', function (done) {
+      var frames = [
+        new Buffer([0, 1]),
+        new Buffer([2]),
+        new Buffer([]),
+        new Buffer([3])
+      ].map(frame);
+      var messages = [];
+      createReadableStream(frames)
+        .pipe(new FrameDecoder({noTrailing: true}))
         .on('error', function () {
           assert.deepEqual(
             messages,
@@ -549,7 +569,7 @@ suite('services', function () {
     var NettyDecoder = services.streams.NettyDecoder;
     var NettyEncoder = services.streams.NettyEncoder;
 
-    test('decode with trailing data', function (done) {
+    test('decode with allowed trailing data', function (done) {
       var src = [
         new Buffer([0, 0, 0, 2, 0, 0, 0]),
         new Buffer([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
@@ -557,6 +577,24 @@ suite('services', function () {
       var dst = [];
       createReadableStream(src)
         .pipe(new NettyDecoder())
+        .on('finish', function () {
+          assert.deepEqual(
+            dst,
+            [{id: 2, payload: [new Buffer([1, 3, 4, 2, 5])]}]
+          );
+          done();
+        })
+        .pipe(createWritableStream(dst));
+    });
+
+    test('decode with disallowed trailing data', function (done) {
+      var src = [
+        new Buffer([0, 0, 0, 2, 0, 0, 0]),
+        new Buffer([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
+      ];
+      var dst = [];
+      createReadableStream(src)
+        .pipe(new NettyDecoder({noTrailing: true}))
         .on('error', function () {
           assert.deepEqual(
             dst,
