@@ -2283,6 +2283,46 @@ suite('services', function () {
         });
     });
 
+    test('dynamic middleware', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var server = svc.createServer()
+        .use(function (server) {
+          server.on('channel', function (channel) {
+            channel.on('incomingCall', function (ctx) {
+              ctx.locals.foo = 'bar';
+            });
+          });
+          return function (wreq, wres, next) {
+            wreq.request.n = 3;
+            next();
+          };
+        })
+        .onNeg(function (n, cb) {
+          assert.equal(this.locals.foo, 'bar');
+          cb(null, -n);
+        });
+      svc.createClient({server: server})
+        .use(function (client) {
+          client.on('channel', function (channel) {
+            channel.on('outgoingCall', function (ctx, opts) {
+              ctx.locals.two = opts.two;
+            });
+          });
+          return function (wreq, wres, next) { next(); };
+        })
+        .neg(1, {two: 2}, function (err, n) {
+          assert(!err, err);
+          assert.equal(n, -3);
+          assert.equal(this.locals.two, 2);
+          done();
+        });
+    });
+
     test('server non-strict error', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Math',
