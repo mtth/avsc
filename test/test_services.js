@@ -1806,7 +1806,7 @@ suite('services', function () {
             assert.equal(res, -20);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/destroyed/.test(err.message));
+              assert(/no active stubs/.test(err.message), err);
               done();
             });
           });
@@ -1854,13 +1854,13 @@ suite('services', function () {
       });
       var client = svc.createClient()
         .on('error', function (err) {
-          assert(/no stubs available/.test(err), err);
+          assert(/no active stubs/.test(err), err);
           done();
         });
       assert.strictEqual(client.service, svc);
       // With callback.
       client.ping(function (err) {
-        assert(/no stubs available/.test(err), err);
+        assert(/no active stubs/.test(err), err);
         assert.deepEqual(this.locals, {});
         assert.strictEqual(this.stub, undefined);
         // Without (triggering the error above).
@@ -1978,6 +1978,43 @@ suite('services', function () {
       var server = ptcl.createServer({noCapitalize: true});
       assert(!server.onPing);
       assert(typeof server.onping == 'function');
+    });
+
+    test('stateful transport reuse', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'int'}}
+      });
+      var transports = createPassthroughTransports(true);
+      var server = svc.createServer()
+        .onPing(function (cb) {
+          cb(null, 1);
+        });
+      var stub = server.createStub(transports[0], {endWritable: false});
+      var client = svc.createClient()
+        .once('stub', function () {
+          this.ping(function (err, n) {
+            // At this point the handshake has succeeded.
+            // Check that the response is as expected.
+            assert(!err, err);
+            assert.equal(n, 1);
+            stub.destroy(); // Destroy the server's stub (instant).
+            this.stub.destroy(); // Destroy the client's stub (instant).
+            // We can now reuse the transports.
+            server.createStub(transports[0]);
+            client
+              .once('stub', function () {
+                this.ping(function (err, n) {
+                  assert(!err, err);
+                  assert.equal(n, 1);
+                  done();
+                });
+              })
+              .createStub(transports[1]);
+          });
+        });
+      // Create the first stub.
+      client.createStub(transports[1], {endWritable: false});
     });
 
   });
