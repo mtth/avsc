@@ -584,6 +584,27 @@ suite('services', function () {
 
   });
 
+  suite('Adapter', function () {
+
+    var Adapter = services.Adapter;
+
+    test('truncated request & response', function () {
+      var s = Service.forProtocol({
+        protocol: 'Echo',
+        messages: {
+          echo: {request: [{name: 's', type: 'string'}], response: 'string'}
+        }
+      });
+      var a = new Adapter(s, s);
+      assert.throws(function () {
+        a._decodeRequest(new Buffer([24]));
+      }, /truncated/);
+      assert.throws(function () {
+        a._decodeResponse(new Buffer([48]), {headers: {}}, s.message('echo'));
+      }, /truncated/);
+    });
+  });
+
   suite('Registry', function () {
 
     var Registry = services.Registry;
@@ -674,6 +695,7 @@ suite('services', function () {
       ptcl.createEmitter(transport, {timeout: 5})
         .on('error', function (err) {
           assert(/connection timeout/.test(err));
+          assert.strictEqual(this.getProtocol(), ptcl);
           assert(this.isDestroyed());
           done();
         });
@@ -1835,6 +1857,7 @@ suite('services', function () {
           assert(/no stubs available/.test(err), err);
           done();
         });
+      assert.strictEqual(client.service, svc);
       // With callback.
       client.ping(function (err) {
         assert(/no stubs available/.test(err), err);
