@@ -786,7 +786,8 @@ suite('services', function () {
         messages: {ping: {request: [], response: 'boolean'}}
       }).on('ping', function (req, ml, cb) { cb(null, true); });
       var transports = createPassthroughTransports();
-      p2.createListener(transports[0]);
+      var l = p2.createListener(transports[0]);
+      assert.strictEqual(l.getProtocol(), p2);
       p1.createEmitter(transports[1], {endWritable: false})
         .on('handshake', function (hreq, hres) {
           this.destroy();
@@ -1086,7 +1087,7 @@ suite('services', function () {
             .once('handshake', onHandshake);
           p1.createEmitter(transports[1], {
             cache: me1.getCache(),
-            serverHash: p2.getHash(),
+            serverHash: p2.hash
           }).once('handshake', onHandshake);
 
           var n = 0;
@@ -1131,10 +1132,6 @@ suite('services', function () {
           p2.createListener(transports[0], {cache: ml1.getCache()})
             .once('handshake', function (hreq, hres) {
               assert.equal(hres.match, 'CLIENT');
-              var cache = this.getCache();
-              var adapter = cache[p1.getFingerprint()];
-              assert(adapter.getClientProtocol().equals(p1));
-              assert(adapter.getServerProtocol().equals(this.getProtocol()));
               done();
             });
           p1.createEmitter(transports[1]);
