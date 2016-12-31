@@ -322,12 +322,31 @@ suite('services', function () {
       assert.deepEqual(m.errorType.toString(), '["string"]');
     });
 
+    test('non-array request', function () {
+      assert.throws(function () {
+        Message.forSchema('Hi', {
+          request: 'string',
+          response: 'int'
+        });
+      }, /invalid \w* request/);
+    });
+
     test('missing response', function () {
       assert.throws(function () {
         Message.forSchema('Hi', {
           request: [{name: 'greeting', type: 'string'}]
         });
-      });
+      }, /invalid \w* response/);
+    });
+
+    test('non-array errors', function () {
+      assert.throws(function () {
+        Message.forSchema('Hi', {
+          request: [{name: 'greeting', type: 'string'}],
+          response: 'int',
+          errors: 'int'
+        });
+      }, /invalid \w* error/);
     });
 
     test('invalid one-way', function () {
@@ -338,7 +357,7 @@ suite('services', function () {
           response: 'string',
           'one-way': true
         });
-      });
+      }, /inapplicable/);
       // Non-empty errors.
       assert.throws(function () {
         Message.forSchema('Hi', {
@@ -347,7 +366,7 @@ suite('services', function () {
           errors: ['int'],
           'one-way': true
         });
-      });
+      }, /inapplicable/);
     });
 
     test('getters', function () {
@@ -1847,12 +1866,12 @@ suite('services', function () {
 
   suite('Client', function () {
 
-    test('no emitters', function (done) {
+    test('no emitters without buffering', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var client = svc.createClient()
+      var client = svc.createClient({noBuffering: true})
         .on('error', function (err) {
           assert(/no active stubs/.test(err), err);
           done();
@@ -1936,6 +1955,29 @@ suite('services', function () {
         remoteProtocols: remotePtcls
       });
       assert.deepEqual(client.remoteProtocols(), remotePtcls);
+    });
+
+    test('invalid response', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'int'}}
+      });
+      var opts = {noPing: true, objectMode: true};
+      var transport = {
+        readable: new stream.PassThrough(opts),
+        writable: new stream.PassThrough(opts)
+      };
+      var client = svc.createClient();
+      client.createStub(transport, opts);
+      client.ping(function (err) {
+        assert(/truncated/.test(err), err);
+        done();
+      });
+      setTimeout(function () {
+        // "Send" an invalid payload (negative union offset). We wait to allow
+        // the callback for the above message to be registered.
+        transport.readable.write({id: 1, payload: [new Buffer([45])]});
+      }, 0);
     });
 
   });
@@ -2030,13 +2072,11 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onEcho(function (n, cb) { cb(null, n); });
-      var client = svc.createClient({server: server})
-        .once('stub', function () {
-          client.echo(123, function (err, n) {
-            assert(!err, err);
-            assert.equal(n, 123);
-            done();
-          });
+      svc.createClient({server: server})
+        .echo(123, function (err, n) {
+          assert(!err, err);
+          assert.equal(n, 123);
+          done();
         });
     });
 
@@ -2091,13 +2131,11 @@ suite('services', function () {
           cb(null, -n);
         });
       svc.createClient({server: server})
-        .once('stub', function () {
-          this.neg(1, function (err, n) {
-            assert(!err, err);
-            assert.equal(n, -1);
-            assert.equal(numCalls, 3);
-            done();
-          });
+        .neg(1, function (err, n) {
+          assert(!err, err);
+          assert.equal(n, -1);
+          assert.equal(numCalls, 3);
+          done();
         });
     });
 
