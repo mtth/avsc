@@ -828,6 +828,21 @@ suite('services', function () {
       });
     });
 
+    test('factory error no writable', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      }, {wrapUnions: true});
+      var client = svc.createClient();
+      var chn = client.createChannel(function () {}, {noPing: true});
+      client.ping(function (err) {
+        assert(/invalid writable stream/.test(err), err);
+        assert(!chn.destroyed);
+        assert(!chn.isDestroyed()); // Deprecated.
+        done();
+      });
+    });
+
     test('default encoder error', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Ping',
@@ -966,13 +981,12 @@ suite('services', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var err;
+      var errs = [];
       svc.createServer({silent: true}).createChannel(function (cb) {
         cb(new Error('bar'));
-        return new stream.PassThrough();
-      }).on('error', function () { err = arguments[0]; })
+      }).on('error', function (err) { errs.push(err.message); })
         .on('eot', function () {
-          assert(/bar/.test(err));
+          assert.deepEqual(errs, ['bar', 'invalid readable stream']);
           done();
         });
     });
