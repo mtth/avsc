@@ -670,7 +670,7 @@ suite('services', function () {
       reg.clear();
 
       function fn(err) {
-        assert(/interrupted/.test(err));
+        assert(/INTERRUPTED/.test(err));
         if (++n == 2) {
           done();
         }
@@ -817,7 +817,7 @@ suite('services', function () {
         .createChannel(transports[0], {noPing: true})
         .on('eot', function (pending, err) {
           assert.equal(pending, 0);
-          assert(/trailing/.test(err), err);
+          assert(/TRAILING/.test(err), err);
           done();
         });
       transports[0].readable.end(new Buffer([48]));
@@ -872,11 +872,11 @@ suite('services', function () {
         return new stream.PassThrough();
       }, {noPing: true})
         .on('eot', function (pending, err) {
-          assert(/trailing/.test(err), err);
+          assert(/TRAILING/.test(err), err);
           sawError = true;
         });
       client.ping(function (err) {
-        assert(/interrupted/.test(err), err);
+        assert(/INTERRUPTED/.test(err), err);
         assert(chn.destroyed);
         assert(sawError);
         done();
@@ -975,7 +975,7 @@ suite('services', function () {
         assert.deepEqual(actualHres, hres);
         this.destroy(true);
       }).on('error', function (err) {
-        assert(/interrupted/.test(err));
+        assert(/INTERRUPTED/.test(err));
       });
       setTimeout(function () {
         // Only a single handshake should have occurred.
@@ -1009,7 +1009,7 @@ suite('services', function () {
       var transport = new stream.PassThrough();
       svc.createServer().createChannel(transport)
         .on('eot', function (pending, err) {
-          assert(/trailing/.test(err), err);
+          assert(/TRAILING/.test(err), err);
           assert(this.destroyed);
           assert(this.isDestroyed()); // Deprecated.
           done();
@@ -1057,7 +1057,7 @@ suite('services', function () {
         cb(null, transports[0].writable);
         return transports[1].readable;
       }).on('eot', function (pending, err) {
-        assert(/trailing/.test(err), err);
+        assert(/TRAILING/.test(err), err);
         done();
       });
       transports[1].readable.end(new Buffer([48]));
@@ -1889,7 +1889,7 @@ suite('services', function () {
           });
 
           function interruptedCb(err) {
-            assert(/interrupted/.test(err.message));
+            assert(/INTERRUPTED/.test(err.message));
             interrupted++;
           }
         });
@@ -1913,7 +1913,7 @@ suite('services', function () {
             assert.strictEqual(ee.getProtocol(), ptcl);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/no active channels/.test(err.message), err);
+              assert(/NO_ACTIVE_CHANNELS/.test(err.message), err);
               done();
             });
           });
@@ -1960,13 +1960,13 @@ suite('services', function () {
       });
       var client = svc.createClient({noBuffering: true})
         .on('error', function (err) {
-          assert(/no active channels/.test(err), err);
+          assert(/NO_ACTIVE_CHANNELS/.test(err), err);
           done();
         });
       assert.strictEqual(client.service, svc);
       // With callback.
       client.ping(function (err) {
-        assert(/no active channels/.test(err), err);
+        assert(/NO_ACTIVE_CHANNELS/.test(err), err);
         assert.deepEqual(this.locals, {});
         assert.strictEqual(this.channel, undefined);
         // Without (triggering the error above).
@@ -2156,7 +2156,7 @@ suite('services', function () {
           cb(null, 1); // Still call the callback to make sure it is ignored.
         });
       svc.createClient({server: server}).ping({timeout: 10}, function (err) {
-        assert(/interrupted/.test(err), err);
+        assert(/INTERRUPTED/.test(err), err);
         done();
       });
     });
@@ -2961,7 +2961,7 @@ suite('services', function () {
           });
 
           function interruptedCb(err) {
-            assert(/interrupted/.test(err.message));
+            assert(/INTERRUPTED/.test(err.message));
             interrupted++;
           }
 
