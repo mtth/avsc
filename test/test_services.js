@@ -445,7 +445,7 @@ suite('services', function () {
         .pipe(createWritableStream(messages));
     });
 
-    test('decode with allowed trailing data', function (done) {
+    test('decode with trailing data', function (done) {
       var frames = [
         new Buffer([0, 1]),
         new Buffer([2]),
@@ -455,26 +455,6 @@ suite('services', function () {
       var messages = [];
       createReadableStream(frames)
         .pipe(new FrameDecoder())
-        .on('end', function () {
-          assert.deepEqual(
-            messages,
-            [{id: null, payload: [new Buffer([0, 1]), new Buffer([2])]}]
-          );
-          done();
-        })
-        .pipe(createWritableStream(messages));
-    });
-
-    test('decode with disallowed trailing data', function (done) {
-      var frames = [
-        new Buffer([0, 1]),
-        new Buffer([2]),
-        new Buffer([]),
-        new Buffer([3])
-      ].map(frame);
-      var messages = [];
-      createReadableStream(frames)
-        .pipe(new FrameDecoder({noTrailing: true}))
         .on('error', function () {
           assert.deepEqual(
             messages,
@@ -569,7 +549,7 @@ suite('services', function () {
     var NettyDecoder = services.streams.NettyDecoder;
     var NettyEncoder = services.streams.NettyEncoder;
 
-    test('decode with allowed trailing data', function (done) {
+    test('decode with trailing data', function (done) {
       var src = [
         new Buffer([0, 0, 0, 2, 0, 0, 0]),
         new Buffer([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
@@ -577,24 +557,6 @@ suite('services', function () {
       var dst = [];
       createReadableStream(src)
         .pipe(new NettyDecoder())
-        .on('finish', function () {
-          assert.deepEqual(
-            dst,
-            [{id: 2, payload: [new Buffer([1, 3, 4, 2, 5])]}]
-          );
-          done();
-        })
-        .pipe(createWritableStream(dst));
-    });
-
-    test('decode with disallowed trailing data', function (done) {
-      var src = [
-        new Buffer([0, 0, 0, 2, 0, 0, 0]),
-        new Buffer([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
-      ];
-      var dst = [];
-      createReadableStream(src)
-        .pipe(new NettyDecoder({noTrailing: true}))
         .on('error', function () {
           assert.deepEqual(
             dst,
@@ -2936,28 +2898,24 @@ suite('services', function () {
             }
             setTimeout(function () { cb(null, id); }, delay);
           });
-          var n1, n2, n3;
           var channel = client.activeChannels()[0];
           channel.on('eot', function (pending) {
             assert.equal(pending, 0);
-            assert.equal(n1, 1);
-            assert.equal(n2, 2);
-            assert.equal(n3, 3);
             assert.deepEqual(ids, [undefined, 'b', 'a']);
             done();
           }).once('handshake', function (hreq, hres) {
             assert.equal(hres.match, 'BOTH');
             process.nextTick(function () {
-              n1 = client.w(500, 'a', function (err, res) {
+              client.w(500, 'a', function (err, res) {
                 assert.strictEqual(err, null);
                 ids.push(res);
               });
-              n2 = client.w(10, 'b', function (err, res) {
+              client.w(10, 'b', function (err, res) {
                 assert.strictEqual(err, null);
                 ids.push(res);
                 channel.destroy();
               });
-              n3 = client.w(-10, 'c', function (err, res) {
+              client.w(-10, 'c', function (err, res) {
                 assert(/non-negative/.test(err));
                 ids.push(res);
               });
