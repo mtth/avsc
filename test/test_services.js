@@ -642,7 +642,7 @@ suite('services', function () {
       var reg = new Registry(ctx);
       var id = reg.add(10, function (err) {
         assert.strictEqual(this, ctx);
-        assert(/timeout/.test(err));
+        assert(/TIMEOUT/.test(err));
         assert.strictEqual(reg.get(id), undefined);
         done();
       });
@@ -725,7 +725,7 @@ suite('services', function () {
         .createChannel(transport, {noPing: true, objectMode: true, timeout: 5})
         .on('eot', function () { done(); });
       channel.ping(function (err) {
-        assert(/timeout/.test(err), err);
+        assert(/TIMEOUT/.test(err), err);
         channel.destroy();
       });
     });
@@ -1038,7 +1038,6 @@ suite('services', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var errs = [];
       svc.createServer({silent: true}).createChannel(function (cb) {
         cb(new Error('bar'));
         return new stream.PassThrough();
@@ -2890,7 +2889,7 @@ suite('services', function () {
             assert.equal(res, 10);
             client.sleep(100, function (err) {
               // Default timeout used here, but delay is _not_ short enough.
-              assert(/timeout/.test(err));
+              assert(/TIMEOUT/.test(err));
               client.sleep(100, {timeout: 200}, function (err, res) {
                 // Custom timeout, high enough for the delay.
                 assert.strictEqual(err, null);
