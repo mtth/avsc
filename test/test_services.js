@@ -707,8 +707,8 @@ suite('services', function () {
         writable: new stream.PassThrough()
       };
       svc.createClient().createChannel(transport, {timeout: 5})
-        .on('error', function (err) {
-          assert(/connection timeout/.test(err), err);
+        .on('eot', function (pending, err) {
+          assert(/TIMEOUT/.test(err), err);
           assert.strictEqual(this.client.service, svc);
           assert(this.destroyed);
           done();
@@ -806,6 +806,22 @@ suite('services', function () {
           });
         });
     });
+
+    test('trailing decoder', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transports = createPassthroughTransports();
+      svc.createClient()
+        .createChannel(transports[0], {noPing: true})
+        .on('eot', function (pending, err) {
+          assert.equal(pending, 0);
+          assert(/trailing/.test(err), err);
+          done();
+        });
+      transports[0].readable.end(new Buffer([48]));
+    });
   });
 
   suite('StatelessClientChannel', function () {
@@ -841,6 +857,31 @@ suite('services', function () {
         assert(!chn.isDestroyed()); // Deprecated.
         done();
       });
+    });
+
+    test('trailing data', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      }, {wrapUnions: true});
+      var client = svc.createClient();
+      var readable = new stream.PassThrough();
+      var sawError = false;
+      var chn = client.createChannel(function (cb) {
+        cb(null, readable);
+        return new stream.PassThrough();
+      }, {noPing: true})
+        .on('eot', function (pending, err) {
+          assert(/trailing/.test(err), err);
+          sawError = true;
+        });
+      client.ping(function (err) {
+        assert(/interrupted/.test(err), err);
+        assert(chn.destroyed);
+        assert(sawError);
+        done();
+      });
+      readable.end(new Buffer([48]));
     });
 
     test('default encoder error', function (done) {
@@ -960,6 +1001,22 @@ suite('services', function () {
       transport.push(null);
     });
 
+    test('readable trailing data', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean'}}
+      });
+      var transport = new stream.PassThrough();
+      svc.createServer().createChannel(transport)
+        .on('eot', function (pending, err) {
+          assert(/trailing/.test(err), err);
+          assert(this.destroyed);
+          assert(this.isDestroyed()); // Deprecated.
+          done();
+        });
+      transport.end(new Buffer([48]));
+    });
+
     test('writable finished', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Ping',
@@ -984,11 +1041,27 @@ suite('services', function () {
       var errs = [];
       svc.createServer({silent: true}).createChannel(function (cb) {
         cb(new Error('bar'));
-      }).on('error', function (err) { errs.push(err.message); })
-        .on('eot', function () {
-          assert.deepEqual(errs, ['bar', 'invalid readable stream']);
+        return new stream.PassThrough();
+      }).on('eot', function (pending, err) {
+          assert(/bar/.test(err), err);
           done();
         });
+    });
+
+    test('trailing data', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {ping: {request: [], response: 'boolean', errors: ['int']}}
+      });
+      var transports = createPassthroughTransports();
+      svc.createServer({silent: true}).createChannel(function (cb) {
+        cb(null, transports[0].writable);
+        return transports[1].readable;
+      }).on('eot', function (pending, err) {
+        assert(/trailing/.test(err), err);
+        done();
+      });
+      transports[1].readable.end(new Buffer([48]));
     });
 
     test('delayed writable', function (done) {
@@ -1745,7 +1818,9 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('ping', function (req, ee, cb) {
-            ee.on('error', function (err) {
+            // In reality the server wouldn't be used (since this is the old
+            // API), but this makes this test do its job.
+            ee.server.on('error', function (err) {
               assert(/duplicate/.test(err), err);
               done();
             });
@@ -2594,9 +2669,11 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          client.activeChannels()[0]
-            .on('error', function (err) {
+          var chn = client.activeChannels()[0];
+          client
+            .on('error', function (err, chn_) {
               assert(/duplicate middleware forward/.test(err.message));
+              assert.strictEqual(chn_, chn);
               setTimeout(function () { done(); }, 0);
             });
           client
@@ -2663,8 +2740,9 @@ suite('services', function () {
           server
             .use(function (wreq, wres, next) {
               // Attach error handler to channel.
-              this.channel.on('error', function (err) {
+              server.on('error', function (err, chn) {
                 assert(/duplicate/.test(err));
+                assert.strictEqual(chn.server. server);
                 setTimeout(function () { done(); }, 0);
               });
               next(null, function (err, prev) {
@@ -2833,14 +2911,15 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           var numErrors = 0;
-          server.onNeg(function (n, cb) {
-            this.channel.on('error', function (err) {
+          server
+            .on('error', function (err) {
               numErrors++;
               assert(/bar/.test(err), err);
+            })
+            .onNeg(function (n, cb) {
+              cb(null, -n);
+              throw new Error('bar');
             });
-            cb(null, -n);
-            throw new Error('bar');
-          });
           client.neg(2, function (err, n) {
             assert(!err, err);
             assert.equal(n, -2);
@@ -3032,22 +3111,20 @@ suite('services', function () {
           }
         }
       };
-      var svc = Service.forProtocol(schema)
-        .on('upper', function (req, ee, cb) {
-          cb(null, req.str.toUpperCase());
-        });
+      var svc = Service.forProtocol(schema);
       var scope = 'bar';
       var transports = createPassthroughTransports();
-      svc.createListener(transports[1], {scope: scope});
+      svc.createServer({silent: true})
+        .createChannel(transports[1], {scope: scope});
       discoverProtocol(transports[0], {timeout: 5}, function (err) {
-        assert(/timeout/.test(err));
+        assert(/TIMEOUT/.test(err));
         // Check that the transport is still usable.
-        var me = svc.createEmitter(transports[0], {scope: scope})
+        var client = svc.createClient();
+        var chn = client.createChannel(transports[0], {scope: scope})
           .on('eot', function() { done(); });
-        svc.emit('upper', {str: 'foo'}, me, function (err, res) {
-          assert.strictEqual(err, null);
-          assert.equal(res, 'FOO');
-          me.destroy();
+        client.upper('foo', function (err) {
+          assert(/NOT_IMPLEMENTED/.test(err), err);
+          chn.destroy();
         });
       });
     });
