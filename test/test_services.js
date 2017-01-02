@@ -831,7 +831,7 @@ suite('services', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var client = svc.createClient({strictErrors: true});
+      var client = svc.createClient({strictTypes: true});
       var chn = client.createChannel(function (cb) {
         return new stream.PassThrough({objectMode: true})
           .on('finish', function () { cb(new Error('foobar')); });
@@ -889,7 +889,7 @@ suite('services', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var client = svc.createClient({strictErrors: true});
+      var client = svc.createClient({strictTypes: true});
       var chn = client.createChannel(function (cb) {
         return new stream.PassThrough()
           .on('finish', function () { cb(new Error('foobar')); });
@@ -2559,7 +2559,7 @@ suite('services', function () {
             }
           }
         });
-        setupFn(svc, svc, {strictErrors: true}, function (client, server) {
+        setupFn(svc, svc, {strictTypes: true}, function (client, server) {
           server.onSqrt(function (n, cb) {
             if (n === -1) {
               cb(new Error('no i')); // Invalid error (should be a string).
@@ -2580,6 +2580,38 @@ suite('services', function () {
                 done();
               });
             });
+          });
+        });
+      });
+
+      test('non-strict response', function (done) {
+        var svc = Service.forProtocol({
+          protocol: 'Ping',
+          messages: {
+            ping: {request: [], response: 'null'}
+          }
+        });
+        setupFn(svc, svc, function (client, server) {
+          server.onPing(function (cb) { cb(); });
+          client.ping(function (err) {
+            assert(!err, err);
+            done();
+          });
+        });
+      });
+
+      test('invalid strict response', function (done) {
+        var svc = Service.forProtocol({
+          protocol: 'Ping',
+          messages: {
+            ping: {request: [], response: 'null'}
+          }
+        });
+        setupFn(svc, svc, {strictTypes: true}, function (client, server) {
+          server.onPing(function (cb) { cb(); });
+          client.ping(function (err) {
+            assert(/remote error/.test(err), err);
+            done();
           });
         });
       });
