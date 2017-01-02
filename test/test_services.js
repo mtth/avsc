@@ -642,7 +642,7 @@ suite('services', function () {
       var reg = new Registry(ctx);
       var id = reg.add(10, function (err) {
         assert.strictEqual(this, ctx);
-        assert(/TIMEOUT/.test(err));
+        assert(/timeout/.test(err));
         assert.strictEqual(reg.get(id), undefined);
         done();
       });
@@ -670,7 +670,7 @@ suite('services', function () {
       reg.clear();
 
       function fn(err) {
-        assert(/INTERRUPTED/.test(err));
+        assert(/interrupted/.test(err), err);
         if (++n == 2) {
           done();
         }
@@ -708,7 +708,7 @@ suite('services', function () {
       };
       svc.createClient().createChannel(transport, {timeout: 5})
         .on('eot', function (pending, err) {
-          assert(/TIMEOUT/.test(err), err);
+          assert(/timeout/.test(err), err);
           assert.strictEqual(this.client.service, svc);
           assert(this.destroyed);
           done();
@@ -725,7 +725,7 @@ suite('services', function () {
         .createChannel(transport, {noPing: true, objectMode: true, timeout: 5})
         .on('eot', function () { done(); });
       channel.ping(function (err) {
-        assert(/TIMEOUT/.test(err), err);
+        assert(/timeout/.test(err), err);
         channel.destroy();
       });
     });
@@ -876,7 +876,7 @@ suite('services', function () {
           sawError = true;
         });
       client.ping(function (err) {
-        assert(/INTERRUPTED/.test(err), err);
+        assert(/interrupted/.test(err), err);
         assert(chn.destroyed);
         assert(sawError);
         done();
@@ -944,7 +944,7 @@ suite('services', function () {
         return writable;
       }, {noPing: true, objectMode: true, endWritable: false});
       client.ping(function (err) {
-        assert(/INVALID_HANDSHAKE_RESPONSE/.test(err.rpcCode));
+        assert(/truncated.*HandshakeResponse/.test(err), err);
         done();
       });
     });
@@ -975,7 +975,7 @@ suite('services', function () {
         assert.deepEqual(actualHres, hres);
         this.destroy(true);
       }).on('error', function (err) {
-        assert(/INTERRUPTED/.test(err));
+        assert(/interrupted/.test(err), err);
       });
       setTimeout(function () {
         // Only a single handshake should have occurred.
@@ -1507,7 +1507,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
-            assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+            assert(/internal server error/.test(err), err);
             ptcl.emit('sqrt', {n: 0}, ee, function (err) {
               assert(/zero!/.test(err.message));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
@@ -1854,7 +1854,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('echo', {id: ''}, ee, function (err) {
-            assert(/NOT_IMPLEMENTED/.test(err), err);
+            assert(/not implemented/.test(err), err);
             done();
           });
         });
@@ -1889,7 +1889,7 @@ suite('services', function () {
           });
 
           function interruptedCb(err) {
-            assert(/INTERRUPTED/.test(err.message));
+            assert(/interrupted/.test(err.message));
             interrupted++;
           }
         });
@@ -1913,7 +1913,7 @@ suite('services', function () {
             assert.strictEqual(ee.getProtocol(), ptcl);
             ee.destroy();
             this.emit('negate', {n: 'hi'}, ee, function (err) {
-              assert(/NO_ACTIVE_CHANNELS/.test(err.message), err);
+              assert(/no active channels/.test(err.message), err);
               done();
             });
           });
@@ -1937,7 +1937,7 @@ suite('services', function () {
             .on('error1', function () { throw new Error('foobar'); })
             .on('negate', function (req, ee, cb) { cb(null, -req.n); })
             .emit('error1', {}, ee, function (err) {
-              assert.equal(err.message, 'INTERNAL_SERVER_ERROR');
+              assert(/internal server error/.test(err), err);
               // But the server doesn't die.
               this.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.strictEqual(err, null);
@@ -1960,13 +1960,13 @@ suite('services', function () {
       });
       var client = svc.createClient({noBuffering: true})
         .on('error', function (err) {
-          assert(/NO_ACTIVE_CHANNELS/.test(err), err);
+          assert(/no active channels/.test(err), err);
           done();
         });
       assert.strictEqual(client.service, svc);
       // With callback.
       client.ping(function (err) {
-        assert(/NO_ACTIVE_CHANNELS/.test(err), err);
+        assert(/no active channels/.test(err), err);
         assert.deepEqual(this.locals, {});
         assert.strictEqual(this.channel, undefined);
         // Without (triggering the error above).
@@ -2156,7 +2156,7 @@ suite('services', function () {
           cb(null, 1); // Still call the callback to make sure it is ignored.
         });
       svc.createClient({server: server}).ping({timeout: 10}, function (err) {
-        assert(/INTERRUPTED/.test(err), err);
+        assert(/interrupted/.test(err), err);
         done();
       });
     });
@@ -2570,9 +2570,9 @@ suite('services', function () {
             }
           });
           client.sqrt(-1, function (err) {
-            assert.equal(err, 'INTERNAL_SERVER_ERROR');
+            assert(/internal server error/.test(err), err);
             client.sqrt(-2, function (err) {
-              assert.equal(err, 'INTERNAL_SERVER_ERROR');
+              assert(/internal server error/.test(err), err);
               client.sqrt(100, function (err, res) {
                 // The server still doesn't die (we can make a new request).
                 assert.strictEqual(err, undefined);
@@ -2785,7 +2785,7 @@ suite('services', function () {
             .onNeg(function () { throw fooErr; });
           client
             .neg(2, function (err) {
-              assert(/INTERNAL_SERVER_ERROR/.test(err.message), err);
+              assert(/internal server error/.test(err), err);
             });
         });
       });
@@ -2889,7 +2889,7 @@ suite('services', function () {
             assert.equal(res, 10);
             client.sleep(100, function (err) {
               // Default timeout used here, but delay is _not_ short enough.
-              assert(/TIMEOUT/.test(err));
+              assert(/timeout/.test(err), err);
               client.sleep(100, {timeout: 200}, function (err, res) {
                 // Custom timeout, high enough for the delay.
                 assert.strictEqual(err, null);
@@ -2961,7 +2961,7 @@ suite('services', function () {
           });
 
           function interruptedCb(err) {
-            assert(/INTERRUPTED/.test(err.message));
+            assert(/interrupted/.test(err), err);
             interrupted++;
           }
 
@@ -3116,13 +3116,13 @@ suite('services', function () {
       svc.createServer({silent: true})
         .createChannel(transports[1], {scope: scope});
       discoverProtocol(transports[0], {timeout: 5}, function (err) {
-        assert(/TIMEOUT/.test(err));
+        assert(/timeout/.test(err), err);
         // Check that the transport is still usable.
         var client = svc.createClient();
         var chn = client.createChannel(transports[0], {scope: scope})
           .on('eot', function() { done(); });
         client.upper('foo', function (err) {
-          assert(/NOT_IMPLEMENTED/.test(err), err);
+          assert(/not implemented/.test(err), err);
           chn.destroy();
         });
       });
