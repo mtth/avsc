@@ -85,7 +85,7 @@ const avro = require('avsc');
 + Implement a TCP server for an [IDL-defined][idl] protocol:
 
   ```javascript
-  // We first assemble a protocol from its IDL specification.
+  // We first generate a protocol from its IDL specification.
   const protocol = avro.readProtocol(`
     protocol LengthService {
       /** Endpoint which returns the length of the input string. */
