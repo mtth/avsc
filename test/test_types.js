@@ -1032,16 +1032,6 @@ suite('types', function () {
       assert.throws(function () { t.clone(new Buffer([2])); });
     });
 
-    test('getSchema with extra fields', function () {
-      var t = Type.forSchema({type: 'fixed', name: 'Id', size: 2, three: 3});
-      t.one = 1;
-      assert.equal(
-        JSON.stringify(t.getSchema()),
-        '{"name":"Id","type":"fixed","size":2}'
-      );
-      assert.equal(JSON.stringify(t.getSchema({noDeref: true})), '"Id"');
-    });
-
     test('fromString', function () {
       var t = new builtins.FixedType({name: 'Id', size: 2});
       var s = '\x01\x02';
