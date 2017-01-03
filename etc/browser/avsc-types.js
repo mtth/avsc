@@ -27,17 +27,6 @@ var types = require('../../lib/types');
     return this.buf.slice(pos, pos + len).toString();
   };
 
-  Tap.prototype.writeString = function (s) {
-    var len = Buffer.byteLength(s);
-    this.writeLong(len);
-    var pos = this.pos;
-    this.pos += len;
-    if (this.pos > this.buf.length) {
-      return;
-    }
-    this.buf.write(s, pos);
-  };
-
   Tap.prototype.writeBinary = function (s, len) {
     var pos = this.pos;
     this.pos += len;

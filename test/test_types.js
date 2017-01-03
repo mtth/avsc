@@ -168,7 +168,16 @@ suite('types', function () {
 
     var data = [
       {
-        valid: ['', 'hi'],
+        valid: [
+          '',
+          'hi',
+          'ᚠᛇᚻ᛫ᛒᛦᚦ᛫ᚠᚱᚩᚠᚢᚱ᛫ᚠᛁᚱᚪ᛫ᚷᛖᚻᚹᛦᛚᚳᚢᛗ',
+          'Sîne klâwen durh die wolken sint geslagen',
+          ' ვეპხის ტყაოსანი შოთა რუსთაველი ',
+          '私はガラスを食べられます。それは私を傷つけません。',
+          'ฉันกินกระจกได้ แต่มันไม่ทำให้ฉันเจ็บ',
+          '\ud800\udfff'
+        ],
         invalid: [null, undefined, 1, 0]
       }
     ];
