@@ -1,6 +1,6 @@
 // Inspired by https://github.com/mapbox/pbf/blob/master/bench/vector_tile.proto
 
-syntax = "proto2";
+syntax = "proto3";
 
 message Tile {
   enum GeomType {

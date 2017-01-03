@@ -36,7 +36,7 @@
       "type": "bytes"
     },
     {
-      "name": "times_redeemed",
+      "name": "timesRedeemed",
       "type": "int"
     },
     {
@@ -44,7 +44,7 @@
       "type": "boolean"
     },
     {
-      "name": "amount_off",
+      "name": "amountOff",
       "type": "int"
     },
     {
@@ -59,20 +59,20 @@
       }
     },
     {
-      "name": "duration_in_months",
+      "name": "durationInMonths",
       "type": "int"
     },
     {
-      "name": "max_redemptions",
+      "name": "maxRedemptions",
       "type": "int"
     },
     {
-      "name": "percent_off",
+      "name": "percentOff",
       "type": "int"
     },
     {
-      "name": "redeem_by",
-      "type": "long"
+      "name": "redeemBy",
+      "type": "int"
     }
   ]
 }

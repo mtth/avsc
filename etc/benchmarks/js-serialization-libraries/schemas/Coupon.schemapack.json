@@ -5,12 +5,12 @@
   "created": "float64",
   "duration": "uint8",
   "metadata": "buffer",
-  "times_redeemed": "varint",
+  "timesRedeemed": "varint",
   "valid": "bool",
-  "amount_off": "varint",
+  "amountOff": "varint",
   "currency": "uint8",
-  "duration_in_months": "varint",
-  "max_redemptions": "varint",
-  "percent_off": "varint",
-  "redeem_by": "float64"
+  "durationInMonths": "varint",
+  "maxRedemptions": "varint",
+  "percentOff": "varint",
+  "redeemBy": "float64"
 }
