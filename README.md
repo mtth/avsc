@@ -47,15 +47,14 @@ const avro = require('avsc');
 
   ```javascript
   const type = avro.Type.forSchema({
-    name: 'Pet',
     type: 'record',
     fields: [
-      {name: 'kind', type: {name: 'Kind', type: 'enum', symbols: ['CAT', 'DOG']}},
+      {name: 'kind', type: {type: 'enum', symbols: ['CAT', 'DOG']}},
       {name: 'name', type: 'string'}
     ]
   });
   const buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
-  const val = type.fromBuffer(buf); // {kind: 'CAT', name: 'Albert'}
+  const val = type.fromBuffer(buf); // = {kind: 'CAT', name: 'Albert'}
   ```
 
 + Infer a value's schema and encode similar values:

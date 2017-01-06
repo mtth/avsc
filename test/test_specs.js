@@ -609,6 +609,45 @@ suite('specs', function () {
       }, />/);
     });
 
+    test('default type ref', function () {
+      assert.deepEqual(
+        readSchema('@precision(4) @scale(2) decimal'),
+        {type: 'bytes', logicalType: 'decimal', precision: 4, scale: 2}
+      );
+    });
+
+    test('custom type ref', function () {
+      var typeRefs = {foo: {logicalType: 'foo', type: 'long'}};
+      assert.deepEqual(
+        readSchema('record { foo bar; }', {typeRefs: typeRefs}),
+        {
+          type: 'record',
+          fields: [
+            {
+              name: 'bar',
+              type: {type: 'long', logicalType: 'foo'}
+            }
+          ]
+        }
+      );
+    });
+
+    test('type ref overwrite attributes', function () {
+      var typeRefs = {ip: {logicalType: 'ip', type: 'fixed', size: 4}};
+      assert.deepEqual(
+        readSchema('record { @size(16) ip ipV6; }', {typeRefs: typeRefs}),
+        {
+          type: 'record',
+          fields: [
+            {
+              name: 'ipV6',
+              type: {type: 'fixed', size: 16, logicalType: 'ip'}
+            }
+          ]
+        }
+      );
+    });
+
   });
 
   suite('readProtocol', function () {
