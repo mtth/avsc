@@ -3012,6 +3012,24 @@ suite('types', function () {
       });
     });
 
+    test('auto union wrapping', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        fields: [
+          {name: 'wrapped', type: ['int', 'double' ]}, // Ambiguous.
+          {name: 'unwrapped', type: ['string', 'int']} // Non-ambiguous.
+        ]
+      }, {wrapUnions: 'AUTO'});
+      assert(Type.isType(t.field('wrapped').type, 'union:wrapped'));
+      assert(Type.isType(t.field('unwrapped').type, 'union:unwrapped'));
+    });
+
+    test('invalid wrap unions option', function () {
+      assert.throws(function () {
+        Type.forSchema('string', {wrapUnions: 'FOO'});
+      }, /invalid wrap unions option/);
+    });
+
   });
 
   suite('fromString', function () {
