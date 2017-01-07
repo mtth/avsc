@@ -27,7 +27,7 @@ switch (argv.length) {
     fromStdin();
     return;
   case 3:
-    show(avro.infer(JSON.parse(argv[2])));
+    show(avro.Type.forValue(JSON.parse(argv[2])));
     return;
   default:
     console.error(util.format('usage: %s [JSON]', argv[1]));
@@ -48,9 +48,9 @@ function fromStdin() {
       while ((pos = utils.jsonEnd(str)) >= 0) {
         var val = JSON.parse(str.slice(0, pos));
         if (type === null) {
-          type = avro.infer(val);
+          type = avro.Type.forValue(val);
         } else if (!type.isValid(val, {noUndeclaredFields: true})) {
-          type = avro.combine([type, avro.infer(val)]);
+          type = avro.Type.forTypes([type, avro.Type.forValue(val)]);
         }
         str = str.slice(pos);
       }
@@ -70,4 +70,4 @@ function fromStdin() {
  * Output a type's schema, including defaults.
  *
  */
-function show(type) { console.log(type.getSchema({exportAttrs: true})); }
+function show(type) { console.log(type.schema({exportAttrs: true})); }

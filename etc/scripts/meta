@@ -49,13 +49,13 @@ MetaType.prototype._toValue = function (any) {
   if (name && this._state.references[name]) {
     obj = {string: name};
   } else if (avro.Type.isType(any, 'union')) {
-    obj = {array: any.getTypes()};
+    obj = {array: any.types};
   } else {
     if (name) {
       this._state.references[name] = true;
     }
     obj = {};
-    obj[capitalize(any.getTypeName()) + 'Type'] = any.toJSON();
+    obj[capitalize(any.typeName) + 'Type'] = any.toJSON();
   }
   return {value: obj};
 };
@@ -132,7 +132,7 @@ META_TYPE.fromBuffer = function (buf) {
   // `_fromValue` method since that method is called in post-order (and we need
   // pre-order to be able to resolve references).
   var attrs = avro.Type.prototype.fromBuffer.call(META_TYPE, buf);
-  return avro.parse(attrs, {wrapUnions: true});
+  return avro.Type.forType(attrs, {wrapUnions: true});
 };
 
 
@@ -143,7 +143,8 @@ switch (process.argv[2]) {
       if (err) {
         throw err;
       }
-      process.stdout.write(META_TYPE.toBuffer(avro.parse(buf.toString())));
+      var type = avro.Type.forSchema(buf.toString());
+      process.stdout.write(META_TYPE.toBuffer(type));
     });
     break;
   case 'decompress':
@@ -154,7 +155,7 @@ switch (process.argv[2]) {
       if (!buf.length) {
         throw new Error('empty input');
       }
-      process.stdout.write(META_TYPE.fromBuffer(buf).getSchema());
+      process.stdout.write(META_TYPE.fromBuffer(buf).schema());
     });
     break;
   case 'random':

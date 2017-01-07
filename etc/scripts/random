@@ -12,6 +12,8 @@
  */
 
 var avro = require('../../lib'),
+    assert = require('assert'),
+    fs = require('fs'),
     util = require('util');
 
 var schemaPath = process.argv[2];
@@ -22,9 +24,12 @@ if (!filePath) {
   process.exit(1);
 }
 
-var type = avro.parse(schemaPath);
-var encoder = avro.createFileEncoder(filePath, type);
-while (count--) {
-  encoder.write(type.random());
-}
-encoder.end();
+fs.readFile(schemaPath, {encoding: 'utf8'}, function (err, str) {
+  assert(!err, err);
+  var type = avro.Type.forSchema(JSON.parse(str));
+  var encoder = avro.createFileEncoder(filePath, type);
+  while (count--) {
+    encoder.write(type.random());
+  }
+  encoder.end();
+});

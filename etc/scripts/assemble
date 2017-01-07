@@ -27,7 +27,7 @@ if (!fpath) {
   process.exit(1);
 }
 
-avro.assemble(fpath, function (err, attrs) {
+avro.assembleProtocol(fpath, function (err, attrs) {
   if (err) {
     console.trace(err.message);
     return;

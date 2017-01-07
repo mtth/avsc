@@ -33,7 +33,7 @@ if (!fpath) {
   process.exit(1);
 }
 
-var type = avro.parse(fpath, {typeHook: function (attrs) {
+var type = avro.Type.forSchema(fpath, {typeHook: function (attrs) {
   if (attrs.name) {
     attrs.name = RANDOM.nextString(8);
   }
@@ -45,4 +45,4 @@ var type = avro.parse(fpath, {typeHook: function (attrs) {
   }
 }});
 
-console.log(type.getSchema());
+console.log(type.schema());

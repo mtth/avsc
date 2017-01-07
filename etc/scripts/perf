@@ -40,7 +40,7 @@ console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t| '));
 console.log(['---------:', '-------:', '------: ', '---------'].join('\t| '));
 
 paths.forEach(function (fpath) {
-  var type = avro.parse(fpath, {wrapUnions: wrap});
+  var type = avro.Type.forSchema(fpath, {wrapUnions: wrap});
   var values = [];
   var bufs = [];
 
