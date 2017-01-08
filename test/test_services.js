@@ -307,6 +307,27 @@ suite('services', function () {
         svc.createListener(new stream.PassThrough(), {strictErrors: true});
       });
     });
+
+    test('compatible', function () {
+      var emptySvc = Service.forProtocol({protocol: 'Empty'});
+      var pingSvc = Service.forProtocol({
+        protocol: 'Ping',
+        messages: {
+          ping: {request: [], response: 'boolean'},
+          pong: {request: [], response: 'int'}
+        }
+      });
+      var pongSvc = Service.forProtocol({
+        protocol: 'Pong',
+        messages: {
+          pong: {request: [], response: 'long'}
+        }
+      });
+      assert(Service.compatible(emptySvc, pingSvc));
+      assert(!Service.compatible(pingSvc, emptySvc));
+      assert(!Service.compatible(pingSvc, pongSvc));
+      assert(Service.compatible(pongSvc, pingSvc));
+    });
   });
 
   suite('Message', function () {
