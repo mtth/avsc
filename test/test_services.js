@@ -2892,6 +2892,7 @@ suite('services', function () {
             .onNeg(function (n, cb) { cb(null, -n); });
           client
             .neg(2, function (err, res) {
+              assert(!err, err);
               assert.equal(res, -2);
               var remotePtcl;
               // Client.
@@ -3053,6 +3054,30 @@ suite('services', function () {
         });
       });
 
+      test('destroy server channel during handshake', function (done) {
+        var svc = Service.forProtocol({
+          protocol: 'Sleep',
+          messages: {
+            sleep: {request: [{name: 'ms', type: 'int'}], response: 'int'}
+          }
+        });
+        setupFn(svc, svc, {timeout: 20}, function (client, server) {
+          // For stateful emitters, the channel already exists.
+          server.activeChannels().forEach(onChannel);
+          // For stateless emitters, the channel won't exist yet.
+          server.on('channel', onChannel);
+          client.sleep(10, function (err) {
+            assert(/interrupted|destroyed/.test(err), err);
+            done();
+          });
+
+          function onChannel(channel) {
+            channel.on('handshake', function () {
+              this.destroy(true);
+            });
+          }
+        });
+      });
     }
   });
 
