@@ -1426,6 +1426,20 @@ suite('types', function () {
       assert.strictEqual(p.constructor, Person);
     });
 
+    test('wrap values', function () {
+      var type = Type.forSchema({
+        namespace: 'id',
+        type: 'record',
+        name: 'Id',
+        fields: [{name: 'n', type: 'int'}]
+      });
+      var Id = type.recordConstructor;
+      var id = new Id(12);
+      var wrappedId = {'id.Id': id};
+      assert.deepEqual(type.wrap(id), wrappedId);
+      assert.deepEqual(id.wrapped(), wrappedId);
+    });
+
     test('default check & write', function () {
       var type = Type.forSchema({
         type: 'record',
