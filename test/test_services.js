@@ -838,7 +838,7 @@ suite('services', function () {
         .createChannel(transports[0], {noPing: true})
         .on('eot', function (pending, err) {
           assert.equal(pending, 0);
-          assert(/TRAILING/.test(err), err);
+          assert(/trailing/.test(err), err);
           done();
         });
       transports[0].readable.end(new Buffer([48]));
@@ -893,7 +893,7 @@ suite('services', function () {
         return new stream.PassThrough();
       }, {noPing: true})
         .on('eot', function (pending, err) {
-          assert(/TRAILING/.test(err), err);
+          assert(/trailing/.test(err), err);
           sawError = true;
         });
       client.ping(function (err) {
@@ -1030,7 +1030,7 @@ suite('services', function () {
       var transport = new stream.PassThrough();
       svc.createServer().createChannel(transport)
         .on('eot', function (pending, err) {
-          assert(/TRAILING/.test(err), err);
+          assert(/trailing/.test(err), err);
           assert(this.destroyed);
           assert(this.isDestroyed()); // Deprecated.
           done();
@@ -1078,7 +1078,7 @@ suite('services', function () {
         cb(null, transports[0].writable);
         return transports[1].readable;
       }).on('eot', function (pending, err) {
-        assert(/TRAILING/.test(err), err);
+        assert(/trailing/.test(err), err);
         done();
       });
       transports[1].readable.end(new Buffer([48]));
@@ -1528,7 +1528,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.emit('sqrt', {n: - 10}, ee, function (err) {
-            assert(/remote error/.test(err), err);
+            assert(/internal server error/.test(err), err);
             ptcl.emit('sqrt', {n: 0}, ee, function (err) {
               assert(/zero!/.test(err.message));
               ptcl.emit('sqrt', {n: 100}, ee, function (err, res) {
@@ -1958,7 +1958,7 @@ suite('services', function () {
             .on('error1', function () { throw new Error('foobar'); })
             .on('negate', function (req, ee, cb) { cb(null, -req.n); })
             .emit('error1', {}, ee, function (err) {
-              assert(/remote error/.test(err), err);
+              assert(/internal server error/.test(err), err);
               // But the server doesn't die.
               this.emit('negate', {n: 20}, ee, function (err, res) {
                 assert.strictEqual(err, null);
@@ -2365,7 +2365,7 @@ suite('services', function () {
       var errorTriggered = false;
       var server = svc.createServer()
         .on('error', function (err) {
-          assert(/foobar/.test(err), err);
+          assert(/foobar/.test(err.cause), err);
           errorTriggered = true;
         })
         .use(function (wreq, wres, next) {
@@ -2591,9 +2591,9 @@ suite('services', function () {
             }
           });
           client.sqrt(-1, function (err) {
-            assert(/remote error/.test(err), err);
+            assert(/internal server error/.test(err), err);
             client.sqrt(-2, function (err) {
-              assert(/remote error/.test(err), err);
+              assert(/internal server error/.test(err), err);
               client.sqrt(100, function (err, res) {
                 // The server still doesn't die (we can make a new request).
                 assert.strictEqual(err, undefined);
@@ -2631,7 +2631,7 @@ suite('services', function () {
         setupFn(svc, svc, {strictTypes: true}, function (client, server) {
           server.onPing(function (cb) { cb(); });
           client.ping(function (err) {
-            assert(/remote error/.test(err), err);
+            assert(/internal server error/.test(err), err);
             done();
           });
         });
@@ -2838,7 +2838,7 @@ suite('services', function () {
             .onNeg(function () { throw fooErr; });
           client
             .neg(2, function (err) {
-              assert(/remote error/.test(err), err);
+              assert(/internal server error/.test(err), err);
             });
         });
       });
