@@ -724,6 +724,12 @@ suite('types', function () {
       assert.throws(function () { t.clone(null, {wrapUnions: 2}); });
     });
 
+    test('unwrap', function () {
+      var t = new builtins.WrappedUnionType(['string', 'int']);
+      var v = t.clone({string: 'hi'});
+      assert.equal(v.unwrapped(), 'hi');
+    });
+
     test('invalid multiple keys', function () {
       var t = new builtins.WrappedUnionType(['null', 'int']);
       var o = {'int': 2};
