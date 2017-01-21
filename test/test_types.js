@@ -3042,6 +3042,9 @@ suite('types', function () {
       assert.throws(function () {
         Type.forSchema('string', {wrapUnions: 'FOO'});
       }, /invalid wrap unions option/);
+      assert.throws(function () {
+        Type.forSchema('string', {wrapUnions: 123});
+      }, /invalid wrap unions option/);
     });
 
   });
