@@ -2354,6 +2354,35 @@ suite('services', function () {
         });
     });
 
+    test('client middleware override error', function (done) {
+      var svc = Service.forProtocol({
+        protocol: 'Math',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
+        }
+      });
+      var server = svc.createServer()
+        .onNeg(function (n, cb) { cb(null, -n); });
+      svc.createClient({server: server})
+        .use(function (wreq, wres, next) {
+          next(null, function (err, prev) {
+            assert(/bar/.test(err), err);
+            prev(null); // Substitute `null` as error.
+          });
+        })
+        .use(function (wreq, wres, next) {
+          next(null, function (err, prev) {
+            assert(!err, err);
+            assert.equal(wres.response, -2);
+            prev(new Error('bar'));
+          });
+        })
+        .neg(2, function (err) {
+          assert.strictEqual(err, null);
+          done();
+        });
+    });
+
     test('server middleware bypass', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Math',
