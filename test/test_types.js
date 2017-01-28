@@ -420,7 +420,9 @@ suite('types', function () {
 
     test('getTypes', function () {
       var t = new builtins.UnwrappedUnionType(['null', 'int']);
-      assert.deepEqual(t.getTypes(), [Type.forSchema('null'), Type.forSchema('int')]);
+      var ts = t.getTypes();
+      assert(ts[0].equals(Type.forSchema('null')));
+      assert(ts[1].equals(Type.forSchema('int')));
     });
 
     test('getTypeName', function () {
@@ -579,6 +581,11 @@ suite('types', function () {
       assert.throws(function () { t.compare(null, 'hey'); });
     });
 
+    test('wrap', function () {
+      var t = new builtins.UnwrappedUnionType(['null', 'double']);
+      assert.throws(function () { t.wrap(1.0); }, /directly/);
+    });
+
   });
 
   suite('WrappedUnionType', function () {
@@ -626,13 +633,15 @@ suite('types', function () {
 
     test('getTypes', function () {
       var t = Type.forSchema(['null', 'int']);
-      assert.deepEqual(t.getTypes(), [Type.forSchema('null'), Type.forSchema('int')]);
+      var ts = t.types;
+      assert(ts[0].equals(Type.forSchema('null')));
+      assert(ts[1].equals(Type.forSchema('int')));
     });
 
     test('get branch type', function () {
       var type = new builtins.WrappedUnionType(['null', 'int']);
       var buf = type.toBuffer({'int': 48});
-      var branchType = type.fromBuffer(buf).constructor.getBranchType();
+      var branchType = type.fromBuffer(buf).constructor.type;
       assert(branchType instanceof builtins.IntType);
     });
 
@@ -1092,7 +1101,7 @@ suite('types', function () {
 
     test('get values type', function () {
       var t = new builtins.MapType({type: 'map', values: 'int'});
-      assert.deepEqual(t.getValuesType(), Type.forSchema('int'));
+      assert(t.getValuesType().equals(Type.forSchema('int')));
     });
 
     test('write int', function () {
@@ -1246,7 +1255,7 @@ suite('types', function () {
 
     test('get items type', function () {
       var t = new builtins.ArrayType({type: 'array', items: 'int'});
-      assert.deepEqual(t.getItemsType(), Type.forSchema('int'));
+      assert(t.getItemsType().equals(Type.forSchema('int')));
     });
 
     test('read with sizes', function () {
@@ -2050,7 +2059,7 @@ suite('types', function () {
       assert.deepEqual(fields[0].getAliases(), []);
       assert.deepEqual(fields[1].getAliases(), ['word']);
       assert.equal(fields[1].getName(), 'name'); // Namespaces are ignored.
-      assert.deepEqual(fields[1].getType(), Type.forSchema('string'));
+      assert(fields[1].getType().equals(Type.forSchema('string')));
     });
 
     test('field order', function () {
@@ -2409,6 +2418,7 @@ suite('types', function () {
       assert(t.isValid(t.random()));
       var d = new Date(123);
       assert.equal(t.toString(d), '123');
+      assert.deepEqual(t.wrap(d), {long: d});
       assert.strictEqual(t.getName(), undefined);
       assert.equal(t.getName(true), 'long');
       assert.equal(t.typeName, 'logical:date');
@@ -3758,9 +3768,9 @@ function invert(buf) {
 function assertUnionsEqual(t1, t2) {
   // The order of branches in combined unions is undefined, this function
   // allows a safe equality check.
-  var b1 = {};
-  var b2 = {};
-  t1.getTypes().forEach(function (t) { b1[t.getName(true)] = t; });
-  t2.getTypes().forEach(function (t) { b2[t.getName(true)] = t; });
-  assert.deepEqual(b1, b2);
+  assert.equal(t1.types.length, t2.types.length);
+  var b1 = utils.toMap(t1.types, function (t) { return t.branchName; });
+  t2.types.forEach(function (t) {
+    assert(t.equals(b1[t.branchName]));
+  });
 }
