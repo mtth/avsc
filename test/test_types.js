@@ -741,7 +741,7 @@ suite('types', function () {
     test('unwrap', function () {
       var t = new builtins.WrappedUnionType(['string', 'int']);
       var v = t.clone({string: 'hi'});
-      assert.equal(v.unwrapped(), 'hi');
+      assert.equal(v.unwrap(), 'hi');
     });
 
     test('invalid multiple keys', function () {
@@ -1457,7 +1457,7 @@ suite('types', function () {
       var id = new Id(12);
       var wrappedId = {'id.Id': id};
       assert.deepEqual(type.wrap(id), wrappedId);
-      assert.deepEqual(id.wrapped(), wrappedId);
+      assert.deepEqual(id.wrap(), wrappedId);
     });
 
     test('default check & write', function () {
