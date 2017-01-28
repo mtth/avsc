@@ -235,6 +235,11 @@ suite('types', function () {
 
     testType(builtins.NullType, data);
 
+    test('wrap', function () {
+      var t = Type.forSchema('null');
+      assert.strictEqual(t.wrap(null), null);
+    });
+
   });
 
   suite('FloatType', function () {
