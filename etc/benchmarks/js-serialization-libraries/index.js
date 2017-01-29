@@ -10,6 +10,7 @@
 var avro = require('../../../lib'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
+    flatbuffers = require('flatbuffers'),
     fs = require('fs'),
     msgpack = require('msgpack-lite'),
     Pbf = require('pbf'),
@@ -106,6 +107,17 @@ DecodeSuite.prototype.__avsc = function () {
   return function () {
     var val = type.fromBuffer(buf);
     if (val.$) {
+      throw new Error();
+    }
+  };
+};
+
+DecodeSuite.prototype.__flatbuffers = function (args) {
+  var root = flatbuffers.compileSchema(fs.readFileSync(args));
+  var buf = Array.from(root.generate(this.getValue(true)));
+  return function () {
+    var obj = root.parse(buf);
+    if (obj.$) {
       throw new Error();
     }
   };
@@ -226,6 +238,17 @@ EncodeSuite.prototype.__avsc = function () {
   };
 };
 
+EncodeSuite.prototype.__flatbuffers = function (args) {
+  var message = flatbuffers.compileSchema(fs.readFileSync(args));
+  var val = this.getValue(true);
+  return function () {
+    var buf = message.generate(val);
+    if (!buf.length) {
+      throw new Error();
+    }
+  };
+};
+
 EncodeSuite.prototype.__json = function () {
   var val = this.getValue();
   return function () {
@@ -330,6 +353,7 @@ commander
   .option('-v, --value <val>', 'Use this value for benchmarking.')
   .option('-w, --wrap-unions', 'Wrap unions.')
   .option('--avsc', 'Benchmark `avsc`.')
+  .option('--flatbuffers <path>', 'Benchmark `flatbuffers`.')
   .option('--json', 'Benchmark built-in JSON.')
   .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')
   .option('--json-string', 'Benchmark JSON (pre-parsing bytes to strings).')
