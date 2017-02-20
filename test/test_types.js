@@ -2130,6 +2130,7 @@ suite('types', function () {
       var E = t.getRecordConstructor();
       var err = new E('MyError');
       assert(err instanceof Error);
+      assert(err.stack, 'Error.captureStackTrace was not called');
     });
 
     test('anonymous error type', function () {
