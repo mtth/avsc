@@ -2130,7 +2130,52 @@ suite('types', function () {
       var E = t.getRecordConstructor();
       var err = new E('MyError');
       assert(err instanceof Error);
-      assert(err.stack, 'Error.captureStackTrace was not called');
+      if (typeof Error.captureStackTrace === 'function') {
+        assert(err.stack, 'Error.captureStackTrace was not called');
+      }
+    });
+
+    test('error type - stack is not overridden', function() {
+
+      // This test only applies to V8 environments
+      if (typeof Error.captureStackTrace !== 'function') {
+        return;
+      }
+
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'stack', type: 'string'},
+        ]
+      });
+
+      var E = t.getRecordConstructor();
+      var err = new E('MyError', 'my amazing stack');
+      assert(err instanceof Error);
+      assert(err.stack === 'my amazing stack');
+
+    });
+
+    test('error type - checks option before adding stack', function() {
+
+      // This test only applies to V8 environments
+      if (typeof Error.captureStackTrace !== 'function') {
+        return;
+      }
+
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [{name: 'name', type: 'string'}]
+      }, {noStackTraces: true});
+
+      var E = t.getRecordConstructor();
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack === undefined);
+
     });
 
     test('anonymous error type', function () {
@@ -2790,7 +2835,9 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}]
       }, {noStackTraces: true});
 
-      assert(type._noStackTraces);
+      if (typeof Error.captureStackTrace === 'function') {
+        assert(!type._showStack);
+      }
     });
 
     test('noStackTrace default', function() {
@@ -2800,7 +2847,9 @@ suite('types', function () {
         fields: [{name: 'age', type: 'int'}]
       });
 
-      assert(!type._noStackTraces);
+      if (typeof Error.captureStackTrace === 'function') {
+        assert(type._showStack);
+      }
     });
 
     test('namespaced type', function () {
