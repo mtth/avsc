@@ -2783,6 +2783,26 @@ suite('types', function () {
       assert.throws(function () { Type.forSchema({type: 'b'}); });
     });
 
+    test('noStackTrace option', function() {
+      var type = Type.forSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      }, {noStackTraces: true});
+
+      assert(type._noStackTraces);
+    });
+
+    test('noStackTrace default', function() {
+      var type = Type.forSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'age', type: 'int'}]
+      });
+
+      assert(!type._noStackTraces);
+    });
+
     test('namespaced type', function () {
       var type = Type.forSchema({
         type: 'record',
