@@ -2173,7 +2173,7 @@ suite('types', function () {
       var E = t.getRecordConstructor();
       var err = new E('MyError');
       assert(err instanceof Error);
-      assert(err.stack);
+      assert(typeof err.stack === 'string');
 
     });
 
