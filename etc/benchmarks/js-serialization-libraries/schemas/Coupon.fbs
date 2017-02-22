@@ -9,12 +9,11 @@ enum Currency:byte {
   EURO = 1
 }
 
-
 table Coupon {
   id:string;
   object:string;
   livemode:bool;
-  created:long;
+  created:int;
   duration:Duration;
   metadata:[byte];
   timesRedeemed:int;

@@ -18,6 +18,7 @@ schema:
 ```bash
 $ node . \
   --avsc \
+  --flatbuffers=schemas/Coupon.bfbs \
   --json \
   --msgpack-lite \
   --protobufjs=schemas/Coupon.proto:Coupon \
@@ -25,19 +26,21 @@ $ node . \
   --schemapack=schemas/Coupon.schemapack.json \
   ../../schemas/Coupon.avsc
 decode "Coupon"
-avsc x 1,074,539 ops/sec ±1.22% (87 runs sampled)
-json x 304,586 ops/sec ±1.47% (88 runs sampled)
-msgpackLite x 62,785 ops/sec ±1.33% (88 runs sampled)
-protobufjs x 785,787 ops/sec ±1.19% (89 runs sampled)
-protocolBuffers x 639,090 ops/sec ±1.67% (88 runs sampled)
-schemapack x 840,587 ops/sec ±1.33% (91 runs sampled)
+avsc x 1,112,347 ops/sec ±0.67% (90 runs sampled)
+flatbuffers x 726,951 ops/sec ±1.21% (89 runs sampled)
+json x 245,524 ops/sec ±1.59% (87 runs sampled)
+msgpackLite x 63,882 ops/sec ±1.36% (92 runs sampled)
+protobufjs x 770,191 ops/sec ±1.10% (87 runs sampled)
+protocolBuffers x 660,440 ops/sec ±1.69% (91 runs sampled)
+schemapack x 820,796 ops/sec ±2.06% (91 runs sampled)
 encode "Coupon"
-avsc x 663,740 ops/sec ±1.69% (88 runs sampled)
-json x 253,980 ops/sec ±1.41% (91 runs sampled)
-msgpackLite x 70,431 ops/sec ±4.59% (77 runs sampled)
-protobufjs x 564,237 ops/sec ±1.07% (89 runs sampled)
-protocolBuffers x 337,082 ops/sec ±1.16% (88 runs sampled)
-schemapack x 600,636 ops/sec ±1.57% (89 runs sampled)
+avsc x 690,559 ops/sec ±1.82% (90 runs sampled)
+flatbuffers x 213,089 ops/sec ±1.43% (61 runs sampled)
+json x 324,065 ops/sec ±1.45% (91 runs sampled)
+msgpackLite x 77,005 ops/sec ±4.45% (76 runs sampled)
+protobufjs x 621,946 ops/sec ±1.39% (92 runs sampled)
+protocolBuffers x 337,732 ops/sec ±1.07% (91 runs sampled)
+schemapack x 596,313 ops/sec ±1.72% (87 runs sampled)
 ```
 
 You can run `node . -h` to view the full list of available options.

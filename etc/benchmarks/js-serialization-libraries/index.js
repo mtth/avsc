@@ -114,7 +114,7 @@ DecodeSuite.prototype.__avsc = function () {
 
 DecodeSuite.prototype.__flatbuffers = function (args) {
   var root = flatbuffers.compileSchema(fs.readFileSync(args));
-  var buf = Array.from(root.generate(this.getValue(true)));
+  var buf = Buffer.from(root.generate(this.getValue()));
   return function () {
     var obj = root.parse(buf);
     if (obj.$) {
@@ -242,7 +242,7 @@ EncodeSuite.prototype.__flatbuffers = function (args) {
   var message = flatbuffers.compileSchema(fs.readFileSync(args));
   var val = this.getValue(true);
   return function () {
-    var buf = message.generate(val);
+    var buf = Buffer.from(message.generate(val).buffer);
     if (!buf.length) {
       throw new Error();
     }
