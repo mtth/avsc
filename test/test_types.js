@@ -2130,9 +2130,6 @@ suite('types', function () {
       var E = t.getRecordConstructor();
       var err = new E('MyError');
       assert(err instanceof Error);
-      if (typeof Error.captureStackTrace === 'function') {
-        assert(err.stack, 'Error.captureStackTrace was not called');
-      }
     });
 
     test('error type - stack is not overridden', function() {
@@ -2147,18 +2144,40 @@ suite('types', function () {
         name: 'Ouch',
         fields: [
           {name: 'name', type: 'string'},
-          {name: 'stack', type: 'string'},
+          {name: 'stack', type: 'boolean'},
         ]
-      });
+      }, {errorStackTraces: true});
 
       var E = t.getRecordConstructor();
-      var err = new E('MyError', 'my amazing stack');
+      var err = new E('MyError', false);
       assert(err instanceof Error);
-      assert(err.stack === 'my amazing stack');
+      assert(err.stack === false);
 
     });
 
-    test('error type - checks option before adding stack', function() {
+    test('error type - stack is populated', function() {
+
+      // This test only applies to V8 environments
+      if (typeof Error.captureStackTrace !== 'function') {
+        return;
+      }
+
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [
+          {name: 'name', type: 'string'},
+        ]
+      }, {errorStackTraces: true});
+
+      var E = t.getRecordConstructor();
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack);
+
+    });
+
+    test('error type - stack is not populated by default', function() {
 
       // This test only applies to V8 environments
       if (typeof Error.captureStackTrace !== 'function') {
@@ -2169,7 +2188,7 @@ suite('types', function () {
         type: 'error',
         name: 'Ouch',
         fields: [{name: 'name', type: 'string'}]
-      }, {noStackTraces: true});
+      });
 
       var E = t.getRecordConstructor();
       var err = new E('MyError');
@@ -2826,30 +2845,6 @@ suite('types', function () {
     test('unknown types', function () {
       assert.throws(function () { Type.forSchema('a'); });
       assert.throws(function () { Type.forSchema({type: 'b'}); });
-    });
-
-    test('noStackTrace option', function() {
-      var type = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'age', type: 'int'}]
-      }, {noStackTraces: true});
-
-      if (typeof Error.captureStackTrace === 'function') {
-        assert(!type._showStack);
-      }
-    });
-
-    test('noStackTrace default', function() {
-      var type = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'age', type: 'int'}]
-      });
-
-      if (typeof Error.captureStackTrace === 'function') {
-        assert(type._showStack);
-      }
     });
 
     test('namespaced type', function () {
