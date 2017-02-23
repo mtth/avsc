@@ -2144,14 +2144,14 @@ suite('types', function () {
         name: 'Ouch',
         fields: [
           {name: 'name', type: 'string'},
-          {name: 'stack', type: 'boolean'},
+          {name: 'stack', type: 'string'},
         ]
       }, {errorStackTraces: true});
 
       var E = t.getRecordConstructor();
-      var err = new E('MyError', false);
+      var err = new E('MyError', 'my amazing stack');
       assert(err instanceof Error);
-      assert(err.stack === false);
+      assert(err.stack === 'my amazing stack');
 
     });
 
@@ -2167,6 +2167,7 @@ suite('types', function () {
         name: 'Ouch',
         fields: [
           {name: 'name', type: 'string'},
+          {name: 'stack', type: 'string'},
         ]
       }, {errorStackTraces: true});
 
@@ -2174,6 +2175,7 @@ suite('types', function () {
       var err = new E('MyError');
       assert(err instanceof Error);
       assert(typeof err.stack === 'string');
+      assert(err.stack.indexOf('Ouch') === -1);
 
     });
 
@@ -2189,6 +2191,49 @@ suite('types', function () {
         name: 'Ouch',
         fields: [{name: 'name', type: 'string'}]
       });
+
+      var E = t.getRecordConstructor();
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack === undefined);
+
+    });
+
+    test('error type - stack is not populated if field is not defined', function() {
+
+      // This test only applies to V8 environments
+      if (typeof Error.captureStackTrace !== 'function') {
+        return;
+      }
+
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [{name: 'name', type: 'string'}]
+      }, {errorStackTraces: true});
+
+      var E = t.getRecordConstructor();
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack === undefined);
+
+    });
+
+    test('error type - stack is not populated if field is not a string', function() {
+
+      // This test only applies to V8 environments
+      if (typeof Error.captureStackTrace !== 'function') {
+        return;
+      }
+
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'stack', type: 'boolean'},
+        ]
+      }, {errorStackTraces: true});
 
       var E = t.getRecordConstructor();
       var err = new E('MyError');
