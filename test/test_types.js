@@ -2132,6 +2132,77 @@ suite('types', function () {
       assert(err instanceof Error);
     });
 
+    test('error stack field not overwritten', function() {
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'stack', type: 'string'},
+        ]
+      }, {errorStackTraces: true});
+      var E = t.recordConstructor;
+      var err = new E('MyError', 'my amazing stack');
+      assert(err instanceof Error);
+      assert(err.stack === 'my amazing stack');
+    });
+
+    test('error stack trace', function() {
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'stack', type: 'string'},
+        ]
+      }, {errorStackTraces: true});
+      var E = t.recordConstructor;
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      if (supportsErrorStacks()) {
+        assert(typeof err.stack === 'string');
+      }
+    });
+
+    test('no stack trace by default', function() {
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [{name: 'name', type: 'string'}]
+      });
+      var E = t.recordConstructor;
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack === undefined);
+    });
+
+    test('no stack when no matching field', function() {
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [{name: 'name', type: 'string'}]
+      }, {errorStackTraces: true});
+      var E = t.recordConstructor;
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack === undefined);
+    });
+
+    test('no stack when non-string stack field', function() {
+      var t = Type.forSchema({
+        type: 'error',
+        name: 'Ouch',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'stack', type: 'boolean'},
+        ]
+      }, {errorStackTraces: true});
+      var E = t.recordConstructor;
+      var err = new E('MyError');
+      assert(err instanceof Error);
+      assert(err.stack === undefined);
+    });
+
     test('anonymous error type', function () {
       assert.doesNotThrow(function () { Type.forSchema({
         type: 'error',
@@ -3778,4 +3849,8 @@ function assertUnionsEqual(t1, t2) {
   t2.types.forEach(function (t) {
     assert(t.equals(b1[t.branchName]));
   });
+}
+
+function supportsErrorStacks() {
+  return typeof Error.captureStackTrace == 'function' || Error().stack;
 }
