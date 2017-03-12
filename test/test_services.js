@@ -1979,7 +1979,7 @@ suite('services', function () {
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var client = svc.createClient({noBuffering: true})
+      var client = svc.createClient({buffering: false})
         .on('error', function (err) {
           assert(/no active channels/.test(err), err);
           done();
@@ -2176,10 +2176,13 @@ suite('services', function () {
           this.channel.destroy(true);
           cb(null, 1); // Still call the callback to make sure it is ignored.
         });
-      svc.createClient({server: server}).ping({timeout: 10}, function (err) {
-        assert(/interrupted/.test(err), err);
-        done();
-      });
+      svc.createClient({server: server})
+        .once('channel', function () {
+          this.ping({timeout: 10}, function (err) {
+            assert(/interrupted/.test(err), err);
+            done();
+          });
+        });
     });
   });
 
@@ -2194,7 +2197,7 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onEcho(function (n, cb) { cb(null, n); });
-      svc.createClient({server: server})
+      svc.createClient({buffering: true, server: server})
         .echo(123, function (err, n) {
           assert(!err, err);
           assert.equal(n, 123);
@@ -2252,7 +2255,7 @@ suite('services', function () {
           assert.equal(numCalls++, 1);
           cb(null, -n);
         });
-      svc.createClient({server: server})
+      svc.createClient({buffering: true, server: server})
         .neg(1, function (err, n) {
           assert(!err, err);
           assert.equal(n, -1);
@@ -2363,7 +2366,7 @@ suite('services', function () {
       });
       var server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
-      svc.createClient({server: server})
+      svc.createClient({buffering: true, server: server})
         .use(function (wreq, wres, next) {
           next(null, function (err, prev) {
             assert(/bar/.test(err), err);
@@ -2441,7 +2444,7 @@ suite('services', function () {
           assert.equal(this.locals.foo, 'bar');
           cb(null, -n);
         });
-      svc.createClient({server: server})
+      svc.createClient({buffering: true, server: server})
         .use(function (client) {
           client.on('channel', function (channel) {
             channel.on('outgoingCall', function (ctx, opts) {
