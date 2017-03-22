@@ -53,6 +53,7 @@ const avro = require('avsc');
       {name: 'name', type: 'string'}
     ]
   });
+
   const buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
   const val = type.fromBuffer(buf); // = {kind: 'CAT', name: 'Albert'}
   ```
@@ -65,6 +66,7 @@ const avro = require('avsc');
     zipCodes: ['02138', '02139'],
     visits: 2
   });
+
   // We can use `type` to encode any values with the same structure:
   const bufs = [
     type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
@@ -91,10 +93,12 @@ const avro = require('avsc');
       int stringLength(string str);
     }
   `);
+
   // We then create a corresponding server, implementing our endpoint.
   const server = avro.Service.forProtocol(protocol)
     .createServer()
     .onStringLength(function (str, cb) { cb(null, str.length); });
+
   // Finally, we use our server to respond to incoming TCP connections!
   require('net').createServer()
     .on('connection', (con) => { server.createChannel(con); })
@@ -112,6 +116,6 @@ const avro = require('avsc');
 [browserify]: http://browserify.org/
 [browser-support]: https://github.com/mtth/avsc/wiki#browser-support
 [home]: https://github.com/mtth/avsc/wiki
-[rpc]: https://github.com/mtth/avsc/wiki/Advanced-usage#remote-procedure-calls
+[rpc]: https://github.com/mtth/avsc/wiki/Quickstart#services
 [releases]: https://github.com/mtth/avsc/releases
 [idl]: https://avro.apache.org/docs/current/idl.html
