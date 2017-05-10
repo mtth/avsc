@@ -10,6 +10,7 @@ var index = require('../lib'),
     services = require('../lib/services'),
     types = require('../lib/types'),
     assert = require('assert'),
+    rmdir = require('rmdir'),
     path = require('path'),
     tmp = require('tmp');
 
@@ -106,6 +107,58 @@ suite('index', function () {
     });
   });
 
+  test('FileAppenderScalability', function (cb) {
+    var batches = 10;
+    var batchWrites = 100;
+    var tmpPath = tmp.fileSync().name;
+    var path = './temp/FileAppenderScalability/test/subdir' + tmpPath;
+    var type = types.Type.forSchema({
+      type: 'record',
+      name: 'Person',
+      fields: [
+        {name: 'id', type: 'string'},
+        {name: 'name', type: 'string'},
+        {name: 'longString', type: 'string'}
+      ]
+    });
+    var longString = (new Array(100*1024)).join("x");
+    var record = {id: '1', name: 'Ann', longString: longString};
+    
+    var encoderBuilderFunction = function (path, type, opts) {
+       return new index.createFileAppender(path, type, opts);
+    };
+
+    this.timeout(4000);
+    writeToEncoder(encoderBuilderFunction, path, type, record, batchWrites, batches, function() {
+      rmdir('./temp', function (err, dirs, files) {
+        cb();
+      });
+    });
+  });
+
+  test('FileAppenderFlushing', function (cb) {
+    var path = tmp.fileSync().name;
+    var type = types.Type.forSchema({
+      type: 'record',
+      name: 'Person',
+      fields: [
+        {name: 'id', type: 'string'},
+        {name: 'name', type: 'string'},
+        {name: 'longString', type: 'string'}
+      ]
+    });
+    var longString = (new Array(100*1024)).join("x");
+    var record = {id: '1', name: 'Ann', longString: longString };
+    
+    function encoderBuilderFunction(path, type, opts) {
+       opts = opts || {};
+       opts.writeFlushed = true;
+       return new index.createFileAppender(path, type, opts);
+    };
+
+    testFlushing(encoderBuilderFunction, path, type, record, cb);
+  });
+
   test('extractFileHeader', function () {
     var header;
     var fpath = path.join(DPATH, 'person-10.avro');
@@ -123,5 +176,125 @@ suite('index', function () {
     );
     assert(header !== null);
   });
-
 });
+
+function testFlushing(encoderBuilderFunction, path, type, record, cb) {
+    var batchRun = 1;
+    var batchWrites = 100;
+    var encoder = encoderBuilderFunction(path, type);
+    var recordStore = {};
+    var flushTimeSLA = 150;
+
+    function writeCallback(record) {
+      recordStore[record.id] = record;
+
+      // Asserts the record is both flushed and read back inside a given SLA
+      setTimeout(function () {
+        assert(!recordStore[record.id]);
+      }, flushTimeSLA);
+    }
+
+    scalableWrite(encoder, record, writeCallback, null, null, batchRun, batchWrites);
+    startAssertingScalableWrites(path, type, recordStore, batchRun, batchWrites, null , cb)
+  }
+
+
+function writeToEncoder(encoderBuilderFunction, path, type, record, batchWrites, batches, cb) {
+    var batchRun = 1;
+    var encoder = null;
+    var recordStore = {};
+
+    function writeCallback(record) {
+      recordStore[record.id] = record;
+    }
+
+    function finalFlushCallback() {
+
+      encoder.end(function () {        
+        startAssertingScalableWrites(path, type, recordStore, batchRun, batchWrites, null, function() {
+          if (batchRun < batches) {
+            encoder = encoderBuilderFunction(path, type);
+            batchRun++;
+            scalableWrite(encoder, record, writeCallback, null, finalFlushCallback, batchRun, batchWrites);
+          } else {
+            cb();
+          }
+        });
+      });
+    }
+
+    encoder = encoderBuilderFunction(path, type);
+    scalableWrite(encoder, record, writeCallback, null, finalFlushCallback, batchRun, batchWrites);
+  }
+
+function startAssertingScalableWrites(path, type, recordStore, batchRun, batchWrites, onDataCallback, cb) {
+    var runs = 0;
+
+    function run() {      
+      var n = 0;
+      runs++;
+
+      index.createFileDecoder(path)
+        .on('data', function (obj) {
+          var stored = recordStore[obj.id];
+          n++;
+          if (onDataCallback) { onDataCallback(obj) }
+          assert(type.isValid(obj));          
+          
+          if (obj.id.startsWith('batch: ' + batchRun)) {
+            assert.deepEqual(obj, stored);
+            delete recordStore[obj.id];
+          }
+        })
+        .on('end', function () {
+          if (n < batchRun * batchWrites && runs < 3) {
+            setTimeout(run, 10);
+          } else {
+            assert.equal(n, batchRun * batchWrites);
+            assert.equal(0, Object.keys(recordStore).length);
+            cb();
+          }
+        });
+    }
+
+    run();
+}
+
+function scalableWrite(writableStream, record, writeCallback, recordFlushCallback, finalFlushCallback, batchRun, batchWrites, offset = batchWrites) {    
+  var ok = true;
+  var i = offset;
+
+  do {
+    i--;
+    const eventName = 'batch: ' + batchRun + ' event: ' + (batchWrites-i);
+    const data = Object.assign({}, record);
+    
+    assert.deepEqual(data, record);
+    data.id = eventName;
+
+    function flushCallback() {
+      if (recordFlushCallback) recordFlushCallback(data);
+    }
+    function finalCallback() {
+      flushCallback();
+      if (finalFlushCallback) finalFlushCallback();
+    }
+
+    if (i > 0) {
+      ok = writableStream.write(data, flushCallback);
+    } else if (i === 0) {
+      ok = writableStream.write(data, finalCallback);
+    } else {
+      return;
+    }
+
+    if (writeCallback) writeCallback(data);
+
+    if (!ok) {
+      writableStream.once('drain', function () {
+        scalableWrite(writableStream, record, writeCallback, recordFlushCallback, finalFlushCallback, batchRun, batchWrites, i);
+      });
+    }
+
+  } while (i > 0 && ok);
+}
