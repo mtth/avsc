@@ -75,12 +75,20 @@ const avro = require('avsc');
   ```
 
 + Get a [readable stream][readable-stream] of decoded values from an Avro
-  container file:
+  container file compressed using Snappy:
 
   ```javascript
-  avro.createFileDecoder('./values.avro')
-    .on('metadata', (type) => { /* `type` is the writer's type. */ })
-    .on('data', (val) => { /* Do something with the decoded value. */ });
+  const snappy = require('snappy'); // Or your favorite Snappy library.
+  const codecs: {
+    snappy: function (buf, cb) {
+      // Avro appends checksums to compressed blocks, which we skip here.
+      return snappy.uncompress(buf.slice(0, buf.length - 4), cb);
+    }
+  };
+
+  avro.createFileDecoder('./values.avro', {codecs})
+    .on('metadata', function (type) { /* `type` is the writer's type. */ })
+    .on('data', function (val) { /* Do something with the decoded value. */ });
   ```
 
 + Implement a TCP server for an [IDL-defined][idl] protocol:
