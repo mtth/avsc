@@ -128,7 +128,7 @@ suite('index', function () {
        return new index.createFileAppender(path, type, opts);
     };
 
-    this.timeout(8000);
+    this.timeout(20000);
     writeToEncoder(encoderBuilderFunction, path, type, record, batchWrites, batches, function() {
       rmdir('./temp', function (err, dirs, files) {
         cb();
@@ -156,6 +156,7 @@ suite('index', function () {
        return new index.createFileAppender(path, type, opts);
     };
 
+    this.timeout(20000);
     testFlushing(encoderBuilderFunction, path, type, record, cb);
   });
 
@@ -183,7 +184,7 @@ function testFlushing(encoderBuilderFunction, path, type, record, cb) {
     var batchWrites = 100;
     var encoder = encoderBuilderFunction(path, type);
     var recordStore = {};
-    var flushTimeSLA = 300;
+    var flushTimeSLA = 400;
 
     function writeCallback(record) {
       recordStore[record.id] = record;
