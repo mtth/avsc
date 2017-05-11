@@ -96,12 +96,21 @@ const avro = require('avsc');
   ```
 
 + Get a [readable stream][readable-stream] of decoded values from an Avro
-  container file:
+  container file compressed using [Snappy][snappy] (see the [`BlockDecoder`
+  API][decoder-api] for an example including checksum validation):
 
   ```javascript
-  avro.createFileDecoder('./values.avro')
-    .on('metadata', (type) => { /* `type` is the writer's type. */ })
-    .on('data', (val) => { /* Do something with the decoded value. */ });
+  const snappy = require('snappy'); // Or your favorite Snappy library.
+  const codecs = {
+    snappy: function (buf, cb) {
+      // Avro appends checksums to compressed blocks, which we skip here.
+      return snappy.uncompress(buf.slice(0, buf.length - 4), cb);
+    }
+  };
+
+  avro.createFileDecoder('./values.avro', {codecs})
+    .on('metadata', function (type) { /* `type` is the writer's type. */ })
+    .on('data', function (val) { /* Do something with the decoded value. */ });
   ```
 
 + Implement a TCP server for an [IDL-defined][idl] protocol:
@@ -127,17 +136,19 @@ const avro = require('avsc');
   ```
 
 
-[node.js]: https://nodejs.org/en/
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
-[type-inference]: https://github.com/mtth/avsc/wiki/Advanced-usage#type-inference
-[schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
-[logical-types]: https://github.com/mtth/avsc/wiki/Advanced-usage#logical-types
+[browser-support]: https://github.com/mtth/avsc/wiki#browser-support
+[browserify]: http://browserify.org/
 [custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
+[decoder-api]: https://github.com/mtth/avsc/wiki/API#class-blockdecoderopts
+[home]: https://github.com/mtth/avsc/wiki
+[idl]: https://avro.apache.org/docs/current/idl.html
+[logical-types]: https://github.com/mtth/avsc/wiki/Advanced-usage#logical-types
+[node.js]: https://nodejs.org/en/
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
 [writable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_writable
-[browserify]: http://browserify.org/
-[browser-support]: https://github.com/mtth/avsc/wiki#browser-support
-[home]: https://github.com/mtth/avsc/wiki
-[rpc]: https://github.com/mtth/avsc/wiki/Quickstart#services
 [releases]: https://github.com/mtth/avsc/releases
-[idl]: https://avro.apache.org/docs/current/idl.html
+[rpc]: https://github.com/mtth/avsc/wiki/Quickstart#services
+[schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
+[snappy]: https://avro.apache.org/docs/current/spec.html#snappy
+[type-inference]: https://github.com/mtth/avsc/wiki/Advanced-usage#type-inference
