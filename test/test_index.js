@@ -108,8 +108,8 @@ suite('index', function () {
   });
 
   test('FileAppenderScalability', function (cb) {
-    var batches = 10;
-    var batchWrites = 100;
+    var batches = 3;
+    var batchWrites = 40;
     var tmpPath = tmp.fileSync().name;
     var path = './temp/FileAppenderScalability/test/subdir' + tmpPath;
     var type = types.Type.forSchema({
@@ -181,10 +181,10 @@ suite('index', function () {
 
 function testFlushing(encoderBuilderFunction, path, type, record, cb) {
     var batchRun = 1;
-    var batchWrites = 100;
+    var batchWrites = 40;
     var encoder = encoderBuilderFunction(path, type);
     var recordStore = {};
-    var flushTimeSLA = 400;
+    var flushTimeSLA = 500;
 
     function writeCallback(record) {
       recordStore[record.id] = record;
