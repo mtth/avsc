@@ -242,8 +242,10 @@ function startAssertingScalableWrites(path, type, recordStore, batchRun, batchWr
           assert(type.isValid(obj));          
           
           if (obj.id.startsWith('batch: ' + batchRun)) {
-            assert.deepEqual(obj, stored);
-            delete recordStore[obj.id];
+            if (stored) {
+              assert.deepEqual(obj, stored);
+              delete recordStore[obj.id];
+            }
           }
         })
         .on('end', function () {
@@ -271,7 +273,7 @@ function scalableWrite(writableStream, record, writeCallback, recordFlushCallbac
   do {
     i--;
     var eventName = 'batch: ' + batchRun + ' event: ' + (batchWrites-i);
-    var data = Object.assign({}, record);
+    var data = mergeObjects({}, record);
     
     assert.deepEqual(data, record);
     data.id = eventName;
@@ -301,4 +303,16 @@ function scalableWrite(writableStream, record, writeCallback, recordFlushCallbac
     }
 
   } while (i > 0 && ok);
+}
+
+function mergeObjects() {
+    var resObj = {};
+    for(var i=0; i < arguments.length; i += 1) {
+         var obj = arguments[i],
+             keys = Object.keys(obj);
+         for(var j=0; j < keys.length; j += 1) {
+             resObj[keys[j]] = obj[keys[j]];
+         }
+    }
+    return resObj;
 }
