@@ -242,7 +242,7 @@ function startAssertingScalableWrites(path, type, recordStore, batchRun, batchWr
           if (onDataCallback) { onDataCallback(obj) }
           assert(type.isValid(obj));          
           
-          if (obj.id.startsWith('batch: ' + batchRun)) {
+          if (obj.id.indexOf('batch: ' + batchRun) >=0 ) {
             if (stored) {
               assert.deepEqual(obj, stored);
               delete recordStore[obj.id];
@@ -279,10 +279,10 @@ function scalableWrite(writableStream, record, writeCallback, recordFlushCallbac
     assert.deepEqual(data, record);
     data.id = eventName;
 
-    function flushCallback() {
+    var flushCallback = function() {
       if (recordFlushCallback) recordFlushCallback(data);
     }
-    function finalCallback() {
+    var finalCallback = function() {
       flushCallback();
       if (finalFlushCallback) finalFlushCallback();
     }
