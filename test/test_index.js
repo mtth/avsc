@@ -128,7 +128,7 @@ suite('index', function () {
        return new index.createFileAppender(path, type, opts);
     };
 
-    this.timeout(4000);
+    this.timeout(8000);
     writeToEncoder(encoderBuilderFunction, path, type, record, batchWrites, batches, function() {
       rmdir('./temp', function (err, dirs, files) {
         cb();
@@ -183,7 +183,7 @@ function testFlushing(encoderBuilderFunction, path, type, record, cb) {
     var batchWrites = 100;
     var encoder = encoderBuilderFunction(path, type);
     var recordStore = {};
-    var flushTimeSLA = 150;
+    var flushTimeSLA = 300;
 
     function writeCallback(record) {
       recordStore[record.id] = record;
@@ -260,14 +260,18 @@ function startAssertingScalableWrites(path, type, recordStore, batchRun, batchWr
     run();
 }
 
-function scalableWrite(writableStream, record, writeCallback, recordFlushCallback, finalFlushCallback, batchRun, batchWrites, offset = batchWrites) {    
+function scalableWrite(writableStream, record, writeCallback, recordFlushCallback, finalFlushCallback, batchRun, batchWrites, offset) {
   var ok = true;
   var i = offset;
 
+  if (offset === undefined) {
+    i = batchWrites;
+  }
+
   do {
     i--;
-    const eventName = 'batch: ' + batchRun + ' event: ' + (batchWrites-i);
-    const data = Object.assign({}, record);
+    var eventName = 'batch: ' + batchRun + ' event: ' + (batchWrites-i);
+    var data = Object.assign({}, record);
     
     assert.deepEqual(data, record);
     data.id = eventName;
