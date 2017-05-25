@@ -10,6 +10,7 @@
 var avro = require('../../../lib'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
+    compactr = require('compactr'),
     flatbuffers = require('flatbuffers'),
     fs = require('fs'),
     msgpack = require('msgpack-lite'),
@@ -107,6 +108,17 @@ DecodeSuite.prototype.__avsc = function () {
   return function () {
     var val = type.fromBuffer(buf);
     if (val.$) {
+      throw new Error();
+    }
+  };
+};
+
+DecodeSuite.prototype.__compactr = function (args) {
+  var schema = compactr.schema(JSON.parse(fs.readFileSync(args)));
+  var buf = schema.write(this.getValue()).buffer();
+  return function () {
+    var obj = schema.read(buf);
+    if (obj.$) {
       throw new Error();
     }
   };
@@ -238,6 +250,17 @@ EncodeSuite.prototype.__avsc = function () {
   };
 };
 
+EncodeSuite.prototype.__compactr = function (args) {
+  var schema = compactr.schema(JSON.parse(fs.readFileSync(args)));
+  var val = this.getValue();
+  return function () {
+    var buf = schema.write(val).buffer();
+    if (!buf.length) {
+      throw new Error();
+    }
+  };
+};
+
 EncodeSuite.prototype.__flatbuffers = function (args) {
   var message = flatbuffers.compileSchema(fs.readFileSync(args));
   var val = this.getValue(true);
@@ -353,6 +376,7 @@ commander
   .option('-v, --value <val>', 'Use this value for benchmarking.')
   .option('-w, --wrap-unions', 'Wrap unions.')
   .option('--avsc', 'Benchmark `avsc`.')
+  .option('--compactr <path>', 'Benchmark `compactr`.')
   .option('--flatbuffers <path>', 'Benchmark `flatbuffers`.')
   .option('--json', 'Benchmark built-in JSON.')
   .option('--json-binary', 'Benchmark JSON (serializing bytes to strings).')

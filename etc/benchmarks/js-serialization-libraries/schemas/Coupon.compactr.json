@@ -1,0 +1,16 @@
+{
+  "id": {"type": "string"},
+  "object": {"type": "string"},
+  "livemode": {"type": "boolean"},
+  "created": {"type": "int32"},
+  "duration": {"type": "string"},
+
+  "timesRedeemed": {"type": "int32"},
+  "valid": {"type": "boolean"},
+  "amountOff": {"type": "int32"},
+  "currency": {"type": "string"},
+  "durationInMonths": {"type": "int32"},
+  "maxRedemptions": {"type": "int32"},
+  "percentOff": {"type": "int32"},
+  "redeemBy": {"type": "int32"}
+}
