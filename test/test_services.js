@@ -1329,7 +1329,7 @@ suite('services', function () {
                 assert.strictEqual(err, null);
                 assert.equal(res, -20);
                 n2 = this.emit('negate', {n: 'hi'}, ee, function (err) {
-                  assert(/invalid negate request/.test(err), err);
+                  assert(/invalid "negate" request/.test(err), err);
                   process.nextTick(function () { ee.destroy(); });
                 });
               });
@@ -1407,7 +1407,7 @@ suite('services', function () {
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function () { done(); });
           ptcl.emit('negate', {n: 'a'}, ee, function (err) {
-            assert(/invalid negate request/.test(err), err);
+            assert(/invalid "negate" request/.test(err), err);
             ee.destroy();
           });
         });
@@ -2593,7 +2593,7 @@ suite('services', function () {
                   assert.strictEqual(err, null);
                   assert.equal(res, -20);
                   client.negateFirst([-10, 'ni'],  function (err) {
-                    assert(/invalid negateFirst request/.test(err), err);
+                    assert(/invalid "negateFirst" request/.test(err), err);
                     this.channel.destroy();
                   });
                 });
