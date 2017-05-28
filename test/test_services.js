@@ -1841,7 +1841,7 @@ suite('services', function () {
             // In reality the server wouldn't be used (since this is the old
             // API), but this makes this test do its job.
             ee.server.on('error', function (err) {
-              assert(/duplicate/.test(err), err);
+              assert(/duplicate handler call/.test(err), err);
               done();
             });
             cb(null, null);
@@ -2756,7 +2756,7 @@ suite('services', function () {
           var chn = client.activeChannels()[0];
           client
             .on('error', function (err, chn_) {
-              assert(/duplicate middleware forward/.test(err.message));
+              assert(/duplicate forward middleware/.test(err), err);
               assert.strictEqual(chn_, chn);
               setTimeout(function () { done(); }, 0);
             });
@@ -2825,7 +2825,7 @@ suite('services', function () {
             .use(function (wreq, wres, next) {
               // Attach error handler to channel.
               server.on('error', function (err, chn) {
-                assert(/duplicate/.test(err));
+                assert(/duplicate backward middleware/.test(err), err);
                 assert.strictEqual(chn.server. server);
                 setTimeout(function () { done(); }, 0);
               });
