@@ -63,20 +63,20 @@ function getHash(str, algorithm) {
  * Returns -1 if not found, -2 if found multiple times.
  */
 function singleIndexOf(arr, v) {
-  var idx = -1;
+  var pos = -1;
   var i, l;
   if (!arr) {
     return -1;
   }
   for (i = 0, l = arr.length; i < l; i++) {
     if (arr[i] === v) {
-      if (idx >= 0) {
+      if (pos >= 0) {
         return -2;
       }
-      idx = i;
+      pos = i;
     }
   }
-  return idx;
+  return pos;
 }
 
 /**
@@ -156,22 +156,22 @@ function copyOwnProperties(src, dst, overwrite) {
  * to return the correct end when presented with valid JSON.
  *
  * @param str {String} Input string containing serialized JSON..
- * @param idx {Number} Starting position.
+ * @param pos {Number} Starting position.
  */
-function jsonEnd(str, idx) {
-  idx = idx | 0;
+function jsonEnd(str, pos) {
+  pos = pos | 0;
 
   // Handle the case of a simple literal separately.
-  var c = str.charAt(idx++);
+  var c = str.charAt(pos++);
   if (/[\d-]/.test(c)) {
-    while (/[eE\d.+-]/.test(str.charAt(idx))) {
-      idx++;
+    while (/[eE\d.+-]/.test(str.charAt(pos))) {
+      pos++;
     }
-    return idx;
-  } else if (/true|null/.test(str.slice(idx - 1, idx + 3))) {
-    return idx + 3;
-  } else if (/false/.test(str.slice(idx - 1, idx + 4))) {
-    return idx + 4;
+    return pos;
+  } else if (/true|null/.test(str.slice(pos - 1, pos + 3))) {
+    return pos + 3;
+  } else if (/false/.test(str.slice(pos - 1, pos + 4))) {
+    return pos + 4;
   }
 
   // String, object, or array.
@@ -186,19 +186,19 @@ function jsonEnd(str, idx) {
     case '}':
     case ']':
       if (!literal && !--depth) {
-        return idx;
+        return pos;
       }
       break;
     case '"':
       literal = !literal;
       if (!depth && !literal) {
-        return idx;
+        return pos;
       }
       break;
     case '\\':
-      idx++; // Skip the next character.
+      pos++; // Skip the next character.
     }
-  } while ((c = str.charAt(idx++)));
+  } while ((c = str.charAt(pos++)));
 
   return -1;
 }
@@ -371,30 +371,30 @@ OrderedQueue.prototype.pop = function () {
 };
 
 /**
- * A buffer associated with an index.
+ * A tap is a buffer which remembers what has been already read.
  *
  * It is optimized for performance, at the cost of failing silently when
  * overflowing the buffer. This is a purposeful trade-off given the expected
  * rarity of this case and the large performance hit necessary to enforce
  * validity. See `isValid` below for more information.
  */
-function IndexedBuffer(buf, idx) {
-  this.buffer = buf;
-  this.index = idx | 0;
-  if (this.index < 0) {
+function Tap(buf, pos) {
+  this.buf = buf;
+  this.pos = pos | 0;
+  if (this.pos < 0) {
     throw new Error('negative offset');
   }
 }
 
 /**
- * Check that the indexed buffer is in a valid state.
+ * Check that the tap is in a valid state.
  *
  * For efficiency reasons, none of the methods below will fail if an overflow
  * occurs (either read, skip, or write). For this reason, it is up to the
  * caller to always check that the read, skip, or write was valid by calling
  * this method.
  */
-IndexedBuffer.prototype.isValid = function () { return this.index <= this.buffer.length; };
+Tap.prototype.isValid = function () { return this.pos <= this.buf.length; };
 
 // Read, skip, write methods.
 //
@@ -404,20 +404,20 @@ IndexedBuffer.prototype.isValid = function () { return this.index <= this.buffer
 // negative position offset (which will typically cause a failure in
 // `readFixed`).
 
-IndexedBuffer.prototype.readBoolean = function () { return !!this.buffer[this.index++]; };
+Tap.prototype.readBoolean = function () { return !!this.buf[this.pos++]; };
 
-IndexedBuffer.prototype.skipBoolean = function () { this.index++; };
+Tap.prototype.skipBoolean = function () { this.pos++; };
 
-IndexedBuffer.prototype.writeBoolean = function (b) { this.buffer[this.index++] = !!b; };
+Tap.prototype.writeBoolean = function (b) { this.buf[this.pos++] = !!b; };
 
-IndexedBuffer.prototype.readInt = IndexedBuffer.prototype.readLong = function () {
+Tap.prototype.readInt = Tap.prototype.readLong = function () {
   var n = 0;
   var k = 0;
-  var buf = this.buffer;
+  var buf = this.buf;
   var b, h, f, fk;
 
   do {
-    b = buf[this.index++];
+    b = buf[this.pos++];
     h = b & 0x80;
     n |= (b & 0x7f) << k;
     k += 7;
@@ -428,7 +428,7 @@ IndexedBuffer.prototype.readInt = IndexedBuffer.prototype.readLong = function ()
     f = n;
     fk = 268435456; // 2 ** 28.
     do {
-      b = buf[this.index++];
+      b = buf[this.pos++];
       f += (b & 0x7f) * fk;
       fk *= 128;
     } while (b & 0x80);
@@ -438,110 +438,110 @@ IndexedBuffer.prototype.readInt = IndexedBuffer.prototype.readLong = function ()
   return (n >> 1) ^ -(n & 1);
 };
 
-IndexedBuffer.prototype.skipInt = IndexedBuffer.prototype.skipLong = function () {
-  var buf = this.buffer;
-  while (buf[this.index++] & 0x80) {}
+Tap.prototype.skipInt = Tap.prototype.skipLong = function () {
+  var buf = this.buf;
+  while (buf[this.pos++] & 0x80) {}
 };
 
-IndexedBuffer.prototype.writeInt = IndexedBuffer.prototype.writeLong = function (n) {
-  var buf = this.buffer;
+Tap.prototype.writeInt = Tap.prototype.writeLong = function (n) {
+  var buf = this.buf;
   var f, m;
 
   if (n >= -1073741824 && n < 1073741824) {
     // Won't overflow, we can use integer arithmetic.
     m = n >= 0 ? n << 1 : (~n << 1) | 1;
     do {
-      buf[this.index] = m & 0x7f;
+      buf[this.pos] = m & 0x7f;
       m >>= 7;
-    } while (m && (buf[this.index++] |= 0x80));
+    } while (m && (buf[this.pos++] |= 0x80));
   } else {
     // We have to use slower floating arithmetic.
     f = n >= 0 ? n * 2 : (-n * 2) - 1;
     do {
-      buf[this.index] = f & 0x7f;
+      buf[this.pos] = f & 0x7f;
       f /= 128;
-    } while (f >= 1 && (buf[this.index++] |= 0x80));
+    } while (f >= 1 && (buf[this.pos++] |= 0x80));
   }
-  this.index++;
+  this.pos++;
 };
 
-IndexedBuffer.prototype.readFloat = function () {
-  var buf = this.buffer;
-  var idx = this.index;
-  this.index += 4;
-  if (this.index > buf.length) {
+Tap.prototype.readFloat = function () {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 4;
+  if (this.pos > buf.length) {
     return;
   }
-  return this.buffer.readFloatLE(idx);
+  return this.buf.readFloatLE(pos);
 };
 
-IndexedBuffer.prototype.skipFloat = function () { this.index += 4; };
+Tap.prototype.skipFloat = function () { this.pos += 4; };
 
-IndexedBuffer.prototype.writeFloat = function (f) {
-  var buf = this.buffer;
-  var idx = this.index;
-  this.index += 4;
-  if (this.index > buf.length) {
+Tap.prototype.writeFloat = function (f) {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 4;
+  if (this.pos > buf.length) {
     return;
   }
-  return this.buffer.writeFloatLE(f, idx);
+  return this.buf.writeFloatLE(f, pos);
 };
 
-IndexedBuffer.prototype.readDouble = function () {
-  var buf = this.buffer;
-  var idx = this.index;
-  this.index += 8;
-  if (this.index > buf.length) {
+Tap.prototype.readDouble = function () {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 8;
+  if (this.pos > buf.length) {
     return;
   }
-  return this.buffer.readDoubleLE(idx);
+  return this.buf.readDoubleLE(pos);
 };
 
-IndexedBuffer.prototype.skipDouble = function () { this.index += 8; };
+Tap.prototype.skipDouble = function () { this.pos += 8; };
 
-IndexedBuffer.prototype.writeDouble = function (d) {
-  var buf = this.buffer;
-  var idx = this.index;
-  this.index += 8;
-  if (this.index > buf.length) {
+Tap.prototype.writeDouble = function (d) {
+  var buf = this.buf;
+  var pos = this.pos;
+  this.pos += 8;
+  if (this.pos > buf.length) {
     return;
   }
-  return this.buffer.writeDoubleLE(d, idx);
+  return this.buf.writeDoubleLE(d, pos);
 };
 
-IndexedBuffer.prototype.readFixed = function (len) {
-  var idx = this.index;
-  this.index += len;
-  if (this.index > this.buffer.length) {
+Tap.prototype.readFixed = function (len) {
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
     return;
   }
   var fixed = new Buffer(len);
-  this.buffer.copy(fixed, 0, idx, idx + len);
+  this.buf.copy(fixed, 0, pos, pos + len);
   return fixed;
 };
 
-IndexedBuffer.prototype.skipFixed = function (len) { this.index += len; };
+Tap.prototype.skipFixed = function (len) { this.pos += len; };
 
-IndexedBuffer.prototype.writeFixed = function (buf, len) {
+Tap.prototype.writeFixed = function (buf, len) {
   len = len || buf.length;
-  var idx = this.index;
-  this.index += len;
-  if (this.index > this.buffer.length) {
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > this.buf.length) {
     return;
   }
-  buf.copy(this.buffer, idx, 0, len);
+  buf.copy(this.buf, pos, 0, len);
 };
 
-IndexedBuffer.prototype.readBytes = function () {
+Tap.prototype.readBytes = function () {
   return this.readFixed(this.readLong());
 };
 
-IndexedBuffer.prototype.skipBytes = function () {
+Tap.prototype.skipBytes = function () {
   var len = this.readLong();
-  this.index += len;
+  this.pos += len;
 };
 
-IndexedBuffer.prototype.writeBytes = function (buf) {
+Tap.prototype.writeBytes = function (buf) {
   var len = buf.length;
   this.writeLong(len);
   this.writeFixed(buf, len);
@@ -550,65 +550,65 @@ IndexedBuffer.prototype.writeBytes = function (buf) {
 /* istanbul ignore else */
 if (typeof Buffer.prototype.utf8Slice == 'function') {
   // Use this optimized function when available.
-  IndexedBuffer.prototype.readString = function () {
+  Tap.prototype.readString = function () {
     var len = this.readLong();
-    var idx = this.index;
-    var buf = this.buffer;
-    this.index += len;
-    if (this.index > buf.length) {
+    var pos = this.pos;
+    var buf = this.buf;
+    this.pos += len;
+    if (this.pos > buf.length) {
       return;
     }
-    return this.buffer.utf8Slice(idx, idx + len);
+    return this.buf.utf8Slice(pos, pos + len);
   };
 } else {
-  IndexedBuffer.prototype.readString = function () {
+  Tap.prototype.readString = function () {
     var len = this.readLong();
-    var idx = this.index;
-    var buf = this.buffer;
-    this.index += len;
-    if (this.index > buf.length) {
+    var pos = this.pos;
+    var buf = this.buf;
+    this.pos += len;
+    if (this.pos > buf.length) {
       return;
     }
-    return this.buffer.slice(idx, idx + len).toString();
+    return this.buf.slice(pos, pos + len).toString();
   };
 }
 
-IndexedBuffer.prototype.skipString = function () {
+Tap.prototype.skipString = function () {
   var len = this.readLong();
-  this.index += len;
+  this.pos += len;
 };
 
-IndexedBuffer.prototype.writeString = function (s) {
+Tap.prototype.writeString = function (s) {
   var len = Buffer.byteLength(s);
-  var buf = this.buffer;
+  var buf = this.buf;
   this.writeLong(len);
-  var idx = this.index;
-  this.index += len;
-  if (this.index > buf.length) {
+  var pos = this.pos;
+  this.pos += len;
+  if (this.pos > buf.length) {
     return;
   }
   var i, l, c1, c2;
   for (i = 0, l = s.length; i < l; i++) {
     c1 = s.charCodeAt(i);
     if (c1 < 0x80) {
-      buf[idx++] = c1;
+      buf[pos++] = c1;
     } else if (c1 < 0x800) {
-      buf[idx++] = c1 >> 6 | 0xc0;
-      buf[idx++] = c1 & 0x3f | 0x80;
+      buf[pos++] = c1 >> 6 | 0xc0;
+      buf[pos++] = c1 & 0x3f | 0x80;
     } else if (
       (c1 & 0xfc00) === 0xd800 &&
       ((c2 = s.charCodeAt(i + 1)) & 0xfc00) === 0xdc00
     ) {
       c1 = 0x10000 + ((c1 & 0x03ff) << 10) + (c2 & 0x03ff);
       i++;
-      buf[idx++] = c1 >> 18 | 0xf0;
-      buf[idx++] = c1 >> 12 & 0x3f | 0x80;
-      buf[idx++] = c1 >> 6 & 0x3f | 0x80;
-      buf[idx++] = c1 & 0x3f | 0x80;
+      buf[pos++] = c1 >> 18 | 0xf0;
+      buf[pos++] = c1 >> 12 & 0x3f | 0x80;
+      buf[pos++] = c1 >> 6 & 0x3f | 0x80;
+      buf[pos++] = c1 & 0x3f | 0x80;
     } else {
-      buf[idx++] = c1 >> 12 | 0xe0;
-      buf[idx++] = c1 >> 6 & 0x3f | 0x80;
-      buf[idx++] = c1 & 0x3f | 0x80;
+      buf[pos++] = c1 >> 12 | 0xe0;
+      buf[pos++] = c1 >> 6 & 0x3f | 0x80;
+      buf[pos++] = c1 & 0x3f | 0x80;
     }
   }
 };
@@ -618,32 +618,32 @@ if (typeof Buffer.prototype.latin1Write == 'function') {
   // `binaryWrite` has been renamed to `latin1Write` in Node v6.4.0, see
   // https://github.com/nodejs/node/pull/7111. Note that the `'binary'`
   // encoding argument still works however.
-  IndexedBuffer.prototype.writeBinary = function (str, len) {
-    var idx = this.index;
-    this.index += len;
-    if (this.index > this.buffer.length) {
+  Tap.prototype.writeBinary = function (str, len) {
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
       return;
     }
-    this.buffer.latin1Write(str, idx, len);
+    this.buf.latin1Write(str, pos, len);
   };
 } else if (typeof Buffer.prototype.binaryWrite == 'function') {
-  IndexedBuffer.prototype.writeBinary = function (str, len) {
-    var idx = this.index;
-    this.index += len;
-    if (this.index > this.buffer.length) {
+  Tap.prototype.writeBinary = function (str, len) {
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
       return;
     }
-    this.buffer.binaryWrite(str, idx, len);
+    this.buf.binaryWrite(str, pos, len);
   };
 } else {
   // Slowest implementation.
-  IndexedBuffer.prototype.writeBinary = function (s, len) {
-    var idx = this.index;
-    this.index += len;
-    if (this.index > this.buffer.length) {
+  Tap.prototype.writeBinary = function (s, len) {
+    var pos = this.pos;
+    this.pos += len;
+    if (this.pos > this.buf.length) {
       return;
     }
-    this.buffer.write(s, idx, len, 'binary');
+    this.buf.write(s, pos, len, 'binary');
   };
 }
 
@@ -656,41 +656,41 @@ if (typeof Buffer.prototype.latin1Write == 'function') {
 // as read, skip, and write since they are assumed to be called on valid
 // buffers.
 
-IndexedBuffer.prototype.matchBoolean = function (ibuf) {
-  return this.buffer[this.index++] - ibuf.buffer[ibuf.index++];
+Tap.prototype.matchBoolean = function (tap) {
+  return this.buf[this.pos++] - tap.buf[tap.pos++];
 };
 
-IndexedBuffer.prototype.matchInt = IndexedBuffer.prototype.matchLong = function (ibuf) {
+Tap.prototype.matchInt = Tap.prototype.matchLong = function (tap) {
   var n1 = this.readLong();
-  var n2 = ibuf.readLong();
+  var n2 = tap.readLong();
   return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
 };
 
-IndexedBuffer.prototype.matchFloat = function (ibuf) {
+Tap.prototype.matchFloat = function (tap) {
   var n1 = this.readFloat();
-  var n2 = ibuf.readFloat();
+  var n2 = tap.readFloat();
   return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
 };
 
-IndexedBuffer.prototype.matchDouble = function (ibuf) {
+Tap.prototype.matchDouble = function (tap) {
   var n1 = this.readDouble();
-  var n2 = ibuf.readDouble();
+  var n2 = tap.readDouble();
   return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1);
 };
 
-IndexedBuffer.prototype.matchFixed = function (ibuf, len) {
-  return this.readFixed(len).compare(ibuf.readFixed(len));
+Tap.prototype.matchFixed = function (tap, len) {
+  return this.readFixed(len).compare(tap.readFixed(len));
 };
 
-IndexedBuffer.prototype.matchBytes = IndexedBuffer.prototype.matchString = function (ibuf) {
+Tap.prototype.matchBytes = Tap.prototype.matchString = function (tap) {
   var l1 = this.readLong();
-  var p1 = this.index;
-  this.index += l1;
-  var l2 = ibuf.readLong();
-  var p2 = ibuf.index;
-  ibuf.index += l2;
-  var b1 = this.buffer.slice(p1, this.index);
-  var b2 = ibuf.buffer.slice(p2, ibuf.index);
+  var p1 = this.pos;
+  this.pos += l1;
+  var l2 = tap.readLong();
+  var p2 = tap.pos;
+  tap.pos += l2;
+  var b1 = this.buf.slice(p1, this.pos);
+  var b2 = tap.buf.slice(p2, tap.pos);
   return b1.compare(b2);
 };
 
@@ -699,21 +699,21 @@ IndexedBuffer.prototype.matchBytes = IndexedBuffer.prototype.matchString = funct
 // The two following methods allow the long implementations to not have to
 // worry about Avro's zigzag encoding, we directly expose longs as unpacked.
 
-IndexedBuffer.prototype.unpackLongBytes = function () {
+Tap.prototype.unpackLongBytes = function () {
   var res = new Buffer(8);
   var n = 0;
   var i = 0; // Byte index in target buffer.
   var j = 6; // Bit offset in current target buffer byte.
-  var buf = this.buffer;
+  var buf = this.buf;
   var b, neg;
 
-  b = buf[this.index++];
+  b = buf[this.pos++];
   neg = b & 1;
   res.fill(0);
 
   n |= (b & 0x7f) >> 1;
   while (b & 0x80) {
-    b = buf[this.index++];
+    b = buf[this.pos++];
     n |= (b & 0x7f) << j;
     j += 7;
     if (j >= 8) {
@@ -732,9 +732,9 @@ IndexedBuffer.prototype.unpackLongBytes = function () {
   return res;
 };
 
-IndexedBuffer.prototype.packLongBytes = function (buf) {
+Tap.prototype.packLongBytes = function (buf) {
   var neg = (buf[7] & 0x80) >> 7;
-  var res = this.buffer;
+  var res = this.buf;
   var j = 1;
   var k = 0;
   var m = 3;
@@ -763,7 +763,7 @@ IndexedBuffer.prototype.packLongBytes = function (buf) {
     n |= parts[k++] << j;
     j += 24;
     while (j > 7) {
-      res[this.index++] = (n & 0x7f) | 0x80;
+      res[this.pos++] = (n & 0x7f) | 0x80;
       n >>= 7;
       j -= 7;
     }
@@ -772,10 +772,10 @@ IndexedBuffer.prototype.packLongBytes = function (buf) {
   // Final part, similar to normal packing aside from the initial offset.
   n |= parts[m] << j;
   do {
-    res[this.index] = n & 0x7f;
+    res[this.pos] = n & 0x7f;
     n >>= 7;
-  } while (n && (res[this.index++] |= 0x80));
-  this.index++;
+  } while (n && (res[this.pos++] |= 0x80));
+  this.pos++;
 
   // Restore original buffer (could make this optional?).
   if (neg) {
@@ -811,7 +811,7 @@ module.exports = {
   toMap: toMap,
   singleIndexOf: singleIndexOf,
   hasDuplicates: hasDuplicates,
-  IndexedBuffer: IndexedBuffer,
   Lcg: Lcg,
-  OrderedQueue: OrderedQueue
+  OrderedQueue: OrderedQueue,
+  Tap: Tap
 };
