@@ -2696,6 +2696,8 @@ function Resolver(readerType) {
 
 Resolver.prototype.inspect = function () { return '<Resolver>'; };
 
+Resolver.prototype.decode = Type.prototype.decode;
+
 /** Mutable hash container. */
 function Hash() {
   this.str = undefined;

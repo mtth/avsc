@@ -1,7 +1,7 @@
 {
-  "name": "@avro/types",
-  "version": "0.1.1",
-  "description": "Avro serialization",
+  "name": "@avro/services",
+  "version": "0.1.0",
+  "description": "Avro services",
   "homepage": "https://github.com/mtth/avsc",
   "files": [
     "lib"
@@ -26,5 +26,8 @@
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
+  },
+  "dependencies": {
+    "@avro/types": "^0.1.1"
   }
 }

@@ -382,7 +382,7 @@ function Tap(buf, pos) {
   this.buf = buf;
   this.pos = pos | 0;
   if (this.pos < 0) {
-    throw new Error('negative offset');
+    this.pos = buf.length + 1;
   }
 }
 
