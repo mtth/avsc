@@ -18,6 +18,9 @@ matrix:
     #   env: AVSC_RUN_ZUUL=1
     - node_js: node
       env: AVSC_COVERAGE=1
+branches:
+  except:
+    - packages
 script:
   - if [ -z "$AVSC_RUN_ZUUL" ] ; then npm run cover ; elif [ "$TRAVIS_PULL_REQUEST" == 'false' ] ; then npm install zuul && npm run zuul ; fi
 after_script:
