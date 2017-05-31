@@ -4,7 +4,8 @@
 
 var containers = require('../lib/containers'),
     types = require('../lib/types'),
-    assert = require('assert');
+    assert = require('assert'),
+    util = require('util');
 
 
 var Header = containers.HEADER_TYPE.getRecordConstructor();
@@ -409,6 +410,51 @@ suite('containers', function () {
         decoder.write(new Buffer([2, 2, 4]));
         decoder.write(SYNC);
         decoder.end();
+      });
+
+      test('use logical Types', function(cb) {
+        var types = require('../lib/types');
+        var LogicalType = types.builtins.LogicalType;
+
+        function IncrementType(schema, opts) {
+          LogicalType.call(this, schema, opts);
+        }
+        util.inherits(IncrementType, LogicalType);
+
+        IncrementType.prototype._fromValue = function (val) {
+           return val -1; 
+          };
+
+        IncrementType.prototype._toValue = function (any) {
+          return any + 1;
+        };
+        var logicalTypes = { increment: IncrementType };
+        var type = Type.forSchema({
+          type: 'record',
+          name: 'record',
+          fields: [{
+            name: 'id',
+            type: {
+              type: 'int',
+              logicalType: 'increment'
+            }
+          }]          
+        }, {logicalTypes: logicalTypes});
+        var o = {
+          id: 1
+        };
+        var encoder = new streams.BlockEncoder(type);
+        
+        var decoder = new streams.BlockDecoder({logicalTypes: logicalTypes})
+        .on('data', function (obj) {
+           assert.equal(obj.id, 1); 
+        })
+        .on('end', function () {
+          cb();
+        });        
+        encoder.pipe(decoder);
+        encoder.write(o);
+        encoder.end();
       });
 
     });
