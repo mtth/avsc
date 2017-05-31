@@ -74,6 +74,27 @@ const avro = require('avsc');
   ];
   ```
 
++ Use a [writable stream][writable-stream] to write or append encoded values to an Avro
+  container file:
+
+  ```javascript
+  const type = avro.Type.forValue({
+    city: 'Cambridge',
+    zipCodes: ['02138', '02139'],
+    visits: 2
+  });
+
+  const opts =  {};
+  
+  // Use this option if you like to flush values as soon as possible using 1 block per value
+  // (better for continuous writing certaintiy at the cost of performance and larger file sizes)
+  opts.writeFlushed = true;
+
+  const encoder = avro.createFileAppender('./values.avro', type, opts);
+  encoder.write({city: 'Seattle', zipCodes: ['98101'], visits: 3});
+  encoder.end({city: 'New York', zipCodes: ['10001'], visits: 47});
+  ```
+
 + Get a [readable stream][readable-stream] of decoded values from an Avro
   container file compressed using [Snappy][snappy] (see the [`BlockDecoder`
   API][decoder-api] for an example including checksum validation):
@@ -125,6 +146,7 @@ const avro = require('avsc');
 [logical-types]: https://github.com/mtth/avsc/wiki/Advanced-usage#logical-types
 [node.js]: https://nodejs.org/en/
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
+[writable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_writable
 [releases]: https://github.com/mtth/avsc/releases
 [rpc]: https://github.com/mtth/avsc/wiki/Quickstart#services
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
