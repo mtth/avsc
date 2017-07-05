@@ -63,5 +63,8 @@
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
+  },
+  "dependencies": {
+    "text-encoding-shim": "^1.0.0"
   }
 }
