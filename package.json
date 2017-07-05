@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "5.0.4",
+  "version": "5.1.0",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -63,5 +63,8 @@
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
+  },
+  "dependencies": {
+    "text-encoding-shim": "^1.0.0"
   }
 }
