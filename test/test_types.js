@@ -2962,6 +2962,23 @@ suite('types', function () {
       assert.strictEqual(type.fields[0].type.constructor, builtins.NullType);
     });
 
+    test('custom wrapped primitive', function () {
+      var customLongType = new builtins.LongType();
+      var type = Type.forSchema(
+        {
+          type: 'record',
+          name: 'Person',
+          fields: [{name: 'age', type: {type: 'long'}}]
+        },
+        {
+          registry: {
+            long: customLongType
+          }
+        }
+      );
+      assert.strictEqual(type.fields[0].type, customLongType);
+    });
+
     test('fromBuffer truncated', function () {
       var type = Type.forSchema('int');
       assert.throws(function () {
