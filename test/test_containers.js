@@ -2,6 +2,9 @@
 
 'use strict';
 
+var stream = require('stream');
+var util = require('util');
+
 var containers = require('../lib/containers'),
     types = require('../lib/types'),
     assert = require('assert');
@@ -226,6 +229,31 @@ suite('containers', function () {
             cb();
           });
         encoder.end();
+      });
+
+      test('propagate finish events for null read streams', function (cb) {
+          function NullReadable(opts) {
+              stream.Readable.call(this, opts);
+          }
+          util.inherits(NullReadable, stream.Readable);
+          NullReadable.prototype._read = function () {
+              this.push(null);
+          }
+
+          function NullWritable(opts) {
+              stream.Writable.call(this, opts);
+          }
+          util.inherits(NullWritable, stream.Writable);
+          NullWritable.prototype._write = function (chunk, encoding, cb) {
+              cb();
+          }
+          var t = Type.forSchema('int');
+          var readable = new NullReadable();
+          var encoder = new BlockEncoder(t);
+          var writable = new NullWritable();
+          readable.pipe(encoder).pipe(writable);
+          writable.on('finish', cb);
+          writable.on('error', cb);
       });
 
       test('flush on finish', function (cb) {
