@@ -338,6 +338,18 @@ suite('utils', function () {
         }
       });
 
+      test('roundtrip bytes', function () {
+        roundtrip(new Buffer([0, 0, 0, 0, 0, 0, 0, 0]));
+        roundtrip(new Buffer('9007199254740995', 'hex'));
+
+        function roundtrip(b1) {
+          var t = newTap(10);
+          t.packLongBytes(b1);
+          t.pos = 0;
+          var b2 = t.unpackLongBytes();
+          assert.deepEqual(b2, b1);
+        }
+      });
     });
 
     function newTap(n) {
