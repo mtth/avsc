@@ -241,8 +241,9 @@ suite('containers', function () {
 
       test('empty pipe', function (cb) {
         var t = Type.forSchema('int');
-        var rs = stream.Readable({read: function () { this.push(null); }});
-        var ws = stream.Writable().on('finish', function () { cb(); });
+        var rs = new stream.Readable();
+        rs._read = function () { this.push(null); };
+        var ws = new stream.Writable().on('finish', function () { cb(); });
         rs.pipe(new BlockEncoder(t)).pipe(ws);
       });
 
