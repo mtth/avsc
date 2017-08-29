@@ -2,12 +2,10 @@
 
 'use strict';
 
-var stream = require('stream');
-var util = require('util');
-
 var containers = require('../lib/containers'),
     types = require('../lib/types'),
-    assert = require('assert');
+    assert = require('assert'),
+    stream = require('stream');
 
 
 var Header = containers.HEADER_TYPE.getRecordConstructor();
@@ -205,11 +203,9 @@ suite('containers', function () {
         assert.throws(function () { new BlockEncoder(); });
       });
 
-      test('invalid codec', function (cb) {
+      test('invalid codec', function () {
         var t = Type.forSchema('int');
-        var encoder = new BlockEncoder(t, {codec: 'foo'})
-          .on('error', function () { cb(); });
-        encoder.write(2);
+        assert.throws(function () { new BlockEncoder(t, {codec: 'foo'}); });
       });
 
       test('invalid object', function (cb) {
@@ -219,41 +215,35 @@ suite('containers', function () {
         encoder.write('hi');
       });
 
-      test('empty', function (cb) {
+      test('empty eager header', function (cb) {
         var t = Type.forSchema('int');
         var chunks = [];
-        var encoder = new BlockEncoder(t)
+        var encoder = new BlockEncoder(t, {writeHeader: true})
           .on('data', function (chunk) { chunks.push(chunk); })
           .on('end', function () {
-            assert.equal(chunks.length, 0);
+            assert.equal(chunks.length, 1);
             cb();
           });
         encoder.end();
       });
 
-      test('propagate finish events for null read streams', function (cb) {
-          function NullReadable(opts) {
-              stream.Readable.call(this, opts);
-          }
-          util.inherits(NullReadable, stream.Readable);
-          NullReadable.prototype._read = function () {
-              this.push(null);
-          }
+      test('empty lazy header', function (cb) {
+        var t = Type.forSchema('int');
+        var pushed = false;
+        var encoder = new BlockEncoder(t, {omitHeader: false})
+          .on('data', function () { pushed = true; })
+          .on('end', function () {
+            assert(!pushed);
+            cb();
+          });
+        encoder.end();
+      });
 
-          function NullWritable(opts) {
-              stream.Writable.call(this, opts);
-          }
-          util.inherits(NullWritable, stream.Writable);
-          NullWritable.prototype._write = function (chunk, encoding, cb) {
-              cb();
-          }
-          var t = Type.forSchema('int');
-          var readable = new NullReadable();
-          var encoder = new BlockEncoder(t);
-          var writable = new NullWritable();
-          readable.pipe(encoder).pipe(writable);
-          writable.on('finish', cb);
-          writable.on('error', cb);
+      test('empty pipe', function (cb) {
+        var t = Type.forSchema('int');
+        var rs = stream.Readable({read: function () { this.push(null); }});
+        var ws = stream.Writable().on('finish', function () { cb(); });
+        rs.pipe(new BlockEncoder(t)).pipe(ws);
       });
 
       test('flush on finish', function (cb) {
@@ -277,10 +267,31 @@ suite('containers', function () {
         encoder.end(4);
       });
 
+      test('flush on finish slow codec', function (cb) {
+        var t = Type.forSchema('int');
+        var pushed = false;
+        var encoder = new BlockEncoder(t, {
+          blockSize: 1,
+          codec: 'slow',
+          codecs: {slow: slowCodec},
+          writeHeader: false
+        }).on('data', function () { pushed = true; })
+          .on('end', function () {
+            assert(pushed);
+            cb();
+          });
+        encoder.write(12);
+        encoder.end();
+
+        function slowCodec(buf, cb) {
+          setTimeout(function () { cb(null, buf); }, 50);
+        }
+      });
+
       test('flush when full', function (cb) {
         var chunks = [];
         var encoder = new BlockEncoder(Type.forSchema('int'), {
-          omitHeader: true,
+          writeHeader: false,
           syncMarker: SYNC,
           blockSize: 2
         }).on('data', function (chunk) { chunks.push(chunk); })
