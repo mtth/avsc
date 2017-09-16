@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "5.0.5",
+  "version": "5.0.6",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
