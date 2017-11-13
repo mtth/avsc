@@ -73,6 +73,7 @@ export namespace Type {
 
 export namespace Service {
   interface Protocol {
+    [key: string]: any; // TODO object should be further specified
   }
 
   interface ClientChannel extends EventEmitter {
