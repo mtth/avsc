@@ -30,15 +30,15 @@ interface AssembleOptions {
   importHook: (filePath: string, type: 'idl', callback: Callback<object>) => void;
 }
 
-export function assembleProtocol(filePath: string, opts: AssembleOptions, callback: Callback<object>): void;
+export function assembleProtocol(filePath: string, opts: Partial<AssembleOptions>, callback: Callback<object>): void;
 export function assembleProtocol(filePath: string, callback: Callback<object>): void;
-export function createFileDecoder(fileName: string, codecs?: CodecOptions): Decoder;
+export function createFileDecoder(fileName: string, codecs?: Partial<CodecOptions>): Decoder;
 export function createFileEncoder(filePath: string, schema: any, options?: any): Encoder;
 export function discoverProtocol(transport: Service.Transport, options: any, callback: Callback<any>): void;
 export function discoverProtocol(transport: Service.Transport, callback: Callback<any>): void;
 export function extractFileHeader(filePath: string, options?: any): void;
 export function parse(schemaOrProtocolIdl: string, options?: any): Service.Protocol | Type.Type; // TODO
-export function readProtocol(protocolIdl: string, options?: ReaderOptions): Service.Protocol;
+export function readProtocol(protocolIdl: string, options?: Partial<ReaderOptions>): Service.Protocol;
 export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>): Schema;
 // TODO streams
 // TODO types
@@ -107,8 +107,8 @@ export namespace Service {
   }
 
   interface Service {
-    createClient(options?: ClientOptions): Client;
-    createServer(options?: ServerOptions): Server;
+    createClient(options?: Partial<ClientOptions>): Client;
+    createServer(options?: Partial<ServerOptions>): Server;
     message(name: string): any;
     type(name: string): any;
   }
@@ -129,7 +129,7 @@ export namespace Service {
     readonly service: Service;
     // on<message>()
     activeChannels(): ServerChannel[];
-    createChannel(transport: Transport, options?: ChannelCreateOptions): ServerChannel;
+    createChannel(transport: Transport, options?: Partial<ChannelCreateOptions>): ServerChannel;
     onMessage<T>(name: string, handler: (arg1: any, callback: Callback<T>) => void): this;
     remoteProtocols(): Protocol[];
     use(...args: any[]): this;
@@ -137,14 +137,14 @@ export namespace Service {
 
   interface Client extends EventEmitter {
     activeChannels(): ClientChannel[];
-    createChannel(transport: Transport, options?: ChannelCreateOptions): ClientChannel;
-    destroyChannels(options?: ChannelDestroyOptions): void;
+    createChannel(transport: Transport, options?: Partial<ChannelCreateOptions>): ClientChannel;
+    destroyChannels(options?: Partial<ChannelDestroyOptions>): void;
     emitMessage<T>(name: string, req: any, options?: any, callback?: Callback<T>): void // TODO
     remoteProtocols(): Protocol[];
     use(...args: any[]): this;
   }
 
   function compatible(client: Client, server: Server): boolean;
-  function forProtocol(protocol: Protocol): Service;
+  function forProtocol(protocol: Protocol, options: any): Service;
   function isService(obj: any): boolean;
 }
