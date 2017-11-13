@@ -7,25 +7,25 @@ export type Callback<V, Err = any> = (err: Err, value: V) => void;
 export type CodecTransformer = (buffer: Buffer, callback: () => void) => Buffer; // TODO
 
 export interface CodecOptions {
-	deflate: CodecTransformer;
-	snappy: CodecTransformer;
+  deflate: CodecTransformer;
+  snappy: CodecTransformer;
 }
 
 export interface Decoder {
-	on(type: 'metadata', callback: (type: Type.Type) => void): this;
-	on(type: 'data', callback: (value: object) => void): this;
+  on(type: 'metadata', callback: (type: Type.Type) => void): this;
+  on(type: 'data', callback: (value: object) => void): this;
 }
 
 export interface Encoder {
-	// TODO
+  // TODO
 }
 
 export interface ReaderOptions {
-	// TODO
+  // TODO
 }
 
 interface AssembleOptions {
-	importHook: (filePath: string, type: 'idl', callback: Callback<object>) => void;
+  importHook: (filePath: string, type: 'idl', callback: Callback<object>) => void;
 }
 
 export function assembleProtocol(filePath: string, opts: AssembleOptions, callback: Callback<object>): void;
@@ -42,110 +42,110 @@ export function readSchema(schemaIdl: string, options?: ReaderOptions): Type.Sch
 // TODO types
 
 export namespace Type {
-	type Schema = string;
+  type Schema = string;
 
-	interface Type {
-		// TODO clone(val, opts)
-		// TODO compare
-		// TODO compareBuffers(buf1, buf2)
-		// TODO createResolver(type, opts)
-		// TODO decode(buf, pos, resolver)
-		// TODO encode(val, buf, pos)
-		// TODO equals(type)
-		// TODO fingerprint(algorithm)
-		fromBuffer(buffer: Buffer, resolver: any, noCheck: boolean): Type; // TODO
-		// TODO fromString(str)
-		// TODO inspect()
-		// TODO isValid(val, opts)
-		// TODO random()
-		// TODO schema(opts)
-		toBuffer(value: object): Buffer;
-		// TODO toJSON()
-		// TODO toString(val)
-		// TODO wrap(val)
-	}
+  interface Type {
+    // TODO clone(val, opts)
+    // TODO compare
+    // TODO compareBuffers(buf1, buf2)
+    // TODO createResolver(type, opts)
+    // TODO decode(buf, pos, resolver)
+    // TODO encode(val, buf, pos)
+    // TODO equals(type)
+    // TODO fingerprint(algorithm)
+    fromBuffer(buffer: Buffer, resolver: any, noCheck: boolean): Type; // TODO
+    // TODO fromString(str)
+    // TODO inspect()
+    // TODO isValid(val, opts)
+    // TODO random()
+    // TODO schema(opts)
+    toBuffer(value: object): Buffer;
+    // TODO toJSON()
+    // TODO toString(val)
+    // TODO wrap(val)
+  }
 
-	function forSchema(schema: Schema): Type;
-	function forValue(value: object): Type;
-	// TODO function forTypes(types, opts)
-	function isType(arg: any): boolean; // TODO
+  function forSchema(schema: Schema): Type;
+  function forValue(value: object): Type;
+  // TODO function forTypes(types, opts)
+  function isType(arg: any): boolean; // TODO
 }
 
 export namespace Service {
-	interface Protocol {
-	}
+  interface Protocol {
+  }
 
-	interface ClientChannel extends EventEmitter {
-		readonly client: Client;
-		readonly timeout: number;
-		readonly destroyed: boolean;
-		readonly draining: boolean;
-		readonly pending: number;
-		ping(timeout: number, cb: any): void;
-		destroy(noWait: boolean): void;
-	}
+  interface ClientChannel extends EventEmitter {
+    readonly client: Client;
+    readonly timeout: number;
+    readonly destroyed: boolean;
+    readonly draining: boolean;
+    readonly pending: number;
+    ping(timeout: number, cb: any): void;
+    destroy(noWait: boolean): void;
+  }
 
-	interface ServerChannel extends EventEmitter  {
-		readonly server: Server;
-		readonly destroyed: boolean;
-		readonly draining: boolean;
-		readonly pending: number;
-		destroy(noWait: boolean): void;
-	}
+  interface ServerChannel extends EventEmitter  {
+    readonly server: Server;
+    readonly destroyed: boolean;
+    readonly draining: boolean;
+    readonly pending: number;
+    destroy(noWait: boolean): void;
+  }
 
-	interface ClientOptions {
-		buffering: boolean;
-		cache: any;
-		channelPolicy: any;
-		strictTypes: boolean;
-		timeout: number;
-		remoteProtocols: boolean;
-	}
+  interface ClientOptions {
+    buffering: boolean;
+    cache: any;
+    channelPolicy: any;
+    strictTypes: boolean;
+    timeout: number;
+    remoteProtocols: boolean;
+  }
 
-	interface ServerOptions {
-		objectMode: boolean;
-	}
+  interface ServerOptions {
+    objectMode: boolean;
+  }
 
-	interface Service {
-		createClient(options?: ClientOptions): Client;
-		createServer(options?: ServerOptions): Server;
-		message(name: string): any;
-		type(name: string): any;
-		inspect(name: string): any;
-	}
+  interface Service {
+    createClient(options?: ClientOptions): Client;
+    createServer(options?: ServerOptions): Server;
+    message(name: string): any;
+    type(name: string): any;
+    inspect(name: string): any;
+  }
 
-	type TransportFunction = () => void; // TODO
+  type TransportFunction = () => void; // TODO
 
-	type Transport = stream.Duplex | TransportFunction;
+  type Transport = stream.Duplex | TransportFunction;
 
-	interface ChannelCreateOptions {
-		objectMode: boolean;
-	}
+  interface ChannelCreateOptions {
+    objectMode: boolean;
+  }
 
-	interface ChannelDestroyOptions {
-		noWait: boolean;
-	}
+  interface ChannelDestroyOptions {
+    noWait: boolean;
+  }
 
-	interface Server extends EventEmitter {
-		readonly service: Service;
-		// on<message>()
-		activeChannels(): ServerChannel[];
-		createChannel(transport: Transport, options?: ChannelCreateOptions): ServerChannel;
-		onMessage<T>(name: string, handler: (arg1: any, callback: Callback<T>) => void): this;
-		remoteProtocols(): Protocol[];
-		use(...args: any[]): this;
-	}
+  interface Server extends EventEmitter {
+    readonly service: Service;
+    // on<message>()
+    activeChannels(): ServerChannel[];
+    createChannel(transport: Transport, options?: ChannelCreateOptions): ServerChannel;
+    onMessage<T>(name: string, handler: (arg1: any, callback: Callback<T>) => void): this;
+    remoteProtocols(): Protocol[];
+    use(...args: any[]): this;
+  }
 
-	interface Client extends EventEmitter {
-		activeChannels(): ClientChannel[];
-		createChannel(transport: Transport, options?: ChannelCreateOptions): ClientChannel;
-		destroyChannels(options?: ChannelDestroyOptions): void;
-		emitMessage<T>(name: string, req: any, options?: any, callback?: Callback<T>): void // TODO
-		remoteProtocols(): Protocol[];
-		use(...args: any[]): this;
-	}
+  interface Client extends EventEmitter {
+    activeChannels(): ClientChannel[];
+    createChannel(transport: Transport, options?: ChannelCreateOptions): ClientChannel;
+    destroyChannels(options?: ChannelDestroyOptions): void;
+    emitMessage<T>(name: string, req: any, options?: any, callback?: Callback<T>): void // TODO
+    remoteProtocols(): Protocol[];
+    use(...args: any[]): this;
+  }
 
-	function compatible(client: Client, server: Server): boolean;
-	function forProtocol(protocol: Protocol): Service;
-	function isService(obj: any): boolean;
+  function compatible(client: Client, server: Server): boolean;
+  function forProtocol(protocol: Protocol): Service;
+  function isService(obj: any): boolean;
 }
