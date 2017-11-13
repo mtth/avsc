@@ -95,7 +95,6 @@ export namespace Service {
 
   interface ClientOptions {
     buffering: boolean;
-    cache: any;
     channelPolicy: any;
     strictTypes: boolean;
     timeout: number;
