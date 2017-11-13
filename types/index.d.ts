@@ -4,6 +4,8 @@ import { EventEmitter } from 'events'
 
 export type Callback<V, Err = any> = (err: Err, value: V) => void;
 
+type Schema = string | object;  // TODO object should be further specified
+
 export type CodecTransformer = (buffer: Buffer, callback: () => void) => Buffer; // TODO
 
 export interface CodecOptions {
@@ -37,13 +39,11 @@ export function discoverProtocol(transport: Service.Transport, callback: Callbac
 export function extractFileHeader(filePath: string, options?: any): void;
 export function parse(schemaOrProtocolIdl: string, options?: any): Service.Protocol | Type.Type; // TODO
 export function readProtocol(protocolIdl: string, options?: ReaderOptions): Service.Protocol;
-export function readSchema(schemaIdl: string, options?: ReaderOptions): Type.Schema;
+export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>): Schema;
 // TODO streams
 // TODO types
 
 export namespace Type {
-  type Schema = string;
-
   interface Type {
     // TODO clone(val, opts)
     // TODO compare
