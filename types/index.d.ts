@@ -110,7 +110,6 @@ export namespace Service {
     createServer(options?: ServerOptions): Server;
     message(name: string): any;
     type(name: string): any;
-    inspect(name: string): any;
   }
 
   type TransportFunction = () => void; // TODO
