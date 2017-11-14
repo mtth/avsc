@@ -2,7 +2,7 @@
 
 'use strict';
 
-var avsc = require('../../../../lib');
+var avsc = require('../../../../../lib');
 
 var dataPath = process.argv[2];
 if (!dataPath) {

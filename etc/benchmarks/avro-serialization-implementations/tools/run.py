@@ -58,7 +58,7 @@ def build_avsc_jar():
 
 class Benchmark(object):
 
-  _schemas_dpath = osp.join(DPATH, os.pardir, 'schemas')
+  _schemas_dpath = osp.join(DPATH, os.pardir, os.pardir, 'schemas')
   _scripts_dpath = osp.join(DPATH, 'scripts')
 
   def __init__(self, name, n_records, attempts, libs, commands):
@@ -109,7 +109,7 @@ class Benchmark(object):
     os.remove(path)
     try:
       call([
-        'node', osp.join(DPATH, os.pardir, 'scripts', 'random.js'),
+        'node', osp.join(DPATH, os.pardir, os.pardir, 'scripts', 'random'),
         self.path, str(self.n_records), path
       ])
       yield path
