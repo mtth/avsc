@@ -1,10 +1,11 @@
+// Note: this typing file is incomplete (https://github.com/mtth/avsc/pull/134).
+
 import * as stream from 'stream';
 import { EventEmitter } from 'events'
 
+type Schema = string | object;  // TODO object should be further specified
 
 export type Callback<V, Err = any> = (err: Err, value: V) => void;
-
-type Schema = string | object;  // TODO object should be further specified
 
 export type CodecTransformer = (buffer: Buffer, callback: () => void) => Buffer; // TODO
 
