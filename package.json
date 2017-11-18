@@ -32,6 +32,7 @@
     "etc/browser"
   ],
   "main": "./lib",
+  "types": "./types",
   "browser": {
     "./lib": "./etc/browser/avsc.js",
     "./lib/files": "./etc/browser/lib/files.js",
