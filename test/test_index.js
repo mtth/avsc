@@ -94,15 +94,17 @@ suite('index', function () {
     encoder.end({name: 'Bob', age: 33});
     var n = 0;
     encoder.on('finish', function () {
-      index.createFileDecoder(path)
-        .on('data', function (obj) {
-          n++;
-          assert(type.isValid(obj));
-        })
-        .on('end', function () {
-          assert.equal(n, 2);
-          cb();
-        });
+      setTimeout(function () { // Hack to wait until the file is flushed.
+        index.createFileDecoder(path)
+          .on('data', function (obj) {
+            n++;
+            assert(type.isValid(obj));
+          })
+          .on('end', function () {
+            assert.equal(n, 2);
+            cb();
+          });
+      }, 50);
     });
   });
 
