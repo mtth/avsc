@@ -603,6 +603,48 @@ suite('containers', function () {
       }
     });
 
+    test('reader type', function (cb) {
+      var t1 = Type.forSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'name', type: 'string'},
+        ]
+      });
+      var t2 = Type.forSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'fullName', aliases: ['name'], type: ['null', 'string']},
+          {name: 'age', type: ['null', 'int'], 'default': null}
+        ]
+      });
+      var persons = [];
+      var encoder = new streams.BlockEncoder(t1);
+      var decoder = new streams.BlockDecoder({readerSchema: t2})
+        .on('data', function (val) { persons.push(val); })
+        .on('end', function () {
+          assert.deepEqual(
+            persons,
+            [
+              {name: 'Ann', fullName: 'Ann', age: null},
+              {name: 'Jane', fullName: 'Jane', age: null}
+            ]
+          );
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write({name: 'Ann'})
+      encoder.write({name: 'Jane'})
+      encoder.end();
+
+      function parseHook(schema) {
+        assert.deepEqual(schema, t1.getSchema());
+        return t2;
+      }
+    });
+
   });
 
 });
