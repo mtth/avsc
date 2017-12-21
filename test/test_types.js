@@ -2421,6 +2421,35 @@ suite('types', function () {
         }
       });
 
+      test('resolve between long', function () {
+        var b = fastLongType.toBuffer(123);
+        var fastToSlow = slowLongType.createResolver(fastLongType);
+        assert.equal(slowLongType.fromBuffer(b, fastToSlow), 123);
+        var slowToFast = fastLongType.createResolver(slowLongType);
+        assert.equal(fastLongType.fromBuffer(b, slowToFast), 123);
+      });
+
+      test('resolve from int', function () {
+        var intType = Type.forSchema('int');
+        var b = intType.toBuffer(123);
+        var r = slowLongType.createResolver(intType);
+        assert.equal(slowLongType.fromBuffer(b, r), 123);
+      });
+
+      test('resolve to double and float', function () {
+        var b = slowLongType.toBuffer(123);
+        var floatType = Type.forSchema('float');
+        var doubleType = Type.forSchema('double');
+        assert.equal(
+          floatType.fromBuffer(b, floatType.createResolver(slowLongType)),
+          123
+        );
+        assert.equal(
+          doubleType.fromBuffer(b, doubleType.createResolver(slowLongType)),
+          123
+        );
+      });
+
     });
 
     suite('packed', function () {
@@ -2485,7 +2514,6 @@ suite('types', function () {
         {value: undefined, offset: -1}
       );
     });
-
   });
 
   suite('LogicalType', function () {
