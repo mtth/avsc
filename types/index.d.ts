@@ -60,11 +60,10 @@ export class Type {
   equals(type: any): any;
   fingerprint(algorithm?: any): any;
   fromString(str: any): any;
-  getAliases(): any;
-  getFingerprint(algorithm?: any): any;
-  getName(asBranch: any): any;
-  getSchema(opts: any): any;
-  getTypeName(): any;
+  readonly aliases: any;
+  readonly name: string|undefined;
+  readonly branchName: string|undefined;
+  readonly typeName: string;
   inspect(): any;
   isValid(val: any, opts?: any): any;
   random(): Type;
@@ -95,6 +94,7 @@ export class Type {
   static isType(arg: any): boolean;  // TODO remaining args
 }
 
+// TODO: Remove this class from types, it's deprecated?
 export class Protocol {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
   createClient(opts: any): any;
@@ -103,7 +103,6 @@ export class Protocol {
   createServer(opts: any): any;
   emit(args: any): any;
   equals(args: any): any;
-  getFingerprint(args: any): any;
   getMessage(args: any): any;
   getMessages(args: any): any;
   getName(args: any): any;
@@ -127,14 +126,9 @@ export class Service {
   createListener(args: any): any;
   createServer(options?: Partial<Service.ServerOptions>): Service.Server;
   emit(args: any): any;
-  equals(args: any): any;
-  getFingerprint(args: any): any;
-  getMessage(args: any): any;
-  getMessages(args: any): any;
-  getName(args: any): any;
-  getSchema(args: any): any;
-  getType(args: any): any;
-  getTypes(args: any): any;
+  equals(args: any): any;  // deprecated
+  readonly hash: Buffer;
+  readonly protocol: any;
   inspect(): any;
   message(name: string): any;
   on(args: any): any;
@@ -218,13 +212,11 @@ export namespace streams {
   class BlockDecoder {
     constructor(opts: any);
     static defaultCodecs(): any;
-    static getDefaultCodecs(): any;
   }
 
   class BlockEncoder {
     constructor(schema: any, opts: any);
     static defaultCodecs(): any;
-    static getDefaultCodecs(): any;
   }
 
   class RawDecoder {
@@ -239,7 +231,7 @@ export namespace streams {
 export namespace types {
   class ArrayType extends Type {
     constructor(schema: any, opts: any);
-    getItemsType(): any;
+    readonly itemsType: Type;
     random(): ArrayType;
   }
 
@@ -260,13 +252,13 @@ export namespace types {
 
   class EnumType extends Type {
     constructor(schema: any, opts: any);
-    getSymbols(): any;
+    readonly symbols: string[];
     random(): EnumType;
   }
 
   class FixedType extends Type {
     constructor(schema: any, opts: any);
-    getSize(): any;
+    readonly size: number;
     random(): FixedType;
   }
 
@@ -282,7 +274,7 @@ export namespace types {
 
   class LogicalType extends Type {
     constructor(schema: any, opts: any);
-    getUnderlyingType(): any;
+    readonly underlyingType: Type;
     random(): LogicalType;
   }
 
@@ -293,7 +285,7 @@ export namespace types {
 
   class MapType extends Type {
     constructor(schema: any, opts: any);
-    getValuesType(): any;
+    readonly valuesType: any;
     random(): MapType;
   }
 
@@ -305,9 +297,8 @@ export namespace types {
   class RecordType extends Type {
     constructor(schema: any, opts: any);
     field(name: any): any;
-    getField(name: any): any;
-    getFields(): any;
-    getRecordConstructor(): any;
+    readonly fields: any[];  // TODO: Field[]
+    readonly recordConstructor: any;  // TODO: typeof Record
     random(): RecordType;
   }
 
