@@ -1,6 +1,7 @@
 // Note: this typing file is incomplete (https://github.com/mtth/avsc/pull/134).
 // TODO: Wherever the type is just `any`, it was probably generated automatically.
 //       Either finish documenting the type signature or document why `any` is appropriate.
+// TODO: Wherever the argument names are just `args: any`, it was probably generated from the signature of util.deprecate. Fix argument counts and types.
 
 import * as stream from 'stream';
 import { EventEmitter } from 'events'
@@ -48,7 +49,7 @@ export function readProtocol(protocolIdl: string, options?: Partial<ReaderOption
 export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>): Schema;
 // TODO streams
 
-// TODO types
+// TODO more specific types than `any`
 export class Type {
   constructor(schema: any, opts: any);
   clone(val: any, opts?: any): any;
@@ -64,37 +65,22 @@ export class Type {
   readonly name: string|undefined;
   readonly branchName: string|undefined;
   readonly typeName: string;
-  inspect(): any;
+  inspect(): string;
   isValid(val: any, opts?: any): any;
   random(): Type;
   schema(opts?: any): any;
-  toJSON(): any;
+  toJSON(): string;
   toString(val?: any): any;
   wrap(val: any): any;
-  // TODO clone(val, opts)
-  // TODO compare
-  // TODO compareBuffers(buf1, buf2)
-  // TODO createResolver(type, opts)
-  // TODO decode(buf, pos, resolver)
-  // TODO encode(val, buf, pos)
-  // TODO equals(type)
-  // TODO fingerprint(algorithm)
   fromBuffer(buffer: Buffer, resolver: any, noCheck: boolean): Type; // TODO
-  // TODO fromString(str)
-  // TODO inspect()
-  // TODO isValid(val, opts)
   toBuffer(value: object): Buffer;
-  // TODO toJSON()
-  // TODO toString(val)
-  // TODO wrap(val)
-  //
   static forSchema(schema: Schema, opts?: any): Type;
   static forTypes(types: any, opts?: any): Type;
   static forValue(value: object, opts?: any): Type;
   static isType(arg: any): boolean;  // TODO remaining args
 }
 
-// TODO: Remove this class from types, it's deprecated?
+// TODO: Can this project remove Protocol from types completely, it's a deprecated export?
 export class Protocol {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
   createClient(opts: any): any;
@@ -109,7 +95,7 @@ export class Protocol {
   getSchema(args: any): any;
   getType(args: any): any;
   getTypes(args: any): any;
-  inspect(): any;
+  inspect(): string;
   message(name: any): any;
   on(args: any): any;
   subprotocol(args: any): any;
@@ -129,7 +115,7 @@ export class Service {
   equals(args: any): any;  // deprecated
   readonly hash: Buffer;
   readonly protocol: any;
-  inspect(): any;
+  inspect(): string;
   message(name: string): any;
   on(args: any): any;
   subprotocol(args: any): any;
@@ -297,8 +283,8 @@ export namespace types {
   class RecordType extends Type {
     constructor(schema: any, opts: any);
     field(name: any): any;
-    readonly fields: any[];  // TODO: Field[]
-    readonly recordConstructor: any;  // TODO: typeof Record
+    readonly fields: any[];  // TODO: Field[] once Field interface/class exists
+    readonly recordConstructor: any;  // TODO: typeof Record once Record interface/class exists
     random(): RecordType;
   }
 
