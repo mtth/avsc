@@ -29,7 +29,8 @@
   ],
   "files": [
     "lib",
-    "etc/browser"
+    "etc/browser",
+    "types"
   ],
   "main": "./lib",
   "types": "./types",
