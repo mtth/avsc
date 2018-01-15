@@ -2,6 +2,7 @@
 // TODO: Wherever the type is just `any`, it was probably generated automatically.
 //       Either finish documenting the type signature or document why `any` is appropriate.
 // TODO: Wherever the argument names are just `args: any`, it was probably generated from the signature of util.deprecate. Fix argument counts and types.
+// NOTE: This does not contain entries for functions available in the browser (functions/methods in etc/browser)
 
 import * as stream from 'stream';
 import { EventEmitter } from 'events'
@@ -39,7 +40,7 @@ export function assembleProtocol(filePath: string, opts: Partial<AssembleOptions
 export function assembleProtocol(filePath: string, callback: Callback<object>): void;
 export function combine(args: any): any;
 export function createFileDecoder(fileName: string, codecs?: Partial<CodecOptions>): Decoder;
-export function createFileEncoder(filePath: string, schema: any, options?: any): Encoder;
+export function createFileEncoder(filePath: string, schema: Schema, options?: any): Encoder;
 export function discoverProtocol(transport: Service.Transport, options: any, callback: Callback<any>): void;
 export function discoverProtocol(transport: Service.Transport, callback: Callback<any>): void;
 export function extractFileHeader(filePath: string, options?: any): void;
@@ -51,43 +52,42 @@ export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>):
 
 // TODO more specific types than `any`
 export class Type {
-  constructor(schema: any, opts: any);
   clone(val: any, opts?: any): any;
   compare(val1: any, val2: any): number;
   compareBuffers(buf1: any, buf2: any): number;
-  createResolver(type: any, opts?: any): any;
-  decode(buf: any, pos?: any, resolver?: any): any;
-  encode(val: any, buf: any, pos?: any): any;
-  equals(type: any): any;
+  constructor(schema: Schema, opts?: any);
+  createResolver(type: any, opts?: any): any;  // TODO: opts not documented on wiki
+  decode(buf: any, pos?: any, resolver?: any): any
   fingerprint(algorithm?: any): any;
+  fromBuffer(buffer: Buffer, resolver?: any, noCheck?: boolean): Type; // TODO
   fromString(str: any): any;
-  readonly aliases: any;
-  readonly name: string|undefined;
-  readonly branchName: string|undefined;
-  readonly typeName: string;
   inspect(): string;
   isValid(val: any, opts?: any): any;
   random(): Type;
   schema(opts?: any): any;
+  toBuffer(value: object): Buffer;
   toJSON(): string;
   toString(val?: any): any;
   wrap(val: any): any;
-  fromBuffer(buffer: Buffer, resolver: any, noCheck: boolean): Type; // TODO
-  toBuffer(value: object): Buffer;
+  readonly aliases: string[]|undefined;
+  readonly doc: string|undefined;
+  readonly name: string|undefined;
+  readonly branchName: string|undefined;
+  readonly typeName: string;
   static forSchema(schema: Schema, opts?: any): Type;
   static forTypes(types: any, opts?: any): Type;
   static forValue(value: object, opts?: any): Type;
-  static isType(arg: any): boolean;  // TODO remaining args
+  static isType(arg: any, ...prefix: string[]): boolean;
+  static __reset(size: number): void;
 }
 
-// TODO: Can this project remove Protocol from types completely, it's a deprecated export?
+// Deprecated, but kept for now because this is referenced elsewhere (e.g. Service.forProtocol())
 export class Protocol {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
   createClient(opts: any): any;
   createEmitter(args: any): any;
   createListener(args: any): any;
   createServer(opts: any): any;
-  emit(args: any): any;
   equals(args: any): any;
   getMessage(args: any): any;
   getMessages(args: any): any;
@@ -97,8 +97,6 @@ export class Protocol {
   getTypes(args: any): any;
   inspect(): string;
   message(name: any): any;
-  on(args: any): any;
-  subprotocol(args: any): any;
   type(name: any): any;
   static compatible(clientSvc: any, serverSvc: any): any;
   static forProtocol(ptcl: any, opts: any): any;
@@ -108,19 +106,18 @@ export class Protocol {
 export class Service {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
   createClient(options?: Partial<Service.ClientOptions>): Service.Client;
-  createEmitter(args: any): any;
-  createListener(args: any): any;
   createServer(options?: Partial<Service.ServerOptions>): Service.Server;
-  emit(args: any): any;
   equals(args: any): any;  // deprecated
-  readonly hash: Buffer;
-  readonly protocol: any;
   inspect(): string;
   message(name: string): any;
-  on(args: any): any;
-  subprotocol(args: any): any;
-  type(name: string): any;
+  type(name: string): Type|undefined;
 
+  readonly doc: string|undefined;
+  readonly hash: Buffer;
+  readonly messages: any[];
+  readonly name: string;
+  readonly protocol: any;
+  readonly types: Type[];
 
   static compatible(client: Service.Client, server: Service.Server): boolean;
   static forProtocol(protocol: Protocol, options: any): Service;
@@ -130,20 +127,20 @@ export class Service {
 export namespace Service {
   interface ClientChannel extends EventEmitter {
     readonly client: Client;
-    readonly timeout: number;
     readonly destroyed: boolean;
     readonly draining: boolean;
     readonly pending: number;
-    ping(timeout: number, cb: any): void;
-    destroy(noWait: boolean): void;
+    readonly timeout: number;
+    ping(timeout?: number, cb?: any): void;
+    destroy(noWait?: boolean): void;
   }
 
   interface ServerChannel extends EventEmitter  {
-    readonly server: Server;
     readonly destroyed: boolean;
     readonly draining: boolean;
     readonly pending: number;
-    destroy(noWait: boolean): void;
+    readonly server: Server;
+    destroy(noWait?: boolean): void;
   }
 
   interface ClientOptions {
@@ -196,54 +193,54 @@ export namespace Service {
 
 export namespace streams {
   class BlockDecoder {
-    constructor(opts: any);
+    constructor(opts?: any);
     static defaultCodecs(): any;
   }
 
   class BlockEncoder {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts: any);
     static defaultCodecs(): any;
   }
 
   class RawDecoder {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts: any);
   }
 
   class RawEncoder {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts: any);
   }
 }
 
 export namespace types {
   class ArrayType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts: any);
     readonly itemsType: Type;
     random(): ArrayType;
   }
 
-  class BooleanType extends Type {
+  class BooleanType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): BooleanType;
   }
 
-  class BytesType extends Type {
+  class BytesType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): BytesType;
   }
 
-  class DoubleType extends Type {
+  class DoubleType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): DoubleType;
   }
 
   class EnumType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts?: any);
     readonly symbols: string[];
     random(): EnumType;
   }
 
   class FixedType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts?: any);
     readonly size: number;
     random(): FixedType;
   }
@@ -259,47 +256,60 @@ export namespace types {
   }
 
   class LogicalType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts?: any);
     readonly underlyingType: Type;
+    _export(schema: Schema): void;
+    _fromValue(val: any): any;
+    _resolve(type: Type): any;
+    _toValue(any: any): any;
     random(): LogicalType;
   }
 
   class LongType extends Type {
     constructor();
     random(): LongType;
+    __with(methods: object, noUnpack?: boolean;
   }
 
   class MapType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts?: any);
     readonly valuesType: any;
     random(): MapType;
   }
 
-  class NullType extends Type {
+  class NullType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): NullType;
   }
 
   class RecordType extends Type {
-    constructor(schema: any, opts: any);
-    field(name: any): any;
-    readonly fields: any[];  // TODO: Field[] once Field interface/class exists
+    constructor(schema: Schema, opts?: any);
+    readonly fields: Field[];
     readonly recordConstructor: any;  // TODO: typeof Record once Record interface/class exists
+    field(name: string): Field;
     random(): RecordType;
   }
 
-  class StringType extends Type {
+  class Field {
+    aliases: string[];
+    defaultValue(): any;
+    name: string;
+    order: string;
+    type: Type;
+  }
+
+  class StringType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): StringType;
   }
 
   class UnwrappedUnionType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts: any);
     random(): UnwrappedUnionType;
   }
 
   class WrappedUnionType extends Type {
-    constructor(schema: any, opts: any);
+    constructor(schema: Schema, opts: any);
     random(): WrappedUnionType;
   }
 }
