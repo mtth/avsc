@@ -84,7 +84,7 @@ export class Type {
 // Deprecated, but kept for now because this is referenced elsewhere (e.g. Service.forProtocol())
 export class Protocol {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
-  createClient(opts: any): any;
+  createClient(opts?: object): Client;
   createEmitter(args: any): any;
   createListener(args: any): any;
   createServer(opts: any): any;
@@ -99,7 +99,7 @@ export class Protocol {
   message(name: any): any;
   type(name: any): any;
   static compatible(clientSvc: any, serverSvc: any): any;
-  static forProtocol(ptcl: any, opts: any): any;
+  static forProtocol(protocol: Protocol, opts?: any): any;
   static isService(any: any): any;
 }
 
