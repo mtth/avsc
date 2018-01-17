@@ -45,8 +45,8 @@ export function discoverProtocol(transport: Service.Transport, options: any, cal
 export function discoverProtocol(transport: Service.Transport, callback: Callback<any>): void;
 export function extractFileHeader(filePath: string, options?: any): void;
 export function infer(args: any): any;
-export function parse(schemaOrProtocolIdl: string, options?: any): Protocol | Type; // TODO
-export function readProtocol(protocolIdl: string, options?: Partial<ReaderOptions>): Protocol;
+export function parse(schemaOrProtocolIdl: string, options?: any): any; // TODO protocol literal or Type
+export function readProtocol(protocolIdl: string, options?: Partial<ReaderOptions>): any;
 export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>): Schema;
 // TODO streams
 
@@ -81,28 +81,6 @@ export class Type {
   static __reset(size: number): void;
 }
 
-// Deprecated, but kept for now because this is referenced elsewhere (e.g. Service.forProtocol())
-export class Protocol {
-  constructor(name: any, messages: any, types: any, ptcl: any, server: any);
-  createClient(opts?: object): Client;
-  createEmitter(args: any): any;
-  createListener(args: any): any;
-  createServer(opts: any): any;
-  equals(args: any): any;
-  getMessage(args: any): any;
-  getMessages(args: any): any;
-  getName(args: any): any;
-  getSchema(args: any): any;
-  getType(args: any): any;
-  getTypes(args: any): any;
-  inspect(): string;
-  message(name: any): any;
-  type(name: any): any;
-  static compatible(clientSvc: any, serverSvc: any): any;
-  static forProtocol(protocol: Protocol, opts?: any): any;
-  static isService(any: any): any;
-}
-
 export class Service {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
   createClient(options?: Partial<Service.ClientOptions>): Service.Client;
@@ -120,7 +98,7 @@ export class Service {
   readonly types: Type[];
 
   static compatible(client: Service.Client, server: Service.Server): boolean;
-  static forProtocol(protocol: Protocol, options: any): Service;
+  static forProtocol(protocol: any, options: any): Service;
   static isService(obj: any): boolean;
 }
 
@@ -176,7 +154,7 @@ export namespace Service {
     activeChannels(): ServerChannel[];
     createChannel(transport: Transport, options?: Partial<ChannelCreateOptions>): ServerChannel;
     onMessage<T>(name: string, handler: (arg1: any, callback: Callback<T>) => void): this;
-    remoteProtocols(): Protocol[];
+    remoteProtocols(): any[];
     use(...args: any[]): this;
   }
 
@@ -186,7 +164,7 @@ export namespace Service {
     createChannel(transport: Transport, options?: Partial<ChannelCreateOptions>): ClientChannel;
     destroyChannels(options?: Partial<ChannelDestroyOptions>): void;
     emitMessage<T>(name: string, req: any, options?: any, callback?: Callback<T>): void // TODO
-    remoteProtocols(): Protocol[];
+    remoteProtocols(): any[];
     use(...args: any[]): this;
   }
 }
@@ -268,7 +246,7 @@ export namespace types {
   class LongType extends Type {
     constructor();
     random(): LongType;
-    __with(methods: object, noUnpack?: boolean;
+    static __with(methods: object, noUnpack?: boolean) : void;
   }
 
   class MapType extends Type {
