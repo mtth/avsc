@@ -1713,6 +1713,25 @@ suite('types', function () {
       assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann', age: 25});
     });
 
+    test('resolve field with javascript keyword as name', function () {
+      var v1 = Type.forSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [{name: 'void', type: 'string'}]
+      });
+      var p = {void: 'Ann'};
+      var buf = v1.toBuffer(p);
+      var v2 = Type.forSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'void', type: 'string'}
+        ]
+      });
+      var resolver = v2.createResolver(v1);
+      assert.deepEqual(v2.fromBuffer(buf, resolver), {void: 'Ann'});
+    });
+
     test('resolve new field no default', function () {
       var v1 = Type.forSchema({
         type: 'record',
