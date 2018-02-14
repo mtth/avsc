@@ -2578,6 +2578,12 @@ suite('types', function () {
       }
     };
 
+    AgeType.prototype._resolve = function (type) {
+      if (types.Type.isType(type, 'logical:age')) {
+        return this._fromValue;
+      }
+    };
+
     var logicalTypes = {age: AgeType, date: DateType};
 
     test('valid type', function () {
@@ -2725,6 +2731,16 @@ suite('types', function () {
       var res = t2.createResolver(t1);
       assert.throws(function () { Type.forSchema('int').createResolver(t1); });
       assert.equal(t2.fromBuffer(buf, res), +d);
+    });
+
+    test('resolve union of logical > union of logical', function () {
+      var t = types.Type.forSchema(
+        ['null', {type: 'int', logicalType: 'age'}],
+        {logicalTypes: logicalTypes, wrapUnions: true}
+      );
+      var resolver = t.createResolver(t)
+      var v = {'int': 34};
+      assert.deepEqual(t.fromBuffer(t.toBuffer(v), resolver), v)
     });
 
     test('even integer', function () {
