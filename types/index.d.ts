@@ -242,7 +242,6 @@ export namespace types {
     _resolve(type: Type): any;
     _toValue(any: any): any;
     random(): LogicalType;
-    getUnderlyingType(): Type;
   }
 
   class LongType extends Type {
