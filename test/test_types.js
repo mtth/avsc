@@ -2733,6 +2733,31 @@ suite('types', function () {
       assert.equal(t2.fromBuffer(buf, res), +d);
     });
 
+    test('resolve logical type into a schema without the field', function () {
+      var t1 = Type.forSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'age', type: {type: 'int', logicalType: 'age'}},
+          {name: 'time', type: {type: 'long', logicalType: 'date'}}
+        ]
+      }, {logicalTypes: logicalTypes});
+      var t2 = Type.forSchema({
+        name: 'Person',
+        type: 'record',
+        fields: [
+          {name: 'age', type: {type: 'int', logicalType: 'age'}}
+        ]
+      }, {logicalTypes: logicalTypes});
+
+      var buf = t1.toBuffer({age: 12, time: new Date()});
+
+      var res = t2.createResolver(t1);
+      var decoded = t2.fromBuffer(buf, res);
+      assert.equal(decoded.age, 12);
+      assert.equal(decoded.time, undefined);
+    });
+
     test('resolve union of logical > union of logical', function () {
       var t = types.Type.forSchema(
         ['null', {type: 'int', logicalType: 'age'}],

@@ -69,6 +69,7 @@ export class Type {
   toJSON(): string;
   toString(val?: any): any;
   wrap(val: any): any;
+  _skip(tap: any);
   readonly aliases: string[]|undefined;
   readonly doc: string|undefined;
   readonly name: string|undefined;
