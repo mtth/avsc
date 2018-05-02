@@ -54,10 +54,11 @@ export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>):
 export class Type {
   clone(val: any, opts?: any): any;
   compare(val1: any, val2: any): number;
-  compareBuffers(buf1: any, buf2: any): number;
+  compareBuffers(buf1: Buffer, buf2: Buffer): number;
   constructor(schema: Schema, opts?: any);
   createResolver(type: any, opts?: any): any;  // TODO: opts not documented on wiki
-  decode(buf: any, pos?: any, resolver?: any): any
+  decode(buf: Buffer, pos?: number, resolver?: any): any;
+  encode(val: any, buf: Buffer, pos?: number): void; 
   fingerprint(algorithm?: any): any;
   fromBuffer(buffer: Buffer, resolver?: any, noCheck?: boolean): Type; // TODO
   fromString(str: any): any;
