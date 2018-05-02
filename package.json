@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "5.2.3",
+  "version": "5.2.4",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -51,8 +51,7 @@
     "zuul": "zuul --no-coverage -- test/*.js"
   },
   "devDependencies": {
-    "benchmark": "^2.1.3",
-    "coveralls": "^2.12.0",
+    "coveralls": "^3.0.1",
     "istanbul": "^0.4.5",
     "mocha": "^3.1.2",
     "tmp": "^0.0.29"
