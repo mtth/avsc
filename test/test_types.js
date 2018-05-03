@@ -3556,6 +3556,41 @@ suite('types', function () {
       assert.throws(function () { t.encode('hi', buf, -1); });
     });
 
+    ['fooWrapped', 'wrapped.foo'].forEach(function(name) {
+
+      test('nested schema with registry: ' + name, function() {
+        var a = {
+          name: name,
+          type: 'record',
+          fields: [
+            { name: 'a', type: 'boolean'},
+            { name: 'b', type: 'foo'}
+          ]
+        }
+        
+        var b = {
+          name: 'foo',
+          type: 'record',
+          fields: [
+            { name: 'c', type: 'boolean'}
+          ]
+        };
+        var t = Type.forSchema(a, { registry: {
+          foo: Type.forSchema(b)
+        }});
+
+        var buf = new Buffer(50);
+        // fails for wrapped.foo, because _createWriter creates
+        // a function who's name is the same as the create writer
+        // function for the foo model. I don't know what the best approach is
+        // to address as I don't think the functions should be polluting each other's
+        // js namespaces. If addressing that isn't an option maybe there's a way to encompass
+        // the namespace in the function naming?
+        t.encode({ a: true, b: { c : true } }, buf);
+
+      });
+
+    });
   });
 
   suite('inspect', function () {
