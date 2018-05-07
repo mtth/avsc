@@ -238,10 +238,10 @@ export namespace types {
   class LogicalType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly underlyingType: Type;
-    _export(schema: Schema): void;
-    _fromValue(val: any): any;
-    _resolve(type: Type): any;
-    _toValue(any: any): any;
+    protected _export(schema: Schema): void;
+    protected _fromValue(val: any): any;
+    protected  _resolve(type: Type): any;
+    protected _toValue(any: any): any;
     getUnderlyingType(): Type;
     random(): LogicalType;
   }
