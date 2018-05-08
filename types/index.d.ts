@@ -242,7 +242,6 @@ export namespace types {
     protected _fromValue(val: any): any;
     protected  _resolve(type: Type): any;
     protected _toValue(any: any): any;
-    getUnderlyingType(): Type;
     random(): LogicalType;
   }
 
@@ -287,11 +286,12 @@ export namespace types {
   class UnwrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
     random(): UnwrappedUnionType;
-    getTypes(): Type[];
+    readonly types: Type[];
   }
 
   class WrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
     random(): WrappedUnionType;
+    readonly types: Type[];
   }
 }
