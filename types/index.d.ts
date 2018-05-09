@@ -238,10 +238,10 @@ export namespace types {
   class LogicalType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly underlyingType: Type;
-    _export(schema: Schema): void;
-    _fromValue(val: any): any;
-    _resolve(type: Type): any;
-    _toValue(any: any): any;
+    protected _export(schema: Schema): void;
+    protected _fromValue(val: any): any;
+    protected  _resolve(type: Type): any;
+    protected _toValue(any: any): any;
     random(): LogicalType;
   }
 
@@ -286,10 +286,12 @@ export namespace types {
   class UnwrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
     random(): UnwrappedUnionType;
+    readonly types: Type[];
   }
 
   class WrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
     random(): WrappedUnionType;
+    readonly types: Type[];
   }
 }
