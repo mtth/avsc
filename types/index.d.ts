@@ -11,10 +11,16 @@ import { EventEmitter } from 'events'
 declare namespace schema
 {
   export type AvroSchema = DefinedType | DefinedType[];
-  type DefinedType = PrimitiveType | { type: PrimitiveType } | ComplexType;
+  type DefinedType = PrimitiveType | ComplexType | LogicalType; 
   type PrimitiveType = 'null' | 'boolean' | 'int' | 'long' | 'float' | 'double' | 'bytes' | 'string';
-  type ComplexType = RecordType | EnumType | MapType | ArrayType | FixedType;
-
+  type ComplexType = NamedType | RecordType | EnumType | MapType | ArrayType | FixedType;
+  type LogicalType = ComplexType & LogicalTypeExtension;
+  
+  interface NamedType
+  {
+    type: PrimitiveType
+  }
+  
   interface RecordType
   {
     type: "record";
@@ -55,6 +61,11 @@ declare namespace schema
     name: string;
     aliases?: string[];
     size: number;
+  }
+  interface LogicalTypeExtension
+  {
+    logicalType: string;
+    [param:string] : any;
   }
 }
 //Types of Options/arguments
