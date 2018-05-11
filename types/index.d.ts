@@ -7,80 +7,177 @@
 import * as stream from 'stream';
 import { EventEmitter } from 'events'
 
-type Schema = string | object;  // TODO object should be further specified
+//"virtual" namespace (no JS, just types) for Avro Schema
+declare namespace schema
+{
+  export type AvroSchema = DefinedType | DefinedType[];
+  type DefinedType = PrimitiveType | { type: PrimitiveType } | ComplexType;
+  type PrimitiveType = 'null' | 'boolean' | 'int' | 'long' | 'float' | 'double' | 'bytes' | 'string';
+  type ComplexType = RecordType | EnumType | MapType | ArrayType | FixedType;
 
-export type Callback<V, Err = any> = (err: Err, value: V) => void;
+  interface RecordType
+  {
+    type: "record";
+    name: string;
+    namespace? : string;
+    doc?: string;
+    aliases?: string[];
+    fields: {
+          name: string;
+          doc?:string;
+          type: AvroSchema;
+          default?: any;
+        }[];
+    order? : "ascending" | "descending" | "ignore";
+  }
 
-export type CodecTransformer = (buffer: Buffer, callback: () => void) => Buffer; // TODO
+  interface EnumType {
+    type: "enum";
+    name: string;
+    namespace?:string;
+    aliases?: string[];
+    doc?: string;
+    symbols: string[];
+  }
 
-export interface CodecOptions {
-  deflate: CodecTransformer;
-  snappy: CodecTransformer;
+  interface ArrayType {
+    type: "array";
+    items: AvroSchema;
+  }
+
+  interface MapType {
+    type: "map";
+    values: AvroSchema;
+  }
+
+  interface FixedType {
+    type: "fixed";
+    name: string;
+    aliases?: string[];
+    size: number;
+  }
+}
+//Types of Options/arguments
+
+type Schema = Type | schema.AvroSchema;
+
+type Callback<V, Err = any> = (err: Err, value: V) => void;
+
+
+type Codec = (buffer: Buffer, callback: Callback<Buffer>) => void; 
+
+interface CodecOptions {
+  [name:string] : Codec;
 }
 
-export interface Decoder {
-  on(type: 'metadata', callback: (type: Type) => void): this;
-  on(type: 'data', callback: (value: object) => void): this;
+interface DecoderOptions {
+  noDecode: boolean;
+  readerSchema: string | object | Type;
+  codecs: CodecOptions;
+  parseHook: (schema:Schema) => Type
 }
 
-export interface Encoder {
-  // TODO
+interface EncoderOptions {
+  blockSize: number;
+  codec: string;
+  codecs: CodecOptions;
+  writeHeader: boolean | 'always' | 'never' | 'auto';
+  syncMarker: Buffer;
 }
 
-export interface ReaderOptions {
-  // TODO
+interface ForSchemaOptions {
+  assertLogicalTypes : boolean;
+  logicalTypes: { [type:string]:types.LogicalType };
+  namespace: string;
+  noAnonymousTypes: boolean;
+  registry: {[name:string]:Type};
+  typeHook: (schema:Schema, opts:ForSchemaOptions)=>Type;
+  wrapUnions: boolean | 'auto' | 'always' | 'never';
 }
 
+interface TypeOptions extends ForSchemaOptions
+{
+  strictDefaults:boolean;
+}
+
+interface ForValueOptions extends TypeOptions
+{
+  emptyArrayType: Type; 
+  valueHook: (val:any, opts:ForValueOptions) => Type;
+}
+
+interface CloneOptions
+{
+  coerceBuffers: boolean;
+  fieldHook: (field:types.Field, value:any, type:Type) => any;
+  qualifyNames: boolean;
+  skipMissingFields: boolean;
+  wrapUnions: boolean;
+}
+interface IsValidOptions
+{
+  noUndeclaredFields:boolean;
+  errorHook: (path:string[], val:any, type:Type)=>void
+}
 interface AssembleOptions {
   importHook: (filePath: string, type: 'idl', callback: Callback<object>) => void;
 }
 
-export function assemble(args: any): any;
+interface SchemaOptions
+{
+  exportAttrs: boolean;
+  noDeref: boolean;
+}
+
+declare class Resolver {
+  //no public methods
+}
+
+//exported functions
+
 export function assembleProtocol(filePath: string, opts: Partial<AssembleOptions>, callback: Callback<object>): void;
 export function assembleProtocol(filePath: string, callback: Callback<object>): void;
-export function combine(args: any): any;
-export function createFileDecoder(fileName: string, codecs?: Partial<CodecOptions>): Decoder;
-export function createFileEncoder(filePath: string, schema: Schema, options?: any): Encoder;
+export function createFileDecoder(fileName: string, opts?:Partial<DecoderOptions>): streams.BlockDecoder;
+export function createFileEncoder(filePath: string, schema: Schema, opts?: Partial<EncoderOptions>): streams.BlockEncoder;
+export function createBlobEncoder(schema:Schema, opts?:Partial<EncoderOptions>): stream.Duplex;
+export function createBlobDecoder(blob:Blob, opts?: Partial<DecoderOptions>): streams.BlockDecoder;
 export function discoverProtocol(transport: Service.Transport, options: any, callback: Callback<any>): void;
 export function discoverProtocol(transport: Service.Transport, callback: Callback<any>): void;
 export function extractFileHeader(filePath: string, options?: any): void;
-export function infer(args: any): any;
 export function parse(schemaOrProtocolIdl: string, options?: any): any; // TODO protocol literal or Type
-export function readProtocol(protocolIdl: string, options?: Partial<ReaderOptions>): any;
-export function readSchema(schemaIdl: string, options?: Partial<ReaderOptions>): Schema;
-// TODO streams
+export function readProtocol(protocolIdl: string, options?: Partial<DecoderOptions>): any;
+export function readSchema(schemaIdl: string, options?: Partial<DecoderOptions>): Schema;
 
-// TODO more specific types than `any`
+
+// TODO more specific types than `any` 
 export class Type {
-  clone(val: any, opts?: any): any;
+  clone(val: any, opts?: Partial<CloneOptions>): any;
   compare(val1: any, val2: any): number;
   compareBuffers(buf1: Buffer, buf2: Buffer): number;
-  constructor(schema: Schema, opts?: any);
-  createResolver(type: any, opts?: any): any;  // TODO: opts not documented on wiki
-  decode(buf: Buffer, pos?: number, resolver?: any): any;
-  encode(val: any, buf: Buffer, pos?: number): void; 
-  fingerprint(algorithm?: any): any;
-  fromBuffer(buffer: Buffer, resolver?: any, noCheck?: boolean): Type; // TODO
-  fromString(str: any): any;
+  createResolver(type: Type): Resolver; 
+  decode(buf: Buffer, pos?: number, resolver?: Resolver): any;
+  encode(val: any, buf: Buffer, pos?: number): void;
+  equals(type:any):boolean;
+  fingerprint(algorithm?: string): Buffer;
+  fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any; 
+  fromString(str: string): any;
   inspect(): string;
-  isValid(val: any, opts?: any): any;
+  isValid(val: any, opts?: Partial<IsValidOptions>): boolean;
   random(): Type;
-  schema(opts?: any): any;
-  toBuffer(value: object): Buffer;
+  schema(opts?: Partial<SchemaOptions>): Schema;
+  toBuffer(value: any): Buffer;
   toJSON(): string;
-  toString(val?: any): any;
+  toString(val?: any): string;
   wrap(val: any): any;
-  _skip(tap: any): any;
   readonly aliases: string[]|undefined;
   readonly doc: string|undefined;
   readonly name: string|undefined;
   readonly branchName: string|undefined;
   readonly typeName: string;
-  static forSchema(schema: Schema, opts?: any): Type;
-  static forTypes(types: any, opts?: any): Type;
-  static forValue(value: object, opts?: any): Type;
+  static forSchema(schema: Schema, opts?: Partial<ForSchemaOptions>): Type;
+  static forTypes(types: Type[], opts?: Partial<TypeOptions>): Type;
+  static forValue(value: object, opts?: Partial<ForValueOptions>): Type;
   static isType(arg: any, ...prefix: string[]): boolean;
-  static __reset(size: number): void;
 }
 
 export class Service {
@@ -172,22 +269,25 @@ export namespace Service {
 }
 
 export namespace streams {
-  class BlockDecoder {
-    constructor(opts?: any);
-    static defaultCodecs(): any;
+  class BlockDecoder extends stream.Duplex {
+    constructor(opts?: Partial<DecoderOptions>);
+    static defaultCodecs(): CodecOptions;
+
+    on(event: string, listener: (...args: any[]) => void): this; 
+    on(event: "metadata", listener: (type: Type, codec:string, header:any) => void): this;
   }
 
-  class BlockEncoder {
-    constructor(schema: Schema, opts: any);
-    static defaultCodecs(): any;
+  class BlockEncoder extends stream.Duplex {
+    constructor(schema: Schema, opts?: Partial<EncoderOptions>);
+    static defaultCodecs(): CodecOptions;
   }
 
-  class RawDecoder {
-    constructor(schema: Schema, opts: any);
+  class RawDecoder extends stream.Duplex {
+    constructor(schema: Schema, opts?: {decode?:boolean});
   }
 
-  class RawEncoder {
-    constructor(schema: Schema, opts: any);
+  class RawEncoder extends stream.Duplex {
+    constructor(schema: Schema, opts?: { batchSize?: number});
   }
 }
 
