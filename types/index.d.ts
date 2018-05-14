@@ -4,43 +4,40 @@
 // TODO: Wherever the argument names are just `args: any`, it was probably generated from the signature of util.deprecate. Fix argument counts and types.
 // NOTE: This does not contain entries for functions available in the browser (functions/methods in etc/browser)
 
-import * as stream from 'stream';
+import * as stream from 'stream'; 
 import { EventEmitter } from 'events'
 
 //"virtual" namespace (no JS, just types) for Avro Schema
-declare namespace schema
-{
+declare namespace schema {
   export type AvroSchema = DefinedType | DefinedType[];
-  type DefinedType = PrimitiveType | ComplexType | LogicalType; 
+  type DefinedType = PrimitiveType | ComplexType | LogicalType | string;
   type PrimitiveType = 'null' | 'boolean' | 'int' | 'long' | 'float' | 'double' | 'bytes' | 'string';
   type ComplexType = NamedType | RecordType | EnumType | MapType | ArrayType | FixedType;
   type LogicalType = ComplexType & LogicalTypeExtension;
-  
-  interface NamedType
-  {
+
+  interface NamedType {
     type: PrimitiveType
   }
-  
-  interface RecordType
-  {
+
+  interface RecordType {
     type: "record";
     name: string;
-    namespace? : string;
+    namespace?: string;
     doc?: string;
     aliases?: string[];
     fields: {
-          name: string;
-          doc?:string;
-          type: AvroSchema;
-          default?: any;
-        }[];
-    order? : "ascending" | "descending" | "ignore";
+      name: string;
+      doc?: string;
+      type: AvroSchema;
+      default?: any;
+    }[];
+    order?: "ascending" | "descending" | "ignore";
   }
 
   interface EnumType {
     type: "enum";
     name: string;
-    namespace?:string;
+    namespace?: string;
     aliases?: string[];
     doc?: string;
     symbols: string[];
@@ -62,10 +59,9 @@ declare namespace schema
     aliases?: string[];
     size: number;
   }
-  interface LogicalTypeExtension
-  {
+  interface LogicalTypeExtension {
     logicalType: string;
-    [param:string] : any;
+    [param: string]: any;
   }
 }
 //Types of Options/arguments
@@ -75,17 +71,17 @@ type Schema = Type | schema.AvroSchema;
 type Callback<V, Err = any> = (err: Err, value: V) => void;
 
 
-type Codec = (buffer: Buffer, callback: Callback<Buffer>) => void; 
+type Codec = (buffer: Buffer, callback: Callback<Buffer>) => void;
 
 interface CodecOptions {
-  [name:string] : Codec;
+  [name: string]: Codec;
 }
 
 interface DecoderOptions {
   noDecode: boolean;
   readerSchema: string | object | Type;
   codecs: CodecOptions;
-  parseHook: (schema:Schema) => Type
+  parseHook: (schema: Schema) => Type
 }
 
 interface EncoderOptions {
@@ -97,45 +93,40 @@ interface EncoderOptions {
 }
 
 interface ForSchemaOptions {
-  assertLogicalTypes : boolean;
-  logicalTypes: { [type:string]:types.LogicalType };
+  assertLogicalTypes: boolean;
+  logicalTypes: { [type: string]: types.LogicalType };
   namespace: string;
   noAnonymousTypes: boolean;
-  registry: {[name:string]:Type};
-  typeHook: (schema:Schema, opts:ForSchemaOptions)=>Type;
+  registry: { [name: string]: Type };
+  typeHook: (schema: Schema, opts: ForSchemaOptions) => Type;
   wrapUnions: boolean | 'auto' | 'always' | 'never';
 }
 
-interface TypeOptions extends ForSchemaOptions
-{
-  strictDefaults:boolean;
+interface TypeOptions extends ForSchemaOptions {
+  strictDefaults: boolean;
 }
 
-interface ForValueOptions extends TypeOptions
-{
-  emptyArrayType: Type; 
-  valueHook: (val:any, opts:ForValueOptions) => Type;
+interface ForValueOptions extends TypeOptions {
+  emptyArrayType: Type;
+  valueHook: (val: any, opts: ForValueOptions) => Type;
 }
 
-interface CloneOptions
-{
+interface CloneOptions {
   coerceBuffers: boolean;
-  fieldHook: (field:types.Field, value:any, type:Type) => any;
+  fieldHook: (field: types.Field, value: any, type: Type) => any;
   qualifyNames: boolean;
   skipMissingFields: boolean;
   wrapUnions: boolean;
 }
-interface IsValidOptions
-{
-  noUndeclaredFields:boolean;
-  errorHook: (path:string[], val:any, type:Type)=>void
+interface IsValidOptions {
+  noUndeclaredFields: boolean;
+  errorHook: (path: string[], val: any, type: Type) => void
 }
 interface AssembleOptions {
   importHook: (filePath: string, type: 'idl', callback: Callback<object>) => void;
 }
 
-interface SchemaOptions
-{
+interface SchemaOptions {
   exportAttrs: boolean;
   noDeref: boolean;
 }
@@ -148,10 +139,10 @@ declare class Resolver {
 
 export function assembleProtocol(filePath: string, opts: Partial<AssembleOptions>, callback: Callback<object>): void;
 export function assembleProtocol(filePath: string, callback: Callback<object>): void;
-export function createFileDecoder(fileName: string, opts?:Partial<DecoderOptions>): streams.BlockDecoder;
+export function createFileDecoder(fileName: string, opts?: Partial<DecoderOptions>): streams.BlockDecoder;
 export function createFileEncoder(filePath: string, schema: Schema, opts?: Partial<EncoderOptions>): streams.BlockEncoder;
-export function createBlobEncoder(schema:Schema, opts?:Partial<EncoderOptions>): stream.Duplex;
-export function createBlobDecoder(blob:Blob, opts?: Partial<DecoderOptions>): streams.BlockDecoder;
+export function createBlobEncoder(schema: Schema, opts?: Partial<EncoderOptions>): stream.Duplex;
+export function createBlobDecoder(blob: Blob, opts?: Partial<DecoderOptions>): streams.BlockDecoder;
 export function discoverProtocol(transport: Service.Transport, options: any, callback: Callback<any>): void;
 export function discoverProtocol(transport: Service.Transport, callback: Callback<any>): void;
 export function extractFileHeader(filePath: string, options?: any): void;
@@ -165,12 +156,12 @@ export class Type {
   clone(val: any, opts?: Partial<CloneOptions>): any;
   compare(val1: any, val2: any): number;
   compareBuffers(buf1: Buffer, buf2: Buffer): number;
-  createResolver(type: Type): Resolver; 
+  createResolver(type: Type): Resolver;
   decode(buf: Buffer, pos?: number, resolver?: Resolver): any;
   encode(val: any, buf: Buffer, pos?: number): void;
-  equals(type:any):boolean;
+  equals(type: any): boolean;
   fingerprint(algorithm?: string): Buffer;
-  fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any; 
+  fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any;
   fromString(str: string): any;
   inspect(): string;
   isValid(val: any, opts?: Partial<IsValidOptions>): boolean;
@@ -180,10 +171,10 @@ export class Type {
   toJSON(): string;
   toString(val?: any): string;
   wrap(val: any): any;
-  readonly aliases: string[]|undefined;
-  readonly doc: string|undefined;
-  readonly name: string|undefined;
-  readonly branchName: string|undefined;
+  readonly aliases: string[] | undefined;
+  readonly doc: string | undefined;
+  readonly name: string | undefined;
+  readonly branchName: string | undefined;
   readonly typeName: string;
   static forSchema(schema: Schema, opts?: Partial<ForSchemaOptions>): Type;
   static forTypes(types: Type[], opts?: Partial<TypeOptions>): Type;
@@ -198,9 +189,9 @@ export class Service {
   equals(args: any): any;  // deprecated
   inspect(): string;
   message(name: string): any;
-  type(name: string): Type|undefined;
+  type(name: string): Type | undefined;
 
-  readonly doc: string|undefined;
+  readonly doc: string | undefined;
   readonly hash: Buffer;
   readonly messages: any[];
   readonly name: string;
@@ -223,7 +214,7 @@ export namespace Service {
     destroy(noWait?: boolean): void;
   }
 
-  interface ServerChannel extends EventEmitter  {
+  interface ServerChannel extends EventEmitter {
     readonly destroyed: boolean;
     readonly draining: boolean;
     readonly pending: number;
@@ -280,12 +271,68 @@ export namespace Service {
 }
 
 export namespace streams {
+
   class BlockDecoder extends stream.Duplex {
     constructor(opts?: Partial<DecoderOptions>);
     static defaultCodecs(): CodecOptions;
 
-    on(event: string, listener: (...args: any[]) => void): this; 
-    on(event: "metadata", listener: (type: Type, codec:string, header:any) => void): this;
+    //adding all listeners, etc. Can't add a single method override for metadata, all base methods need to be repeated :-(
+
+    addListener(event: string, listener: (...args: any[]) => void): this;
+    addListener(event: "close", listener: () => void): this;
+    addListener(event: "data", listener: (chunk: Buffer | string) => void): this;
+    addListener(event: "end", listener: () => void): this;
+    addListener(event: "readable", listener: () => void): this;
+    addListener(event: "error", listener: (err: Error) => void): this;
+    addListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
+
+    emit(event: string | symbol, ...args: any[]): boolean;
+    emit(event: "close"): boolean;
+    emit(event: "data", chunk: Buffer | string): boolean;
+    emit(event: "end"): boolean;
+    emit(event: "readable"): boolean;
+    emit(event: "error", err: Error): boolean;
+    emit(event: "metadata", listener: (type: Type, codec: string, header: any) => void): boolean;
+
+    on(event: string, listener: (...args: any[]) => void): this;
+    on(event: "close", listener: () => void): this;
+    on(event: "data", listener: (chunk: Buffer | string) => void): this;
+    on(event: "end", listener: () => void): this;
+    on(event: "readable", listener: () => void): this;
+    on(event: "error", listener: (err: Error) => void): this;
+    on(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
+
+    once(event: string, listener: (...args: any[]) => void): this;
+    once(event: "close", listener: () => void): this;
+    once(event: "data", listener: (chunk: Buffer | string) => void): this;
+    once(event: "end", listener: () => void): this;
+    once(event: "readable", listener: () => void): this;
+    once(event: "error", listener: (err: Error) => void): this;
+    once(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
+
+    prependListener(event: string, listener: (...args: any[]) => void): this;
+    prependListener(event: "close", listener: () => void): this;
+    prependListener(event: "data", listener: (chunk: Buffer | string) => void): this;
+    prependListener(event: "end", listener: () => void): this;
+    prependListener(event: "readable", listener: () => void): this;
+    prependListener(event: "error", listener: (err: Error) => void): this;
+    prependListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
+
+    prependOnceListener(event: string, listener: (...args: any[]) => void): this;
+    prependOnceListener(event: "close", listener: () => void): this;
+    prependOnceListener(event: "data", listener: (chunk: Buffer | string) => void): this;
+    prependOnceListener(event: "end", listener: () => void): this;
+    prependOnceListener(event: "readable", listener: () => void): this;
+    prependOnceListener(event: "error", listener: (err: Error) => void): this;
+    prependOnceListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
+
+    removeListener(event: string, listener: (...args: any[]) => void): this;
+    removeListener(event: "close", listener: () => void): this;
+    removeListener(event: "data", listener: (chunk: Buffer | string) => void): this;
+    removeListener(event: "end", listener: () => void): this;
+    removeListener(event: "readable", listener: () => void): this;
+    removeListener(event: "error", listener: (err: Error) => void): this;
+    removeListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
   }
 
   class BlockEncoder extends stream.Duplex {
@@ -294,11 +341,11 @@ export namespace streams {
   }
 
   class RawDecoder extends stream.Duplex {
-    constructor(schema: Schema, opts?: {decode?:boolean});
+    constructor(schema: Schema, opts?: { decode?: boolean });
   }
 
   class RawEncoder extends stream.Duplex {
-    constructor(schema: Schema, opts?: { batchSize?: number});
+    constructor(schema: Schema, opts?: { batchSize?: number });
   }
 }
 
@@ -351,7 +398,7 @@ export namespace types {
     readonly underlyingType: Type;
     protected _export(schema: Schema): void;
     protected _fromValue(val: any): any;
-    protected  _resolve(type: Type): any;
+    protected _resolve(type: Type): any;
     protected _toValue(any: any): any;
     random(): LogicalType;
   }
@@ -359,7 +406,7 @@ export namespace types {
   class LongType extends Type {
     constructor();
     random(): LongType;
-    static __with(methods: object, noUnpack?: boolean) : void;
+    static __with(methods: object, noUnpack?: boolean): void;
   }
 
   class MapType extends Type {
