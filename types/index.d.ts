@@ -58,8 +58,9 @@ export class Type {
   constructor(schema: Schema, opts?: any);
   createResolver(type: any, opts?: any): any;  // TODO: opts not documented on wiki
   decode(buf: Buffer, pos?: number, resolver?: any): any;
-  encode(val: any, buf: Buffer, pos?: number): void; 
-  fingerprint(algorithm?: any): any;
+  encode(val: any, buf: Buffer, pos?: number): void;
+  equals(type: Type): boolean;
+  fingerprint(algorithm?: string): Buffer | string;
   fromBuffer(buffer: Buffer, resolver?: any, noCheck?: boolean): Type; // TODO
   fromString(str: any): any;
   inspect(): string;
