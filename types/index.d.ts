@@ -69,7 +69,7 @@ export class Type {
   schema(opts?: any): object;
   toBuffer(value: object): Buffer;
   toJSON(): object;
-  toString(val?: any): any;
+  toString(val?: any): string;
   wrap(val: any): any;
   _skip(tap: any): any;
   readonly aliases: string[]|undefined;
