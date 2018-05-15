@@ -57,18 +57,18 @@ export class Type {
   compareBuffers(buf1: Buffer, buf2: Buffer): number;
   constructor(schema: Schema, opts?: any);
   createResolver(type: any, opts?: any): any;  // TODO: opts not documented on wiki
-  decode(buf: Buffer, pos?: number, resolver?: any): any;
+  decode(buf: Buffer, pos?: number, resolver?: any): { value: any, offset: number};
   encode(val: any, buf: Buffer, pos?: number): void;
   equals(type: Type): boolean;
   fingerprint(algorithm?: string): Buffer | string;
   fromBuffer(buffer: Buffer, resolver?: any, noCheck?: boolean): Type; // TODO
   fromString(str: any): any;
   inspect(): string;
-  isValid(val: any, opts?: any): any;
+  isValid(val: any, opts?: any): boolean;
   random(): Type;
-  schema(opts?: any): any;
+  schema(opts?: any): object;
   toBuffer(value: object): Buffer;
-  toJSON(): string;
+  toJSON(): object;
   toString(val?: any): any;
   wrap(val: any): any;
   _skip(tap: any): any;
