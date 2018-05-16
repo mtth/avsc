@@ -157,9 +157,9 @@ export class Type {
   compare(val1: any, val2: any): number;
   compareBuffers(buf1: Buffer, buf2: Buffer): number;
   createResolver(type: Type): Resolver;
-  decode(buf: Buffer, pos?: number, resolver?: Resolver): any;
+  decode(buf: Buffer, pos?: number, resolver?: Resolver): { value: any, offset: number};
   encode(val: any, buf: Buffer, pos?: number): void;
-  equals(type: any): boolean;
+  equals(type: Type): boolean;
   fingerprint(algorithm?: string): Buffer;
   fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any;
   fromString(str: string): any;
@@ -168,7 +168,7 @@ export class Type {
   random(): Type;
   schema(opts?: Partial<SchemaOptions>): Schema;
   toBuffer(value: any): Buffer;
-  toJSON(): string;
+  toJSON(): object;
   toString(val?: any): string;
   wrap(val: any): any;
   readonly aliases: string[] | undefined;
