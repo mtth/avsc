@@ -21,6 +21,8 @@ export interface CodecOptions {
 export interface Decoder {
   on(type: 'metadata', callback: (type: Type) => void): this;
   on(type: 'data', callback: (value: object) => void): this;
+  on(type: 'finish', callback: (value: object) => void): this;
+  on(type: 'end', callback: (value: object) => void): this;
 }
 
 export interface Encoder {
