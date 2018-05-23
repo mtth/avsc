@@ -5,7 +5,7 @@
 // NOTE: This does not contain entries for functions available in the browser (functions/methods in etc/browser)
 
 import * as stream from 'stream'; 
-import { EventEmitter } from 'events'
+import { EventEmitter } from 'events';
 
 //"virtual" namespace (no JS, just types) for Avro Schema
 declare namespace schema {
@@ -28,7 +28,7 @@ declare namespace schema {
     fields: {
       name: string;
       doc?: string;
-      type: AvroSchema;
+      type: Schema;
       default?: any;
     }[];
     order?: "ascending" | "descending" | "ignore";
@@ -45,12 +45,12 @@ declare namespace schema {
 
   interface ArrayType {
     type: "array";
-    items: AvroSchema;
+    items: Schema;
   }
 
   interface MapType {
     type: "map";
-    values: AvroSchema;
+    values: Schema;
   }
 
   interface FixedType {
@@ -158,7 +158,7 @@ export class Type {
   compareBuffers(buf1: Buffer, buf2: Buffer): number;
   createResolver(type: Type): Resolver;
   decode(buf: Buffer, pos?: number, resolver?: Resolver): { value: any, offset: number};
-  encode(val: any, buf: Buffer, pos?: number): void;
+  encode(val: any, buf: Buffer, pos?: number): number;
   equals(type: Type): boolean;
   fingerprint(algorithm?: string): Buffer;
   fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any;
@@ -186,7 +186,7 @@ export class Service {
   constructor(name: any, messages: any, types: any, ptcl: any, server: any);
   createClient(options?: Partial<Service.ClientOptions>): Service.Client;
   createServer(options?: Partial<Service.ServerOptions>): Service.Server;
-  equals(args: any): any;  // deprecated
+  equals(args: any): boolean;  // deprecated
   inspect(): string;
   message(name: string): any;
   type(name: string): Type | undefined;
