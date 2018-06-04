@@ -276,63 +276,9 @@ export namespace streams {
     constructor(opts?: Partial<DecoderOptions>);
     static defaultCodecs(): CodecOptions;
 
-    //adding all listeners, etc. Can't add a single method override for metadata, all base methods need to be repeated :-(
-
-    addListener(event: string, listener: (...args: any[]) => void): this;
-    addListener(event: "close", listener: () => void): this;
-    addListener(event: "data", listener: (chunk: Buffer | string) => void): this;
-    addListener(event: "end", listener: () => void): this;
-    addListener(event: "readable", listener: () => void): this;
-    addListener(event: "error", listener: (err: Error) => void): this;
-    addListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
-
-    emit(event: string | symbol, ...args: any[]): boolean;
-    emit(event: "close"): boolean;
-    emit(event: "data", chunk: Buffer | string): boolean;
-    emit(event: "end"): boolean;
-    emit(event: "readable"): boolean;
-    emit(event: "error", err: Error): boolean;
-    emit(event: "metadata", listener: (type: Type, codec: string, header: any) => void): boolean;
-
-    on(event: string, listener: (...args: any[]) => void): this;
-    on(event: "close", listener: () => void): this;
-    on(event: "data", listener: (chunk: Buffer | string) => void): this;
-    on(event: "end", listener: () => void): this;
-    on(event: "readable", listener: () => void): this;
-    on(event: "error", listener: (err: Error) => void): this;
-    on(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
-
-    once(event: string, listener: (...args: any[]) => void): this;
-    once(event: "close", listener: () => void): this;
-    once(event: "data", listener: (chunk: Buffer | string) => void): this;
-    once(event: "end", listener: () => void): this;
-    once(event: "readable", listener: () => void): this;
-    once(event: "error", listener: (err: Error) => void): this;
-    once(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
-
-    prependListener(event: string, listener: (...args: any[]) => void): this;
-    prependListener(event: "close", listener: () => void): this;
-    prependListener(event: "data", listener: (chunk: Buffer | string) => void): this;
-    prependListener(event: "end", listener: () => void): this;
-    prependListener(event: "readable", listener: () => void): this;
-    prependListener(event: "error", listener: (err: Error) => void): this;
-    prependListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
-
-    prependOnceListener(event: string, listener: (...args: any[]) => void): this;
-    prependOnceListener(event: "close", listener: () => void): this;
-    prependOnceListener(event: "data", listener: (chunk: Buffer | string) => void): this;
-    prependOnceListener(event: "end", listener: () => void): this;
-    prependOnceListener(event: "readable", listener: () => void): this;
-    prependOnceListener(event: "error", listener: (err: Error) => void): this;
-    prependOnceListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
-
-    removeListener(event: string, listener: (...args: any[]) => void): this;
-    removeListener(event: "close", listener: () => void): this;
-    removeListener(event: "data", listener: (chunk: Buffer | string) => void): this;
-    removeListener(event: "end", listener: () => void): this;
-    removeListener(event: "readable", listener: () => void): this;
-    removeListener(event: "error", listener: (err: Error) => void): this;
-    removeListener(event: "metadata", listener: (type: Type, codec: string, header: any) => void): this;
+    //should add meta-data listener, but regrettably that requires all other events to be repeated
+    //here, or else they won't show up in code-completion. To avoid clutter, the meta-data event
+    //is therefore omitted from this stream.
   }
 
   class BlockEncoder extends stream.Duplex {
