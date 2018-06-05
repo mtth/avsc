@@ -208,6 +208,13 @@ suite('containers', function () {
         assert.throws(function () { new BlockEncoder(t, {codec: 'foo'}); });
       });
 
+      test('invalid metadata', function () {
+        var t = Type.forSchema('int');
+        assert.throws(function () {
+          new BlockEncoder(t, {metadata: {bar: 'foo'}});
+        }, /invalid metadata/);
+      });
+
       test('invalid object', function (cb) {
         var t = Type.forSchema('int');
         var encoder = new BlockEncoder(t)
@@ -643,6 +650,27 @@ suite('containers', function () {
         assert.deepEqual(schema, t1.getSchema());
         return t2;
       }
+    });
+
+    test('metadata', function (cb) {
+      var t = Type.forSchema('string');
+      var buf = t.toBuffer('hello');
+      var sawBuf = false;
+      var objs = [];
+      var encoder = new streams.BlockEncoder(t, {metadata: {foo: buf}});
+      var decoder = new streams.BlockDecoder()
+        .on('metadata', function (type, codec, header) {
+          assert.deepEqual(header.meta.foo, buf);
+          sawBuf = true;
+        })
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, ['hi']);
+          assert(sawBuf);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.end('hi');
     });
 
   });
