@@ -2043,8 +2043,8 @@ suite('services', function () {
 
       var client = svc.createClient({channelPolicy: policy});
       var channels = [
-        client.createChannel(transport),
-        client.createChannel(transport)
+        client.createChannel(transport, {noPing: true}),
+        client.createChannel(transport, {noPing: true})
       ];
       client.ping();
 
