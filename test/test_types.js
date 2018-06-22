@@ -1393,6 +1393,18 @@ suite('types', function () {
       }
     });
 
+    test('roundtripLargeArrayOver1024', function () {
+      var v = new builtins.ArrayType({items: 'int'});
+      var input = [];
+      for (var i = 0; i < 1030; ++i) {
+        input[i] = i;
+      }
+      var output = v.toBuffer(input);
+      var input1 = v.fromBuffer(output)
+      assert.deepEqual(input, input1);
+    });
+
+
   });
 
   suite('RecordType', function () {
