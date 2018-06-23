@@ -1393,6 +1393,21 @@ suite('types', function () {
       }
     });
 
+    test('round-trip multi-block array', function () {
+      var tap = new Tap(new Buffer(64));
+      tap.writeInt(2);
+      tap.writeString('hi');
+      tap.writeString('hey');
+      tap.writeInt(1);
+      tap.writeString('hello');
+      tap.writeInt(0);
+      var t = new builtins.ArrayType({items: 'string'});
+      assert.deepEqual(
+        t.fromBuffer(tap.buf.slice(0, tap.pos)),
+        ['hi', 'hey', 'hello']
+      );
+    });
+
   });
 
   suite('RecordType', function () {
