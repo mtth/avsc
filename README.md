@@ -21,8 +21,7 @@ $ npm install avsc
 ```
 
 `avsc` is compatible with all versions of [node.js][] since `0.11` and major
-browsers via [browserify][] (see the full compatibility table
-[here][browser-support]). For convenience, you can also find compiled
+browsers via [browserify][]. For convenience, you can also find compiled
 distributions with the [releases][] (but please host your own copy).
 
 
