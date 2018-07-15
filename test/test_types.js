@@ -2719,6 +2719,34 @@ suite('types', function () {
       assert.deepEqual(t.getSchema({exportAttrs: true}), schema);
     });
 
+    test('recursive dereferencing name', function () {
+      function BoxType(schema, opts) {
+        LogicalType.call(this, schema, opts);
+      }
+      util.inherits(BoxType, LogicalType);
+
+      BoxType.prototype._fromValue = function (val) { return val.unboxed; };
+
+      BoxType.prototype._toValue = function (any) { return {unboxed: any}; };
+
+      var t = Type.forSchema({
+          name: 'BoxedMap',
+          type: 'record',
+          logicalType: 'box',
+          fields: [
+            {
+              name: 'unboxed',
+              type: {type: 'map', values: ['string', 'BoxedMap']}
+            }
+          ]
+      }, {logicalTypes: {box: BoxType}});
+
+      var v = {foo: 'hi', bar: {baz: {}}};
+      assert(t.isValid({}));
+      assert(t.isValid(v));
+      assert.deepEqual(t.fromBuffer(t.toBuffer(v)), v);
+    });
+
     test('resolve underlying > logical', function () {
       var t1 = Type.forSchema({type: 'string'});
       var t2 = Type.forSchema({
