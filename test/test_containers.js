@@ -514,6 +514,21 @@ suite('containers', function () {
       }, 100);
     });
 
+    test('uncompressed empty record', function (cb) {
+      var t = Type.forSchema({type: 'record', name: 'A', fields: []});
+      var objs = [];
+      var encoder = new streams.BlockEncoder(t);
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (obj) { objs.push(obj); })
+        .on('end', function () {
+          assert.deepEqual(objs, [{}, {}]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write({});
+      encoder.end({});
+    });
+
     test('deflated records', function (cb) {
       var t = Type.forSchema({
         type: 'record',
