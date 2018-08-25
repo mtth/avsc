@@ -2483,7 +2483,6 @@ suite('types', function () {
           123
         );
       });
-
     });
 
     suite('packed', function () {
@@ -2530,6 +2529,23 @@ suite('types', function () {
         assert(slowLongType.isValid(slowLongType.random()));
       });
 
+    });
+
+    test('within unwrapped union', function () {
+      var longType = builtins.LongType.__with({
+        fromBuffer: function (buf) { return {value: buf}; },
+        toBuffer: function (obj) { return obj.value; },
+        fromJSON: function () { throw new Error(); },
+        toJSON: function () { throw new Error(); },
+        isValid: function (obj) { return obj && Buffer.isBuffer(obj.value); },
+        compare: function () { throw new Error(); }
+      }, true);
+      var t = Type.forSchema(['null', 'long'], {registry: {'long': longType}});
+      var v = {value: new Buffer([4])}; // Long encoding of 2.
+
+      assert(t.isValid(null));
+      assert(t.isValid(v));
+      assert.deepEqual(t.fromBuffer(t.toBuffer(v)), v);
     });
 
     test('incomplete buffer', function () {
