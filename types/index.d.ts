@@ -231,6 +231,7 @@ export namespace Service {
     strictTypes: boolean;
     timeout: number;
     remoteProtocols: boolean;
+    transport?: Transport;
   }
 
   interface ServerOptions {
