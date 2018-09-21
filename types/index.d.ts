@@ -202,7 +202,7 @@ export class Service {
   readonly types: Type[];
 
   static compatible(client: Service.Client, server: Service.Server): boolean;
-  static forProtocol(protocol: any, options: any): Service;
+  static forProtocol(protocol: any, options?: any): Service;
   static isService(obj: any): boolean;
 }
 
