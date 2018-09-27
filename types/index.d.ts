@@ -97,7 +97,7 @@ interface EncoderOptions {
 
 interface ForSchemaOptions {
   assertLogicalTypes: boolean;
-  logicalTypes: { [type: string]: types.LogicalType };
+  logicalTypes: { [type: string]: new (schema: Schema, opts?: any) => types.LogicalType; };
   namespace: string;
   noAnonymousTypes: boolean;
   registry: { [name: string]: Type };
