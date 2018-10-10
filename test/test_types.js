@@ -2417,6 +2417,10 @@ suite('types', function () {
         }
       });
 
+      test('schema', function () {
+        assert.equal(slowLongType.schema(), 'long');
+      });
+
       test('encode', function () {
         [123, -1, 321414, 900719925474090].forEach(function (n) {
           assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
