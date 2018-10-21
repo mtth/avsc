@@ -8,7 +8,9 @@ var containers = require('../lib/containers'),
     stream = require('stream');
 
 
-var Header = containers.HEADER_TYPE.getRecordConstructor();
+var BLOCK_TYPE = containers.BLOCK_TYPE;
+var HEADER_TYPE = containers.HEADER_TYPE;
+var Header = HEADER_TYPE.getRecordConstructor();
 var MAGIC_BYTES = containers.MAGIC_BYTES;
 var SYNC = new Buffer('atokensyncheader');
 var Type = types.Type;
@@ -686,6 +688,35 @@ suite('containers', function () {
         });
       encoder.pipe(decoder);
       encoder.end('hi');
+    });
+
+    test('empty block', function (cb) {
+      var t = Type.forSchema('int');
+      var vals = [];
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (val) { vals.push(val); })
+        .on('end', function () {
+          assert.deepEqual(vals, [1, 2]);
+          cb();
+        });
+      decoder.write(HEADER_TYPE.toBuffer({
+        magic: MAGIC_BYTES,
+        meta: {
+          'avro.schema': new Buffer('"int"'),
+          'avro.codec': new Buffer('null')
+        },
+        sync: SYNC
+      }));
+      decoder.write(BLOCK_TYPE.toBuffer({
+        count: 1, data: t.toBuffer(1), sync: SYNC
+      }));
+      decoder.write(BLOCK_TYPE.toBuffer({
+        count: 0, data: new Buffer([]), sync: SYNC
+      }));
+      decoder.write(BLOCK_TYPE.toBuffer({
+        count: 1, data: t.toBuffer(2), sync: SYNC
+      }));
+      decoder.end();
     });
 
   });
