@@ -2094,6 +2094,7 @@ suite('types', function () {
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
+      assert.deepEqual(t.toString({}), '{"name":{"string":"Bob"}}');
       assert.deepEqual(t.getSchema({exportAttrs: true}), schema);
     });
 
