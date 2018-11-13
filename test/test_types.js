@@ -1927,7 +1927,7 @@ suite('types', function () {
           }
         ]
       });
-      var schemaStr = '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int"}]}';
+      var schemaStr = '{"name":"earth.Person","type":"record","fields":[{"name":"friends","type":{"type":"array","items":"string"}},{"name":"age","type":"int","default":0}]}';
       assert.equal(JSON.stringify(t.getSchema()), schemaStr);
       assert.deepEqual(t.getSchema(), JSON.parse(schemaStr));
       assert.deepEqual(t.getSchema({exportAttrs: true}), {
@@ -3288,8 +3288,8 @@ suite('types', function () {
           type: 'record',
           name: 'Human',
           fields: [
-            {name: 'id1', type: ['string', 'null']}, // Stripped defaults.
-            {name: 'id2', type: ['null', 'string']}
+            {name: 'id1', type: ['string', 'null'], default: ''},
+            {name: 'id2', type: ['null', 'string'], default: null}
           ]
         }
       );
