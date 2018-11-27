@@ -4,6 +4,7 @@
 
 var types = require('../lib/types'),
     services = require('../lib/services'),
+    utils = require('../lib/utils'),
     assert = require('assert'),
     stream = require('stream'),
     util = require('util');
@@ -444,11 +445,11 @@ suite('services', function () {
 
     test('decode', function (done) {
       var frames = [
-        new Buffer([0, 1]),
-        new Buffer([2]),
-        new Buffer([]),
-        new Buffer([3, 4]),
-        new Buffer([])
+        utils.bufferFrom([0, 1]),
+        utils.bufferFrom([2]),
+        utils.bufferFrom([]),
+        utils.bufferFrom([3, 4]),
+        utils.bufferFrom([])
       ].map(frame);
       var messages = [];
       createReadableStream(frames)
@@ -457,8 +458,8 @@ suite('services', function () {
           assert.deepEqual(
             messages,
             [
-              {id: null, payload: [new Buffer([0, 1]), new Buffer([2])]},
-              {id: null, payload: [new Buffer([3, 4])]}
+              {id: null, payload: [utils.bufferFrom([0, 1]), utils.bufferFrom([2])]},
+              {id: null, payload: [utils.bufferFrom([3, 4])]}
             ]
           );
           done();
@@ -468,10 +469,10 @@ suite('services', function () {
 
     test('decode with trailing data', function (done) {
       var frames = [
-        new Buffer([0, 1]),
-        new Buffer([2]),
-        new Buffer([]),
-        new Buffer([3])
+        utils.bufferFrom([0, 1]),
+        utils.bufferFrom([2]),
+        utils.bufferFrom([]),
+        utils.bufferFrom([3])
       ].map(frame);
       var messages = [];
       createReadableStream(frames)
@@ -479,7 +480,7 @@ suite('services', function () {
         .on('error', function () {
           assert.deepEqual(
             messages,
-            [{id: null, payload: [new Buffer([0, 1]), new Buffer([2])]}]
+            [{id: null, payload: [utils.bufferFrom([0, 1]), utils.bufferFrom([2])]}]
           );
           done();
         })
@@ -508,8 +509,8 @@ suite('services', function () {
 
     test('encode', function (done) {
       var messages = [
-        {id: 1, payload: [new Buffer([1, 3, 5]), new Buffer([6, 8])]},
-        {id: 4, payload: [new Buffer([123, 23])]}
+        {id: 1, payload: [utils.bufferFrom([1, 3, 5]), utils.bufferFrom([6, 8])]},
+        {id: 4, payload: [utils.bufferFrom([123, 23])]}
       ];
       var frames = [];
       createReadableStream(messages)
@@ -519,14 +520,14 @@ suite('services', function () {
           assert.deepEqual(
             frames,
             [
-              new Buffer([0, 0, 0, 3]),
-              new Buffer([1, 3, 5]),
-              new Buffer([0, 0, 0, 2]),
-              new Buffer([6, 8]),
-              new Buffer([0, 0, 0, 0]),
-              new Buffer([0, 0, 0, 2]),
-              new Buffer([123, 23]),
-              new Buffer([0, 0, 0, 0])
+              utils.bufferFrom([0, 0, 0, 3]),
+              utils.bufferFrom([1, 3, 5]),
+              utils.bufferFrom([0, 0, 0, 2]),
+              utils.bufferFrom([6, 8]),
+              utils.bufferFrom([0, 0, 0, 0]),
+              utils.bufferFrom([0, 0, 0, 2]),
+              utils.bufferFrom([123, 23]),
+              utils.bufferFrom([0, 0, 0, 0])
             ]
           );
           done();
@@ -572,8 +573,8 @@ suite('services', function () {
 
     test('decode with trailing data', function (done) {
       var src = [
-        new Buffer([0, 0, 0, 2, 0, 0, 0]),
-        new Buffer([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
+        utils.bufferFrom([0, 0, 0, 2, 0, 0, 0]),
+        utils.bufferFrom([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
       ];
       var dst = [];
       createReadableStream(src)
@@ -581,7 +582,7 @@ suite('services', function () {
         .on('error', function () {
           assert.deepEqual(
             dst,
-            [{id: 2, payload: [new Buffer([1, 3, 4, 2, 5])]}]
+            [{id: 2, payload: [utils.bufferFrom([1, 3, 4, 2, 5])]}]
           );
           done();
         })
@@ -633,10 +634,10 @@ suite('services', function () {
       });
       var a = new Adapter(s, s);
       assert.throws(function () {
-        a._decodeRequest(new Buffer([24]));
+        a._decodeRequest(utils.bufferFrom([24]));
       }, /truncated/);
       assert.throws(function () {
-        a._decodeResponse(new Buffer([48]), {headers: {}}, s.message('echo'));
+        a._decodeResponse(utils.bufferFrom([48]), {headers: {}}, s.message('echo'));
       }, /truncated/);
     });
   });
@@ -841,7 +842,7 @@ suite('services', function () {
           assert(/trailing/.test(err), err);
           done();
         });
-      transports[0].readable.end(new Buffer([48]));
+      transports[0].readable.end(utils.bufferFrom([48]));
     });
   });
 
@@ -902,7 +903,7 @@ suite('services', function () {
         assert(sawError);
         done();
       });
-      readable.end(new Buffer([48]));
+      readable.end(utils.bufferFrom([48]));
     });
 
     test('default encoder error', function (done) {
@@ -930,8 +931,8 @@ suite('services', function () {
       var readable = new stream.PassThrough({objectMode: true});
       var writable = new stream.PassThrough({objectMode: true})
         .on('data', function (data) {
-          var hres = new Buffer([0, 0, 0, 0]); // Encoded handshake response.
-          var res = new Buffer([0, 0]); // Encoded response (flag and meta).
+          var hres = utils.bufferFrom([0, 0, 0, 0]); // Encoded handshake response.
+          var res = utils.bufferFrom([0, 0]); // Encoded response (flag and meta).
           readable.write({id: data.id, payload: [hres, res]});
         });
       var client = svc.createClient();
@@ -956,7 +957,7 @@ suite('services', function () {
       var readable = new stream.PassThrough({objectMode: true});
       var writable = new stream.PassThrough({objectMode: true})
         .on('data', function (data) {
-          var buf = new Buffer([0, 0, 0, 2, 48]);
+          var buf = utils.bufferFrom([0, 0, 0, 2, 48]);
           readable.write({id: data.id, payload: [buf]});
         });
       var client = svc.createClient();
@@ -1035,7 +1036,7 @@ suite('services', function () {
           assert(this.isDestroyed()); // Deprecated.
           done();
         });
-      transport.end(new Buffer([48]));
+      transport.end(utils.bufferFrom([48]));
     });
 
     test('writable finished', function (done) {
@@ -1081,7 +1082,7 @@ suite('services', function () {
         assert(/trailing/.test(err), err);
         done();
       });
-      transports[1].readable.end(new Buffer([48]));
+      transports[1].readable.end(utils.bufferFrom([48]));
     });
 
     test('delayed writable', function (done) {
@@ -1107,7 +1108,7 @@ suite('services', function () {
             clientHash: svc.hash,
             serverHash: svc.hash
           }),
-          new Buffer([3]) // Invalid request contents.
+          utils.bufferFrom([3]) // Invalid request contents.
         ]
       });
     });
@@ -1124,7 +1125,7 @@ suite('services', function () {
           clientHash: svc.hash,
           serverHash: svc.hash
         }),
-        new Buffer('\x00\x08ping')
+        utils.bufferFrom('\x00\x08ping')
       ];
       var objs = [];
       var readable = new stream.PassThrough({objectMode: true});
@@ -2084,7 +2085,7 @@ suite('services', function () {
       setTimeout(function () {
         // "Send" an invalid payload (negative union offset). We wait to allow
         // the callback for the above message to be registered.
-        transport.readable.write({id: 1, payload: [new Buffer([45])]});
+        transport.readable.write({id: 1, payload: [utils.bufferFrom([45])]});
       }, 0);
     });
   });
@@ -2678,7 +2679,7 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          var buf = new Buffer([0, 1]);
+          var buf = utils.bufferFrom([0, 1]);
           var isDone = false;
           var channel = client.activeChannels()[0];
           client
@@ -2780,7 +2781,7 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           var isDone = false;
-          var buf = new Buffer([0, 1]);
+          var buf = utils.bufferFrom([0, 1]);
           // The server's channel won't be ready right away in the case of
           // stateless transports.
           var channel;
@@ -3228,7 +3229,7 @@ suite('services', function () {
 
 // Message framing.
 function frame(buf) {
-  var framed = new Buffer(buf.length + 4);
+  var framed = utils.newBuffer(buf.length + 4);
   framed.writeInt32BE(buf.length);
   buf.copy(framed, 4);
   return framed;

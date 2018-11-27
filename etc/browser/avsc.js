@@ -43,7 +43,7 @@ BlobReader.prototype._read = function () {
     if (evt.error) {
       self.emit('error', evt.error);
     } else {
-      self.push(new Buffer(reader.result));
+      self.push(utils.bufferFrom(reader.result));
     }
   }, false);
   reader.readAsArrayBuffer(blob);
