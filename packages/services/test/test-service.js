@@ -28,5 +28,9 @@ suite('service', () => {
     assert.equal(msg.name, 'ping');
     assert.equal(msg.response.name, 'Empty');
     assert.equal(msg.error.types[0].typeName, 'logical:system-error');
+    assert.deepEqual(msg.schema(), {
+      request:[],
+      response: {name: 'Empty', type: 'record', fields: []},
+    });
   });
 });

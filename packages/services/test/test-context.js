@@ -13,31 +13,31 @@ suite('context', () => {
   beforeEach(() => { clock = sinon.useFakeTimers(); });
   afterEach(() => { clock.restore(); });
 
-  test('interrupt with default error', (done) => {
+  test('expire with default error', (done) => {
     const ctx = new Context();
     ctx.onCancel((err) => {
-      assert.equal(err.code, 'ERR_AVRO_INTERRUPTED');
+      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
       assert(ctx.cancelled);
       done();
     })
-    ctx.interrupt();
+    ctx.expire();
   });
 
-  test('interrupt with custom error', (done) => {
+  test('expire with custom error', (done) => {
     const ctx = new Context();
     const cause = new Error('foo');
     ctx.onCancel((err) => {
-      assert.equal(err.code, 'ERR_AVRO_INTERRUPTED');
+      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
       assert.strictEqual(err.cause, cause);
       done();
     })
-    ctx.interrupt(cause);
+    ctx.expire(cause);
   });
 
   test('deadline exceeded', (done) => {
     const ctx = new Context(50);
     ctx.onCancel((err) => {
-      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
+      assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
       assert(ctx.cancelled);
       done();
     });
@@ -46,13 +46,13 @@ suite('context', () => {
     clock.tick(55);
   });
 
-  test('interrupt child', (done) => {
+  test('expire child', (done) => {
     const parent = new Context();
     const child = new Context(parent);
     child.onCancel((err_) => {
       assert(parent.cancelled);
       done();
     })
-    parent.interrupt();
+    parent.expire();
   });
 });

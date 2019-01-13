@@ -204,7 +204,7 @@ class Client {
           prev();
         });
       },
-      done,
+      done
     );
 
     function done(err) {
@@ -228,7 +228,7 @@ function messageEmitter(msg) {
       this._middlewares$,
       msg.name,
       req,
-      flatteningErr(args[fields.length] || throwIfError),
+      flatteningErr(args[fields.length] || throwIfError)
     );
   };
 
@@ -366,7 +366,7 @@ class Server {
             prev();
           });
         },
-        cb,
+        cb
       );
     });
   }

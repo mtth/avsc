@@ -46,10 +46,10 @@ suite('client server', () => {
     const {client, server} = clientServer(echoSvc);
     const ctx = new Context();
     server.onMessage().upper((msg, cb) => {
-      ctx.interrupt();
+      ctx.expire();
     });
     client.emitMessage(ctx).upper('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_INTERRUPTED');
+      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
       done();
     });
   });

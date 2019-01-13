@@ -1,6 +1,6 @@
 {
   "name": "@avro/services",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Avro services",
   "homepage": "https://github.com/mtth/avsc",
   "files": [
@@ -8,16 +8,17 @@
   ],
   "main": "./lib",
   "engines": {
-    "node": ">=0.11"
+    "node": ">=7"
   },
   "scripts": {
+    "clean": "rm -rf node_modules",
     "cover": "istanbul cover _mocha",
     "test": "mocha"
   },
   "devDependencies": {
-    "istanbul": "^0.4.5",
-    "mocha": "^3.4.2",
-    "sinon": "^7.2.2"
+    "istanbul": "~0.4.5",
+    "mocha": "~5.2.0",
+    "sinon": "~7.2.2"
   },
   "author": {
     "name": "Matthieu Monsch",
@@ -29,9 +30,8 @@
     "url": "git://github.com/mtth/avsc.git"
   },
   "dependencies": {
-    "@avro/types": "^0.1.1",
-    "debug": "^4.1.1",
-    "luxon": "~1.10.0",
-    "uuid": "^3.3.2"
+    "avsc": "~5.4.7",
+    "debug": "~4.1.1",
+    "luxon": "~1.10.0"
   }
 }

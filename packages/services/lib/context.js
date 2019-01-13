@@ -33,10 +33,12 @@ class Context {
     if (!this._cancelledWith && this._deadline) {
       const remainingTimeout = +this._deadline.diffNow();
       if (remainingTimeout <= 0) {
-        this._expire();
+        this._deadlineExceeded();
         return;
       }
-      this._timer = setTimeout(() => { this._expire(); }, remainingTimeout);
+      this._timer = setTimeout(() => {
+        this._deadlineExceeded();
+      }, remainingTimeout);
     }
   }
 
@@ -70,7 +72,6 @@ class Context {
   }
 
   onCancel(fn) {
-    debugger;
     if (this._cancelledWith) {
       fn.call(this, this._cancelledWith);
       return;
@@ -81,7 +82,6 @@ class Context {
   }
 
   _cancelWith(err) { // Logic shared by timed and manual cancellations.
-    debugger;
     this._cancelledWith = err;
     for (const fn of this._fns.values()) {
       fn.call(this, err);
@@ -92,7 +92,7 @@ class Context {
     }
   }
 
-  interrupt(cause) {
+  expire(cause) {
     if (this._cancelledWith) {
       return;
     }
@@ -100,11 +100,11 @@ class Context {
       clearTimeout(this._timer);
       this._timer = null;
     }
-    return this._cancelWith(new SystemError('ERR_AVRO_INTERRUPTED', cause));
+    return this._cancelWith(new SystemError('ERR_AVRO_EXPIRED', cause));
   }
 
-  _expire() {
-    this._cancelWith(new SystemError('ERR_AVRO_EXPIRED'));
+  _deadlineExceeded() {
+    this._cancelWith(new SystemError('ERR_AVRO_DEADLINE_EXCEEDED'));
   }
 }
 

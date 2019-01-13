@@ -47,7 +47,7 @@ class Message {
     }
     this.error = new WrappedUnionType( // Errors are always wrapped.
       [types.systemError].concat(schema.errors || []),
-      opts,
+      opts
     );
 
     this.oneWay = !!schema['one-way'];

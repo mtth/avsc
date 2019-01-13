@@ -34,7 +34,12 @@ client
     });
   });
 
-poll();
+// poll();
+
+client.emitMessage(ctx).upper('foo', (err, res) => {
+  console.log(res);
+  ctx.expire();
+});
 
 function poll() {
   let i = 0;
