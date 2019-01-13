@@ -2,9 +2,16 @@
 
 'use strict';
 
-const services = require('./services');
+const {Call, Client, Server} = require('./call');
+const channels = require('./channels');
+const {Context} = require('./context');
+const {Message, Service} = require('./service');
 
 module.exports = {
-  Service: services.Service,
-  discoverProtocol: services.discoverProtocol
+  Call,
+  Client,
+  Context,
+  Server,
+  Service,
+  channels,
 };
