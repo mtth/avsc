@@ -9,14 +9,21 @@ const net = require('net');
 const echoService = new Service({
   protocol: 'Echo',
   messages: {
+    echo: {
+      request: [{name: 'message', type: 'string'}],
+      response: 'string',
+    },
     upper: {
       request: [{name: 'message', type: 'string'}],
-      response: 'int',
+      response: 'string',
     },
   },
 });
 
 const server = new Server(echoService)
+  .use((call, next) => {
+    next();
+  })
   .onMessage().upper((str, cb) => {
     cb(null, str.toUpperCase());
   });

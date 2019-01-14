@@ -8,10 +8,6 @@ const net = require('net');
 const echoService = new Service({
   protocol: 'Echo',
   messages: {
-    // echo: {
-    //   request: [{name: 'message', type: 'string'}],
-    //   response: 'string',
-    // },
     upper: {
       request: [{name: 'message', type: 'string'}],
       response: 'string',
@@ -20,11 +16,10 @@ const echoService = new Service({
 });
 
 const client = new Client(echoService);
-const conn = net.createConnection({port: 8080});
+const conn = net.createConnection({port: 8080}).setNoDelay();
 client.channel = channels.netty(conn);
 
-// setTimeout(() => { console.log('hi'); }, 10000);
-const ctx = new Context(5000);
+const ctx = new Context(2000);
 client
   .use((call, next) => {
     console.time(call.request.message);
@@ -34,12 +29,7 @@ client
     });
   });
 
-// poll();
-
-client.emitMessage(ctx).upper('foo', (err, res) => {
-  console.log(res);
-  ctx.expire();
-});
+poll();
 
 function poll() {
   let i = 0;

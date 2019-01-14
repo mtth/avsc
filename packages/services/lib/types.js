@@ -3,6 +3,10 @@
 'use strict';
 
 const {Type, types: {LogicalType}} = require('avsc');
+const {DateTime} = require('luxon');
+
+// Namespace used for all internal types declared here.
+const NAMESPACE = 'org.apache.avro.ipc';
 
 const ERROR_PREFIX = 'ERR_AVRO_';
 
@@ -55,13 +59,23 @@ class SystemErrorType extends LogicalType {
   }
 }
 
-// Namespace used for all internal types declared here.
-const NAMESPACE = 'org.apache.avro.ipc';
+class DateTimeType extends LogicalType {
+  _fromValue(val) {
+    return DateTime.fromMillis(val, {zone: this._zone});
+  }
+
+  _toValue(any) {
+    return DateTime.isDateTime(any) ? any.toMillis() : undefined;
+  }
+}
 
 // Various useful types. We instantiate options once, to share the registry.
 const opts = {
   namespace: NAMESPACE,
-  logicalTypes: {'system-error': SystemErrorType},
+  logicalTypes: {
+    'datetime-millis': DateTimeType,
+    'system-error': SystemErrorType,
+  },
 };
 
 const string = Type.forSchema('string', opts);
@@ -95,6 +109,16 @@ const handshakeResponse = Type.forSchema({
     {name: 'serverHash', type: ['null', 'MD5'], default: null},
     {name: 'meta', type: ['null', mapOfBytes], default: null}
   ]
+}, opts);
+
+const systemError = Type.forSchema({
+  type: 'string',
+  logicalType: 'system-error',
+}, opts);
+
+const dateTime = Type.forSchema({
+  type: 'long',
+  logicalType: 'datetime-millis',
 }, opts);
 
 class RequestPacket {
@@ -154,16 +178,12 @@ class ResponsePacket {
   }
 }
 
-const systemError = Type.forSchema({
-  type: 'string',
-  logicalType: 'system-error',
-}, opts);
-
 module.exports = {
   NAMESPACE,
   RequestPacket,
   ResponsePacket,
   SystemError,
+  dateTime,
   handshakeRequest,
   handshakeResponse,
   systemError,

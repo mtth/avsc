@@ -224,6 +224,7 @@ class NettyProxy {
             return;
           }
           if (hreq.serverHash.toString('binary') !== serverSvc.hash) {
+            d('Mismatched server hash in packet %s, sending protocol.', id);
             hres.match = 'CLIENT';
             hres.serverProtocol = JSON.stringify(serverSvc.protocol);
             hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
@@ -231,6 +232,7 @@ class NettyProxy {
           clientSvc = this._services.get(clientHash);
           if (!clientSvc) {
             if (!hreq.clientProtocol) {
+              d('No service for packet %s, responding with match NONE.', id);
               // A retry will be required.
               const err = new SystemError('ERR_AVRO_UNKNOWN_PROTOCOL');
               hres.match = 'NONE';
@@ -240,25 +242,26 @@ class NettyProxy {
             try {
               clientSvc = new Service(JSON.parse(hreq.clientProtocol));
             } catch (err) {
-              d('Bad protocol: %s', err);
+              d('Bad protocol in packet %s: %s', id, err);
               readable.emit('error', err);
               return;
             }
+            d('Set client service from packet %s.', id);
             this._services.set(clientHash, clientSvc);
           }
-          this._channel(clientSvc, reqPkt, (err, svc, resPkt) => {
-            if (err) {
-              // The server's channel will only return an error if the client's
-              // protocol is incompatible with its own.
-              err = new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
-              d('Error while responding to packet %s: %s', id, err);
-              encoder.write({handshake: hres, packet: err.toPacket(id)});
-              destroy();
-              return;
-            }
-            encoder.write({handshake: hres, packet: resPkt});
-          });
         }
+        this._channel(clientSvc, reqPkt, (err, svc, resPkt) => {
+          if (err) {
+            // The server's channel will only return an error if the client's
+            // protocol is incompatible with its own.
+            err = new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
+            d('Error while responding to packet %s: %s', id, err);
+            encoder.write({handshake: hres, packet: err.toPacket(id)});
+            destroy();
+            return;
+          }
+          encoder.write({handshake: hres, packet: resPkt});
+        });
       })
       .on('error', (err) => {
         d('Proxy decoder error: %s', err);
@@ -323,7 +326,7 @@ class NettyProxy {
 class NettyDecoder extends stream.Transform {
   constructor(packetDecoder, handshakeType) {
     super({readableObjectMode: true});
-    this.connected = false;
+    this._connected = false;
     this._packetDecoder = packetDecoder;
     this._handshakeType = handshakeType;
     this._id = undefined;
@@ -383,16 +386,17 @@ class NettyDecoder extends stream.Transform {
     const handshakeType = this._handshakeType;
     let handshake, packet;
     try {
-      decode(!this.connected);
+      decode(!this._connected);
     } catch (err) {
       d('Failed to decode with%s handshake, retrying...',
-        this.connected ? 'out' : '');
-      decode(this.connected);
+        this._connected ? 'out' : '');
+      decode(this._connected);
     }
     if (!handshake && !this._connected) {
       d('Switching to connected mode.');
-      this.connected = true;
+      this._connected = true;
     }
+    d('Decoded packet %s', id);
     return {handshake, packet};
 
     function decode(withHandshake) {

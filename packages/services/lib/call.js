@@ -6,9 +6,12 @@ const {Context, idGenerator} = require('./context');
 const types = require('./types');
 
 const debug = require('debug');
-const {RequestPacket, ResponsePacket, SystemError} = types;
+const {DateTime} = require('luxon');
 
+const {RequestPacket, ResponsePacket, SystemError} = types;
 const d = debug('avro:services:client');
+
+const DEADLINE_TAG = 'avro.deadline';
 
 class Call {
   constructor(ctx, msg) {
@@ -18,6 +21,9 @@ class Call {
     this.response = undefined;
     this.error = undefined;
     this.tags = {};
+    if (ctx.deadline) {
+      this.tags[DEADLINE_TAG] = ctx.deadline;
+    }
   }
 
   get context() {
@@ -83,7 +89,7 @@ class Decoder {
 class Client {
   constructor(svc) {
     this.channel = null;
-    this._tagTypes = new Map();
+    this._tagTypes = {[DEADLINE_TAG]: types.dateTime};
     this._service = svc;
     this._decoders = new Map();
     this._idGenerator = idGenerator();
@@ -246,7 +252,7 @@ function messageEmitter(msg) {
 
 class Server {
   constructor(svc, chanConsumer) {
-    this._tagTypes = {};
+    this._tagTypes = {[DEADLINE_TAG]: types.dateTime};
     this._service = svc;
     this._middlewares = [];
     this._handlers = new Map();
@@ -258,6 +264,7 @@ class Server {
     this._channel = (clientSvc, reqPkt, cb) => {
       const id = reqPkt.id;
       if (!reqPkt.messageName) { // Ping message.
+        d('Received ping message');
         cb(null, svc, new ResponsePacket(id, Buffer.alloc(1)));
         return;
       }
@@ -275,8 +282,8 @@ class Server {
       }
       const tagTypes = this._tagTypes;
 
-      d('Received request packet %s!', id);
       const msg = svc.messages.get(reqPkt.messageName);
+      d('Received request packet %s for %j.', id, msg.name);
       const call = new Call(new Context(), msg);
       try {
         if (!msg) {
@@ -285,6 +292,12 @@ class Server {
         const tags = deserializeTags(reqPkt.headers, tagTypes);
         for (const key of Object.keys(tags)) {
           call.tags[key] = tags[key];
+        }
+        if (tags[DEADLINE_TAG]) {
+          const deadline = tags[DEADLINE_TAG];
+          delete call.tags[DEADLINE_TAG]; // No need to send it back.
+          d('Propagating deadline (%s) to context.', deadline);
+          call._context = new Context(deadline);
         }
         call.request = decoder.decodeRequest(msg.name, reqPkt.body);
       } catch (cause) {
@@ -308,6 +321,10 @@ class Server {
 
       function done(err) {
         if (err) {
+          if (err.code === 'ERR_AVRO_DEADLINE_EXCEEDED') {
+            d('Packet %s exceeded its deadline, skipping response.', id);
+            return;
+          }
           // This will happen if an error was returned by a middleware.
           call._setSystemError('ERR_AVRO_INTERNAL', err);
         }
@@ -407,9 +424,8 @@ function messageListener(msg) {
 function chain(ctx, call, mws, turn, end) {
   let cleanup;
   cleanup = call.context.onCancel((err) => { // err guaranteed SystemError.
-    call.error = {string: err};
     cleanup = null;
-    end(); // Skip everything, exit the chain.
+    end(err); // Skip everything, exit the chain.
   });
   forward(0, []);
 
