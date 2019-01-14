@@ -11,7 +11,7 @@ const stream = require('stream');
 const {RequestPacket, ResponsePacket, SystemError} = types;
 const d = debug('avro:services:channels:netty');
 
-// TODO: Also return a `free` function to allow reusing the input streams.
+// TODO: Also return a `free` function to allow reusing the input streams?
 function netty(readable, writable) {
   if (!writable) {
     writable = readable;
@@ -38,7 +38,7 @@ function netty(readable, writable) {
 
   const decoder = new NettyDecoder(
     ResponsePacket.fromPayload,
-    types.handshakeResponse,
+    types.handshakeResponse
   );
   readable
     .on('error', onReadableError)
@@ -135,13 +135,13 @@ function netty(readable, writable) {
   function onReadableError(err) {
     d('Readable error: %s', err);
     destroy(err);
-    emitIfNotSwallowed(this, err);
+    emitIfSwallowed(this, err);
   }
 
   function onWritableError(err) {
     d('Writable error: %s', err);
     destroy(err);
-    emitIfNotSwallowed(this, err);
+    emitIfSwallowed(this, err);
   }
 
   function onWritableFinish() {
@@ -200,7 +200,7 @@ class NettyProxy {
 
     const decoder = new NettyDecoder(
       RequestPacket.fromPayload,
-      types.handshakeRequest,
+      types.handshakeRequest
     );
 
     readable
@@ -289,13 +289,13 @@ class NettyProxy {
     function onReadableError(err) {
       d('Proxy readable error: %s', err);
       destroy();
-      emitIfNotSwallowed(this, err);
+      emitIfSwallowed(this, err);
     }
 
     function onWritableError(err) {
       d('Proxy writable error: %s', err);
       destroy();
-      emitIfNotSwallowed(this, err);
+      emitIfSwallowed(this, err);
     }
 
     function onWritableFinish() {
@@ -473,7 +473,7 @@ function intBuffer(n) {
   return buf;
 }
 
-function emitIfNotSwallowed(ee, err) {
+function emitIfSwallowed(ee, err) {
   if (!ee.listenerCount('error')) { // Only re-emit if we swallowed it.
     ee.emit('error', err);
   }
