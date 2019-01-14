@@ -40,6 +40,7 @@ class Context {
         this._deadlineExceeded();
       }, remainingTimeout);
     }
+    Object.seal(this);
   }
 
   static isContext(any) {

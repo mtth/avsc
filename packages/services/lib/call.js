@@ -24,6 +24,8 @@ class Call {
     if (ctx.deadline) {
       this.tags[DEADLINE_TAG] = ctx.deadline;
     }
+    this.data = {};
+    Object.seal(this);
   }
 
   get context() {
@@ -214,7 +216,7 @@ class Client {
     );
 
     function done(err) {
-      if (err) {
+      if (err && !System) {
         call._setSystemError('ERR_AVRO_INTERNAL', err);
       }
       cb.call(call.context, call.error, call.response);
@@ -320,11 +322,14 @@ class Server {
       }
 
       function done(err) {
+        if (
+          call.systemError &&
+          call.systemError.code === 'ERR_AVRO_DEADLINE_EXCEEDED'
+        ) {
+          d('Packet %s exceeded its deadline, skipping response.', id);
+          return;
+        }
         if (err) {
-          if (err.code === 'ERR_AVRO_DEADLINE_EXCEEDED') {
-            d('Packet %s exceeded its deadline, skipping response.', id);
-            return;
-          }
           // This will happen if an error was returned by a middleware.
           call._setSystemError('ERR_AVRO_INTERNAL', err);
         }
@@ -425,7 +430,8 @@ function chain(ctx, call, mws, turn, end) {
   let cleanup;
   cleanup = call.context.onCancel((err) => { // err guaranteed SystemError.
     cleanup = null;
-    end(err); // Skip everything, exit the chain.
+    call.error = {string: err};
+    end(); // Skip everything, exit the chain.
   });
   forward(0, []);
 
