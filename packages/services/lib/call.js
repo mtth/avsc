@@ -427,6 +427,22 @@ function messageListener(msg) {
   };
 }
 
+/**
+ * Ping a server's channel to get its service.
+ *
+ * This method is not exposed publicly since it is not guaranteed to work on
+ * all types of channels (e.g. router channels).
+ */
+function channelService(chan, cb) {
+  chan({id: -1, messageName: ''}, (err, pres) => {
+    if (err) {
+      cb(err);
+      return;
+    }
+    cb(null, pres.serverService);
+  });
+}
+
 function chain(ctx, call, mws, turn, end) {
   let cleanup;
   cleanup = call.context.onCancel((err) => { // err guaranteed SystemError.
@@ -528,4 +544,5 @@ module.exports = {
   Call,
   Client,
   Server,
+  channelService,
 };

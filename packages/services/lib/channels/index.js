@@ -7,6 +7,7 @@
 'use strict';
 
 const {NettyClientBridge, NettyServerBridge} = require('./netty');
+const {channelService} = require('../call');
 const {SystemError} = require('../types');
 
 const {EventEmitter} = require('events');
@@ -25,7 +26,7 @@ class Router extends EventEmitter {
     // Delay processing such that event listeners can be added first.
     process.nextTick(() => {
       chans.forEach((chan) => {
-        service(chan, (err, svc) => {
+        channelService(chan, (err, svc) => {
           if (err) {
             this.emit('error', err);
             return;
@@ -56,16 +57,6 @@ class Router extends EventEmitter {
       chan(preq, cb);
     };
   }
-}
-
-function service(chan, cb) {
-  chan({id: -1, messageName: ''}, (err, pres) => {
-    if (err) {
-      cb(err);
-      return;
-    }
-    cb(null, pres.serverService);
-  });
 }
 
 module.exports = {

@@ -6,6 +6,7 @@
 // new packet-ish class, separate from the existing ones (without the service,
 // just to be decoded and encoded).
 
+const {channelService} = require('../call');
 const {Service} = require('../service');
 const types = require('../types');
 
@@ -188,11 +189,10 @@ class NettyServerBridge {
     this._channel = chan;
     this._serverService = null; // Populated below.
 
-    chan({id: -1, messageName: ''}, (err, resPkt) => {
+    channelService(chan, (err, svc) => {
       if (err) {
         throw err; // Should never happen.
       }
-      const svc = resPkt.serverService;
       this._serverService = svc;
       this._services.set(svc.hash, svc);
       d('Bridge ready to serve %s.', this._serverService.name);
