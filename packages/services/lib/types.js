@@ -34,6 +34,13 @@ class SystemError extends Error {
       typeof any.code == 'string' &&
       any.code.startsWith(ERROR_PREFIX);
   }
+
+  static orCode(code, err) {
+    if (SystemError.isSystemError(err)) {
+      return err;
+    }
+    return new SystemError(code, err);
+  }
 }
 
 class SystemErrorType extends LogicalType {

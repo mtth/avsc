@@ -186,6 +186,7 @@ class NettyServerBridge {
   constructor(chan) {
     this._services = new Map();
     this._channel = chan;
+    this._serverService = null; // Populated below.
 
     chan({id: -1, messageName: ''}, (err, resPkt) => {
       if (err) {
@@ -194,8 +195,10 @@ class NettyServerBridge {
       const svc = resPkt.serverService;
       this._serverService = svc;
       this._services.set(svc.hash, svc);
+      d('Bridge ready to serve %s.', this._serverService.name);
+      // TODO: Emit an event when this happens, probably also buffering accept
+      // calls to save clients from having to do so.
     });
-    d('Proxy ready to serve service %s.', this._serverService.name);
   }
 
   /** Cache of protocol hash to service, saves handshake requests. */
@@ -279,14 +282,14 @@ class NettyServerBridge {
         });
       })
       .on('error', (err) => {
-        d('Proxy decoder error: %s', err);
+        d('Server bridge decoder error: %s', err);
         readable.emit('error', err);
       });
 
     const encoder = new NettyEncoder(types.handshakeResponse);
     encoder
       .on('error', (err) => {
-        d('Proxy encoder error: %s', err);
+        d('Server bridge encoder error: %s', err);
         writable.emit('error', err);
       })
       .pipe(writable)
@@ -297,24 +300,24 @@ class NettyServerBridge {
     }
 
     function onReadableEnd() {
-      d('Proxy readable end.');
+      d('Server bridge readable end.');
       destroy();
     }
 
     function onReadableError(err) {
-      d('Proxy readable error: %s', err);
+      d('Server bridge readable error: %s', err);
       destroy();
       emitIfSwallowed(this, err);
     }
 
     function onWritableError(err) {
-      d('Proxy writable error: %s', err);
+      d('Server bridge writable error: %s', err);
       destroy();
       emitIfSwallowed(this, err);
     }
 
     function onWritableFinish() {
-      d('Proxy writable finished.');
+      d('Server bridge writable finished.');
       destroy();
     }
 

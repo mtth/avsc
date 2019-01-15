@@ -41,7 +41,7 @@ class Call {
   }
 
   _setSystemError(code, cause) {
-    this.error = {string: new SystemError(code, cause)};
+    this.error = {string: SystemError.orCode(code, cause)};
   }
 }
 
@@ -125,7 +125,7 @@ class Client {
     const reqPkt = new RequestPacket(id, this._service, '', Buffer.alloc(0));
     this.channel.call(ctx, reqPkt, (err) => {
       if (err) {
-        cb(new SystemError('ERR_AVRO_CHANNEL_FAILURE', err));
+        cb(SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err));
         return;
       }
       cb();
@@ -216,7 +216,7 @@ class Client {
     );
 
     function done(err) {
-      if (err && !System) {
+      if (err) {
         call._setSystemError('ERR_AVRO_INTERNAL', err);
       }
       cb.call(call.context, call.error, call.response);
