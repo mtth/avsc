@@ -137,5 +137,4 @@ function* idGenerator() {
 
 module.exports = {
   Context,
-  idGenerator,
 };

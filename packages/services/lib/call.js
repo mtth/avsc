@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Context, idGenerator} = require('./context');
+const {Context} = require('./context');
 const types = require('./types');
 
 const debug = require('debug');
@@ -94,7 +94,6 @@ class Client {
     this._tagTypes = {[DEADLINE_TAG]: types.dateTime};
     this._service = svc;
     this._decoders = new Map();
-    this._idGenerator = idGenerator();
     this._emitterProto = {_client$: this};
     for (const msg of svc.messages.values()) {
       this._emitterProto[msg.name] = messageEmitter(msg);
@@ -117,7 +116,7 @@ class Client {
 
   ping(ctx, cb) {
     cb = cb || throwIfError;
-    const id = this._idGenerator.next().value;
+    const id = randomId();
     if (!this.channel) {
       d('No channel available to send ping packet %s.', id);
       cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
@@ -153,7 +152,7 @@ class Client {
       call,
       mws.concat(this._middlewares),
       (prev) => {
-        const id = this._idGenerator.next().value;
+        const id = randomId();
         const reqPkt = new RequestPacket(id, svc, name);
         try {
           reqPkt.headers = serializeTags(call.tags, this._tagTypes);
@@ -508,6 +507,15 @@ function deserializeTags(headers, tagTypes) {
     }
   }
   return tags;
+}
+
+// We are using 31 bit IDs since this is what the Java netty implementation
+// uses, hopefully there aren't ever enough packets in flight for collisions to
+// be an issue. (We could use 32 bits but the extra bit isn't worth the
+// inconvenience of negative numbers or additional logic to transform them.)
+// https://github.com/apache/avro/blob/5e8168a25494b04ef0aeaf6421a033d7192f5625/lang/java/ipc/src/main/java/org/apache/avro/ipc/NettyTransportCodec.java#L100
+function randomId() {
+  return ((-1 >>> 1) * Math.random()) | 0;
 }
 
 function throwIfError(err) {
