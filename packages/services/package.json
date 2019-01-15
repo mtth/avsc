@@ -13,7 +13,7 @@
   "scripts": {
     "clean": "rm -rf node_modules",
     "cover": "istanbul cover _mocha",
-    "test": "mocha"
+    "test": "mocha -C"
   },
   "devDependencies": {
     "istanbul": "~0.4.5",

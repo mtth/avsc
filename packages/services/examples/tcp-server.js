@@ -28,7 +28,7 @@ const server = new Server(echoService)
     cb(null, str.toUpperCase());
   });
 
-const proxy = new channels.NettyProxy(server.channel);
+const bridge = new channels.NettyServerBridge(server.channel);
 
 net.createServer()
   .on('connection', (conn) => {
@@ -38,6 +38,6 @@ net.createServer()
         console.log('Connection unpiped.');
         conn.destroy();
       });
-    proxy.proxy(conn);
+    bridge.accept(conn);
   })
   .listen(8080, () => { console.log('Listening...'); });

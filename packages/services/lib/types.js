@@ -122,8 +122,9 @@ const dateTime = Type.forSchema({
 }, opts);
 
 class RequestPacket {
-  constructor(id, msgName, body, headers) {
+  constructor(id, svc, msgName, body, headers) {
     this.id = id;
+    this.clientService = svc;
     this.messageName = msgName;
     this.body = body;
     this.headers = headers || {};
@@ -137,8 +138,8 @@ class RequestPacket {
     ]);
   }
 
-  static fromPayload(id, buf) {
-    const pkt = new RequestPacket(id);
+  static fromPayload(id, svc, buf) {
+    const pkt = new RequestPacket(id, svc);
     let obj;
     obj = mapOfBytes.decode(buf, 0);
     if (obj.offset < 0) {
@@ -156,8 +157,9 @@ class RequestPacket {
 }
 
 class ResponsePacket {
-  constructor(id, body, headers) {
+  constructor(id, svc, body, headers) {
     this.id = id;
+    this.serverService = svc;
     this.body = body;
     this.headers = headers || {};
   }
@@ -166,8 +168,8 @@ class ResponsePacket {
     return Buffer.concat([mapOfBytes.toBuffer(this.headers), this.body]);
   }
 
-  static fromPayload(id, buf) {
-    const pkt = new ResponsePacket(id);
+  static fromPayload(id, svc, buf) {
+    const pkt = new ResponsePacket(id, svc);
     const {value: headers, offset} = mapOfBytes.decode(buf, 0);
     if (offset < 0) {
       throw new Error('truncated response packet headers');

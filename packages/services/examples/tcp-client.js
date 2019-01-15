@@ -17,7 +17,7 @@ const echoService = new Service({
 
 const client = new Client(echoService);
 const conn = net.createConnection({port: 8080}).setNoDelay();
-client.channel = channels.netty(conn);
+client.channel = new channels.NettyClientBridge(conn).channel;
 
 const ctx = new Context(2000);
 client

@@ -123,8 +123,8 @@ class Client {
       cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
       return;
     }
-    const reqPkt = new RequestPacket(id, '', Buffer.alloc(0));
-    this.channel.call(ctx, this._service, reqPkt, (err) => {
+    const reqPkt = new RequestPacket(id, this._service, '', Buffer.alloc(0));
+    this.channel.call(ctx, reqPkt, (err) => {
       if (err) {
         cb(new SystemError('ERR_AVRO_CHANNEL_FAILURE', err));
         return;
@@ -154,7 +154,7 @@ class Client {
       mws.concat(this._middlewares),
       (prev) => {
         const id = this._idGenerator.next().value;
-        const reqPkt = new RequestPacket(id, name);
+        const reqPkt = new RequestPacket(id, svc, name);
         try {
           reqPkt.headers = serializeTags(call.tags, this._tagTypes);
           reqPkt.body = msg.request.toBuffer(call.request);
@@ -171,12 +171,13 @@ class Client {
           prev();
           return;
         }
-        this.channel.call(ctx, svc, reqPkt, (err, serverSvc, resPkt) => {
+        this.channel.call(ctx, reqPkt, (err, resPkt) => {
           if (err) {
             call._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             prev();
             return;
           }
+          const serverSvc = resPkt.serverService;
           let decoder = this._decoders.get(serverSvc.hash);
           if (!decoder) {
             try {
@@ -263,14 +264,15 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this._channel = (clientSvc, reqPkt, cb) => {
+    this._channel = (reqPkt, cb) => {
       const id = reqPkt.id;
       if (!reqPkt.messageName) { // Ping message.
         d('Received ping message');
-        cb(null, svc, new ResponsePacket(id, Buffer.alloc(1)));
+        cb(null, new ResponsePacket(id, svc, Buffer.alloc(1)));
         return;
       }
 
+      const clientSvc = reqPkt.clientService;
       let decoder = this._decoders.get(clientSvc.hash);
       if (!decoder) {
         try {
@@ -351,7 +353,7 @@ class Server {
         }
         d('Sending response packet %s!', id);
         const body = Buffer.concat([byte, buf]);
-        cb(null, svc, new ResponsePacket(id, body, headers));
+        cb(null, new ResponsePacket(id, svc, body, headers));
       }
     };
   }

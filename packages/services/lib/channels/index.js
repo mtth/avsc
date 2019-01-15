@@ -6,9 +6,18 @@
 
 'use strict';
 
-const {NettyProxy, netty} = require('./netty');
+const {NettyClientBridge, NettyServerBridge} = require('./netty');
+
+class Router {
+  constructor(channels) {
+  }
+
+  get channel() {
+  }
+}
 
 module.exports = {
-  NettyProxy,
-  netty,
+  NettyClientBridge,
+  NettyServerBridge,
+  Router,
 };

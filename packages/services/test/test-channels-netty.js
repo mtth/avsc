@@ -5,7 +5,7 @@
 const {Client, Server} = require('../lib/call');
 const {Context} = require('../lib/context');
 const {Service} = require('../lib/service');
-const {NettyProxy, netty} = require('../lib/channels/netty');
+const {NettyClientBridge, NettyServerBridge} = require('../lib/channels/netty');
 
 const assert = require('assert');
 const {Type} = require('avsc');
@@ -203,17 +203,17 @@ suite('client server', () => {
 function clientServer(svc, cb) {
   const client = new Client(svc);
   const server = new Server(svc);
-  const proxy = new NettyProxy(server.channel);
+  const serverBridge = new NettyServerBridge(server.channel);
   net.createServer()
     .on('connection', (conn) => {
       conn.on('unpipe', () => { conn.destroy(); });
-      proxy.proxy(conn);
+      serverBridge.accept(conn);
     })
     .listen(0, function () {
       const tcpServer = this;
       const port = tcpServer.address().port;
       const conn = net.createConnection(port).setNoDelay();
-      client.channel = netty(conn);
+      client.channel = new NettyClientBridge(conn).channel;
       cb(null, {client, server, cleanup});
 
       function cleanup() {
