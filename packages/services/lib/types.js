@@ -24,9 +24,10 @@ class SystemError extends Error {
     return `SystemError [${this.code}]`;
   }
 
-  toPacket(id) {
+  toPacket(id, svc) {
     const buf = systemError.toBuffer(this);
-    return new ResponsePacket(id, Buffer.concat([Buffer.from([1, 0]), buf]));
+    const body = Buffer.concat([Buffer.from([1, 0]), buf]);
+    return new ResponsePacket(id, svc, body);
   }
 
   static isSystemError(any) {

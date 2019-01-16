@@ -37,37 +37,38 @@ suite('channels index', () => {
     test('single service', (done) => {
       const echoServer = new Server(echoSvc)
         .onMessage().echo((str, cb) => { cb(null, str); });
-      new Router([echoServer.channel])
-        .once('ready', (chan) => {
-          const echoClient = new Client(echoSvc);
-          echoClient.channel = chan;
-          const upperClient = new Client(upperSvc);
-          upperClient.channel = chan;
-          echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
-            assert(!err, err);
-            assert.equal(res, 'foo');
-            upperClient.emitMessage(new Context()).upper('bar', (err, res) => {
-              assert.equal(err.code, 'ERR_AVRO_SERVICE_NOT_FOUND');
-              done();
-            });
-          });
+      const router = new Router([echoServer.channel]);
+      const echoClient = new Client(echoSvc);
+      echoClient.channel = router.channel;
+      const upperClient = new Client(upperSvc);
+      upperClient.channel = router.channel;
+      echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
+        assert(!err, err);
+        assert.equal(res, 'foo');
+        upperClient.emitMessage(new Context()).upper('bar', (err, res) => {
+          assert.equal(err.code, 'ERR_AVRO_SERVICE_NOT_FOUND');
+          done();
         });
+      });
     });
 
     test('two services', (done) => {
       const echoServer = new Server(echoSvc)
         .onMessage().echo((str, cb) => { cb(null, str); });
       const upperServer = new Server(upperSvc);
-      new Router([echoServer.channel, upperServer.channel])
-        .once('ready', (chan) => {
-          const echoClient = new Client(echoSvc);
-          echoClient.channel = chan;
-          echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
-            assert(!err, err);
-            assert.equal(res, 'foo');
-            done();
-          });
+      const router = new Router([echoServer.channel, upperServer.channel]);
+      const echoClient = new Client(echoSvc);
+      echoClient.channel = router.channel;
+      echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
+        assert(!err, err);
+        assert.equal(res, 'foo');
+        router.channel(null, (err, svcs) => {
+          assert(!err, err);
+          svcs.sort((svc) => svc.name);
+          assert.deepEqual(svcs, [echoSvc, upperSvc]);
+          done();
         });
+      });
     });
 
     test('duplicate service', (done) => {

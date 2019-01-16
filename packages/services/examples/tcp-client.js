@@ -8,7 +8,7 @@ const net = require('net');
 const echoService = new Service({
   protocol: 'Echo',
   messages: {
-    upper: {
+    echo: {
       request: [{name: 'message', type: 'string'}],
       response: 'string',
     },
@@ -41,7 +41,7 @@ function poll() {
   });
 
   function emit() {
-    client.emitMessage(ctx).upper('poll-' + (i++), (err, str) => {
+    client.emitMessage(ctx).echo('poll-' + (i++), (err, str) => {
       if (err) {
         console.error(err);
       }

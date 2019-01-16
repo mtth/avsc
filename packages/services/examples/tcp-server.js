@@ -13,6 +13,12 @@ const echoService = new Service({
       request: [{name: 'message', type: 'string'}],
       response: 'string',
     },
+  },
+});
+
+const upperService = new Service({
+  protocol: 'Upper',
+  messages: {
     upper: {
       request: [{name: 'message', type: 'string'}],
       response: 'string',
@@ -20,15 +26,14 @@ const echoService = new Service({
   },
 });
 
-const server = new Server(echoService)
-  .use((call, next) => {
-    next();
-  })
-  .onMessage().upper((str, cb) => {
-    cb(null, str.toUpperCase());
-  });
+const echoServer = new Server(echoService)
+  .onMessage().echo((str, cb) => { cb(null, str); });
 
-const bridge = new channels.NettyServerBridge(server.channel);
+const upperServer = new Server(upperService)
+  .onMessage().upper((str, cb) => { cb(null, str.toUpperCase()); });
+
+const router = new channels.Router([echoServer.channel, upperServer.channel]);
+const bridge = new channels.NettyServerBridge(router.channel);
 
 net.createServer()
   .on('connection', (conn) => {

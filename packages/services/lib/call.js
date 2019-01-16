@@ -122,8 +122,8 @@ class Client {
       cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
       return;
     }
-    const reqPkt = new RequestPacket(id, this._service, '', Buffer.alloc(0));
-    this.channel.call(ctx, reqPkt, (err) => {
+    const preq = new RequestPacket(id, this._service, '', Buffer.alloc(0));
+    this.channel.call(ctx, preq, (err) => {
       if (err) {
         cb(SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err));
         return;
@@ -153,10 +153,10 @@ class Client {
       mws.concat(this._middlewares),
       (prev) => {
         const id = randomId();
-        const reqPkt = new RequestPacket(id, svc, name);
+        const preq = new RequestPacket(id, svc, name);
         try {
-          reqPkt.headers = serializeTags(call.tags, this._tagTypes);
-          reqPkt.body = msg.request.toBuffer(call.request);
+          preq.headers = serializeTags(call.tags, this._tagTypes);
+          preq.body = msg.request.toBuffer(call.request);
         } catch (err) {
           d('Unable to encode request: %d', err);
           call._setSystemError('ERR_AVRO_BAD_REQUEST', err);
@@ -170,13 +170,13 @@ class Client {
           prev();
           return;
         }
-        this.channel.call(ctx, reqPkt, (err, resPkt) => {
+        this.channel.call(ctx, preq, (err, pres) => {
           if (err) {
             call._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             prev();
             return;
           }
-          const serverSvc = resPkt.serverService;
+          const serverSvc = pres.serverService;
           let decoder = this._decoders.get(serverSvc.hash);
           if (!decoder) {
             try {
@@ -194,9 +194,9 @@ class Client {
             return;
           }
           d('Received response packet %s!', id);
-          const buf = resPkt.body;
+          const buf = pres.body;
           try {
-            const tags = deserializeTags(resPkt.headers, this._tagTypes);
+            const tags = deserializeTags(pres.headers, this._tagTypes);
             for (const key of Object.keys(tags)) {
               call.tags[key] = tags[key];
             }
@@ -263,15 +263,20 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this._channel = (reqPkt, cb) => {
-      const id = reqPkt.id;
-      if (!reqPkt.messageName) { // Ping message.
+    this._channel = (preq, cb) => {
+      if (!preq) { // Discovery call.
+        cb(null, [svc]);
+        return;
+      }
+
+      const id = preq.id;
+      if (!preq.messageName) { // Ping message.
         d('Received ping message');
         cb(null, new ResponsePacket(id, svc, Buffer.alloc(1)));
         return;
       }
 
-      const clientSvc = reqPkt.clientService;
+      const clientSvc = preq.clientService;
       let decoder = this._decoders.get(clientSvc.hash);
       if (!decoder) {
         try {
@@ -285,14 +290,14 @@ class Server {
       }
       const tagTypes = this._tagTypes;
 
-      const msg = svc.messages.get(reqPkt.messageName);
+      const msg = svc.messages.get(preq.messageName);
       d('Received request packet %s for %j.', id, msg.name);
       const call = new Call(new Context(), msg);
       try {
         if (!msg) {
-          throw new Error(`no such message: ${reqPkt.messageName}`);
+          throw new Error(`no such message: ${preq.messageName}`);
         }
-        const tags = deserializeTags(reqPkt.headers, tagTypes);
+        const tags = deserializeTags(preq.headers, tagTypes);
         for (const key of Object.keys(tags)) {
           call.tags[key] = tags[key];
         }
@@ -302,7 +307,7 @@ class Server {
           d('Propagating deadline (%s) to context.', deadline);
           call._context = new Context(deadline);
         }
-        call.request = decoder.decodeRequest(msg.name, reqPkt.body);
+        call.request = decoder.decodeRequest(msg.name, preq.body);
       } catch (cause) {
         d('Unable to decode request packet %s: %s', id, cause);
         call._setSystemError('ERR_AVRO_CORRUPT_REQUEST', cause);
@@ -427,22 +432,6 @@ function messageListener(msg) {
   };
 }
 
-/**
- * Ping a server's channel to get its service.
- *
- * This method is not exposed publicly since it is not guaranteed to work on
- * all types of channels (e.g. router channels).
- */
-function channelService(chan, cb) {
-  chan({id: -1, messageName: ''}, (err, pres) => {
-    if (err) {
-      cb(err);
-      return;
-    }
-    cb(null, pres.serverService);
-  });
-}
-
 function chain(ctx, call, mws, turn, end) {
   let cleanup;
   cleanup = call.context.onCancel((err) => { // err guaranteed SystemError.
@@ -544,5 +533,4 @@ module.exports = {
   Call,
   Client,
   Server,
-  channelService,
 };

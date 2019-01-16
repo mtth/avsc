@@ -6,25 +6,31 @@
 // new packet-ish class, separate from the existing ones (without the service,
 // just to be decoded and encoded).
 
-const {channelService} = require('../call');
 const {Service} = require('../service');
 const types = require('../types');
 
 const debug = require('debug');
+const {EventEmitter} = require('events');
 const stream = require('stream');
 
 const {RequestPacket, ResponsePacket, SystemError} = types;
 const d = debug('avro:services:channels:netty');
 
+/**
+ * Bridge between a channel and netty connecion.
+ *
+ */
 // TODO: Add a `free` function to allow reusing the input streams?
 class NettyClientBridge {
-  constructor(readable, writable) {
-    if (!writable) {
+  constructor(readable, writable, opts) {
+    if (!isStream(writable)) {
+      opts = writable;
       writable = readable;
     }
+    const stateful = opts && opts.stateful;
     const cbs = new Map();
     let draining = false;
-    let match = 'NONE';
+    let match = null;
     let clientSvc = null;
     let serverHash = null;
     let serverSvc = null;
@@ -51,8 +57,8 @@ class NettyClientBridge {
       .on('error', onReadableError)
       .on('end', onReadableEnd)
       .pipe(decoder)
-      .on('data', ({handshake, packet: resPkt}) => {
-        const id = resPkt.id;
+      .on('data', ({handshake, packet: pres}) => {
+        const id = pres.id;
         if (handshake) {
           match = handshake.match;
           d('Response to packet %s has a handshake with match %s.', id, match);
@@ -76,13 +82,13 @@ class NettyClientBridge {
         if (match === 'NONE' && !obj.retried) { // We need to retry this packet.
           d('Retrying packet %s.', id);
           obj.retried = true;
-          send(obj.reqPkt);
+          send(obj.preq);
           return;
         }
         const delay = Date.now() - obj.time;
         d('Received response to packet %s in %sms.', id, delay);
-        resPkt.serverService = serverSvc;
-        obj.cb(null, resPkt);
+        pres.serverService = serverSvc;
+        obj.cb(null, pres);
       })
       .on('error', (err) => {
         d('Decoder error: %s', err);
@@ -110,26 +116,30 @@ class NettyClientBridge {
         attempt: 1,
         time: Date.now(),
         cb: (...args) => { cleanup(); cbs.delete(id); cb(...args); },
-        reqPkt: match === 'BOTH' ? null : packet, // In case of retry.
+        preq: match === 'BOTH' ? null : packet, // In case of retry.
       });
       send(packet);
     }
 
     function send(packet) {
-      let handshake = null;
-      if (!serverHash) { // No response from server yet.
-        handshake = {
-          clientHash: Buffer.from(clientSvc.hash, 'binary'),
-          serverHash: Buffer.from(clientSvc.hash, 'binary'),
-        };
-      } else if (match === 'NONE') { // Server doesn't know client protocol.
-        handshake = {
-          clientHash: Buffer.from(clientSvc.hash, 'binary'),
-          clientProtocol: JSON.stringify(clientSvc.protocol),
-          serverHash: Buffer.from(serverHash, 'binary'),
-        };
+      let handshake = {
+        clientHash: Buffer.from(clientSvc.hash, 'binary'),
+        serverHash: Buffer.from(
+          (serverSvc ? serverSvc : clientSvc).hash,
+          'binary'
+        ),
+      };
+      let suffix;
+      if (match === 'NONE') { // Server doesn't know client protocol.
+        handshake.clientProtocol = JSON.stringify(clientSvc.protocol);
+        suffix = 'with full handshake';
+      } else if (match && stateful) {
+        handshake = null;
+        suffix = 'without handshake';
+      } else {
+        suffix = 'with light handshake';
       }
-      d('Sending packet %s.', packet.id);
+      d('Sending packet %s %s.', packet.id, suffix);
       encoder.write({handshake, packet});
     }
 
@@ -183,35 +193,53 @@ class NettyClientBridge {
   }
 }
 
-class NettyServerBridge {
+/**
+ * Netty connection to channel bridge.
+ *
+ * Note that when a request packet omits its handshake, the previous packet's
+ * service will be used. This will work correctly when only clients from a
+ * single service connect to this bridge, but likely won't otherwise.
+ */
+class NettyServerBridge extends EventEmitter {
   constructor(chan) {
-    this._services = new Map();
+    super();
+    this._clientServices = null;
+    this._serverServices = null;
     this._channel = chan;
-    this._serverService = null; // Populated below.
 
-    channelService(chan, (err, svc) => {
+    chan(null, (err, svcs) => {
       if (err) {
-        throw err; // Should never happen.
+        this.emit('error', err);
+        return;
       }
-      this._serverService = svc;
-      this._services.set(svc.hash, svc);
-      d('Bridge ready to serve %s.', this._serverService.name);
-      // TODO: Emit an event when this happens, probably also buffering accept
-      // calls to save clients from having to do so.
+      this._clientServices = new Map(); // Keyed by hash.
+      this._serverServices = new Map(); // Keyed by name.
+      for (const svc of svcs) {
+        this._clientServices.set(svc.hash, svc);
+        this._serverServices.set(svc.name, svc);
+      }
+      d('Bridge ready to serve %s service(s).', this._serverServices.size);
+      this.emit('ready');
     });
   }
 
   /** Cache of protocol hash to service, saves handshake requests. */
   get knownServices() {
-    return this._services;
+    return this._clientServices;
   }
 
   /** Accept a connection. */
   accept(readable, writable) {
+    if (!this._clientServices) {
+      d('Server bridge is not ready yet, queuing acceptance call');
+      this.once('ready', () => this.accept(readable, writable));
+      return;
+    }
+
     if (!writable) {
       writable = readable;
     }
-    const serverSvc = this._serverService;
+    // We store the last client service seen for stateful connections.
     let clientSvc = null;
 
     const decoder = new NettyDecoder(
@@ -224,8 +252,8 @@ class NettyServerBridge {
       .on('error', onReadableError)
       .on('end', onReadableEnd)
       .pipe(decoder)
-      .on('data', ({handshake: hreq, packet: reqPkt}) => {
-        const id = reqPkt.id;
+      .on('data', ({handshake: hreq, packet: preq}) => {
+        const id = preq.id;
         if (!hreq && !clientSvc) {
           d('Dropping packet %s, no handshake or client service.', id);
           readable.emit('error', new Error('expected handshake'));
@@ -235,24 +263,21 @@ class NettyServerBridge {
         if (hreq) {
           hres = {match: 'BOTH'};
           const clientHash = hreq.clientHash.toString('binary');
-          if (clientSvc && clientSvc.hash !== clientHash) {
-            d('Dropping packet %s, incompatible hash: %j', clientHash);
-            readable.emit('error', new Error('incompatible hash'));
-            return;
-          }
-          if (hreq.serverHash.toString('binary') !== serverSvc.hash) {
-            d('Mismatched server hash in packet %s, sending protocol.', id);
-            hres.match = 'CLIENT';
-            hres.serverProtocol = JSON.stringify(serverSvc.protocol);
-            hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
-          }
-          clientSvc = this._services.get(clientHash);
+          clientSvc = this._clientServices.get(clientHash);
           if (!clientSvc) {
             if (!hreq.clientProtocol) {
               d('No service for packet %s, responding with match NONE.', id);
               // A retry will be required.
-              const err = new SystemError('ERR_AVRO_UNKNOWN_PROTOCOL');
+              const err = new SystemError('ERR_AVRO_UNKNOWN_CLIENT_PROTOCOL');
               hres.match = 'NONE';
+              if (this._serverServices.size === 1) {
+                // If only one server is behind this channel, we can already
+                // send its protocol, otherwise we will have to wait for the
+                // client protocol's name to tell which one to send back.
+                const serverSvc = Array.from(this._serverServices.value())[0];
+                hres.serverProtocol = JSON.stringify(serverSvc.protocol);
+                hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
+              }
               encoder.write({handshake: hres, packet: err.toPacket(id)});
               return;
             }
@@ -264,11 +289,18 @@ class NettyServerBridge {
               return;
             }
             d('Set client service from packet %s.', id);
-            this._services.set(clientHash, clientSvc);
+            this._clientServices.set(clientHash, clientSvc);
+          }
+          const serverSvc = this._serverServices.get(clientSvc.name);
+          if (!serverSvc) {
+            d('Unknown server hash in packet %s, sending protocol.', id);
+            hres.match = 'CLIENT';
+            hres.serverProtocol = JSON.stringify(serverSvc.protocol);
+            hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
           }
         }
-        reqPkt.clientService = clientSvc;
-        this._channel(reqPkt, (err, resPkt) => {
+        preq.clientService = clientSvc;
+        this._channel(preq, (err, pres) => {
           if (err) {
             // The server's channel will only return an error if the client's
             // protocol is incompatible with its own.
@@ -278,7 +310,7 @@ class NettyServerBridge {
             destroy();
             return;
           }
-          encoder.write({handshake: hres, packet: resPkt});
+          encoder.write({handshake: hres, packet: pres});
         });
       })
       .on('error', (err) => {
@@ -344,7 +376,7 @@ class NettyServerBridge {
 class NettyDecoder extends stream.Transform {
   constructor(packetDecoder, handshakeType) {
     super({readableObjectMode: true});
-    this._connected = false;
+    this._expectHandshake = true;
     this._packetDecoder = packetDecoder;
     this._handshakeType = handshakeType;
     this._id = undefined;
@@ -404,15 +436,15 @@ class NettyDecoder extends stream.Transform {
     const handshakeType = this._handshakeType;
     let handshake, packet;
     try {
-      decode(!this._connected);
+      decode(this._expectHandshake);
     } catch (err) {
       d('Failed to decode with%s handshake, retrying...',
-        this._connected ? 'out' : '');
-      decode(this._connected);
+        this._expectHandshake ? '' : 'out');
+      decode(this._expectHandshake);
     }
-    if (!handshake && !this._connected) {
-      d('Switching to connected mode.');
-      this._connected = true;
+    if (!handshake && this._expectHandshake) {
+      d('Switching to handshake-free mode.');
+      this._expectHandshake = false;
     }
     d('Decoded packet %s', id);
     return {handshake, packet};
@@ -456,6 +488,7 @@ class NettyEncoder extends stream.Transform {
   }
 
   _encode(obj) {
+    d('Encoding packet %s', obj.packet.id);
     const bufs = [obj.packet.toPayload()];
     if (obj.handshake) {
       bufs.unshift(this._handshakeType.toBuffer(obj.handshake));
@@ -495,6 +528,10 @@ function emitIfSwallowed(ee, err) {
   if (!ee.listenerCount('error')) { // Only re-emit if we swallowed it.
     ee.emit('error', err);
   }
+}
+
+function isStream(any) {
+  return any && typeof any.pipe == 'function';
 }
 
 module.exports = {
