@@ -90,80 +90,74 @@ class Router extends EventEmitter {
  */
 // TODO: Add heartbeat option.
 // TODO: Add option to retry calls and spread them over time.
-class Watcher extends EventEmitter {
+class Monitor extends EventEmitter {
   constructor(fn, {isFatal, refreshBackoff} = {}) {
     super();
-    this._refresh = fn;
+    this._channelProvider = fn;
+    this._activeChannel = null;
     this._activeArgs = null;
-    this._isFatal = isFatal || ((err) => err.code === 'ERR_AVRO_CHANNEL_FAILURE');
-    this._attempts = 0;
-    this._nextAttempt = null;
+    this._isFatal = isFatal || ((e) => e.code === 'ERR_AVRO_CHANNEL_FAILURE');
+    this._refreshError = null;
+
+    this._attempts = 1;
     this._refreshBackoff = (refreshBackoff || backoff.fibonacci())
       .on('backoff', (num, delay) => {
-        this._attempts = num + 1;
-        d('Backing off refresh #%s by %sms.', this._attempts, delay);
-        this._nextAttempt = DateTime.local().plus(Duration.fromMillis(delay));
-        this._activeArgs = null;
+        d('Scheduling refresh in %sms.', delay);
       })
-      .on('ready', (num) => {
-        d('Starting refresh attempt...');
-        this._refreshChannel((err) => {
-          if (err) {
-            if (this._isFatal(err)) {
-              d('Error while refreshing channel, retrying shortly: %s', err);
-              this._refreshBackoff.backoff();
-            } else {
-              d('Error while refreshing channel, giving up: %s', err);
-            }
-            return;
-          }
-          this._attempts = 1;
-          this._refreshBackoff.reset();
-        });
+      .on('ready', () => {
+        d('Starting refresh attempt #%s...', this._attempts++);
+        this._refreshChannel();
       })
-      .on('fail', () => { d('Exhausted refresh attempts, giving up.'); });
-    this._refreshChannel((err) => {
-      if (err) {
-        d('Startup failed, refreshing: %s', err);
-        this._refreshBackoff.backoff();
-      }
-    });
+      .on('fail', () => {
+        d('Exhausted refresh attempts, giving up.');
+        this._refreshError = new Error('exhausted refresh attempts');
+      });
+
+    this._refreshChannel();
   }
 
-  _refreshChannel(cb) {
-    this._refresh((err, ...args) => {
+  _refreshChannel() {
+    this._channelProvider((err, chan, ...args) => {
       if (err) {
-        d('Error while refreshing, giving up: %s', err);
-        this.emit('error', err);
+        d('Error while refreshing channel, giving up: %s', err);
+        this._refreshError = err;
         return;
       }
-      this._attempts = 1;
-      this._activeArgs = args;
-      d('Watcher is now ready.');
-      this.emit('ready');
-      this._activeArgs[0](null, cb); // Make sure the channel is available.
+      chan(null, (err, svcs) => {
+        if (err) {
+          d('Error on fresh channel, retrying shortly: %s', err);
+          this._refreshBackoff.backoff();
+          return;
+        }
+        this._activeChannel = chan; // TODO: Wrap in heartbeat.
+        this._activeArgs = args;
+        this._attempts = 1;
+        this._refreshBackoff.reset();
+        d('Monitor ready.');
+        this.emit('up', ...args);
+      });
     });
   }
 
   get channel() {
     return (preq, cb) => {
-      if (!this._activeArgs) {
-        if (!this._attempts) { // Watcher is starting up for the first time.
-          d('Watcher not yet ready, queuing call %s.', preq.id);
-          this.once('ready', () => { this.channel(preq, cb); });
-          return;
+      if (!this._activeChannel) {
+        const err = this._refreshError;
+        if (err) {
+          cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL', err));
+        } else {
+          d('Monitor not yet ready, queuing call %s.', preq.id);
+          this.once('up', () => { this.channel(preq, cb); });
         }
-        d('Watcher is currently refreshing, declining packet %s.', preq.id);
-        const err = new Error(`no channel after ${this._attempts} attempt(s)`);
-        err.retryAfter = this._nextAttempt;
-        cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL', err));
         return;
       }
-      this._activeArgs[0](preq, (err, pres) => {
-        if (err && this._activeArgs && this._isFatal(err)) {
-          this.emit('down', ...this._activeArgs);
+      this._activeChannel(preq, (err, pres) => {
+        const args = this._activeArgs;
+        if (err && args && this._isFatal(err) && !this._refreshError) {
+          this._activeChannel = null;
+          this._activeArgs = null;
+          this.emit('down', ...args);
           this._refreshBackoff.backoff();
-          return;
         }
         cb(err, pres);
       });
@@ -172,8 +166,8 @@ class Watcher extends EventEmitter {
 }
 
 module.exports = {
+  Monitor,
   NettyClientBridge,
   NettyServerBridge,
   Router,
-  Watcher,
 };

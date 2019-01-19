@@ -5,7 +5,7 @@
 const {Client, Server} = require('../lib/call');
 const {Context} = require('../lib/context');
 const {Service} = require('../lib/service');
-const {Router, Watcher} = require('../lib/channels');
+const {Monitor, Router} = require('../lib/channels');
 
 const assert = require('assert');
 const {Type} = require('avsc');
@@ -83,7 +83,7 @@ suite('channels index', () => {
     });
   });
 
-  suite('watcher', () => {
+  suite('Monitor', () => {
     let clock;
 
     setup(() => { clock = sinon.useFakeTimers(); });
@@ -93,8 +93,8 @@ suite('channels index', () => {
       const echoClient = new Client(echoSvc);
       const echoServer = new Server(echoSvc)
         .onMessage().echo((str, cb) => { cb(null, str); });
-      const watcher = new Watcher((cb) => { cb(null, echoServer.channel); });
-      echoClient.channel = watcher.channel;
+      const monitor = new Monitor((cb) => { cb(null, echoServer.channel); });
+      echoClient.channel = monitor.channel;
       echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
@@ -106,27 +106,10 @@ suite('channels index', () => {
       const echoClient = new Client(echoSvc);
       const echoServer = new Server(echoSvc)
         .onMessage().echo((str, cb) => { cb(null, str); });
-      const watcher = new Watcher((cb) => {
+      const monitor = new Monitor((cb) => {
         process.nextTick(() => { cb(null, echoServer.channel); });
       });
-      echoClient.channel = watcher.channel;
-      echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
-        assert(!err, err);
-        assert.equal(res, 'foo');
-        done();
-      });
-    });
-
-    test('refresh once', (done) => {
-      const echoClient = new Client(echoSvc);
-      const echoServer = new Server(echoSvc)
-        .onMessage().echo((str, cb) => { cb(null, str); });
-      const flakyChan = flakyChannel(echoServer.channel, 1);
-      const watcher = new Watcher((cb) => {
-        cb(null, flakyChan);
-      }, {refreshBackoff: backoff.fibonacci({initialDelay: 10})});
-      echoClient.channel = watcher.channel;
-      clock.tick(10);
+      echoClient.channel = monitor.channel;
       echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
@@ -139,19 +122,16 @@ suite('channels index', () => {
       const echoServer = new Server(echoSvc)
         .onMessage().echo((str, cb) => { cb(null, str); });
       const flakyChan = flakyChannel(echoServer.channel, 2);
-      const watcher = new Watcher((cb) => {
+      const monitor = new Monitor((cb) => {
         cb(null, flakyChan);
       }, {refreshBackoff: backoff.fibonacci({initialDelay: 10})});
-      echoClient.channel = watcher.channel;
-      echoClient.emitMessage(new Context()).echo('foo', (err) => {
-        assert.equal(err.code, 'ERR_AVRO_NO_AVAILABLE_CHANNEL');
-        clock.tick(10);
-        echoClient.emitMessage(new Context()).echo('foo', (err) => {
-          assert.equal(err.code, 'ERR_AVRO_NO_AVAILABLE_CHANNEL');
-          done();
-        });
+      echoClient.channel = monitor.channel;
+      clock.tick(30);
+      echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
+        assert(!err, err);
+        assert.equal(res, 'foo');
+        done();
       });
-      clock.tick(15);
     });
   });
 });
