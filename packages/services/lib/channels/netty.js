@@ -290,11 +290,13 @@ class NettyServerBridge extends EventEmitter {
         }
         const preq = new Packet(id, clientSvc, packet.body, packet.headers);
         this._channel(preq, (err, pres) => {
+          if (pres.timeoutMillis() <= 0) {
+            d('Skipping packet %s, its deadline is already exceeded.', pres.id);
+            return;
+          }
           if (err) {
-            // The server's channel will only return an error if the client's
-            // protocol is incompatible with its own.
-            err = new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
             d('Error while responding to packet %s: %s', id, err);
+            err = new SystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             const packet = NettyPacket.forSystemError(err);
             encoder.write({handshake: hres, id, packet});
             destroy();

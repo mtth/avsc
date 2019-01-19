@@ -8,10 +8,10 @@ const assert = require('assert');
 const sinon = require('sinon');
 
 suite('context', () => {
-
   let clock;
-  beforeEach(() => { clock = sinon.useFakeTimers(); });
-  afterEach(() => { clock.restore(); });
+
+  setup(() => { console.log('foo'); clock = sinon.useFakeTimers(); });
+  teardown(() => { clock.restore(); });
 
   test('expire with default error', (done) => {
     const ctx = new Context();

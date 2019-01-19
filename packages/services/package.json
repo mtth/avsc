@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "avsc": "~5.4.7",
+    "backoff": "~2.5.0",
     "debug": "~4.1.1",
     "luxon": "~1.10.0"
   }

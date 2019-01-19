@@ -277,7 +277,7 @@ class Server {
         try {
           decoder = new Decoder(clientSvc, svc);
         } catch (err) {
-          cb(err);
+          cb(new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL' , err));
           return;
         }
         d('Adding decoder for client service %j.', clientSvc.hash);

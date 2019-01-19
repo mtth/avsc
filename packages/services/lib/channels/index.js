@@ -5,9 +5,10 @@
 const {NettyClientBridge, NettyServerBridge} = require('./netty');
 const {SystemError} = require('../types');
 
-// const backoff = require('backoff');
+const backoff = require('backoff');
 const debug = require('debug');
 const {EventEmitter} = require('events');
+const {DateTime, Duration} = require('luxon');
 
 const d = debug('avro:services:channels');
 
@@ -28,7 +29,7 @@ class Router extends EventEmitter {
     this._ready = false;
     this._channel = (preq, cb) => {
       if (!this._ready) {
-        d('Router not yet ready, queuing call.');
+        d('Router not yet ready, queuing call %s.', preq.id);
         this.once('ready', () => { this._channel(preq, cb); });
         return;
       }
@@ -82,15 +83,6 @@ class Router extends EventEmitter {
   }
 }
 
-
-// const watcher = new channels.Watcher()
-//   .watch(((cb) => {
-//   cb(null, chan, sock);
-// }).on('up', (sock) => {
-//   })
-//   .on('down', (sock) => {
-//   });
-
 /**
  * Resilient channel.
  *
@@ -99,50 +91,77 @@ class Router extends EventEmitter {
 // TODO: Add heartbeat option.
 // TODO: Add option to retry calls and spread them over time.
 class Watcher extends EventEmitter {
-  constructor(provider, {isFatal, refreshBackoff} = {}) {
-    this._provider = provider;
+  constructor(fn, {isFatal, refreshBackoff} = {}) {
+    super();
+    this._refresh = fn;
+    this._activeArgs = null;
     this._isFatal = isFatal || ((err) => err.code === 'ERR_AVRO_CHANNEL_FAILURE');
     this._attempts = 0;
     this._nextAttempt = null;
     this._refreshBackoff = (refreshBackoff || backoff.fibonacci())
       .on('backoff', (num, delay) => {
-        d('Channel refresh backoff #%s (%sms)...', num, delay);
-        this._attempts = num;
+        this._attempts = num + 1;
+        d('Backing off refresh #%s by %sms.', this._attempts, delay);
         this._nextAttempt = DateTime.local().plus(Duration.fromMillis(delay));
+        this._activeArgs = null;
       })
-      .on('ready', () => {
-        d('Channel refresh attempt #%s...', num);
-        const chan = this._channelProvider();
-        poll(chan, (err) => {
+      .on('ready', (num) => {
+        d('Starting refresh attempt...');
+        this._refreshChannel((err) => {
           if (err) {
+            if (this._isFatal(err)) {
+              d('Error while refreshing channel, retrying shortly: %s', err);
+              this._refreshBackoff.backoff();
+            } else {
+              d('Error while refreshing channel, giving up: %s', err);
+            }
+            return;
           }
+          this._attempts = 1;
+          this._refreshBackoff.reset();
         });
-
-        const bkf = this._refreshBackoff;
-
-      });
+      })
+      .on('fail', () => { d('Exhausted refresh attempts, giving up.'); });
+    this._refreshChannel((err) => {
+      if (err) {
+        d('Startup failed, refreshing: %s', err);
+        this._refreshBackoff.backoff();
+      }
+    });
   }
 
-  _restart(cb) {
-    this._provider((err, chan, ...args) => {
+  _refreshChannel(cb) {
+    this._refresh((err, ...args) => {
       if (err) {
-        cb(err);
+        d('Error while refreshing, giving up: %s', err);
+        this.emit('error', err);
         return;
       }
+      this._attempts = 1;
+      this._activeArgs = args;
+      d('Watcher is now ready.');
+      this.emit('ready');
+      this._activeArgs[0](null, cb); // Make sure the channel is available.
     });
   }
 
   get channel() {
     return (preq, cb) => {
-      if (!this._activeChannel) {
+      if (!this._activeArgs) {
+        if (!this._attempts) { // Watcher is starting up for the first time.
+          d('Watcher not yet ready, queuing call %s.', preq.id);
+          this.once('ready', () => { this.channel(preq, cb); });
+          return;
+        }
+        d('Watcher is currently refreshing, declining packet %s.', preq.id);
         const err = new Error(`no channel after ${this._attempts} attempt(s)`);
         err.retryAfter = this._nextAttempt;
         cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL', err));
         return;
       }
-      this._channel(preq, (err, pres) => {
-        if (err && this._isFatal(err)) { // Channel can't be reused...
-          this._channel = null;
+      this._activeArgs[0](preq, (err, pres) => {
+        if (err && this._activeArgs && this._isFatal(err)) {
+          this.emit('down', ...this._activeArgs);
           this._refreshBackoff.backoff();
           return;
         }
@@ -156,4 +175,5 @@ module.exports = {
   NettyClientBridge,
   NettyServerBridge,
   Router,
+  Watcher,
 };
