@@ -24,12 +24,6 @@ class SystemError extends Error {
     return `SystemError [${this.code}]`;
   }
 
-  toPacket(id, svc) {
-    const buf = systemError.toBuffer(this);
-    const body = Buffer.concat([Buffer.from([1, 0]), buf]);
-    return new ResponsePacket(id, svc, body);
-  }
-
   static isSystemError(any) {
     return any &&
       typeof any.code == 'string' &&
@@ -129,72 +123,33 @@ const dateTime = Type.forSchema({
   logicalType: 'datetime-millis',
 }, opts);
 
-class RequestPacket {
-  constructor(id, svc, msgName, body, headers) {
-    this.id = id;
-    this.clientService = svc;
-    this.messageName = msgName;
-    this.body = body;
-    this.headers = headers || {};
-  }
+const DEADLINE_TAG = 'avro.deadline';
 
-  toPayload() {
-    return Buffer.concat([
-      mapOfBytes.toBuffer(this.headers),
-      string.toBuffer(this.messageName),
-      this.body,
-    ]);
-  }
-
-  static fromPayload(id, svc, buf) {
-    const pkt = new RequestPacket(id, svc);
-    let obj;
-    obj = mapOfBytes.decode(buf, 0);
-    if (obj.offset < 0) {
-      throw new Error('truncated request packet headers');
-    }
-    pkt.headers = obj.value;
-    obj = string.decode(buf, obj.offset)
-    if (obj.offset < 0) {
-      throw new Error('truncated request packet message name');
-    }
-    pkt.messageName = obj.value;
-    pkt.body = buf.slice(obj.offset);
-    return pkt;
-  }
-}
-
-class ResponsePacket {
+class Packet {
   constructor(id, svc, body, headers) {
     this.id = id;
-    this.serverService = svc;
+    this.service = svc;
     this.body = body;
     this.headers = headers || {};
   }
 
-  toPayload() {
-    return Buffer.concat([mapOfBytes.toBuffer(this.headers), this.body]);
-  }
-
-  static fromPayload(id, svc, buf) {
-    const pkt = new ResponsePacket(id, svc);
-    const {value: headers, offset} = mapOfBytes.decode(buf, 0);
-    if (offset < 0) {
-      throw new Error('truncated response packet headers');
+  timeoutMillis() {
+    const buf = this.headers[DEADLINE_TAG];
+    if (!buf) {
+      return Infinity;
     }
-    pkt.headers = headers;
-    pkt.body = buf.slice(offset);
-    return pkt;
+    return DateTime.local() - dateTime.fromBuffer(buf);
   }
 }
 
 module.exports = {
   NAMESPACE,
-  RequestPacket,
-  ResponsePacket,
+  Packet,
   SystemError,
   dateTime,
   handshakeRequest,
   handshakeResponse,
+  mapOfBytes,
+  string,
   systemError,
 };

@@ -2,10 +2,6 @@
 
 'use strict';
 
-// TODO: Improve how services are added to packets, possibly by introducing a
-// new packet-ish class, separate from the existing ones (without the service,
-// just to be decoded and encoded).
-
 const {Service} = require('../service');
 const types = require('../types');
 
@@ -13,13 +9,10 @@ const debug = require('debug');
 const {EventEmitter} = require('events');
 const stream = require('stream');
 
-const {RequestPacket, ResponsePacket, SystemError} = types;
+const {Packet, SystemError} = types;
 const d = debug('avro:services:channels:netty');
 
-/**
- * Bridge between a channel and netty connecion.
- *
- */
+/** Bridge between a channel and netty connecion. */
 // TODO: Add a `free` function to allow reusing the input streams?
 class NettyClientBridge {
   constructor(readable, writable, opts) {
@@ -48,17 +41,12 @@ class NettyClientBridge {
       writable.on('error', onWritableError);
     }
 
-    const decoder = new NettyDecoder(
-      // Service populated below.
-      (id, buf) => ResponsePacket.fromPayload(id, null, buf),
-      types.handshakeResponse
-    );
+    const decoder = new NettyDecoder(types.handshakeResponse);
     readable
       .on('error', onReadableError)
       .on('end', onReadableEnd)
       .pipe(decoder)
-      .on('data', ({handshake, packet: pres}) => {
-        const id = pres.id;
+      .on('data', ({handshake, id, packet}) => {
         if (handshake) {
           match = handshake.match;
           d('Response to packet %s has a handshake with match %s.', id, match);
@@ -87,7 +75,7 @@ class NettyClientBridge {
         }
         const delay = Date.now() - obj.time;
         d('Received response to packet %s in %sms.', id, delay);
-        pres.serverService = serverSvc;
+        const pres = new Packet(id, serverSvc, packet.body, packet.headers);
         obj.cb(null, pres);
       })
       .on('error', (err) => {
@@ -95,10 +83,14 @@ class NettyClientBridge {
         readable.emit('error', err);
       });
 
-    this._channel = function (packet, cb) {
+    this._channel = function (preq, cb) {
+      if (preq.timeoutMillis() <= 0) {
+        d('Skipping packet %s, its deadline is already exceeded.', preq.id);
+        return;
+      }
       if (!clientSvc) {
-        clientSvc = packet.clientService;
-      } else if (clientSvc.hash !== packet.clientService.hash) {
+        clientSvc = preq.service;
+      } else if (clientSvc.hash !== preq.service.hash) {
         destroy(new Error('inconsistent client service'));
         return;
       }
@@ -110,18 +102,18 @@ class NettyClientBridge {
         cb(new Error('channel was destroyed'));
         return;
       }
-      const id = packet.id;
+      const id = preq.id;
       const cleanup = this.onCancel(() => { cbs.delete(id); });
       cbs.set(id, {
         attempt: 1,
         time: Date.now(),
         cb: (...args) => { cleanup(); cbs.delete(id); cb(...args); },
-        preq: match === 'BOTH' ? null : packet, // In case of retry.
+        preq: match === 'BOTH' ? null : preq, // In case of retry.
       });
-      send(packet);
+      send(preq);
     }
 
-    function send(packet) {
+    function send(preq) {
       let handshake = {
         clientHash: Buffer.from(clientSvc.hash, 'binary'),
         serverHash: Buffer.from(
@@ -139,8 +131,10 @@ class NettyClientBridge {
       } else {
         suffix = 'with light handshake';
       }
-      d('Sending packet %s %s.', packet.id, suffix);
-      encoder.write({handshake, packet});
+      const id = preq.id;
+      d('Sending packet %s %s.', id, suffix);
+      const packet = new NettyPacket(preq.body, preq.headers);
+      encoder.write({handshake, id, packet});
     }
 
     function onReadableEnd() {
@@ -242,18 +236,12 @@ class NettyServerBridge extends EventEmitter {
     // We store the last client service seen for stateful connections.
     let clientSvc = null;
 
-    const decoder = new NettyDecoder(
-      // Client service is populated below.
-      (id, buf) => RequestPacket.fromPayload(id, null, buf),
-      types.handshakeRequest
-    );
-
+    const decoder = new NettyDecoder(types.handshakeRequest);
     readable
       .on('error', onReadableError)
       .on('end', onReadableEnd)
       .pipe(decoder)
-      .on('data', ({handshake: hreq, packet: preq}) => {
-        const id = preq.id;
+      .on('data', ({handshake: hreq, id, packet}) => {
         if (!hreq && !clientSvc) {
           d('Dropping packet %s, no handshake or client service.', id);
           readable.emit('error', new Error('expected handshake'));
@@ -278,7 +266,8 @@ class NettyServerBridge extends EventEmitter {
                 hres.serverProtocol = JSON.stringify(serverSvc.protocol);
                 hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
               }
-              encoder.write({handshake: hres, packet: err.toPacket(id)});
+              const res = NettyResponse.forSystemError(err, id);
+              encoder.write({handshake: hres, response: res});
               return;
             }
             try {
@@ -299,18 +288,20 @@ class NettyServerBridge extends EventEmitter {
             hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
           }
         }
-        preq.clientService = clientSvc;
+        const preq = new Packet(id, clientSvc, packet.body, packet.headers);
         this._channel(preq, (err, pres) => {
           if (err) {
             // The server's channel will only return an error if the client's
             // protocol is incompatible with its own.
             err = new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
             d('Error while responding to packet %s: %s', id, err);
-            encoder.write({handshake: hres, packet: err.toPacket(id)});
+            const packet = NettyPacket.forSystemError(err);
+            encoder.write({handshake: hres, id, packet});
             destroy();
             return;
           }
-          encoder.write({handshake: hres, packet: pres});
+          const packet = new NettyPacket(pres.body, pres.headers);
+          encoder.write({handshake: hres, id, packet});
         });
       })
       .on('error', (err) => {
@@ -374,10 +365,9 @@ class NettyServerBridge extends EventEmitter {
 
 /** Netty-compatible decoding stream. */
 class NettyDecoder extends stream.Transform {
-  constructor(packetDecoder, handshakeType) {
+  constructor(handshakeType) {
     super({readableObjectMode: true});
     this._expectHandshake = true;
-    this._packetDecoder = packetDecoder;
     this._handshakeType = handshakeType;
     this._id = undefined;
     this._frameCount = 0;
@@ -432,7 +422,6 @@ class NettyDecoder extends stream.Transform {
   }
 
   _decode(id, buf) {
-    const decoder = this._packetDecoder;
     const handshakeType = this._handshakeType;
     let handshake, packet;
     try {
@@ -447,7 +436,7 @@ class NettyDecoder extends stream.Transform {
       this._expectHandshake = false;
     }
     d('Decoded packet %s', id);
-    return {handshake, packet};
+    return {handshake, id, packet};
 
     function decode(withHandshake) {
       let body;
@@ -462,7 +451,7 @@ class NettyDecoder extends stream.Transform {
         handshake = null;
         body = buf;
       }
-      packet = decoder(id, body);
+      packet = NettyPacket.fromPayload(body);
     }
   }
 
@@ -488,7 +477,7 @@ class NettyEncoder extends stream.Transform {
   }
 
   _encode(obj) {
-    d('Encoding packet %s', obj.packet.id);
+    d('Encoding packet %s', obj.id);
     const bufs = [obj.packet.toPayload()];
     if (obj.handshake) {
       bufs.unshift(this._handshakeType.toBuffer(obj.handshake));
@@ -506,7 +495,7 @@ class NettyEncoder extends stream.Transform {
     }
     // Header: [ ID, number of frames ]
     const headBuf = Buffer.alloc(8);
-    headBuf.writeInt32BE(obj.packet.id, 0);
+    headBuf.writeInt32BE(obj.id, 0);
     headBuf.writeInt32BE(bufs.length, 4);
     this.push(headBuf);
     // Frames, each: [ length, bytes ]
@@ -515,6 +504,36 @@ class NettyEncoder extends stream.Transform {
       this.push(buf);
     }
     cb();
+  }
+}
+
+class NettyPacket {
+  constructor(body, headers) {
+    this.body = body;
+    this.headers = headers;
+
+  }
+
+  toPayload() {
+    return Buffer.concat([types.mapOfBytes.toBuffer(this.headers), this.body]);
+  }
+
+  static fromPayload(buf) {
+    const pkt = new NettyPacket();
+    let obj;
+    obj = types.mapOfBytes.decode(buf, 0);
+    if (obj.offset < 0) {
+      throw new Error('truncated request headers');
+    }
+    pkt.headers = obj.value;
+    pkt.body = buf.slice(obj.offset);
+    return pkt;
+  }
+
+  static fromSystemError(err) {
+    const buf = types.systemError.toBuffer(err);
+    const body = Buffer.concat([Buffer.from([1, 0]), buf]);
+    return NettyPacket.forPayload(body);
   }
 }
 

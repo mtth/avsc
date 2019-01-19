@@ -8,10 +8,8 @@ const types = require('./types');
 const debug = require('debug');
 const {DateTime} = require('luxon');
 
-const {RequestPacket, ResponsePacket, SystemError} = types;
+const {DEADLINE_TAG, Packet, SystemError} = types;
 const d = debug('avro:services:client');
-
-const DEADLINE_TAG = 'avro.deadline';
 
 class Call {
   constructor(ctx, msg) {
@@ -122,7 +120,7 @@ class Client {
       cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
       return;
     }
-    const preq = new RequestPacket(id, this._service, '', Buffer.alloc(0));
+    const preq = new Packet(id, this._service, Buffer.from([0, 0]));
     this.channel.call(ctx, preq, (err) => {
       if (err) {
         cb(SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err));
@@ -153,10 +151,13 @@ class Client {
       mws.concat(this._middlewares),
       (prev) => {
         const id = randomId();
-        const preq = new RequestPacket(id, svc, name);
+        const preq = new Packet(id, svc);
         try {
           preq.headers = serializeTags(call.tags, this._tagTypes);
-          preq.body = msg.request.toBuffer(call.request);
+          preq.body = Buffer.concat([
+            types.string.toBuffer(name),
+            msg.request.toBuffer(call.request),
+          ]);
         } catch (err) {
           d('Unable to encode request: %d', err);
           call._setSystemError('ERR_AVRO_BAD_REQUEST', err);
@@ -176,7 +177,7 @@ class Client {
             prev();
             return;
           }
-          const serverSvc = pres.serverService;
+          const serverSvc = pres.service;
           let decoder = this._decoders.get(serverSvc.hash);
           if (!decoder) {
             try {
@@ -270,13 +271,7 @@ class Server {
       }
 
       const id = preq.id;
-      if (!preq.messageName) { // Ping message.
-        d('Received ping message');
-        cb(null, new ResponsePacket(id, svc, Buffer.alloc(1)));
-        return;
-      }
-
-      const clientSvc = preq.clientService;
+      const clientSvc = preq.service;
       let decoder = this._decoders.get(clientSvc.hash);
       if (!decoder) {
         try {
@@ -290,13 +285,9 @@ class Server {
       }
       const tagTypes = this._tagTypes;
 
-      const msg = svc.messages.get(preq.messageName);
-      d('Received request packet %s for %j.', id, msg.name);
-      const call = new Call(new Context(), msg);
+      d('Received request packet %s.', id);
+      const call = new Call(new Context());
       try {
-        if (!msg) {
-          throw new Error(`no such message: ${preq.messageName}`);
-        }
         const tags = deserializeTags(preq.headers, tagTypes);
         for (const key of Object.keys(tags)) {
           call.tags[key] = tags[key];
@@ -307,14 +298,31 @@ class Server {
           d('Propagating deadline (%s) to context.', deadline);
           call._context = new Context(deadline);
         }
-        call.request = decoder.decodeRequest(msg.name, preq.body);
+        const obj = types.string.decode(preq.body);
+        if (obj.offset < 0) {
+          throw new Error('unable to decode message name');
+        }
+        if (obj.value) { // Not a ping message.
+          const msg = svc.messages.get(obj.value);
+          if (!msg) {
+            throw new Error(`no such message: ${msg.name}`);
+          }
+          const body = preq.body.slice(obj.offset);
+          call._message = msg;
+          call.request = decoder.decodeRequest(msg.name, body);
+        }
       } catch (cause) {
         d('Unable to decode request packet %s: %s', id, cause);
         call._setSystemError('ERR_AVRO_CORRUPT_REQUEST', cause);
         done();
         return;
       }
-
+      const msg = call.message;
+      if (!msg) {
+        d('Handling ping message.');
+        cb(null, new Packet(id, svc, Buffer.alloc(1)));
+        return;
+      }
       const handler = this._handlers.get(msg.name);
       if (handler) {
         d('Dispatching packet %s to handler for %j...', id, msg.name);
@@ -340,24 +348,20 @@ class Server {
           call._setSystemError('ERR_AVRO_INTERNAL', err);
         }
         const msg = call.message;
-        const byte = Buffer.alloc(1);
-        let buf, headers;
+        let bufs, headers;
         try {
           headers = serializeTags(call.tags, tagTypes);
           if (call.error !== undefined) {
-            byte[0] = 1;
-            buf = msg.error.toBuffer(call.error);
+            bufs = [Buffer.from([1]), msg.error.toBuffer(call.error)];
           } else {
-            buf = msg.response.toBuffer(call.response);
+            bufs = [Buffer.from([0]), msg.response.toBuffer(call.response)];
           }
         } catch (cause) {
           call._setSystemError('ERR_AVRO_BAD_RESPONSE', cause);
-          byte[0] = 1;
-          buf = msg.error.toBuffer(call.error);
+          bufs = [Buffer.from([1, 0]), types.systemError.toBuffer(call.error)];
         }
         d('Sending response packet %s!', id);
-        const body = Buffer.concat([byte, buf]);
-        cb(null, new ResponsePacket(id, svc, body, headers));
+        cb(null, new Packet(id, svc, Buffer.concat(bufs), headers));
       }
     };
   }

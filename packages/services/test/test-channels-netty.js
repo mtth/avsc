@@ -11,7 +11,7 @@ const assert = require('assert');
 const {Type} = require('avsc');
 const net = require('net');
 
-suite('client server', () => {
+suite('netty client server', () => {
   const echoService = new Service({
     protocol: 'Echo',
     messages: {
