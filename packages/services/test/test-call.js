@@ -54,14 +54,6 @@ suite('client server', () => {
     });
   });
 
-  test('ping', (done) => {
-    const {client, server} = clientServer(echoSvc);
-    client.ping(new Context(), (err) => {
-      assert(!err, err);
-      done();
-    });
-  });
-
   test('middleware with handler', (done) => {
     const {client, server} = clientServer(echoSvc);
     const evts = [];

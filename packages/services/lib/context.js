@@ -79,7 +79,7 @@ class Context {
     }
     const id = this._idGenerator.next().value;
     this._fns.set(id, fn);
-    return () => { this._fns.delete(id); };
+    return () => this._fns.delete(id);
   }
 
   _cancelWith(err) { // Logic shared by timed and manual cancellations.

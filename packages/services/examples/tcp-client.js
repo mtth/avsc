@@ -15,19 +15,34 @@ const echoService = new Service({
   },
 });
 
-const client = new Client(echoService);
-const conn = net.createConnection({port: 8080}).setNoDelay();
-client.channel = new channels.NettyClientBridge(conn).channel;
+const upperService = new Service({
+  protocol: 'Upper',
+  messages: {
+    upper: {
+      request: [{name: 'message', type: 'string'}],
+      response: 'string',
+    },
+  },
+});
+
+const echoClient = new Client(echoService);
+
+const monitor = new channels.Monitor((cb) => {
+  const conn = net.createConnection({port: 8080}).setNoDelay();
+  const chan = new channels.NettyClientBridge(conn).channel;
+  cb(null, chan, conn);
+}).on('down', (conn) => { conn.destroy(); });
+
+echoClient.channel = monitor.channel;
 
 const ctx = new Context(2000);
-client
-  .use((call, next) => {
-    console.time(call.request.message);
-    next(null, (err, prev) => {
-      console.timeEnd(call.request.message);
-      prev(err);
-    });
+client.use((call, next) => {
+  console.time(call.request.message);
+  next(null, (err, prev) => {
+    console.timeEnd(call.request.message);
+    prev(err);
   });
+});
 
 poll();
 
@@ -37,7 +52,7 @@ function poll() {
 
   ctx.onCancel(() => {
     clearInterval(timer);
-    conn.end();
+    monitor.destroy();
   });
 
   function emit() {

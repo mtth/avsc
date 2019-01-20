@@ -10,6 +10,7 @@ const {NettyClientBridge, NettyServerBridge} = require('../lib/channels/netty');
 const assert = require('assert');
 const {Type} = require('avsc');
 const net = require('net');
+const sinon = require('sinon');
 
 suite('netty client server', () => {
   const echoService = new Service({
@@ -32,7 +33,7 @@ suite('netty client server', () => {
   suite('same protocol', () => {
     let client, server, cleanup;
 
-    beforeEach((done) => {
+    setup((done) => {
       clientServer(echoService, (err, obj) => {
         if (err) {
           done(err);
@@ -45,7 +46,7 @@ suite('netty client server', () => {
       });
     });
 
-    afterEach(() => {
+    teardown(() => {
       cleanup();
     });
 
@@ -70,13 +71,6 @@ suite('netty client server', () => {
       });
       client.emitMessage(ctx).upper('foo', (err) => {
         assert.equal(err.code, 'ERR_AVRO_EXPIRED');
-        done();
-      });
-    });
-
-    test('ping', (done) => {
-      client.ping(new Context(), (err) => {
-        assert(!err, err);
         done();
       });
     });
@@ -196,6 +190,46 @@ suite('netty client server', () => {
           ]);
           done();
         });
+    });
+
+  });
+
+  suite('timing', () => {
+    let clock;
+    let client, server, cleanup;
+
+    setup((done) => {
+      clock = sinon.useFakeTimers();
+      clientServer(echoService, (err, obj) => {
+        if (err) {
+          done(err);
+          return;
+        }
+        client = obj.client;
+        server = obj.server;
+        cleanup = obj.cleanup;
+        done();
+      });
+    });
+
+    teardown(() => {
+      clock.restore();
+      cleanup();
+    });
+
+    test('deadline propagation', (done) => {
+      server
+        .use((call, next) => {
+          clock.tick(10); // Exceed deadline.
+          next();
+        })
+        .onMessage().echo((str, cb) => {
+          assert(false); // Should not be called.
+        });
+      client.emitMessage(new Context(5)).echo('foo', (err) => {
+        assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
+        done();
+      });
     });
   });
 });

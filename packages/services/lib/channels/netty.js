@@ -2,6 +2,7 @@
 
 'use strict';
 
+const {Context} = require('../context');
 const {Service} = require('../service');
 const types = require('../types');
 
@@ -9,8 +10,13 @@ const debug = require('debug');
 const {EventEmitter} = require('events');
 const stream = require('stream');
 
-const {Packet, SystemError} = types;
+const {Packet, SystemError, randomId} = types;
 const d = debug('avro:services:channels:netty');
+
+// Service used to send discovery requests.
+const discoveryService = new Service({protocol: 'avro.DiscoveryService'});
+
+const DEADLINE_HEADER = 'avro.netty.deadline';
 
 /** Bridge between a channel and netty connecion. */
 // TODO: Add a `free` function to allow reusing the input streams?
@@ -20,13 +26,11 @@ class NettyClientBridge {
       opts = writable;
       writable = readable;
     }
-    const stateful = opts && opts.stateful;
+    this._serverServices = new Map(); // Keyed by _remote_ hash.
+    const serverSvcs = this._serverServices;
+    const hashes = new Map(); // Client hash to server hash.
     const cbs = new Map();
     let draining = false;
-    let match = null;
-    let clientSvc = null;
-    let serverHash = null;
-    let serverSvc = null;
 
     const encoder = new NettyEncoder(types.handshakeRequest);
     encoder
@@ -47,30 +51,36 @@ class NettyClientBridge {
       .on('end', onReadableEnd)
       .pipe(decoder)
       .on('data', ({handshake, id, packet}) => {
-        if (handshake) {
-          match = handshake.match;
-          d('Response to packet %s has a handshake with match %s.', id, match);
-          if (handshake.serverHash || handshake.serverProtocol) {
-            serverHash = handshake.serverHash.toString('binary');
-            try {
-              serverSvc = new Service(JSON.parse(handshake.serverProtocol));
-            } catch (err) {
-              destroy(err); // Fatal error.
-              return;
-            }
-          } else if (!serverSvc) {
-            serverSvc = clientSvc;
-          }
-        }
         let obj = cbs.get(id);
         if (!obj) {
           d('No callback for packet %s.', id);
           return;
         }
-        if (match === 'NONE' && !obj.retried) { // We need to retry this packet.
+        const match = handshake.match;
+        d('Response to packet %s has a handshake with match %s.', id, match);
+        const clientSvc = obj.clientService;
+        const clientHash = clientSvc.hash;
+        let serverSvc;
+        if (handshake.serverHash || handshake.serverProtocol) {
+          const serverHash = handshake.serverHash.toString('binary');
+          try {
+            serverSvc = new Service(JSON.parse(handshake.serverProtocol));
+          } catch (err) {
+            destroy(err); // Fatal error.
+            return;
+          }
+          // IMPORTANT: `serverHash` might be different from `serverSvc.hash`.
+          // The remove server might use a different algorithm to compute it.
+          serverSvcs.set(serverHash, serverSvc);
+          hashes.set(clientHash, serverHash);
+        } else {
+          const serverHash = hashes.get(clientHash);
+          serverSvc = serverHash ? serverSvcs.get(serverHash) : clientSvc;
+        }
+        if (match === 'NONE' && !obj.retried) {
           d('Retrying packet %s.', id);
           obj.retried = true;
-          send(obj.preq);
+          send(id, obj.packet, true);
           return;
         }
         const delay = Date.now() - obj.time;
@@ -83,57 +93,60 @@ class NettyClientBridge {
         readable.emit('error', err);
       });
 
-    this._channel = function (preq, cb) {
-      if (preq.timeoutMillis() <= 0) {
-        d('Skipping packet %s, its deadline is already exceeded.', preq.id);
-        return;
-      }
-      if (!clientSvc) {
-        clientSvc = preq.service;
-      } else if (clientSvc.hash !== preq.service.hash) {
-        destroy(new Error('inconsistent client service'));
-        return;
-      }
-      if (draining) {
-        cb(new Error('channel started draining'));
+    this._channel = function (ctx, preq, cb) {
+      if (ctx.cancelled) {
         return;
       }
       if (!readable) {
         cb(new Error('channel was destroyed'));
         return;
       }
+      if (draining) {
+        cb(new Error('channel started draining'));
+        return;
+      }
+      if (!preq) {
+        // TODO: Discovery RPC.
+        cb(new Error('not yet supported'));
+        return;
+      }
       const id = preq.id;
-      const cleanup = this.onCancel(() => { cbs.delete(id); });
+      const headers = preq.headers;
+      if (ctx.deadline) {
+        headers[DEADLINE_HEADER] = types.dateTime.toBuffer(ctx.deadline);
+      }
+      const cleanup = ctx.onCancel(() => { cbs.delete(id); });
+      const packet = new NettyPacket(preq.body, headers);
+      const clientSvc = preq.service;
       cbs.set(id, {
-        attempt: 1,
+        cb: (...args) => {
+          if (cleanup()) {
+            cbs.delete(id);
+            cb(...args);
+          }
+        },
+        clientService: clientSvc,
+        packet, // For retries.
+        retried: false,
         time: Date.now(),
-        cb: (...args) => { cleanup(); cbs.delete(id); cb(...args); },
-        preq: match === 'BOTH' ? null : preq, // In case of retry.
       });
-      send(preq);
+      send(id, packet, clientSvc, false);
     }
 
-    function send(preq) {
+    function send(id, packet, clientSvc, includePtcl) {
+      const serverHash = hashes.get(clientSvc.hash) || clientSvc.hash;
       let handshake = {
         clientHash: Buffer.from(clientSvc.hash, 'binary'),
-        serverHash: Buffer.from(
-          (serverSvc ? serverSvc : clientSvc).hash,
-          'binary'
-        ),
+        serverHash: Buffer.from(serverHash, 'binary'),
       };
       let suffix;
-      if (match === 'NONE') { // Server doesn't know client protocol.
+      if (includePtcl) {
         handshake.clientProtocol = JSON.stringify(clientSvc.protocol);
         suffix = 'with full handshake';
-      } else if (match && stateful) {
-        handshake = null;
-        suffix = 'without handshake';
       } else {
         suffix = 'with light handshake';
       }
-      const id = preq.id;
       d('Sending packet %s %s.', id, suffix);
-      const packet = new NettyPacket(preq.body, preq.headers);
       encoder.write({handshake, id, packet});
     }
 
@@ -182,6 +195,11 @@ class NettyClientBridge {
     }
   }
 
+  /** Cache of protocol hash to service. */
+  get knownServices() {
+    return this._serverServices;
+  }
+
   get channel() {
     return this._channel;
   }
@@ -201,7 +219,7 @@ class NettyServerBridge extends EventEmitter {
     this._serverServices = null;
     this._channel = chan;
 
-    chan(null, (err, svcs) => {
+    chan(new Context(), null, (err, svcs) => {
       if (err) {
         this.emit('error', err);
         return;
@@ -288,10 +306,29 @@ class NettyServerBridge extends EventEmitter {
             hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
           }
         }
+        let ctx;
+        const deadlineBuf = packet.headers[DEADLINE_HEADER];
+        if (deadlineBuf) {
+          delete packet.headers[DEADLINE_HEADER];
+          try {
+            ctx = new Context(types.dateTime.fromBuffer(deadlineBuf));
+          } catch (err) {
+            d('Bad deadline in packet %s: %s', id, err);
+            readable.emit('error', err);
+            return;
+          }
+          if (ctx.cancelled) {
+            d('Packet %s is past its deadline, dropping request.', id);
+            return;
+          }
+          d('Packet %s has a timeout of %sms.', id, +ctx.remainingDuration);
+        } else {
+          ctx = new Context();
+        }
         const preq = new Packet(id, clientSvc, packet.body, packet.headers);
-        this._channel(preq, (err, pres) => {
-          if (pres.timeoutMillis() <= 0) {
-            d('Skipping packet %s, its deadline is already exceeded.', pres.id);
+        this._channel(ctx, preq, (err, pres) => {
+          if (ctx.cancelled) {
+            d('Packet %s was cancelled, dropping response.', id);
             return;
           }
           if (err) {
@@ -512,12 +549,16 @@ class NettyEncoder extends stream.Transform {
 class NettyPacket {
   constructor(body, headers) {
     this.body = body;
-    this.headers = headers;
+    this.headers = headers || {};
 
   }
 
   toPayload() {
     return Buffer.concat([types.mapOfBytes.toBuffer(this.headers), this.body]);
+  }
+
+  static ping() {
+    return new NettyPacket(Buffer.alloc(1));
   }
 
   static fromPayload(buf) {

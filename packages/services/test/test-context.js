@@ -10,7 +10,7 @@ const sinon = require('sinon');
 suite('context', () => {
   let clock;
 
-  setup(() => { console.log('foo'); clock = sinon.useFakeTimers(); });
+  setup(() => { clock = sinon.useFakeTimers(); });
   teardown(() => { clock.restore(); });
 
   test('expire with default error', (done) => {

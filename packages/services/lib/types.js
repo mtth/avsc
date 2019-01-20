@@ -123,8 +123,6 @@ const dateTime = Type.forSchema({
   logicalType: 'datetime-millis',
 }, opts);
 
-const DEADLINE_TAG = 'avro.deadline';
-
 class Packet {
   constructor(id, svc, body, headers) {
     this.id = id;
@@ -132,14 +130,19 @@ class Packet {
     this.body = body;
     this.headers = headers || {};
   }
+}
 
-  timeoutMillis() {
-    const buf = this.headers[DEADLINE_TAG];
-    if (!buf) {
-      return Infinity;
-    }
-    return DateTime.local() - dateTime.fromBuffer(buf);
-  }
+/**
+ * Random ID generator, mostly useful for packets.
+ *
+ * We are using 31 bit IDs since this is what the Java netty implementation
+ * uses, hopefully there aren't ever enough packets in flight for collisions to
+ * be an issue. (We could use 32 bits but the extra bit isn't worth the
+ * inconvenience of negative numbers or additional logic to transform them.)
+ * https://github.com/apache/avro/blob/5e8168a25494b04ef0aeaf6421a033d7192f5625/lang/java/ipc/src/main/java/org/apache/avro/ipc/NettyTransportCodec.java#L100
+ */
+function randomId() {
+  return ((-1 >>> 1) * Math.random()) | 0;
 }
 
 module.exports = {
@@ -150,6 +153,7 @@ module.exports = {
   handshakeRequest,
   handshakeResponse,
   mapOfBytes,
+  randomId,
   string,
   systemError,
 };

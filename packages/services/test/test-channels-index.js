@@ -64,7 +64,7 @@ suite('channels index', () => {
       echoClient.emitMessage(new Context()).echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
-        router.channel(null, (err, svcs) => {
+        router.channel(new Context(), null, (err, svcs) => {
           assert(!err, err);
           svcs.sort((svc) => svc.name);
           assert.deepEqual(svcs, [echoSvc, upperSvc]);
@@ -137,13 +137,13 @@ suite('channels index', () => {
 });
 
 function flakyChannel(chan, failures) {
-  return (preq, cb) => {
+  return (ctx, preq, cb) => {
     if (failures-- > 0) {
       const err = new Error('boom');
       err.code = 'ERR_AVRO_CHANNEL_FAILURE';
       cb(err);
       return;
     }
-    chan(preq, cb);
+    chan(ctx, preq, cb);
   };
 }

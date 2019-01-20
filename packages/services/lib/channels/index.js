@@ -1,7 +1,16 @@
 /* jshint esversion: 6, node: true */
 
+/**
+ * Channels:
+ *
+ * Channel implementors should also support discovery calls: when the input
+ * packet is null, the callback should return the list of services accessible
+ * via this channel.
+ */
+
 'use strict';
 
+const {Context} = require('../context');
 const {NettyClientBridge, NettyServerBridge} = require('./netty');
 const {SystemError} = require('../types');
 
@@ -17,6 +26,10 @@ const d = debug('avro:services:channels');
  *
  * Calls are routed using services' qualified name, so they must be distinct
  * across the routed channels.
+ *
+ * Only services present when the router is instantiated can be routed to. If a
+ * packet comes in for an unrecognized service, the router will respond with an
+ * error code of `ERR_AVRO_SERVICE_NOT_FOUND`.
  */
 class Router extends EventEmitter {
   constructor(chans) {
@@ -27,10 +40,21 @@ class Router extends EventEmitter {
     this._channels = new Map();
     this._services = [];
     this._ready = false;
-    this._channel = (preq, cb) => {
+    this._channel = (ctx, preq, cb) => {
+      if (ctx.cancelled) {
+        return;
+      }
       if (!this._ready) {
-        d('Router not yet ready, queuing call %s.', preq.id);
-        this.once('ready', () => { this._channel(preq, cb); });
+        d('Router not yet ready, queuing call %s.', preq ? preq.id : '*');
+        const cleanup = ctx.onCancel(() => {
+          this.removeListener('ready', onReady);
+        });
+        const onReady = () => {
+          if (cleanup()) {
+            this._channel(ctx, preq, cb);
+          }
+        };
+        this.once('ready', onReady);
         return;
       }
       if (preq === null) {
@@ -45,13 +69,13 @@ class Router extends EventEmitter {
         cb(new SystemError('ERR_AVRO_SERVICE_NOT_FOUND', cause));
         return;
       }
-      chan(preq, cb);
+      chan(ctx, preq, cb);
     };
     // Delay processing such that event listeners can be added first.
     process.nextTick(() => {
       let pending = chans.length;
       chans.forEach((chan) => {
-        chan(null, (err, svcs) => {
+        chan(new Context(), null, (err, svcs) => {
           if (err) {
             this.emit('error', err);
             return;
@@ -89,7 +113,6 @@ class Router extends EventEmitter {
  * Note that we don't retry calls since some might have side-effects...
  */
 // TODO: Add heartbeat option.
-// TODO: Add option to retry calls and spread them over time.
 class Monitor extends EventEmitter {
   constructor(fn, {isFatal, refreshBackoff} = {}) {
     super();
@@ -106,31 +129,31 @@ class Monitor extends EventEmitter {
       })
       .on('ready', () => {
         d('Starting refresh attempt #%s...', this._attempts++);
-        this._refreshChannel();
+        this._setupChannel();
       })
       .on('fail', () => {
         d('Exhausted refresh attempts, giving up.');
         this._refreshError = new Error('exhausted refresh attempts');
       });
 
-    this._refreshChannel();
+    this._setupChannel();
   }
 
-  _refreshChannel() {
+  _setupChannel() {
     this._channelProvider((err, chan, ...args) => {
       if (err) {
         d('Error while refreshing channel, giving up: %s', err);
         this._refreshError = err;
         return;
       }
-      chan(null, (err, svcs) => {
+      chan(new Context(), null, (err, svcs) => {
         if (err) {
           d('Error on fresh channel, retrying shortly: %s', err);
           this._refreshBackoff.backoff();
           return;
         }
-        this._activeChannel = chan; // TODO: Wrap in heartbeat.
         this._activeArgs = args;
+        this._activeChannel = chan; // TODO: Wrap in heartbeat.
         this._attempts = 1;
         this._refreshBackoff.reset();
         d('Monitor ready.');
@@ -139,29 +162,53 @@ class Monitor extends EventEmitter {
     });
   }
 
+  _teardownChannel() {
+    if (!this._activeArgs) {
+      return;
+    }
+    const args = this._activeArgs;
+    this._activeArgs = null;
+    this._activeChannel = null;
+    this.emit('down', ...args);
+  }
+
   get channel() {
-    return (preq, cb) => {
+    return (ctx, preq, cb) => {
+      if (ctx.cancelled) {
+        return;
+      }
       if (!this._activeChannel) {
         const err = this._refreshError;
         if (err) {
           cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL', err));
         } else {
-          d('Monitor not yet ready, queuing call %s.', preq.id);
-          this.once('up', () => { this.channel(preq, cb); });
+          d('Monitor not yet ready, queuing call %s.', preq ? preq.id : '*');
+          const cleanup = ctx.onCancel(() => {
+            this.removeListener('up', onUp);
+          });
+          const onUp = () => {
+            if (cleanup()) {
+              this.channel(ctx, preq, cb);
+            }
+          };
+          this.once('up', onUp);
         }
         return;
       }
-      this._activeChannel(preq, (err, pres) => {
+      this._activeChannel(ctx, preq, (err, pres) => {
         const args = this._activeArgs;
         if (err && args && this._isFatal(err) && !this._refreshError) {
-          this._activeChannel = null;
-          this._activeArgs = null;
-          this.emit('down', ...args);
+          this._teardownChannel();
           this._refreshBackoff.backoff();
         }
         cb(err, pres);
       });
     };
+  }
+
+  destroy() {
+    this._refreshError = new Error('destroyed');
+    this._teardownChannel();
   }
 }
 

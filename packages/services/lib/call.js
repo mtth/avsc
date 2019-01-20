@@ -8,7 +8,7 @@ const types = require('./types');
 const debug = require('debug');
 const {DateTime} = require('luxon');
 
-const {DEADLINE_TAG, Packet, SystemError} = types;
+const {Packet, SystemError, randomId} = types;
 const d = debug('avro:services:client');
 
 class Call {
@@ -19,9 +19,6 @@ class Call {
     this.response = undefined;
     this.error = undefined;
     this.tags = {};
-    if (ctx.deadline) {
-      this.tags[DEADLINE_TAG] = ctx.deadline;
-    }
     this.data = {};
     Object.seal(this);
   }
@@ -89,7 +86,7 @@ class Decoder {
 class Client {
   constructor(svc) {
     this.channel = null;
-    this._tagTypes = {[DEADLINE_TAG]: types.dateTime};
+    this._tagTypes = {};
     this._service = svc;
     this._decoders = new Map();
     this._emitterProto = {_client$: this};
@@ -112,24 +109,6 @@ class Client {
     return this;
   }
 
-  ping(ctx, cb) {
-    cb = cb || throwIfError;
-    const id = randomId();
-    if (!this.channel) {
-      d('No channel available to send ping packet %s.', id);
-      cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
-      return;
-    }
-    const preq = new Packet(id, this._service, Buffer.from([0, 0]));
-    this.channel.call(ctx, preq, (err) => {
-      if (err) {
-        cb(SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err));
-        return;
-      }
-      cb();
-    });
-  }
-
   emitMessage(ctx, ...mws) {
     if (!ctx) {
       throw new Error('missing context');
@@ -145,6 +124,10 @@ class Client {
     const msg = svc.messages.get(name); // Guaranteed defined.
     const call = new Call(ctx, msg);
     call.request = req;
+    const cleanup = ctx.onCancel(done);
+    if (!cleanup) {
+      return;
+    }
     chain(
       this,
       call,
@@ -171,7 +154,11 @@ class Client {
           prev();
           return;
         }
-        this.channel.call(ctx, preq, (err, pres) => {
+        this.channel(ctx, preq, (err, pres) => {
+          if (ctx.cancelled) {
+            d('Call %s was cancelled, ignoring incoming request packet.', id);
+            return;
+          }
           if (err) {
             call._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             prev();
@@ -189,10 +176,6 @@ class Client {
             }
             d('Adding decoder for server service %j.', serverSvc.hash);
             this._decoders.set(serverSvc.hash, decoder);
-          }
-          if (ctx.cancelled) {
-            d('Call %s was cancelled, ignoring incoming request packet.', id);
-            return;
           }
           d('Received response packet %s!', id);
           const buf = pres.body;
@@ -220,7 +203,9 @@ class Client {
       if (err) {
         call._setSystemError('ERR_AVRO_INTERNAL', err);
       }
-      cb.call(call.context, call.error, call.response);
+      process.nextTick(() => {
+        cb.call(call.context, call.error, call.response);
+      });
     }
   }
 }
@@ -255,7 +240,7 @@ function messageEmitter(msg) {
 
 class Server {
   constructor(svc, chanConsumer) {
-    this._tagTypes = {[DEADLINE_TAG]: types.dateTime};
+    this._tagTypes = {};
     this._service = svc;
     this._middlewares = [];
     this._handlers = new Map();
@@ -264,7 +249,10 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this._channel = (preq, cb) => {
+    this._channel = (ctx, preq, cb) => {
+      if (ctx.cancelled) {
+        return;
+      }
       if (!preq) { // Discovery call.
         cb(null, [svc]);
         return;
@@ -286,17 +274,11 @@ class Server {
       const tagTypes = this._tagTypes;
 
       d('Received request packet %s.', id);
-      const call = new Call(new Context());
+      const call = new Call(ctx);
       try {
         const tags = deserializeTags(preq.headers, tagTypes);
         for (const key of Object.keys(tags)) {
           call.tags[key] = tags[key];
-        }
-        if (tags[DEADLINE_TAG]) {
-          const deadline = tags[DEADLINE_TAG];
-          delete call.tags[DEADLINE_TAG]; // No need to send it back.
-          d('Propagating deadline (%s) to context.', deadline);
-          call._context = new Context(deadline);
         }
         const obj = types.string.decode(preq.body);
         if (obj.offset < 0) {
@@ -437,12 +419,6 @@ function messageListener(msg) {
 }
 
 function chain(ctx, call, mws, turn, end) {
-  let cleanup;
-  cleanup = call.context.onCancel((err) => { // err guaranteed SystemError.
-    cleanup = null;
-    call.error = {string: err};
-    end(); // Skip everything, exit the chain.
-  });
   forward(0, []);
 
   function forward(i, cbs) {
@@ -470,12 +446,11 @@ function chain(ctx, call, mws, turn, end) {
   }
 
   function backward(err, cbs) {
-    if (!cleanup) {
-      return; // Call was already cancelled.
+    if (call.context.cancelled) {
+      return;
     }
     const cb = cbs && cbs.pop();
     if (!cb) {
-      cleanup();
       end(err);
       return;
     }
@@ -516,15 +491,6 @@ function deserializeTags(headers, tagTypes) {
     }
   }
   return tags;
-}
-
-// We are using 31 bit IDs since this is what the Java netty implementation
-// uses, hopefully there aren't ever enough packets in flight for collisions to
-// be an issue. (We could use 32 bits but the extra bit isn't worth the
-// inconvenience of negative numbers or additional logic to transform them.)
-// https://github.com/apache/avro/blob/5e8168a25494b04ef0aeaf6421a033d7192f5625/lang/java/ipc/src/main/java/org/apache/avro/ipc/NettyTransportCodec.java#L100
-function randomId() {
-  return ((-1 >>> 1) * Math.random()) | 0;
 }
 
 function throwIfError(err) {
