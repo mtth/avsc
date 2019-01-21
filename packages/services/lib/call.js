@@ -6,6 +6,7 @@ const {Context} = require('./context');
 const types = require('./types');
 
 const debug = require('debug');
+const {EventEmitter} = require('events');
 const {DateTime} = require('luxon');
 
 const {Packet, SystemError, randomId} = types;
@@ -40,8 +41,9 @@ class Call {
   }
 }
 
-class Channel {
+class Channel extends EventEmitter {
   constructor(handler) {
+    super();
     this._handler = handler;
   }
 
@@ -50,10 +52,12 @@ class Channel {
     if (ctx.cancelled) {
       return;
     }
+    this.emit('requestPacket', preq, ctx);
     this._handler(ctx, preq, (err, pres) => {
       if (ctx.cancelled) {
         return;
       }
+      this.emit('responsePacket', pres, ctx);
       cb(err, pres);
     });
   }

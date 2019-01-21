@@ -268,10 +268,12 @@ class NettyGateway {
   }
 
   /** Accept a connection. */
-  accept(readable, writable) {
-    if (!writable) {
+  accept(readable, writable, opts) {
+    if (!isStream(writable)) {
+      opts = writable;
       writable = readable;
     }
+    const newContext = opts && opts.newContext;
     // We store the last client service seen for stateful connections.
     let clientSvc = null;
 
@@ -340,12 +342,12 @@ class NettyGateway {
             hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
           }
         }
-        let ctx;
+        let ctx = newContext ? newContext(id, packet) : new Context();
         const deadlineBuf = packet.headers[DEADLINE_HEADER];
         if (deadlineBuf) {
           delete packet.headers[DEADLINE_HEADER];
           try {
-            ctx = new Context(types.dateTime.fromBuffer(deadlineBuf));
+            ctx = new Context(types.dateTime.fromBuffer(deadlineBuf), ctx);
           } catch (err) {
             d('Bad deadline in packet %s: %s', id, err);
             readable.emit('error', err);
@@ -356,8 +358,6 @@ class NettyGateway {
             return;
           }
           d('Packet %s has a timeout of %sms.', id, +ctx.remainingDuration);
-        } else {
-          ctx = new Context();
         }
         const preq = new Packet(id, clientSvc, packet.body, packet.headers);
         this._router.channel.call(ctx, preq, (err, pres) => {
