@@ -9,7 +9,7 @@ const debug = require('debug');
 const {DateTime} = require('luxon');
 
 const {Packet, SystemError, randomId} = types;
-const d = debug('avro:services:client');
+const d = debug('@avro/services:call');
 
 class Call {
   constructor(ctx, msg) {
@@ -37,6 +37,40 @@ class Call {
 
   _setSystemError(code, cause) {
     this.error = {string: SystemError.orCode(code, cause)};
+  }
+}
+
+class Channel {
+  constructor(handler) {
+    this._handler = handler;
+  }
+
+  /** If the context is cancelled, call will _not_ respond. */
+  call(ctx, preq, cb) {
+    if (ctx.cancelled) {
+      return;
+    }
+    this._handler(ctx, preq, (err, pres) => {
+      if (ctx.cancelled) {
+        return;
+      }
+      cb(err, pres);
+    });
+  }
+
+  /** Similar to call, if the context is cancelled, ping will _not_ respond. */
+  ping(ctx, svc, headers, cb) {
+    if (!cb && typeof headers == 'function') {
+      cb = headers;
+      headers = undefined;
+    }
+    this.call(ctx, Packet.ping(svc, headers), (err, pres) => {
+      if (err) {
+        cb(err);
+        return;
+      }
+      cb(null, pres.service, pres.headers);
+    });
   }
 }
 
@@ -120,14 +154,15 @@ class Client {
   }
 
   _emitMessage(ctx, mws, name, req, cb) {
+    if (ctx.cancelled) {
+      cb(ctx.cancelledWith);
+      return;
+    }
+    const cleanup = ctx.onCancel(done);
     const svc = this._service;
     const msg = svc.messages.get(name); // Guaranteed defined.
     const call = new Call(ctx, msg);
     call.request = req;
-    const cleanup = ctx.onCancel(done);
-    if (!cleanup) {
-      return;
-    }
     chain(
       this,
       call,
@@ -154,11 +189,7 @@ class Client {
           prev();
           return;
         }
-        this.channel(ctx, preq, (err, pres) => {
-          if (ctx.cancelled) {
-            d('Call %s was cancelled, ignoring incoming request packet.', id);
-            return;
-          }
+        this.channel.call(ctx, preq, (err, pres) => {
           if (err) {
             call._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             prev();
@@ -200,6 +231,9 @@ class Client {
     );
 
     function done(err) {
+      if (!cleanup()) {
+        return;
+      }
       if (err) {
         call._setSystemError('ERR_AVRO_INTERNAL', err);
       }
@@ -238,6 +272,8 @@ function messageEmitter(msg) {
   }
 }
 
+/** Ping a channel. */
+
 class Server {
   constructor(svc, chanConsumer) {
     this._tagTypes = {};
@@ -249,19 +285,11 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this._channel = (ctx, preq, cb) => {
-      if (ctx.cancelled) {
-        return;
-      }
-      if (!preq) { // Discovery call.
-        cb(null, [svc]);
-        return;
-      }
-
+    this._channel = new Channel((ctx, preq, cb) => {
       const id = preq.id;
       const clientSvc = preq.service;
       let decoder = this._decoders.get(clientSvc.hash);
-      if (!decoder) {
+      if (!decoder && clientSvc.messages.size) {
         try {
           decoder = new Decoder(clientSvc, svc);
         } catch (err) {
@@ -345,7 +373,7 @@ class Server {
         d('Sending response packet %s!', id);
         cb(null, new Packet(id, svc, Buffer.concat(bufs), headers));
       }
-    };
+    });
   }
 
   get service() {
@@ -501,6 +529,7 @@ function throwIfError(err) {
 
 module.exports = {
   Call,
+  Channel,
   Client,
   Server,
 };

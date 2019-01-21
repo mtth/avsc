@@ -130,6 +130,10 @@ class Packet {
     this.body = body;
     this.headers = headers || {};
   }
+
+  static ping(svc, headers) {
+    return new Packet(-randomId(), svc, Buffer.from([0, 0]), headers);
+  }
 }
 
 /**

@@ -3,6 +3,7 @@
 'use strict';
 
 const {Context} = require('../context');
+const {Router} = require('../router');
 const {Service} = require('../service');
 const types = require('../types');
 
@@ -10,29 +11,63 @@ const debug = require('debug');
 const {EventEmitter} = require('events');
 const stream = require('stream');
 
-const {Packet, SystemError, randomId} = types;
-const d = debug('avro:services:channels:netty');
+const {Packet, SystemError} = types;
+const d = debug('@avro/services:codecs:netty');
 
-// Service used to send discovery requests.
-const discoveryService = new Service({protocol: 'avro.DiscoveryService'});
-
+// Header key used for propagating context deadlines.
 const DEADLINE_HEADER = 'avro.netty.deadline';
 
-/** Bridge between a channel and netty connecion. */
-// TODO: Add a `free` function to allow reusing the input streams?
-class NettyClientBridge {
+// Sentinels used for discovery requests.
+const discoveryService = new Service({
+  protocol: 'avro.netty.DiscoveryService',
+});
+const DISCOVERY_HEADER = 'avro.netty.services';
+
+/** Bridge between a channel and netty connection. */
+class NettyChannel {
   constructor(readable, writable, opts) {
     if (!isStream(writable)) {
       opts = writable;
       writable = readable;
     }
-    this._serverServices = new Map(); // Keyed by _remote_ hash.
-    const serverSvcs = this._serverServices;
-    const hashes = new Map(); // Client hash to server hash.
-    const cbs = new Map();
-    let draining = false;
 
     const encoder = new NettyEncoder(types.handshakeRequest);
+    const decoder = new NettyDecoder(types.handshakeResponse);
+
+    this._serverServices = new Map(); // Keyed by _remote_ hash.
+    this._hashes = new Map(); // Client hash to server hash.
+    this._callbacks = new Map();
+    this._draining = false;
+    this._encoder = encoder;
+    this._readable = readable;
+
+    const onWritableFinish = () => {
+      d('Writable finished, starting to drain.');
+      this._draining = true;
+    };
+
+    this._destroy = (err) => {
+      if (!readable) {
+        return; // Already destroyed.
+      }
+      d('Destroying channel.');
+      err = err || new Error('unavailable channel');
+      readable
+        .unpipe(decoder)
+        .removeListener('error', onReadableError)
+        .removeListener('end', onReadableEnd);
+      encoder.unpipe(writable);
+      writable
+        .removeListener('error', onWritableError)
+        .removeListener('finish', onWritableFinish);
+      this._readable = readable = null;
+      writable = null;
+      for (const obj of this._callbacks.values()) {
+        obj.cb(err);
+      }
+      this._callbacks.clear();
+    };
+
     encoder
       .on('error', (err) => {
         d('Encoder error: %s', err);
@@ -45,13 +80,12 @@ class NettyClientBridge {
       writable.on('error', onWritableError);
     }
 
-    const decoder = new NettyDecoder(types.handshakeResponse);
     readable
       .on('error', onReadableError)
       .on('end', onReadableEnd)
       .pipe(decoder)
       .on('data', ({handshake, id, packet}) => {
-        let obj = cbs.get(id);
+        let obj = this._callbacks.get(id);
         if (!obj) {
           d('No callback for packet %s.', id);
           return;
@@ -71,11 +105,11 @@ class NettyClientBridge {
           }
           // IMPORTANT: `serverHash` might be different from `serverSvc.hash`.
           // The remove server might use a different algorithm to compute it.
-          serverSvcs.set(serverHash, serverSvc);
-          hashes.set(clientHash, serverHash);
+          this._serverServices.set(serverHash, serverSvc);
+          this._hashes.set(clientHash, serverHash);
         } else {
-          const serverHash = hashes.get(clientHash);
-          serverSvc = serverHash ? serverSvcs.get(serverHash) : clientSvc;
+          const serverHash = this._hashes.get(clientHash);
+          serverSvc = serverHash ? this._serverServices.get(serverHash) : clientSvc;
         }
         if (match === 'NONE' && !obj.retried) {
           d('Retrying packet %s.', id);
@@ -93,63 +127,6 @@ class NettyClientBridge {
         readable.emit('error', err);
       });
 
-    this._channel = function (ctx, preq, cb) {
-      if (ctx.cancelled) {
-        return;
-      }
-      if (!readable) {
-        cb(new Error('channel was destroyed'));
-        return;
-      }
-      if (draining) {
-        cb(new Error('channel started draining'));
-        return;
-      }
-      if (!preq) {
-        // TODO: Discovery RPC.
-        cb(new Error('not yet supported'));
-        return;
-      }
-      const id = preq.id;
-      const headers = preq.headers;
-      if (ctx.deadline) {
-        headers[DEADLINE_HEADER] = types.dateTime.toBuffer(ctx.deadline);
-      }
-      const cleanup = ctx.onCancel(() => { cbs.delete(id); });
-      const packet = new NettyPacket(preq.body, headers);
-      const clientSvc = preq.service;
-      cbs.set(id, {
-        cb: (...args) => {
-          if (cleanup()) {
-            cbs.delete(id);
-            cb(...args);
-          }
-        },
-        clientService: clientSvc,
-        packet, // For retries.
-        retried: false,
-        time: Date.now(),
-      });
-      send(id, packet, clientSvc, false);
-    }
-
-    function send(id, packet, clientSvc, includePtcl) {
-      const serverHash = hashes.get(clientSvc.hash) || clientSvc.hash;
-      let handshake = {
-        clientHash: Buffer.from(clientSvc.hash, 'binary'),
-        serverHash: Buffer.from(serverHash, 'binary'),
-      };
-      let suffix;
-      if (includePtcl) {
-        handshake.clientProtocol = JSON.stringify(clientSvc.protocol);
-        suffix = 'with full handshake';
-      } else {
-        suffix = 'with light handshake';
-      }
-      d('Sending packet %s %s.', id, suffix);
-      encoder.write({handshake, id, packet});
-    }
-
     function onReadableEnd() {
       d('Readable end.');
       destroy();
@@ -166,33 +143,55 @@ class NettyClientBridge {
       destroy(err);
       emitIfSwallowed(this, err);
     }
+  }
 
-    function onWritableFinish() {
-      d('Writable finished, starting to drain.');
-      draining = true;
+  _send(id, packet, clientSvc, includePtcl) {
+    const serverHash = this._hashes.get(clientSvc.hash) || clientSvc.hash;
+    let handshake = {
+      clientHash: Buffer.from(clientSvc.hash, 'binary'),
+      serverHash: Buffer.from(serverHash, 'binary'),
+    };
+    let suffix;
+    if (includePtcl) {
+      handshake.clientProtocol = JSON.stringify(clientSvc.protocol);
+      suffix = 'with full handshake';
+    } else {
+      suffix = 'with light handshake';
     }
+    d('Sending packet %s %s.', id, suffix);
+    this._encoder.write({handshake, id, packet});
+  }
 
-    function destroy(err) {
-      if (!readable) {
-        return; // Already destroyed.
-      }
-      d('Destroying channel.');
-      err = err || new Error('unavailable channel');
-      readable
-        .unpipe(decoder)
-        .removeListener('error', onReadableError)
-        .removeListener('end', onReadableEnd);
-      encoder.unpipe(writable);
-      writable
-        .removeListener('error', onWritableError)
-        .removeListener('finish', onWritableFinish);
-      readable = null;
-      writable = null;
-      for (const obj of cbs.values()) {
-        obj.cb(err);
-      }
-      cbs.clear();
+  call(ctx, preq, cb) {
+    if (!this._readable) {
+      cb(new Error('channel was destroyed'));
+      return;
     }
+    if (this._draining) {
+      cb(new Error('channel started draining'));
+      return;
+    }
+    const id = preq.id;
+    const headers = preq.headers;
+    if (ctx.deadline) {
+      headers[DEADLINE_HEADER] = types.dateTime.toBuffer(ctx.deadline);
+    }
+    const cleanup = ctx.onCancel(() => { this._callbacks.delete(id); });
+    const packet = new NettyPacket(preq.body, headers);
+    const clientSvc = preq.service;
+    this._callbacks.set(id, {
+      cb: (...args) => {
+        if (cleanup()) {
+          this._callbacks.delete(id);
+          cb(...args);
+        }
+      },
+      clientService: clientSvc,
+      packet, // For retries.
+      retried: false,
+      time: Date.now(),
+    });
+    this._send(id, packet, clientSvc, false);
   }
 
   /** Cache of protocol hash to service. */
@@ -200,9 +199,49 @@ class NettyClientBridge {
     return this._serverServices;
   }
 
-  get channel() {
-    return this._channel;
+  destroy(err) {
+    this._destroy(err);
   }
+}
+
+function nettyRouter(readable, writable, opts, cb) {
+  if (!isStream(writable)) {
+    cb = opts;
+    opts = writable;
+    writable = readable;
+  }
+  if (!cb && typeof opts == 'function') {
+    cb = opts;
+    opts = undefined;
+  }
+  opts = opts || {};
+  const chan = new NettyChannel(readable, writable, opts);
+  const preq = Packet.ping(discoveryService);
+  d('Sending discovering packet %s.', preq.id);
+  chan.call(opts.context || new Context(), preq, (err, pres) => {
+    if (err) {
+      d('Discovery packet %s failed: %s', preq.id, err);
+      cb(err);
+      return;
+    }
+    const header = pres.headers[DISCOVERY_HEADER];
+    let svcs;
+    if (!header) { // Likely not a gateway, assume single service.
+      svcs = [pres.service];
+    } else {
+      svcs = [];
+      try {
+        for (const ptcl of JSON.parse(types.string.fromBuffer(header))) {
+          svcs.push(new Service(ptcl));
+        }
+      } catch (err) {
+        cb(err);
+        return;
+      }
+    }
+    d('Discovered %s protocol(s) from packet %s.', svcs.length, preq.id);
+    cb(null, Router.forChannel(chan, svcs));
+  });
 }
 
 /**
@@ -212,27 +251,15 @@ class NettyClientBridge {
  * service will be used. This will work correctly when only clients from a
  * single service connect to this bridge, but likely won't otherwise.
  */
-class NettyServerBridge extends EventEmitter {
-  constructor(chan) {
-    super();
-    this._clientServices = null;
-    this._serverServices = null;
-    this._channel = chan;
-
-    chan(new Context(), null, (err, svcs) => {
-      if (err) {
-        this.emit('error', err);
-        return;
-      }
-      this._clientServices = new Map(); // Keyed by hash.
-      this._serverServices = new Map(); // Keyed by name.
-      for (const svc of svcs) {
-        this._clientServices.set(svc.hash, svc);
-        this._serverServices.set(svc.name, svc);
-      }
-      d('Bridge ready to serve %s service(s).', this._serverServices.size);
-      this.emit('ready');
-    });
+class NettyGateway {
+  constructor(router) {
+    this._clientServices = new Map(); // Keyed by hash.
+    this._serverServices = new Map(); // Keyed by name.
+    this._router = router;
+    for (const svc of router.services) {
+      this._clientServices.set(svc.hash, svc);
+      this._serverServices.set(svc.name, svc);
+    }
   }
 
   /** Cache of protocol hash to service, saves handshake requests. */
@@ -242,12 +269,6 @@ class NettyServerBridge extends EventEmitter {
 
   /** Accept a connection. */
   accept(readable, writable) {
-    if (!this._clientServices) {
-      d('Server bridge is not ready yet, queuing acceptance call');
-      this.once('ready', () => this.accept(readable, writable));
-      return;
-    }
-
     if (!writable) {
       writable = readable;
     }
@@ -269,6 +290,19 @@ class NettyServerBridge extends EventEmitter {
         if (hreq) {
           hres = {match: 'BOTH'};
           const clientHash = hreq.clientHash.toString('binary');
+          if (clientHash === discoveryService.hash) {
+            d('Got protocol discovery request packet %s.', id);
+            const ptcls = [];
+            for (const svc of this._router.services) {
+              ptcls.push(svc.protocol);
+            }
+            const headers = {
+              [DISCOVERY_HEADER]: types.string.toBuffer(JSON.stringify(ptcls)),
+            };
+            const packet = new NettyPacket(Buffer.from([0]), headers);
+            encoder.write({handshake: hres, id, packet});
+            return;
+          }
           clientSvc = this._clientServices.get(clientHash);
           if (!clientSvc) {
             if (!hreq.clientProtocol) {
@@ -284,8 +318,8 @@ class NettyServerBridge extends EventEmitter {
                 hres.serverProtocol = JSON.stringify(serverSvc.protocol);
                 hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
               }
-              const res = NettyResponse.forSystemError(err, id);
-              encoder.write({handshake: hres, response: res});
+              const packet = NettyPacket.forSystemError(err);
+              encoder.write({handshake: hres, id, packet});
               return;
             }
             try {
@@ -326,11 +360,7 @@ class NettyServerBridge extends EventEmitter {
           ctx = new Context();
         }
         const preq = new Packet(id, clientSvc, packet.body, packet.headers);
-        this._channel(ctx, preq, (err, pres) => {
-          if (ctx.cancelled) {
-            d('Packet %s was cancelled, dropping response.', id);
-            return;
-          }
+        this._router.channel.call(ctx, preq, (err, pres) => {
           if (err) {
             d('Error while responding to packet %s: %s', id, err);
             err = new SystemError('ERR_AVRO_CHANNEL_FAILURE', err);
@@ -557,10 +587,6 @@ class NettyPacket {
     return Buffer.concat([types.mapOfBytes.toBuffer(this.headers), this.body]);
   }
 
-  static ping() {
-    return new NettyPacket(Buffer.alloc(1));
-  }
-
   static fromPayload(buf) {
     const pkt = new NettyPacket();
     let obj;
@@ -597,6 +623,7 @@ function isStream(any) {
 }
 
 module.exports = {
-  NettyClientBridge,
-  NettyServerBridge,
+  Channel: NettyChannel,
+  Gateway: NettyGateway,
+  router: nettyRouter,
 };

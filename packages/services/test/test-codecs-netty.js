@@ -4,8 +4,9 @@
 
 const {Client, Server} = require('../lib/call');
 const {Context} = require('../lib/context');
+const {Router} = require('../lib/router');
 const {Service} = require('../lib/service');
-const {NettyClientBridge, NettyServerBridge} = require('../lib/channels/netty');
+const netty = require('../lib/codecs/netty');
 
 const assert = require('assert');
 const {Type} = require('avsc');
@@ -30,11 +31,11 @@ suite('netty client server', () => {
     },
   });
 
-  suite('same protocol', () => {
+  suite('same protocol no routing', () => {
     let client, server, cleanup;
 
     setup((done) => {
-      clientServer(echoService, (err, obj) => {
+      noRouting(echoService, (err, obj) => {
         if (err) {
           done(err);
           return;
@@ -191,16 +192,15 @@ suite('netty client server', () => {
           done();
         });
     });
-
   });
 
-  suite('timing', () => {
+  suite('timing no routing', () => {
     let clock;
     let client, server, cleanup;
 
     setup((done) => {
       clock = sinon.useFakeTimers();
-      clientServer(echoService, (err, obj) => {
+      noRouting(echoService, (err, obj) => {
         if (err) {
           done(err);
           return;
@@ -232,23 +232,87 @@ suite('netty client server', () => {
       });
     });
   });
+
+  suite('same protocol with routing', () => {
+    let client, server, cleanup;
+
+    setup((done) => {
+      routing(echoService, (err, obj) => {
+        if (err) {
+          done(err);
+          return;
+        }
+        client = obj.client;
+        server = obj.server;
+        cleanup = obj.cleanup;
+        done();
+      });
+    });
+
+    teardown(() => {
+      cleanup();
+    });
+
+    test('simple', (done) => {
+      server.onMessage()
+        .upper((msg, cb) => {
+          cb(null, null, msg.toUpperCase());
+        });
+      client.emitMessage(new Context())
+        .upper('foo', (err1, err2, res) => {
+          assert(!err1, err1);
+          assert(!err2, err2);
+          assert.equal(res, 'FOO');
+          done();
+        });
+    });
+  });
 });
 
-function clientServer(svc, cb) {
+function noRouting(svc, cb) {
   const client = new Client(svc);
   const server = new Server(svc);
-  const serverBridge = new NettyServerBridge(server.channel);
+  const gateway = new netty.Gateway(Router.forServers([server]));
   net.createServer()
     .on('connection', (conn) => {
       conn.on('unpipe', () => { conn.destroy(); });
-      serverBridge.accept(conn);
+      gateway.accept(conn);
     })
     .listen(0, function () {
       const tcpServer = this;
       const port = tcpServer.address().port;
       const conn = net.createConnection(port).setNoDelay();
-      client.channel = new NettyClientBridge(conn).channel;
+      client.channel = new netty.Channel(conn);
       cb(null, {client, server, cleanup});
+
+      function cleanup() {
+        conn.destroy();
+        tcpServer.close();
+      }
+    });
+}
+
+function routing(svc, cb) {
+  const client = new Client(svc);
+  const server = new Server(svc);
+  const gateway = new netty.Gateway(Router.forServers([server]));
+  net.createServer()
+    .on('connection', (conn) => {
+      conn.on('unpipe', () => { conn.destroy(); });
+      gateway.accept(conn);
+    })
+    .listen(0, function () {
+      const tcpServer = this;
+      const port = tcpServer.address().port;
+      const conn = net.createConnection(port).setNoDelay();
+      netty.router(conn, (err, router) => {
+        if (err) {
+          cb(err);
+          return;
+        }
+        client.channel = new netty.Channel(conn);
+        cb(null, {client, server, cleanup});
+      });
 
       function cleanup() {
         conn.destroy();

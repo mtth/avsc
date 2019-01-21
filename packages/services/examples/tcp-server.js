@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Server, Service, channels} = require('../lib');
+const {Router, Server, Service, netty} = require('../lib');
 
 const net = require('net');
 
@@ -32,8 +32,8 @@ const echoServer = new Server(echoService)
 const upperServer = new Server(upperService)
   .onMessage().upper((str, cb) => { cb(null, str.toUpperCase()); });
 
-const router = new channels.Router([echoServer.channel, upperServer.channel]);
-const bridge = new channels.NettyServerBridge(router.channel);
+const router = Router.forServers([echoServer, upperServer]);
+const gateway = new netty.Gateway(router);
 
 net.createServer()
   .on('connection', (conn) => {
@@ -43,6 +43,6 @@ net.createServer()
         console.log('Connection unpiped.');
         conn.destroy();
       });
-    bridge.accept(conn);
+    gateway.accept(conn);
   })
   .listen(8080, () => { console.log('Listening...'); });

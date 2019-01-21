@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Client, Context, Service, channels} = require('../lib');
+const {Client, Context, Router, Service, netty} = require('../lib');
 const net = require('net');
 
 const echoService = new Service({
@@ -25,41 +25,52 @@ const upperService = new Service({
   },
 });
 
-const echoClient = new Client(echoService);
-
-const monitor = new channels.Monitor((cb) => {
-  const conn = net.createConnection({port: 8080}).setNoDelay();
-  const chan = new channels.NettyClientBridge(conn).channel;
-  cb(null, chan, conn);
-}).on('down', (conn) => { conn.destroy(); });
-
-echoClient.channel = monitor.channel;
-
-const ctx = new Context(2000);
-client.use((call, next) => {
-  console.time(call.request.message);
-  next(null, (err, prev) => {
-    console.timeEnd(call.request.message);
-    prev(err);
+const echoClient = new Client(echoService)
+  .use((call, next) => {
+    console.time(call.request.message);
+    next(null, (err, prev) => {
+      console.timeEnd(call.request.message);
+      prev(err);
+    });
   });
+
+function newRouter(cb) {
+  const conn = net.createConnection({port: 8080}).setNoDelay();
+  netty.router(conn, (err, router) => {
+    if (err) {
+      cb(err);
+      return;
+    }
+    cb(null, router, conn);
+  });
+}
+
+Router.pooling(newRouter, (err, router) => {
+  if (err) {
+    console.error(err);
+    return;
+  }
+  router.on('down', (conn) => { conn.destroy(); });
+  echoClient.channel = router.channel;
+
+  const ctx = new Context(2000);
+  ctx.onCancel(() => { router.destroy(); });
+  poll(ctx);
 });
 
-poll();
 
-function poll() {
+function poll(ctx) {
   let i = 0;
   const timer = setInterval(emit, 500);
 
-  ctx.onCancel(() => {
-    clearInterval(timer);
-    monitor.destroy();
-  });
+  ctx.onCancel(() => { clearInterval(timer); });
 
   function emit() {
-    client.emitMessage(ctx).echo('poll-' + (i++), (err, str) => {
+    echoClient.emitMessage(ctx).echo('poll-' + (i++), (err, str) => {
       if (err) {
         console.error(err);
       }
+      console.log('ok');
     });
   }
 }
