@@ -34,19 +34,12 @@ class NettyChannel {
     const encoder = new NettyEncoder(types.handshakeRequest);
     const decoder = new NettyDecoder(types.handshakeResponse);
 
-    this._serverServices = new Map(); // Keyed by _remote_ hash.
-    this._hashes = new Map(); // Client hash to server hash.
-    this._callbacks = new Map();
-    this._draining = false;
-    this._encoder = encoder;
-    this._readable = readable;
-
     const onWritableFinish = () => {
       d('Writable finished, starting to drain.');
       this._draining = true;
     };
 
-    this._destroy = (err) => {
+    const destroy = (err) => {
       if (!readable) {
         return; // Already destroyed.
       }
@@ -67,6 +60,14 @@ class NettyChannel {
       }
       this._callbacks.clear();
     };
+
+    this._serverServices = new Map(); // Keyed by _remote_ hash.
+    this._hashes = new Map(); // Client hash to server hash.
+    this._callbacks = new Map();
+    this._draining = false;
+    this._encoder = encoder;
+    this._readable = readable;
+    this._destroy = destroy;
 
     encoder
       .on('error', (err) => {

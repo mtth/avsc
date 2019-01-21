@@ -181,7 +181,7 @@ class Client {
             msg.request.toBuffer(call.request),
           ]);
         } catch (err) {
-          d('Unable to encode request: %d', err);
+          d('Unable to encode request: %s', err);
           call._setSystemError('ERR_AVRO_BAD_REQUEST', err);
           prev();
           return;
@@ -371,8 +371,8 @@ class Server {
             bufs = [Buffer.from([0]), msg.response.toBuffer(call.response)];
           }
         } catch (cause) {
-          call._setSystemError('ERR_AVRO_BAD_RESPONSE', cause);
-          bufs = [Buffer.from([1, 0]), types.systemError.toBuffer(call.error)];
+          err = new SystemError('ERR_AVRO_BAD_RESPONSE', cause);
+          bufs = [Buffer.from([1, 0]), types.systemError.toBuffer(err)];
         }
         d('Sending response packet %s!', id);
         cb(null, new Packet(id, svc, Buffer.concat(bufs), headers));
