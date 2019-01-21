@@ -195,14 +195,13 @@ class PoolingRouter extends EventEmitter {
   _setupRouter(ctx) {
     this._routerProvider((err, router, ...args) => {
       if (err) {
-        d('Error while refreshing router, giving up: %s', err);
-        this._refreshError = err;
-        this.emit('error', err);
+        d('Error while setting up router: %s', err);
+        this._refreshBackoff.backoff();
         return;
       }
       checkHealth(ctx || new Context(), router, (err) => {
         if (err) {
-          d('Error on fresh router, retrying shortly: %s', err);
+          d('Error while checking router health: %s', err);
           this._refreshBackoff.backoff();
           return;
         }
@@ -238,11 +237,12 @@ class PoolingRouter extends EventEmitter {
             this.removeListener('up', onUp);
           });
           const onUp = () => {
+            this.removeListener('up', onUp);
             if (cleanup()) {
               this.channel(ctx, preq, cb);
             }
           };
-          this.once('up', onUp);
+          this.on('up', onUp);
         }
         return;
       }
@@ -265,6 +265,9 @@ class PoolingRouter extends EventEmitter {
   }
 
   destroy() {
+    if (!this._refreshError) {
+      d('Destroying pool.');
+    }
     this._refreshError = new Error('destroyed');
     this._teardownRouter();
   }

@@ -374,14 +374,14 @@ class NettyGateway {
         });
       })
       .on('error', (err) => {
-        d('Server bridge decoder error: %s', err);
+        d('Gateway decoder error: %s', err);
         readable.emit('error', err);
       });
 
     const encoder = new NettyEncoder(types.handshakeResponse);
     encoder
       .on('error', (err) => {
-        d('Server bridge encoder error: %s', err);
+        d('Gateway encoder error: %s', err);
         writable.emit('error', err);
       })
       .pipe(writable)
@@ -392,24 +392,24 @@ class NettyGateway {
     }
 
     function onReadableEnd() {
-      d('Server bridge readable end.');
+      d('Gateway readable end.');
       destroy();
     }
 
     function onReadableError(err) {
-      d('Server bridge readable error: %s', err);
+      d('Gateway readable error: %s', err);
       destroy();
       emitIfSwallowed(this, err);
     }
 
     function onWritableError(err) {
-      d('Server bridge writable error: %s', err);
+      d('Gateway writable error: %s', err);
       destroy();
       emitIfSwallowed(this, err);
     }
 
     function onWritableFinish() {
-      d('Server bridge writable finished.');
+      d('Gateway writable finished.');
       destroy();
     }
 
