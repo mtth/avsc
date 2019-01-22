@@ -521,7 +521,7 @@ class NettyDecoder extends stream.Transform {
         handshake = null;
         body = buf;
       }
-      packet = NettyPacket.fromPayload(body);
+      packet = NettyPacket.forPayload(body);
     }
   }
 
@@ -588,7 +588,7 @@ class NettyPacket {
     return Buffer.concat([types.mapOfBytes.toBuffer(this.headers), this.body]);
   }
 
-  static fromPayload(buf) {
+  static forPayload(buf) {
     const pkt = new NettyPacket();
     let obj;
     obj = types.mapOfBytes.decode(buf, 0);
@@ -600,7 +600,7 @@ class NettyPacket {
     return pkt;
   }
 
-  static fromSystemError(err) {
+  static forSystemError(err) {
     const buf = types.systemError.toBuffer(err);
     const body = Buffer.concat([Buffer.from([1, 0]), buf]);
     return NettyPacket.forPayload(body);
