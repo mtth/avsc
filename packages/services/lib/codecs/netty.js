@@ -317,7 +317,7 @@ class NettyGateway {
                 // If only one server is behind this channel, we can already
                 // send its protocol, otherwise we will have to wait for the
                 // client protocol's name to tell which one to send back.
-                const serverSvc = Array.from(this._serverServices.value())[0];
+                const serverSvc = Array.from(this._serverServices.values())[0];
                 hres.serverProtocol = JSON.stringify(serverSvc.protocol);
                 hres.serverHash = Buffer.from(serverSvc.hash, 'binary');
               }

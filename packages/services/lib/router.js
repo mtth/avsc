@@ -161,6 +161,8 @@ function checkHealth(ctx, router, cb) {
   }
 }
 
+// TODO: Fix bug where the pool doesn't restart netty connections which get
+// terminated from the other side.
 class PoolingRouter extends EventEmitter {
   constructor(fn, {context, isFatal, refreshBackoff, size} = {}) {
     if (size && size > 1) {
@@ -249,6 +251,7 @@ class PoolingRouter extends EventEmitter {
       this._activeRouter.channel.call(ctx, preq, (err, pres) => {
         const args = this._activeArgs;
         if (err && args && this._isFatal(err) && !this._refreshError) {
+          d('Pool caught fatal channel error: %s', err);
           this._teardownRouter();
           this._refreshBackoff.backoff();
         }
