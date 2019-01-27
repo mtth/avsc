@@ -3,10 +3,10 @@
 'use strict';
 
 const {Client, Server} = require('../lib/call');
-const {Context} = require('../lib/context');
+const {Trace} = require('../lib/channel');
+const netty = require('../lib/codecs/netty');
 const {Router} = require('../lib/router');
 const {Service} = require('../lib/service');
-const netty = require('../lib/codecs/netty');
 
 const assert = require('assert');
 const {Type} = require('avsc');
@@ -35,7 +35,7 @@ suite('netty client server', () => {
     let client, server, cleanup;
 
     setup((done) => {
-      noRouting(echoService, (err, obj) => {
+      routing(echoService, (err, obj) => {
         if (err) {
           done(err);
           return;
@@ -56,7 +56,7 @@ suite('netty client server', () => {
         .upper((msg, cb) => {
           cb(null, null, msg.toUpperCase());
         });
-      client.emitMessage(new Context())
+      client.emitMessage(new Trace())
         .upper('foo', (err1, err2, res) => {
           assert(!err1, err1);
           assert(!err2, err2);
@@ -66,11 +66,11 @@ suite('netty client server', () => {
     });
 
     test('cancel', (done) => {
-      const ctx = new Context();
+      const trace = new Trace();
       server.onMessage().upper((msg, cb) => {
-        ctx.expire();
+        trace.expire();
       });
-      client.emitMessage(ctx).upper('foo', (err) => {
+      client.emitMessage(trace).upper('foo', (err) => {
         assert.equal(err.code, 'ERR_AVRO_EXPIRED');
         done();
       });
@@ -79,7 +79,7 @@ suite('netty client server', () => {
     test('middleware with handler', (done) => {
       const evts = [];
       server
-        .use((call, next) => {
+        .use((wreq, wres, next) => {
           evts.push('server mw in');
           next(null, (err, prev) => {
             evts.push('server mw out');
@@ -91,14 +91,14 @@ suite('netty client server', () => {
           cb(null, msg);
         });
       client
-        .use((call, next) => {
+        .use((wreq, wres, next) => {
           evts.push('client mw in');
           next(null, (err, prev) => {
             evts.push('client mw out');
             prev(err);
           });
         })
-        .emitMessage(new Context()).echo('foo', (err, res) => {
+        .emitMessage(new Trace()).echo('foo', (err, res) => {
           assert(!err, err);
           assert.equal(res, 'foo');
           assert.deepEqual(evts, [
@@ -117,8 +117,8 @@ suite('netty client server', () => {
       client.tagTypes.attempt = intType;
       server.tagTypes.attempt = intType;
       server
-        .use((call, next) => {
-          if (call.tags.attempt === 1) {
+        .use((wreq, wres, next) => {
+          if (wreq.tags.attempt === 1) {
             next();
             return;
           }
@@ -128,23 +128,23 @@ suite('netty client server', () => {
           cb(null, msg);
         });
       client
-        .use((call, next) => {
-          const attempt = call.tags.attempt;
+        .use((wreq, wres, next) => {
+          const attempt = wreq.tags.attempt;
           if (attempt === undefined) {
-            call.tags.attempt = 0;
+            wreq.tags.attempt = 0;
           } else {
-            call.tags.attempt = attempt + 1;
+            wreq.tags.attempt = attempt + 1;
           }
           next();
         })
-        .emitMessage(new Context(), retry(1)).echo('foo', (err, res) => {
+        .emitMessage(new Trace(), retry(1)).echo('foo', (err, res) => {
           assert(!err, err);
           assert.equal(res, 'foo');
           done();
         });
 
       function retry(n) {
-        return (call, next) => {
+        return (wreq, wres, next) => {
           tryOnce(0);
 
           function tryOnce(i) {
@@ -154,7 +154,7 @@ suite('netty client server', () => {
                 prev();
                 return;
               }
-              call.error = undefined;
+              wres.error = undefined;
               tryOnce(i + 1);
             });
           }
@@ -165,7 +165,7 @@ suite('netty client server', () => {
     test('middleware missing handler', (done) => {
       const evts = [];
       server
-        .use((call, next) => {
+        .use((wreq, wres, next) => {
           evts.push('server mw in');
           next(null, (err, prev) => {
             evts.push('server mw out');
@@ -173,14 +173,14 @@ suite('netty client server', () => {
           });
         });
       client
-        .use((call, next) => {
+        .use((wreq, wres, next) => {
           evts.push('client mw in');
           next(null, (err, prev) => {
             evts.push('client mw out');
             prev();
           });
         })
-        .emitMessage(new Context()).echo('foo', (err, res) => {
+        .emitMessage(new Trace()).echo('foo', (err, res) => {
           assert(!res, res);
           assert.equal(err.code, 'ERR_AVRO_NOT_IMPLEMENTED');
           assert.deepEqual(evts, [
@@ -200,7 +200,7 @@ suite('netty client server', () => {
 
     setup((done) => {
       clock = sinon.useFakeTimers();
-      noRouting(echoService, (err, obj) => {
+      routing(echoService, (err, obj) => {
         if (err) {
           done(err);
           return;
@@ -219,14 +219,11 @@ suite('netty client server', () => {
 
     test('deadline propagation', (done) => {
       server
-        .use((call, next) => {
+        .use((wreq, wres, next) => {
           clock.tick(10); // Exceed deadline.
           next();
-        })
-        .onMessage().echo((str, cb) => {
-          assert(false); // Should not be called.
         });
-      client.emitMessage(new Context(5)).echo('foo', (err) => {
+      client.emitMessage(new Trace(5)).echo('foo', (err) => {
         assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
         done();
       });
@@ -258,7 +255,7 @@ suite('netty client server', () => {
         .upper((msg, cb) => {
           cb(null, null, msg.toUpperCase());
         });
-      client.emitMessage(new Context())
+      client.emitMessage(new Trace())
         .upper('foo', (err1, err2, res) => {
           assert(!err1, err1);
           assert(!err2, err2);
@@ -269,33 +266,10 @@ suite('netty client server', () => {
   });
 });
 
-function noRouting(svc, cb) {
-  const client = new Client(svc);
-  const server = new Server(svc);
-  const gateway = new netty.Gateway(Router.forServers([server]));
-  net.createServer()
-    .on('connection', (conn) => {
-      conn.on('unpipe', () => { conn.destroy(); });
-      gateway.accept(conn);
-    })
-    .listen(0, function () {
-      const tcpServer = this;
-      const port = tcpServer.address().port;
-      const conn = net.createConnection(port).setNoDelay();
-      client.channel = new netty.Channel(conn);
-      cb(null, {client, server, cleanup});
-
-      function cleanup() {
-        conn.destroy();
-        tcpServer.close();
-      }
-    });
-}
-
 function routing(svc, cb) {
   const client = new Client(svc);
   const server = new Server(svc);
-  const gateway = new netty.Gateway(Router.forServers([server]));
+  const gateway = new netty.Gateway(Router.forServers(server));
   net.createServer()
     .on('connection', (conn) => {
       conn.on('unpipe', () => { conn.destroy(); });
@@ -310,7 +284,7 @@ function routing(svc, cb) {
           cb(err);
           return;
         }
-        client.channel = new netty.Channel(conn);
+        client.channel = router.channel;
         cb(null, {client, server, cleanup});
       });
 

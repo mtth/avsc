@@ -3,7 +3,7 @@
 'use strict';
 
 const {Client, Server} = require('../lib/call');
-const {Context} = require('../lib/context');
+const {Trace} = require('../lib/channel');
 const {Service} = require('../lib/service');
 
 const assert = require('assert');
@@ -33,7 +33,7 @@ suite('client server', () => {
       .upper((msg, cb) => {
         cb(null, null, msg.toUpperCase());
       });
-    client.emitMessage(new Context())
+    client.emitMessage(new Trace())
       .upper('foo', (err1, err2, res) => {
         assert(!err1, err1);
         assert(!err2, err2);
@@ -44,11 +44,11 @@ suite('client server', () => {
 
   test('cancel', (done) => {
     const {client, server} = clientServer(echoSvc);
-    const ctx = new Context();
+    const trace = new Trace();
     server.onMessage().upper((msg, cb) => {
-      ctx.expire();
+      trace.expire();
     });
-    client.emitMessage(ctx).upper('foo', (err) => {
+    client.emitMessage(trace).upper('foo', (err) => {
       assert.equal(err.code, 'ERR_AVRO_EXPIRED');
       done();
     });
@@ -58,7 +58,7 @@ suite('client server', () => {
     const {client, server} = clientServer(echoSvc);
     const evts = [];
     server
-      .use((call, next) => {
+      .use((wreq, wres, next) => {
         evts.push('server mw in');
         next(null, (err, prev) => {
           evts.push('server mw out');
@@ -70,14 +70,14 @@ suite('client server', () => {
         cb(null, msg);
       });
     client
-      .use((call, next) => {
+      .use((wreq, wres, next) => {
         evts.push('client mw in');
         next(null, (err, prev) => {
           evts.push('client mw out');
           prev(err);
         });
       })
-      .emitMessage(new Context()).echo('foo', (err, res) => {
+      .emitMessage(new Trace()).echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
         assert.deepEqual(evts, [
@@ -97,8 +97,8 @@ suite('client server', () => {
     client.tagTypes.attempt = intType;
     server.tagTypes.attempt = intType;
     server
-      .use((call, next) => {
-        if (call.tags.attempt === 1) {
+      .use((wreq, wres, next) => {
+        if (wreq.tags.attempt === 1) {
           next();
           return;
         }
@@ -108,23 +108,23 @@ suite('client server', () => {
         cb(null, msg);
       });
     client
-      .use((call, next) => {
-        const attempt = call.tags.attempt;
+      .use((wreq, wres, next) => {
+        const attempt = wreq.tags.attempt;
         if (attempt === undefined) {
-          call.tags.attempt = 0;
+          wreq.tags.attempt = 0;
         } else {
-          call.tags.attempt = attempt + 1;
+          wreq.tags.attempt = attempt + 1;
         }
         next();
       })
-      .emitMessage(new Context(), retry(1)).echo('foo', (err, res) => {
+      .emitMessage(new Trace(), retry(1)).echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
         done();
       });
 
     function retry(n) {
-      return (call, next) => {
+      return (wreq, wres, next) => {
         tryOnce(0);
 
         function tryOnce(i) {
@@ -134,7 +134,7 @@ suite('client server', () => {
               prev();
               return;
             }
-            call.error = undefined;
+            wres.error = undefined;
             tryOnce(i + 1);
           });
         }
@@ -146,7 +146,7 @@ suite('client server', () => {
     const {client, server} = clientServer(echoSvc);
     const evts = [];
     server
-      .use((call, next) => {
+      .use((wreq, wres, next) => {
         evts.push('server mw in');
         next(null, (err, prev) => {
           evts.push('server mw out');
@@ -154,14 +154,14 @@ suite('client server', () => {
         });
       });
     client
-      .use((call, next) => {
+      .use((wreq, wres, next) => {
         evts.push('client mw in');
         next(null, (err, prev) => {
           evts.push('client mw out');
           prev();
         });
       })
-      .emitMessage(new Context()).echo('foo', (err, res) => {
+      .emitMessage(new Trace()).echo('foo', (err, res) => {
         assert(!res, res);
         assert.equal(err.code, 'ERR_AVRO_NOT_IMPLEMENTED');
         assert.deepEqual(evts, [
@@ -180,21 +180,4 @@ function clientServer(svc) {
   const server = new Server(svc);
   client.channel = server.channel;
   return {client, server};
-}
-
-function time() {
-  return (call, next) => {
-    const start = Date.now();
-    const cleanup = call.context.onCancel(done);
-
-    next(null, (err, prev) => {
-      done();
-      prev(err);
-    });
-
-    function done() {
-      cleanup();
-      console.log(`Run in ${Date.now() - start}.`);
-    }
-  };
 }

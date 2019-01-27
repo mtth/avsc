@@ -2,10 +2,10 @@
 
 'use strict';
 
-const {Channel} = require('./call');
-const {Context} = require('./context');
+const {Server} = require('./call');
+const {Channel, Trace} = require('./channel');
 const {Service} = require('./service');
-const {SystemError} = require('./types');
+const {SystemError} = require('./utils');
 
 const backoff = require('backoff');
 const debug = require('debug');
@@ -13,267 +13,242 @@ const {EventEmitter} = require('events');
 
 const d = debug('@avro/services:router');
 
-/** A static router. */
-class Router {
-  constructor(children) {
-    if (!children) {
-      throw new Error('empty router');
+class Router extends EventEmitter {
+  constructor(svcs, chan) {
+    if (!svcs || !svcs.length) {
+      throw new Error('no services');
     }
-    this._services = [];
-    this._children = new Map();
-    for (const child of children) {
-      for (const svc of child.services) {
-        if (this._children.has(svc.name)) {
+    if (!Channel.isChannel(chan)) {
+      throw new Error(`not a channel: ${chan}`);
+    }
+    super();
+    this.closed = false;
+    this.services = svcs;
+    this.channel = new Channel((trace, preq, cb) => {
+      if (this.closed) {
+        cb(routerClosedError());
+        return;
+      }
+      chan.call(trace, preq, cb);
+    });
+  }
+
+  close() {
+    if (this.closed) {
+      return;
+    }
+    d('Closing router.');
+    this.closed = true;
+    this.emit('close');
+  }
+
+  static forChannel(chan, svcs) {
+    const serviceNames = new Set();
+    for (const svc of svcs) {
+      serviceNames.add(svc.name); // Speed up later routing check.
+    }
+    const routingChan = new Channel((trace, preq, cb) => {
+      const clientSvc = preq.service;
+      if (!isRoutable(clientSvc, serviceNames)) {
+        cb(serviceNotFoundError(clientSvc));
+        return;
+      }
+      chan.call(trace, preq, cb);
+    });
+    return new Router(svcs, routingChan);
+  }
+
+  static forServers(...servers) {
+    if (!servers || !servers.length) {
+      throw new Error('no servers');
+    }
+    const routers = [];
+    for (const server of servers) {
+      if (!Server.isServer(server)) {
+        throw new Error(`not a server: ${server}`);
+      }
+      routers.push(Router.forChannel(server.channel, [server.service]));
+    }
+    return routers.length === 1 ? routers[0] : Router.forRouters(...routers);
+  }
+
+  static forRouters(...routers) {
+    const routerMap = new Map();
+    const svcs = [];
+    let upstream;
+    for (const downstream of routers) {
+      if (downstream.closed) {
+        throw new Error('router is already closed');
+      }
+      downstream.on('close', onClose);
+      for (const svc of downstream.services) {
+        if (routerMap.has(svc.name)) {
           throw new Error(`duplicate service name: ${svc.name}`);
         }
-        this._children.set(svc.name, child);
-        this._services.push(svc);
+        routerMap.set(svc.name, downstream);
+        svcs.push(svc);
       }
     }
-    this._channel = new Channel((ctx, preq, cb) => {
+    const chan = new Channel((trace, preq, cb) => {
       const clientSvc = preq.service;
       const names = routingNames(clientSvc);
-      let child;
+      let downstream;
       for (const name of names) {
-        const candidate = this._children.get(name);
+        const candidate = routerMap.get(name);
         if (candidate) {
-          if (child) {
+          if (downstream) {
             const cause = new Error(`ambiguous service aliases: ${names}`);
             cb(new SystemError('ERR_AVRO_AMBIGUOUS_SERVICE'));
             return;
           }
-          child = candidate;
+          downstream = candidate;
         }
       }
-      if (!child) {
+      if (!downstream) {
         cb(serviceNotFoundError(preq.service));
         return;
       }
-      child.channel.call(ctx, preq, cb);
+      downstream.channel.call(trace, preq, cb);
     });
-  }
+    const downstreamRouters = Array.from(routerMap.values());
+    upstream = new DispatchingRouter(svcs, chan, downstreamRouters);
+    return upstream;
 
-  get channel() {
-    return this._channel;
-  }
-
-  get services() {
-    return this._services.slice();
-  }
-
-  static forChannel(chan, svcs) {
-    return new ChannelRouter(chan, svcs);
-  }
-
-  static forServers(servers) {
-    const routers = [];
-    for (const server of servers) {
-      routers.push(Router.forChannel(server.channel, [server.service]));
+    function onClose() {
+      upstream.close();
+      for (const downstream of routerMap.values()) {
+        downstream.removeListener('close', onClose);
+      }
     }
-    return new Router(routers);
   }
 
-  static pooling(fn, opts, cb) {
+  // TODO: Add `queueBackoff` option.
+  static selfRefreshing(provider, opts, cb) {
     if (!cb && typeof opts == 'function') {
       cb = opts;
       opts = undefined;
     }
-    const router = new PoolingRouter(fn, opts)
-      .on('error', onError)
-      .on('up', onUp);
-
-    function cleanup() {
-      router
-        .removeListener('error', onError)
-        .removeListener('up', onUp);
-    }
-
-    function onError(err) {
-      cleanup();
-      cb(err);
-    }
-
-    function onUp() {
-      cleanup();
-      cb(null, router);
-    }
+    ((opts && opts.refreshBackoff) || backoff.fibonacci())
+      .on('ready', function () {
+        provider((err, router, ...args) => {
+          if (err) {
+            d('Error opening router: %s', err);
+            process.nextTick(() => { this.backoff(); });
+            return;
+          }
+          cb(null, new SelfRefreshingRouter(router, args, provider, opts));
+        });
+      })
+      .on('fail', () => {
+        cb(new Error('unable to open router'));
+      })
+      .backoff();
   }
 }
 
-class ChannelRouter {
-  constructor(chan, svcs) {
-    if (!chan || !svcs || !svcs.length) {
-      throw new Error('empty channel router');
-    }
-    this._services = svcs;
-    this._serviceNames = new Set();
-    for (const svc of svcs) {
-      this._serviceNames.add(svc.name); // Speed up later routing check.
-    }
-    this._channel = new Channel((ctx, preq, cb) => {
-      const clientSvc = preq.service;
-      if (!isRoutable(clientSvc, this._serviceNames)) {
-        cb(serviceNotFoundError(svc));
+class DispatchingRouter extends Router {
+  constructor(svcs, chan, downstreamRouters) {
+    super(svcs, chan);
+    this.downstreamRouters = downstreamRouters;
+  }
+}
+
+class SelfRefreshingRouter extends Router {
+  constructor(router, args, provider, opts) {
+    opts = opts || {};
+    super(router.services, new Channel((trace, preq, cb) => {
+      if (this._activeRouter) {
+        this._activeRouter.channel.call(trace, preq, cb);
         return;
       }
-      chan.call(ctx, preq, cb);
-    });
-  }
+      const id = preq.id;
+      const cleanup = trace.onceInactive(() => {
+        this._pendingCalls.delete(id);
+      });
+      const retry = (err) => {
+        cleanup();
+        this._pendingCalls.delete(id);
+        if (err) {
+          cb(err);
+          return;
+        }
+        this.channel.call(trace, preq, cb); // Try again.
+      };
+      this._pendingCalls.set(id, retry);
+      this.emit('queue', this._pendingCalls.size, retry);
+    }));
 
-  get channel() {
-    return this._channel;
-  }
-
-  get services() {
-    return this._services.slice();
-  }
-}
-
-/** Check whether all services inside a router are reachable. */
-function checkHealth(ctx, router, cb) {
-  const svcs = router.services;
-  const names = svcs.map((svc) => svc.name).join(', ');
-  d('Checking the health of %s service(s): %s', svcs.length, names);
-  if (ctx.cancelled) {
-    cb(ctx.cancelledWith);
-    return;
-  }
-  const cleanup = ctx.onCancel(onPing);
-  let pending = svcs.length;
-  for (const svc of svcs) {
-    router.channel.ping(ctx, svc, onPing);
-  }
-
-  function onPing(err, svc) {
-    if (err) {
-      cb(err);
-      pending = 0; // Disable later calls.
-      cleanup();
-      return;
-    }
-    d('Service %s is healthy.', svc.name);
-    if (--pending > 0) {
-      return; // Not done yet.
-    }
-    cleanup();
-    d('All services healthy!')
-    cb();
-  }
-}
-
-// TODO: Fix bug where the pool doesn't restart netty connections which get
-// terminated from the other side.
-class PoolingRouter extends EventEmitter {
-  constructor(fn, {context, isFatal, refreshBackoff, size} = {}) {
-    if (size && size > 1) {
-      throw new Error('not yet supported'); // TODO: Support size > 1.
-    }
-    super();
-    this._routerProvider = fn;
-    this._activeRouter = null;
-    this._activeArgs = null;
-    this._isFatal = isFatal || ((e) => e.code === 'ERR_AVRO_CHANNEL_FAILURE');
-    this._refreshError = null;
-
-    this._attempts = 1;
-    this._refreshBackoff = (refreshBackoff || backoff.fibonacci())
+    this._routerProvider = provider;
+    this._activeRouter = null; // Activated below.
+    this._pendingCalls = new Map();
+    this._refreshAttempts = 0;
+    this._refreshBackoff = (opts.refreshBackoff || backoff.fibonacci())
       .on('backoff', (num, delay) => {
         d('Scheduling refresh in %sms.', delay);
+        this._refreshAttempts++;
       })
       .on('ready', () => {
-        d('Starting refresh attempt #%s...', this._attempts++);
-        this._setupRouter();
+        d('Starting refresh attempt #%s...', this._refreshAttempts);
+        this._refreshRouter();
       })
       .on('fail', () => {
         d('Exhausted refresh attempts, giving up.');
-        const err = new Error('exhausted refresh attempts');
-        this._refreshError = err;
-        this.emit('error', err);
+        this.emit('error', new Error('exhausted refresh attempts'));
       });
 
-    this._setupRouter(context);
+    this.once('close', () => {
+      if (this._activeRouter) {
+        this._activeRouter.close();
+      }
+      for (const cb of this._pendingCalls.values()) {
+        cb();
+      }
+    });
+    this._activateRouter(router, args);
   }
 
-  _setupRouter(ctx) {
+  _refreshRouter() {
+    if (this._activeRouter) {
+      throw new Error('router already active');
+    }
     this._routerProvider((err, router, ...args) => {
       if (err) {
-        d('Error while setting up router: %s', err);
-        this._refreshBackoff.backoff();
-        return;
-      }
-      checkHealth(ctx || new Context(), router, (err) => {
-        if (err) {
-          d('Error while checking router health: %s', err);
+        d('Error while opening router: %s', err);
+        if (!this.closed) {
           this._refreshBackoff.backoff();
-          return;
-        }
-        this._activeArgs = args;
-        this._activeRouter = router; // TODO: Wrap in heartbeat.
-        this._attempts = 1;
-        this._refreshBackoff.reset();
-        d('Pool ready.');
-        this.emit('up', ...args);
-      });
-    });
-  }
-
-  _teardownRouter() {
-    if (!this._activeArgs) {
-      return;
-    }
-    const args = this._activeArgs;
-    this._activeArgs = null;
-    this._activeRouter = null;
-    this.emit('down', ...args);
-  }
-
-  get channel() {
-    return new Channel((ctx, preq, cb) => {
-      if (!this._activeRouter) {
-        const err = this._refreshError;
-        if (err) {
-          cb(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL', err));
-        } else {
-          d('Pool empty, queuing call %s.', preq ? preq.id : '*');
-          const cleanup = ctx.onCancel(() => {
-            this.removeListener('up', onUp);
-          });
-          const onUp = () => {
-            this.removeListener('up', onUp);
-            if (cleanup()) {
-              this.channel(ctx, preq, cb);
-            }
-          };
-          this.on('up', onUp);
         }
         return;
       }
-      this._activeRouter.channel.call(ctx, preq, (err, pres) => {
-        const args = this._activeArgs;
-        if (err && args && this._isFatal(err) && !this._refreshError) {
-          d('Pool caught fatal channel error: %s', err);
-          this._teardownRouter();
-          this._refreshBackoff.backoff();
-        }
-        cb(err, pres);
-      });
+      if (this.closed) {
+        router.close();
+        return;
+      }
+      this._refreshAttempts = 0;
+      this._refreshBackoff.reset();
+      this._activateRouter(router, args);
     });
   }
 
-  get services() {
-    if (!this._activeRouter) {
-      throw new Error('not yet active');
+  _activateRouter(router, args) {
+    this._activeRouter = router
+      .on('error', (err) => { this.emit('error', err); })
+      .once('close', () => {
+        this._activeRouter = null;
+        this.emit('down', ...args);
+        if (!this.closed) {
+          this._refreshRouter();
+        }
+      });
+    d('Self-refreshing router active.');
+    this.emit('up', ...args);
+    for (const cb of this._pendingCalls.values()) {
+      cb();
     }
-    return this._activeRouter.services;
   }
+}
 
-  destroy() {
-    if (!this._refreshError) {
-      d('Destroying pool.');
-    }
-    this._refreshError = new Error('destroyed');
-    this._teardownRouter();
-  }
+function routerClosedError() {
+  return new SystemError('ERR_AVRO_ROUTER_CLOSED');
 }
 
 function serviceNotFoundError(svc) {

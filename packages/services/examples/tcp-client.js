@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Client, Context, Router, Service, netty} = require('../lib');
+const {Client, Router, Service, Trace, netty} = require('../lib');
 const net = require('net');
 
 const echoService = new Service({
@@ -26,47 +26,48 @@ const upperService = new Service({
 });
 
 const echoClient = new Client(echoService)
-  .use((call, next) => {
-    console.time(call.request.message);
+  .use((wreq, wres, next) => {
+    console.time(wreq.request.message);
     next(null, (err, prev) => {
-      console.timeEnd(call.request.message);
+      console.timeEnd(wreq.request.message);
       prev(err);
     });
   });
 
-function newRouter(cb) {
+function routerProvider(cb) {
   const conn = net.createConnection({port: 8080}).setNoDelay();
   netty.router(conn, (err, router) => {
     if (err) {
       cb(err);
       return;
     }
+    router.once('close', () => { conn.end(); });
     cb(null, router, conn);
   });
 }
 
-Router.pooling(newRouter, (err, router) => {
+Router.selfRefreshing(routerProvider, (err, router) => {
   if (err) {
     console.error(err);
     return;
   }
-  router.on('down', (conn) => { conn.destroy(); });
+  router.on('error', (err) => { console.error(`router error: ${err}`); });
   echoClient.channel = router.channel;
 
-  const ctx = new Context(2000);
-  ctx.onCancel(() => { router.destroy(); });
-  poll(ctx);
+  const trace = new Trace(2000);
+  trace.onceInactive(() => { router.close(); });
+  poll(trace);
 });
 
 
-function poll(ctx) {
+function poll(trace) {
   let i = 0;
   const timer = setInterval(emit, 500);
 
-  ctx.onCancel(() => { clearInterval(timer); });
+  trace.onceInactive(() => { clearInterval(timer); });
 
   function emit() {
-    echoClient.emitMessage(ctx).echo('poll-' + (i++), (err, str) => {
+    echoClient.emitMessage(trace).echo('poll-' + (i++), (err, str) => {
       if (err) {
         console.error(err);
       }

@@ -4,7 +4,7 @@
 
 /** This module implements Avro's IPC/RPC logic. */
 
-const types = require('./types');
+const utils = require('./utils');
 
 const {Type, types: {WrappedUnionType}} = require('avsc');
 const crypto = require('crypto');
@@ -25,7 +25,7 @@ class Message {
     if (!Array.isArray(schema.request)) {
       throw new Error(`invalid message request: ${name}`);
     }
-    const recordName = `${types.NAMESPACE}.Request`;
+    const recordName = `${utils.NAMESPACE}.Request`;
     try {
       this.request = Type.forSchema({
         name: recordName,
@@ -46,7 +46,7 @@ class Message {
       throw new Error(`invalid message errors: ${name}`);
     }
     this.error = new WrappedUnionType( // Errors are always wrapped.
-      [types.systemError].concat(schema.errors || []),
+      [utils.systemErrorType].concat(schema.errors || []),
       opts
     );
 

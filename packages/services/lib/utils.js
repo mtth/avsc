@@ -71,31 +71,46 @@ class DateTimeType extends LogicalType {
   }
 }
 
+class JsonType extends LogicalType {
+  _fromValue(val) {
+    return JSON.parse(val);
+  }
+
+  _toValue(any) {
+    return JSON.stringify(any);
+  }
+}
+
 // Various useful types. We instantiate options once, to share the registry.
 const opts = {
   namespace: NAMESPACE,
   logicalTypes: {
     'datetime-millis': DateTimeType,
+    'json': JsonType,
     'system-error': SystemErrorType,
   },
 };
 
-const string = Type.forSchema('string', opts);
+const stringType = Type.forSchema('string', opts);
 
-const mapOfBytes = Type.forSchema({type: 'map', values: 'bytes'}, opts);
+const mapOfBytesType = Type.forSchema({type: 'map', values: 'bytes'}, opts);
 
-const handshakeRequest = Type.forSchema({
+const mapOfJsonType = Type.forSchema({
+  type: 'map', values: {type: 'string', logicalType: 'json'},
+}, opts);
+
+const handshakeRequestType = Type.forSchema({
   name: 'HandshakeRequest',
   type: 'record',
   fields: [
     {name: 'clientHash', type: {name: 'MD5', type: 'fixed', size: 16}},
     {name: 'clientProtocol', type: ['null', 'string'], default: null},
     {name: 'serverHash', type: 'MD5'},
-    {name: 'meta', type: ['null', mapOfBytes], default: null}
+    {name: 'meta', type: ['null', mapOfBytesType], default: null}
   ]
 }, opts);
 
-const handshakeResponse = Type.forSchema({
+const handshakeResponseType = Type.forSchema({
   name: 'HandshakeResponse',
   type: 'record',
   fields: [
@@ -109,55 +124,28 @@ const handshakeResponse = Type.forSchema({
     },
     {name: 'serverProtocol', type: ['null', 'string'], default: null},
     {name: 'serverHash', type: ['null', 'MD5'], default: null},
-    {name: 'meta', type: ['null', mapOfBytes], default: null}
+    {name: 'meta', type: ['null', mapOfBytesType], default: null}
   ]
 }, opts);
 
-const systemError = Type.forSchema({
+const systemErrorType = Type.forSchema({
   type: 'string',
   logicalType: 'system-error',
 }, opts);
 
-const dateTime = Type.forSchema({
+const dateTimeType = Type.forSchema({
   type: 'long',
   logicalType: 'datetime-millis',
 }, opts);
 
-class Packet {
-  constructor(id, svc, body, headers) {
-    this.id = id;
-    this.service = svc;
-    this.body = body;
-    this.headers = headers || {};
-  }
-
-  static ping(svc, headers) {
-    return new Packet(-randomId(), svc, Buffer.from([0, 0]), headers);
-  }
-}
-
-/**
- * Random ID generator, mostly useful for packets.
- *
- * We are using 31 bit IDs since this is what the Java netty implementation
- * uses, hopefully there aren't ever enough packets in flight for collisions to
- * be an issue. (We could use 32 bits but the extra bit isn't worth the
- * inconvenience of negative numbers or additional logic to transform them.)
- * https://github.com/apache/avro/blob/5e8168a25494b04ef0aeaf6421a033d7192f5625/lang/java/ipc/src/main/java/org/apache/avro/ipc/NettyTransportCodec.java#L100
- */
-function randomId() {
-  return ((-1 >>> 1) * Math.random()) | 0;
-}
-
 module.exports = {
   NAMESPACE,
-  Packet,
   SystemError,
-  dateTime,
-  handshakeRequest,
-  handshakeResponse,
-  mapOfBytes,
-  randomId,
-  string,
-  systemError,
+  dateTimeType,
+  handshakeRequestType,
+  handshakeResponseType,
+  mapOfBytesType,
+  mapOfJsonType,
+  stringType,
+  systemErrorType,
 };

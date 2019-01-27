@@ -2,34 +2,35 @@
 
 'use strict';
 
-const {Context} = require('./context');
-const types = require('./types');
+const {Channel, Packet, Trace, randomId} = require('./channel');
+const utils = require('./utils');
 
 const debug = require('debug');
-const {EventEmitter} = require('events');
 const {DateTime} = require('luxon');
 
-const {Packet, SystemError, randomId} = types;
+const {SystemError} = utils;
 const d = debug('@avro/services:call');
 
-class Call {
-  constructor(ctx, msg) {
-    this._context = ctx;
-    this._message = msg;
-    this.request = undefined;
-    this.response = undefined;
-    this.error = undefined;
-    this.tags = {};
-    this.data = {};
-    Object.seal(this);
+class CallContext {
+  constructor(trace, msg) {
+    this.trace = trace;
+    this.message = msg;
+    this.client = null;
+    this.server = null;
   }
+}
 
-  get context() {
-    return this._context;
+class WrappedRequest {
+  constructor(req, tags) {
+    this.request = req;
+    this.tags = tags || {};
   }
+}
 
-  get message() {
-    return this._message;
+class WrappedResponse {
+  constructor(res, err) {
+    this.response = res;
+    this.error = err;
   }
 
   get systemError() {
@@ -38,43 +39,6 @@ class Call {
 
   _setSystemError(code, cause) {
     this.error = {string: SystemError.orCode(code, cause)};
-  }
-}
-
-class Channel extends EventEmitter {
-  constructor(handler) {
-    super();
-    this._handler = handler;
-  }
-
-  /** If the context is cancelled, call will _not_ respond. */
-  call(ctx, preq, cb) {
-    if (ctx.cancelled) {
-      return;
-    }
-    this.emit('requestPacket', preq, ctx);
-    this._handler(ctx, preq, (err, pres) => {
-      if (ctx.cancelled) {
-        return;
-      }
-      this.emit('responsePacket', pres, ctx);
-      cb(err, pres);
-    });
-  }
-
-  /** Similar to call, if the context is cancelled, ping will _not_ respond. */
-  ping(ctx, svc, headers, cb) {
-    if (!cb && typeof headers == 'function') {
-      cb = headers;
-      headers = undefined;
-    }
-    this.call(ctx, Packet.ping(svc, headers), (err, pres) => {
-      if (err) {
-        cb(err);
-        return;
-      }
-      cb(null, pres.service, pres.headers);
-    });
   }
 }
 
@@ -124,8 +88,8 @@ class Decoder {
 class Client {
   constructor(svc) {
     this.channel = null;
-    this._tagTypes = {};
-    this._service = svc;
+    this.service = svc;
+    this.tagTypes = {};
     this._decoders = new Map();
     this._emitterProto = {_client$: this};
     for (const msg of svc.messages.values()) {
@@ -134,68 +98,64 @@ class Client {
     this._middlewares = [];
   }
 
-  get service() {
-    return this._service;
-  }
-
-  get tagTypes() {
-    return this._tagTypes;
-  }
-
   use(fn) {
     this._middlewares.push(fn);
     return this;
   }
 
-  emitMessage(ctx, ...mws) {
-    if (!ctx) {
-      throw new Error('missing context');
+  emitMessage(trace, ...mws) {
+    if (!Trace.isTrace(trace)) {
+      throw new Error(`missing or invalid trace: ${trace}`);
     }
     const obj = Object.create(this._emitterProto);
-    obj._context$ = ctx;
+    obj._trace$ = trace;
     obj._middlewares$ = mws;
     return obj;
   }
 
-  _emitMessage(ctx, mws, name, req, cb) {
-    if (ctx.cancelled) {
-      cb(ctx.cancelledWith);
+  _emitMessage(trace, mws, name, req, cb) {
+    if (!trace.active) {
+      d('Not emitting message, trace is already inactive.');
+      process.nextTick(() => { cb(trace.deactivatedBy); });
       return;
     }
-    const cleanup = ctx.onCancel(done);
-    const svc = this._service;
+    const cleanup = trace.onceInactive(done);
+    const svc = this.service;
     const msg = svc.messages.get(name); // Guaranteed defined.
-    const call = new Call(ctx, msg);
-    call.request = req;
+    const cc = new CallContext(trace, msg);
+    cc.client = this;
+    const wreq = new WrappedRequest(req);
+    const wres = new WrappedResponse();
     chain(
-      this,
-      call,
+      cc,
+      wreq,
+      wres,
       mws.concat(this._middlewares),
       (prev) => {
         const id = randomId();
         const preq = new Packet(id, svc);
         try {
-          preq.headers = serializeTags(call.tags, this._tagTypes);
+          preq.headers = serializeTags(wreq.tags, this.tagTypes);
           preq.body = Buffer.concat([
-            types.string.toBuffer(name),
-            msg.request.toBuffer(call.request),
+            utils.stringType.toBuffer(name),
+            msg.request.toBuffer(wreq.request),
           ]);
         } catch (err) {
           d('Unable to encode request: %s', err);
-          call._setSystemError('ERR_AVRO_BAD_REQUEST', err);
+          wres._setSystemError('ERR_AVRO_BAD_REQUEST', err);
           prev();
           return;
         }
         d('Sending request packet %s...', id);
         if (!this.channel) {
           d('No channel to send request packet %s.', id);
-          call._setSystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL');
+          wres._setSystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL');
           prev();
           return;
         }
-        this.channel.call(ctx, preq, (err, pres) => {
+        this.channel.call(cc.trace, preq, (err, pres) => {
           if (err) {
-            call._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
+            wres._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             prev();
             return;
           }
@@ -205,7 +165,7 @@ class Client {
             try {
               decoder = new Decoder(svc, serverSvc);
             } catch (err) {
-              call._setSystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
+              wres._setSystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
               prev();
               return;
             }
@@ -215,18 +175,18 @@ class Client {
           d('Received response packet %s!', id);
           const buf = pres.body;
           try {
-            const tags = deserializeTags(pres.headers, this._tagTypes);
+            const tags = deserializeTags(pres.headers, this.tagTypes);
             for (const key of Object.keys(tags)) {
-              call.tags[key] = tags[key];
+              wres.tags[key] = tags[key];
             }
             if (buf[0]) { // Error.
-              call.error = decoder.decodeError(name, buf.slice(1));
+              wres.error = decoder.decodeError(name, buf.slice(1));
             } else {
-              call.response = decoder.decodeResponse(name, buf.slice(1));
+              wres.response = decoder.decodeResponse(name, buf.slice(1));
             }
           } catch (err) {
             d('Unable to decode response packet %s: %s', id, err);
-            call._setSystemError('ERR_AVRO_CORRUPT_RESPONSE', err);
+            wres._setSystemError('ERR_AVRO_CORRUPT_RESPONSE', err);
           }
           prev();
         });
@@ -239,12 +199,18 @@ class Client {
         return;
       }
       if (err) {
-        call._setSystemError('ERR_AVRO_INTERNAL', err);
+        wres._setSystemError('ERR_AVRO_INTERNAL', err);
       }
-      process.nextTick(() => {
-        cb.call(call.context, call.error, call.response);
-      });
+      cb.call(cc, wres.error, wres.response);
     }
+  }
+
+  get _isClient() {
+    return true;
+  }
+
+  static isClient(any) {
+    return !!(any && any._isClient);
   }
 }
 
@@ -256,7 +222,7 @@ function messageEmitter(msg) {
       req[field.name] = args[i];
     }
     return this._client$._emitMessage(
-      this._context$,
+      this._trace$,
       this._middlewares$,
       msg.name,
       req,
@@ -280,8 +246,8 @@ function messageEmitter(msg) {
 
 class Server {
   constructor(svc, chanConsumer) {
-    this._tagTypes = {};
-    this._service = svc;
+    this.tagTypes = {};
+    this.service = svc;
     this._middlewares = [];
     this._handlers = new Map();
     this._decoders = new Map();
@@ -289,8 +255,12 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this._channel = new Channel((ctx, preq, cb) => {
+    this.channel = new Channel((trace, preq, cb) => {
       const id = preq.id;
+      const cc = new CallContext(trace);
+      cc.server = this;
+      d('Received request packet %s.', id);
+
       const clientSvc = preq.service;
       let decoder = this._decoders.get(clientSvc.hash);
       if (!decoder && clientSvc.messages.size) {
@@ -303,16 +273,16 @@ class Server {
         d('Adding decoder for client service %j.', clientSvc.hash);
         this._decoders.set(clientSvc.hash, decoder);
       }
-      const tagTypes = this._tagTypes;
+      const tagTypes = this.tagTypes;
 
-      d('Received request packet %s.', id);
-      const call = new Call(ctx);
+      const wreq = new WrappedRequest();
+      const wres = new WrappedResponse();
       try {
         const tags = deserializeTags(preq.headers, tagTypes);
         for (const key of Object.keys(tags)) {
-          call.tags[key] = tags[key];
+          wreq.tags[key] = tags[key];
         }
-        const obj = types.string.decode(preq.body);
+        const obj = utils.stringType.decode(preq.body);
         if (obj.offset < 0) {
           throw new Error('unable to decode message name');
         }
@@ -322,16 +292,16 @@ class Server {
             throw new Error(`no such message: ${msg.name}`);
           }
           const body = preq.body.slice(obj.offset);
-          call._message = msg;
-          call.request = decoder.decodeRequest(msg.name, body);
+          cc.message = msg;
+          wreq.request = decoder.decodeRequest(msg.name, body);
         }
       } catch (cause) {
         d('Unable to decode request packet %s: %s', id, cause);
-        call._setSystemError('ERR_AVRO_CORRUPT_REQUEST', cause);
+        wres._setSystemError('ERR_AVRO_CORRUPT_REQUEST', cause);
         done();
         return;
       }
-      const msg = call.message;
+      const msg = cc.message;
       if (!msg) {
         d('Handling ping message.');
         cb(null, new Packet(id, svc, Buffer.alloc(1)));
@@ -340,56 +310,41 @@ class Server {
       const handler = this._handlers.get(msg.name);
       if (handler) {
         d('Dispatching packet %s to handler for %j...', id, msg.name);
-        handler(call, done);
+        handler.call(cc, wreq, wres, done);
       } else {
         d('Routing packet %s to placeholder handler for %j...', id, msg.name);
-        chain(this, call, this._middlewares, (prev) => {
-          call._setSystemError('ERR_AVRO_NOT_IMPLEMENTED');
+        chain(cc, wreq, wres, this._middlewares, (prev) => {
+          wres._setSystemError('ERR_AVRO_NOT_IMPLEMENTED');
           prev();
         }, done);
       }
 
       function done(err) {
-        if (
-          call.systemError &&
-          call.systemError.code === 'ERR_AVRO_DEADLINE_EXCEEDED'
-        ) {
-          d('Packet %s exceeded its deadline, skipping response.', id);
-          return;
-        }
         if (err) {
           // This will happen if an error was returned by a middleware.
-          call._setSystemError('ERR_AVRO_INTERNAL', err);
+          err = SystemError.orCode('ERR_AVRO_INTERNAL', err);
         }
-        const msg = call.message;
         let bufs, headers;
         try {
-          headers = serializeTags(call.tags, tagTypes);
-          if (call.error !== undefined) {
-            bufs = [Buffer.from([1]), msg.error.toBuffer(call.error)];
-          } else {
-            bufs = [Buffer.from([0]), msg.response.toBuffer(call.response)];
+          headers = serializeTags(wres.tags, tagTypes);
+          const msg = cc.message;
+          if (msg) {
+            if (wres.error !== undefined) {
+              bufs = [Buffer.from([1]), msg.error.toBuffer(wres.error)];
+            } else {
+              bufs = [Buffer.from([0]), msg.response.toBuffer(wres.response)];
+            }
           }
         } catch (cause) {
           err = new SystemError('ERR_AVRO_BAD_RESPONSE', cause);
-          bufs = [Buffer.from([1, 0]), types.systemError.toBuffer(err)];
+        }
+        if (err) {
+          bufs = [Buffer.from([1, 0]), utils.systemErrorType.toBuffer(err)];
         }
         d('Sending response packet %s!', id);
         cb(null, new Packet(id, svc, Buffer.concat(bufs), headers));
       }
     });
-  }
-
-  get service() {
-    return this._service;
-  }
-
-  get tagTypes() {
-    return this._tagTypes;
-  }
-
-  get channel() {
-    return this._channel;
   }
 
   use(fn) {
@@ -398,22 +353,17 @@ class Server {
   }
 
   _onMessage(mws, name, fn) {
-    this._handlers.set(name, (call, cb) => {
-      chain(
-        this,
-        call,
-        this._middlewares.concat(mws),
-        (prev) => {
-          d('Starting %j handler call...', name);
-          fn.call(call.context, call.request, (err, res) => {
-            d('Done calling %j handler.', name);
-            call.error = err;
-            call.response = res;
-            prev();
-          });
-        },
-        cb
-      );
+    mws = this._middlewares.concat(mws);
+    this._handlers.set(name, function (wreq, wres, cb) {
+      chain(this, wreq, wres, mws, (prev) => {
+        d('Starting %j handler call...', name);
+        fn.call(this, wreq.request, (err, res) => {
+          d('Done calling %j handler.', name);
+          wres.error = err;
+          wres.response = res;
+          prev();
+        });
+      }, cb);
     });
   }
 
@@ -421,6 +371,14 @@ class Server {
     const obj = Object.create(this._listenerProto);
     obj._middlewares$ = mws;
     return obj;
+  }
+
+  get _isServer() {
+    return true;
+  }
+
+  static isServer(any) {
+    return !!(any && any._isServer);
   }
 }
 
@@ -450,14 +408,11 @@ function messageListener(msg) {
   };
 }
 
-function chain(ctx, call, mws, turn, end) {
-  forward(0, []);
+function chain(cc, wreq, wres, mws, turn, end) {
+  process.nextTick(() => { forward(0, []); });
 
   function forward(i, cbs) {
-    if (call.context.cancelled) {
-      return;
-    }
-    if (call.response !== undefined || call.error !== undefined) {
+    if (wres.response !== undefined || wres.error !== undefined) {
       // The call has been answered...
       backward(null, cbs);
       return;
@@ -468,19 +423,16 @@ function chain(ctx, call, mws, turn, end) {
       turn((err) => { backward(err, cbs); });
       return;
     }
-    mw.call(ctx, call, (err, fn) => {
+    mw.call(cc, wreq, wres, (err, fn) => {
       if (err) {
         backward(err, cbs);
         return;
       }
-      forward(i + 1, fn && !call.message.oneWay ? cbs.concat(fn): cbs);
+      forward(i + 1, fn && !cc.message.oneWay ? cbs.concat(fn): cbs);
     });
   }
 
   function backward(err, cbs) {
-    if (call.context.cancelled) {
-      return;
-    }
     const cb = cbs && cbs.pop();
     if (!cb) {
       end(err);
@@ -532,8 +484,6 @@ function throwIfError(err) {
 }
 
 module.exports = {
-  Call,
-  Channel,
   Client,
   Server,
 };

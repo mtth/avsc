@@ -32,13 +32,15 @@ const echoServer = new Server(echoService)
 const upperServer = new Server(upperService)
   .onMessage().upper((str, cb) => { cb(null, str.toUpperCase()); });
 
-const router = Router.forServers([echoServer, upperServer]);
+const router = Router.forServers(echoServer, upperServer);
 const gateway = new netty.Gateway(router);
 
 net.createServer()
   .on('connection', (conn) => {
     conn
-      .on('error', (err) => { console.error(`Connection failure: ${err}`); })
+      .on('error', (err) => {
+        console.error(`Connection failure:\n${err.stack}`);
+      })
       .on('unpipe', () => {
         console.log('Connection unpiped.');
         conn.destroy();

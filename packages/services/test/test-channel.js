@@ -2,55 +2,56 @@
 
 'use strict';
 
-const {Context} = require('../lib/context');
+const {Trace} = require('../lib/channel');
 
 const assert = require('assert');
 const sinon = require('sinon');
 
-suite('context', () => {
+suite('Trace', () => {
   let clock;
 
   setup(() => { clock = sinon.useFakeTimers(); });
   teardown(() => { clock.restore(); });
 
   test('expire with default error', (done) => {
-    const ctx = new Context();
-    ctx.onCancel((err) => {
+    const trace = new Trace();
+    trace.onceInactive((err) => {
       assert.equal(err.code, 'ERR_AVRO_EXPIRED');
-      assert(ctx.cancelled);
+      assert(!trace.active);
       done();
     })
-    ctx.expire();
+    trace.expire();
   });
 
   test('expire with custom error', (done) => {
-    const ctx = new Context();
+    const trace = new Trace();
     const cause = new Error('foo');
-    ctx.onCancel((err) => {
+    trace.onceInactive((err) => {
       assert.equal(err.code, 'ERR_AVRO_EXPIRED');
       assert.strictEqual(err.cause, cause);
       done();
     })
-    ctx.expire(cause);
+    trace.expire(cause);
   });
 
   test('deadline exceeded', (done) => {
-    const ctx = new Context(50);
-    ctx.onCancel((err) => {
+    const trace = new Trace(50);
+    trace.onceInactive((err) => {
       assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
-      assert(ctx.cancelled);
+      assert(!trace.active);
       done();
     });
     clock.tick(25);
-    assert(!ctx.cancelled);
+    assert(trace.active);
     clock.tick(55);
   });
 
   test('expire child', (done) => {
-    const parent = new Context();
-    const child = new Context(parent);
-    child.onCancel((err_) => {
-      assert(parent.cancelled);
+    const parent = new Trace();
+    const child = new Trace(parent);
+    child.onceInactive(() => {
+      assert(!child.active);
+      assert(!parent.active);
       done();
     })
     parent.expire();
