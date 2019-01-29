@@ -580,7 +580,7 @@ class NettyDecoder extends stream.Transform {
 
   _decode(id, buf) {
     const handshakeType = this._handshakeType;
-    let handshake, packet;
+    let handshake, packet, size;
     try {
       decode(this._expectHandshake);
     } catch (err) {
@@ -592,23 +592,24 @@ class NettyDecoder extends stream.Transform {
       d('Switching to handshake-free mode.');
       this._expectHandshake = false;
     }
-    d('Decoded packet %s', id);
+    d('Decoded packet %s (%s payload bytes).', id, size);
     return {handshake, id, packet};
 
     function decode(withHandshake) {
-      let body;
+      let payload;
       if (withHandshake) {
         const obj = handshakeType.decode(buf, 0);
         if (obj.offset < 0) {
           throw new Error('truncated packet handshake');
         }
         handshake = obj.value;
-        body = buf.slice(obj.offset);
+        payload = buf.slice(obj.offset);
       } else {
         handshake = null;
-        body = buf;
+        payload = buf;
       }
-      packet = NettyPacket.forPayload(body);
+      size = payload.length;
+      packet = NettyPacket.forPayload(payload);
     }
   }
 
@@ -633,8 +634,8 @@ class NettyEncoder extends stream.Transform {
   }
 
   _encode(obj) {
-    d('Encoding packet %s', obj.id);
     const bufs = [obj.packet.toPayload()];
+    d('Encoding packet %s (%s payload bytes).', obj.id, bufs[0].length);
     if (obj.handshake) {
       bufs.unshift(this._handshakeType.toBuffer(obj.handshake));
     }

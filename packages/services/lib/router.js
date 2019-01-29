@@ -206,6 +206,7 @@ class SelfRefreshingRouter extends Router {
     if (this._activeRouter) {
       throw new Error('router already active');
     }
+    d('Refreshing active router...');
     this._routerProvider((err, router, ...args) => {
       if (err) {
         d('Error while opening router: %s', err);
@@ -228,13 +229,14 @@ class SelfRefreshingRouter extends Router {
     this._activeRouter = router
       .on('error', (err) => { this.emit('error', err); })
       .once('close', () => {
+        d('Active router was closed.');
         this._activeRouter = null;
         this.emit('down', ...args);
         if (!this.closed) {
           this._refreshRouter();
         }
       });
-    d('Self-refreshing router active.');
+    d('Set active router.');
     this.emit('up', ...args);
     for (const cb of this._pendingCalls.values()) {
       cb();

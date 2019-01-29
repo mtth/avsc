@@ -12,101 +12,172 @@ const {Type} = require('avsc');
 const backoff = require('backoff');
 const sinon = require('sinon');
 
-suite('router', () => {
-  const echoSvc = new Service({
-    protocol: 'Echo',
-    messages: {
-      echo: {
-        request: [{name: 'message', type: 'string'}],
-        response: 'string',
-      },
+const echoSvc = new Service({
+  protocol: 'Echo',
+  messages: {
+    echo: {
+      request: [{name: 'message', type: 'string'}],
+      response: 'string',
     },
-  });
-  const upperSvc = new Service({
-    protocol: 'foo.Upper',
-    messages: {
-      upper: {
-        request: [{name: 'message', type: 'string'}],
-        response: 'string',
-        errors: [
-          {name: 'UpperError', type: 'error', fields: []},
-        ],
-      },
+  },
+});
+const upperSvc = new Service({
+  protocol: 'foo.Upper',
+  messages: {
+    upper: {
+      request: [{name: 'message', type: 'string'}],
+      response: 'string',
+      errors: [
+        {name: 'UpperError', type: 'error', fields: []},
+      ],
     },
-  });
+  },
+});
 
-  suite('router', () => {
-    test('single service', (done) => {
-      const echoServer = new Server(echoSvc)
-        .onMessage().echo((str, cb) => { cb(null, str); });
-      const router = Router.forServers(echoServer);
-      const echoClient = new Client(echoSvc);
-      echoClient.channel = router.channel;
-      const upperClient = new Client(upperSvc);
-      upperClient.channel = router.channel;
-      echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
-        assert(!err, err);
-        assert.equal(res, 'foo');
-        upperClient.emitMessage(new Trace()).upper('bar', (err, res) => {
-          assert.equal(err.code, 'ERR_AVRO_SERVICE_NOT_FOUND');
-          done();
-        });
-      });
-    });
-
-    test('two services', (done) => {
-      const echoServer = new Server(echoSvc)
-        .onMessage().echo((str, cb) => { cb(null, str); });
-      const upperServer = new Server(upperSvc);
-      const router = Router.forServers(echoServer, upperServer);
-      const echoClient = new Client(echoSvc);
-      echoClient.channel = router.channel;
-      echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
-        assert(!err, err);
-        assert.equal(res, 'foo');
+suite('server routers', () => {
+  test('single service', (done) => {
+    const echoServer = new Server(echoSvc)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+    const router = Router.forServers(echoServer);
+    const echoClient = new Client(echoSvc);
+    echoClient.channel = router.channel;
+    const upperClient = new Client(upperSvc);
+    upperClient.channel = router.channel;
+    echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
+      assert(!err, err);
+      assert.equal(res, 'foo');
+      upperClient.emitMessage(new Trace()).upper('bar', (err, res) => {
+        assert.equal(err.code, 'ERR_AVRO_SERVICE_NOT_FOUND');
         done();
       });
     });
+  });
 
-    test('dispatching closing child', (done) => {
-      const echoServer = new Server(echoSvc)
-        .onMessage().echo((str, cb) => { cb(null, str); });
-      const upperServer = new Server(upperSvc);
-      const echoRouter = Router.forServers(echoServer);
-      const upperRouter = Router.forServers(upperServer);
-      const router = Router.forRouters(echoRouter, upperRouter)
-        .once('close', () => {
-          done();
-        });
+  test('two services', (done) => {
+    const echoServer = new Server(echoSvc)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+    const upperServer = new Server(upperSvc);
+    const router = Router.forServers(echoServer, upperServer);
+    const echoClient = new Client(echoSvc);
+    echoClient.channel = router.channel;
+    echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
+      assert(!err, err);
+      assert.equal(res, 'foo');
+      done();
+    });
+  });
+
+  test('dispatching closing child', (done) => {
+    const echoServer = new Server(echoSvc)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+    const upperServer = new Server(upperSvc);
+    const echoRouter = Router.forServers(echoServer);
+    const upperRouter = Router.forServers(upperServer);
+    const router = Router.forRouters(echoRouter, upperRouter)
+      .once('close', () => {
+        done();
+      });
+    const echoClient = new Client(echoSvc);
+    echoClient.channel = router.channel;
+    echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
+      assert(!err, err);
+      assert.equal(res, 'foo');
+      echoRouter.close();
+    });
+  });
+});
+
+suite('self-refreshing', () => {
+  let clock;
+  setup(() => { clock = sinon.useFakeTimers(); });
+  teardown(() => { clock.restore(); });
+
+  test('simple', (done) => {
+    const echoServer = new Server(echoSvc)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+
+    Router.selfRefreshing(routerProvider, (err, router) => {
+      assert(!err, err);
+      router.once('down', () => { done(); });
+
       const echoClient = new Client(echoSvc);
       echoClient.channel = router.channel;
       echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
-        echoRouter.close();
+        router.close();
       });
     });
+    clock.tick(100);
 
-    test('self refreshing', (done) => {
-      const echoServer = new Server(echoSvc)
-        .onMessage().echo((str, cb) => { cb(null, str); });
+    function routerProvider(cb) {
+      cb(null, Router.forServers(echoServer));
+    }
+  });
 
-      Router.selfRefreshing(routerProvider, (err, router) => {
+  test('flaky open', (done) => {
+    const echoServer = new Server(echoSvc)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+
+    const refreshBackoff = backoff.fibonacci()
+      .on('backoff', () => { clock.tick(1000); });
+    const opts = {refreshBackoff};
+    Router.selfRefreshing(flaky(1, routerProvider), opts, (err, router) => {
+      assert.ifError(err);
+      const echoClient = new Client(echoSvc);
+      echoClient.channel = router.channel;
+      echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
         assert(!err, err);
-        router.once('down', () => { done(); });
+        assert.equal(res, 'foo');
+        router.close();
+        done();
+      });
+    });
+    clock.tick(1000);
 
-        const echoClient = new Client(echoSvc);
-        echoClient.channel = router.channel;
-        echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
-          assert(!err, err);
-          assert.equal(res, 'foo');
-          router.close();
+    function routerProvider(cb) {
+      cb(null, Router.forServers(echoServer));
+    }
+  });
+
+  test('flaky connection', (done) => {
+    const echoServer = new Server(echoSvc)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+
+    const refreshBackoff = backoff.fibonacci()
+      .on('backoff', () => { clock.tick(100); });
+    const opts = {refreshBackoff};
+    Router.selfRefreshing(routerProvider, opts, (err, router) => {
+      assert.ifError(err);
+      const echoClient = new Client(echoSvc);
+      echoClient.channel = router.channel;
+      echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
+        assert.ifError(err);
+        assert.equal(res, 'foo');
+        clock.tick(500);
+        echoClient.emitMessage(new Trace()).echo('bar', (err, res) => {
+          assert.ifError(err);
+          assert.equal(res, 'bar');
+          done();
         });
       });
-
-      function routerProvider(cb) {
-        cb(null, Router.forServers(echoServer));
-      }
     });
+    clock.tick(100);
+
+    function routerProvider(cb) {
+      const router = Router.forServers(echoServer);
+      setTimeout(() => { router.close(); }, 500);
+      cb(null, router);
+    }
   });
+
+  function flaky(n, fn) {
+    return (cb) => {
+      if (n--) {
+        cb(new Error('flake'));
+        return;
+      }
+      fn(cb);
+    };
+  }
 });
