@@ -209,7 +209,7 @@ class SelfRefreshingRouter extends Router {
       if (err) {
         d('Error while opening router: %s', err);
         if (!this.closed) {
-          this._refreshBackoff.backoff();
+          process.nextTick(() => { this._refreshBackoff.backoff(); });
         }
         return;
       }

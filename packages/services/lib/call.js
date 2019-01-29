@@ -464,14 +464,10 @@ function deserializeTags(headers, tagTypes) {
   if (!headers) {
     return tags;
   }
-  for (const key of Object.keys(headers)) {
-    const type = tagTypes[key];
-    if (type) {
-      tags[key] = type.fromBuffer(headers[key]);
-    } else {
-      // Unlike the serialization case above, the client/server can't
-      // necessarily control which headers its counterpart uses.
-      d('Ignoring unknown tag %s', key);
+  for (const key of Object.keys(tagTypes)) {
+    const buf = headers[key];
+    if (buf !== undefined) {
+      tags[key] = tagTypes[key].fromBuffer(buf);
     }
   }
   return tags;

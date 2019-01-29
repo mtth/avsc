@@ -99,6 +99,33 @@ suite('netty codec', () => {
         done();
       });
     });
+
+    test('header propagation', (done) => {
+      const type = Type.forSchema('int');
+      client.tagTypes.cost = type;
+      server.tagTypes.cost = type;
+      server
+        .use((wreq, wres, next) => {
+          wres.tags.cost = wreq.tags.cost + 1;
+          next();
+        })
+        .onMessage().echo((str, cb) => { cb(null, str); });
+      let cost = 0;
+      client
+        .use((wreq, wres, next) => {
+          wreq.tags.cost = 1;
+          next(null, (err, prev) => {
+            cost = wres.tags.cost;
+            prev(err);
+          });
+        })
+        .emitMessage(new Trace()).echo('foo', (err, res) => {
+          assert.ifError(err);
+          assert.equal(res, 'foo');
+          assert.equal(cost, 2);
+          done();
+        });
+    });
   });
 
   suite('different services', () => {
