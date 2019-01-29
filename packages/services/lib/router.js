@@ -130,6 +130,7 @@ class Router extends EventEmitter {
             process.nextTick(() => { this.backoff(); });
             return;
           }
+          this.reset();
           cb(null, new SelfRefreshingRouter(router, args, provider, opts));
         });
       })
