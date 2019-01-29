@@ -6,8 +6,7 @@
 // protocol's name), to allow configuring how routing is performed.
 
 const {Server} = require('./call');
-const {Channel, Trace} = require('./channel');
-const {Service} = require('./service');
+const {Channel} = require('./channel');
 const {SystemError} = require('./utils');
 
 const backoff = require('backoff');
@@ -32,13 +31,14 @@ class Router extends EventEmitter {
     }
     this.channel = new Channel((trace, preq, cb) => {
       if (this.closed) {
-        cb(routerClosedError());
+        cb(new SystemError('ERR_AVRO_ROUTER_CLOSED'));
         return;
       }
       const clientSvc = preq.service;
       const serverSvc = this.service(clientSvc);
       if (!serverSvc) {
-        cb(serviceNotFoundError(clientSvc));
+        const cause = new Error(`no route for service ${clientSvc.name}`);
+        cb(new SystemError('ERR_AVRO_SERVICE_NOT_FOUND', cause));
         return;
       }
       d('Routing %s to %s.', clientSvc.name, serverSvc.name);
@@ -122,22 +122,28 @@ class Router extends EventEmitter {
       cb = opts;
       opts = undefined;
     }
-    ((opts && opts.refreshBackoff) || backoff.fibonacci())
-      .on('ready', function () {
-        provider((err, router, ...args) => {
-          if (err) {
-            d('Error opening router: %s', err);
-            process.nextTick(() => { this.backoff(); });
-            return;
-          }
-          this.reset();
-          cb(null, new SelfRefreshingRouter(router, args, provider, opts));
-        });
-      })
-      .on('fail', () => {
-        cb(new Error('unable to open router'));
-      })
-      .backoff();
+    const bkf = opts && opts.refreshBackoff || backoff.fibonacci();
+    bkf.on('ready', onReady).on('fail', onFail).backoff();
+
+    function onReady() {
+      provider((err, router, ...args) => {
+        if (err) {
+          d('Error opening router: %s', err);
+          process.nextTick(() => { bkf.backoff(); });
+          return;
+        }
+        bkf
+          .removeListener('ready', onReady)
+          .removeListener('fail', onFail)
+          .reset();
+        cb(null, new SelfRefreshingRouter(router, args, provider, bkf));
+      });
+
+    }
+
+    function onFail() {
+      cb(new Error('unable to open router'));
+    }
   }
 }
 
@@ -149,8 +155,7 @@ class DispatchingRouter extends Router {
 }
 
 class SelfRefreshingRouter extends Router {
-  constructor(router, args, provider, opts) {
-    opts = opts || {};
+  constructor(router, args, provider, refreshBackoff) {
     super(router.services, ((svc, trace, preq, cb) => {
       if (this._activeRouter) {
         this._activeRouter.channel.call(trace, preq, cb);
@@ -161,7 +166,10 @@ class SelfRefreshingRouter extends Router {
         this._pendingCalls.delete(id);
       });
       const retry = (err) => {
-        cleanup();
+        if (!cleanup()) {
+          d('Ignoring error for packet %s (inactive trace): %s', id, err);
+          return;
+        }
         this._pendingCalls.delete(id);
         if (err) {
           cb(err);
@@ -170,14 +178,14 @@ class SelfRefreshingRouter extends Router {
         this.channel.call(trace, preq, cb); // Try again.
       };
       this._pendingCalls.set(id, retry);
-      this.emit('queue', this._pendingCalls.size, retry);
+      this.emit('queue', this._pendingCalls.size);
     }));
 
     this._routerProvider = provider;
     this._activeRouter = null; // Activated below.
     this._pendingCalls = new Map();
     this._refreshAttempts = 0;
-    this._refreshBackoff = (opts.refreshBackoff || backoff.fibonacci())
+    this._refreshBackoff = refreshBackoff
       .on('backoff', (num, delay) => {
         d('Scheduling refresh in %sms.', delay);
         this._refreshAttempts++;
@@ -242,15 +250,6 @@ class SelfRefreshingRouter extends Router {
       cb();
     }
   }
-}
-
-function routerClosedError() {
-  return new SystemError('ERR_AVRO_ROUTER_CLOSED');
-}
-
-function serviceNotFoundError(svc) {
-  const cause = new Error(`no route for service ${svc.name}`);
-  return new SystemError('ERR_AVRO_SERVICE_NOT_FOUND', cause);
 }
 
 function routingNames(svc) {
