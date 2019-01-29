@@ -2,6 +2,9 @@
 
 'use strict';
 
+// TODO: Add routing key option (Protocol -> String, defaulting to the
+// protocol's name), to allow configuring how routing is performed.
+
 const {Server} = require('./call');
 const {Channel, Trace} = require('./channel');
 const {Service} = require('./service');
@@ -14,23 +17,47 @@ const {EventEmitter} = require('events');
 const d = debug('@avro/services:router');
 
 class Router extends EventEmitter {
-  constructor(svcs, chan) {
+  constructor(svcs, handler) {
     if (!svcs || !svcs.length) {
       throw new Error('no services');
     }
-    if (!Channel.isChannel(chan)) {
-      throw new Error(`not a channel: ${chan}`);
-    }
     super();
     this.closed = false;
-    this.services = svcs;
+    this._services = new Map();
+    for (const svc of svcs) {
+      if (this._services.has(svc.name)) {
+        throw new Error(`duplicate service name: ${svc.name}`);
+      }
+      this._services.set(svc.name, svc);
+    }
     this.channel = new Channel((trace, preq, cb) => {
       if (this.closed) {
         cb(routerClosedError());
         return;
       }
-      chan.call(trace, preq, cb);
+      const clientSvc = preq.service;
+      const serverSvc = this.service(clientSvc);
+      if (!serverSvc) {
+        cb(serviceNotFoundError(clientSvc));
+        return;
+      }
+      d('Routing %s to %s.', clientSvc.name, serverSvc.name);
+      handler(serverSvc, trace, preq, cb);
     });
+  }
+
+  get services() {
+    return Array.from(this._services.values());
+  }
+
+  service(clientSvc) {
+    for (const name of routingNames(clientSvc)) {
+      const svc = this._services.get(name);
+      if (svc) {
+        return svc;
+      }
+    }
+    return null;
   }
 
   close() {
@@ -43,19 +70,7 @@ class Router extends EventEmitter {
   }
 
   static forChannel(chan, svcs) {
-    const serviceNames = new Set();
-    for (const svc of svcs) {
-      serviceNames.add(svc.name); // Speed up later routing check.
-    }
-    const routingChan = new Channel((trace, preq, cb) => {
-      const clientSvc = preq.service;
-      if (!isRoutable(clientSvc, serviceNames)) {
-        cb(serviceNotFoundError(clientSvc));
-        return;
-      }
-      chan.call(trace, preq, cb);
-    });
-    return new Router(svcs, routingChan);
+    return new Router(svcs, (svc, ...args) => { chan.call(...args); });
   }
 
   static forServers(...servers) {
@@ -82,36 +97,15 @@ class Router extends EventEmitter {
       }
       downstream.on('close', onClose);
       for (const svc of downstream.services) {
-        if (routerMap.has(svc.name)) {
-          throw new Error(`duplicate service name: ${svc.name}`);
-        }
         routerMap.set(svc.name, downstream);
         svcs.push(svc);
       }
     }
-    const chan = new Channel((trace, preq, cb) => {
-      const clientSvc = preq.service;
-      const names = routingNames(clientSvc);
-      let downstream;
-      for (const name of names) {
-        const candidate = routerMap.get(name);
-        if (candidate) {
-          if (downstream) {
-            const cause = new Error(`ambiguous service aliases: ${names}`);
-            cb(new SystemError('ERR_AVRO_AMBIGUOUS_SERVICE'));
-            return;
-          }
-          downstream = candidate;
-        }
-      }
-      if (!downstream) {
-        cb(serviceNotFoundError(preq.service));
-        return;
-      }
-      downstream.channel.call(trace, preq, cb);
-    });
+    const handler = (serverSvc, trace, preq, cb) => {
+      routerMap.get(serverSvc.name).channel.call(trace, preq, cb);
+    };
     const downstreamRouters = Array.from(routerMap.values());
-    upstream = new DispatchingRouter(svcs, chan, downstreamRouters);
+    upstream = new DispatchingRouter(svcs, handler, downstreamRouters);
     return upstream;
 
     function onClose() {
@@ -147,8 +141,8 @@ class Router extends EventEmitter {
 }
 
 class DispatchingRouter extends Router {
-  constructor(svcs, chan, downstreamRouters) {
-    super(svcs, chan);
+  constructor(svcs, handler, downstreamRouters) {
+    super(svcs, handler);
     this.downstreamRouters = downstreamRouters;
   }
 }
@@ -156,7 +150,7 @@ class DispatchingRouter extends Router {
 class SelfRefreshingRouter extends Router {
   constructor(router, args, provider, opts) {
     opts = opts || {};
-    super(router.services, new Channel((trace, preq, cb) => {
+    super(router.services, ((svc, trace, preq, cb) => {
       if (this._activeRouter) {
         this._activeRouter.channel.call(trace, preq, cb);
         return;
@@ -260,20 +254,11 @@ function routingNames(svc) {
   const keys = [svc.name];
   const aliases = svc.protocol.aliases;
   if (aliases) {
-    for (const alias in aliases) {
+    for (const alias of aliases) {
       keys.push(alias);
     }
   }
   return keys;
-}
-
-function isRoutable(clientSvc, svcNames) {
-  for (const name of routingNames(clientSvc)) {
-    if (svcNames.has(name)) {
-      return true;
-    }
-  }
-  return false;
 }
 
 module.exports = {

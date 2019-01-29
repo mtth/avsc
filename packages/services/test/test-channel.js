@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Trace} = require('../lib/channel');
+const {Channel, Trace} = require('../lib/channel');
 
 const assert = require('assert');
 const sinon = require('sinon');
@@ -46,7 +46,19 @@ suite('Trace', () => {
     clock.tick(55);
   });
 
-  test('expire child', (done) => {
+  test('deadline propagates to child', () => {
+    const parent = new Trace(50);
+    const child = new Trace(parent);
+    assert(child.deadline.equals(parent.deadline));
+  });
+
+  test('child adjusts parent deadline', () => {
+    const parent = new Trace(50);
+    const child = new Trace(40, parent);
+    assert.equal(+child.remainingDuration, 40);
+  });
+
+  test('expire propagates to child', (done) => {
     const parent = new Trace();
     const child = new Trace(parent);
     child.onceInactive(() => {
@@ -55,5 +67,74 @@ suite('Trace', () => {
       done();
     })
     parent.expire();
+    parent.expire();
+  });
+
+  test('expire does not propagate from child', (done) => {
+    const parent = new Trace();
+    const child = new Trace(10, parent);
+    child.onceInactive(() => {
+      assert(!child.active);
+      assert(parent.active);
+      done();
+    })
+    child.expire();
+  });
+
+  test('timeout child', (done) => {
+    const parent = new Trace(10);
+    const child = new Trace(parent);
+    child.onceInactive(() => {
+      assert(!child.active);
+      assert(!parent.active);
+      done();
+    })
+    clock.tick(15);
+  });
+
+  test('inactive calls handler immediately', () => {
+    const trace = new Trace();
+    trace.expire();
+    let expired = false;
+    trace.onceInactive(() => { expired = true; });
+    assert(expired);
+  });
+});
+
+suite('Channel', () => {
+  test('is channel', () => {
+    assert(Channel.isChannel(new Channel(() => { assert(false); })));
+    assert(!Channel.isChannel(null));
+    assert(!Channel.isChannel({}));
+  });
+
+  test('emits events', () => {
+    const evts = [];
+    const chan = new Channel((trace, preq, cb) => {
+      evts.push('handle');
+      cb(null);
+    }).on('requestPacket', () => { evts.push('req'); })
+      .on('responsePacket', () => { evts.push('res'); });
+    chan.call(new Trace(), {}, (err) => {
+      assert.ifError(err);
+      evts.push('done');
+    });
+    assert.deepEqual(evts, ['req', 'handle', 'res', 'done']);
+  });
+
+  test('inactive trace ping', () => {
+    new Channel(() => { assert(false); })
+      .ping(new Trace(-1), null, {}, () => {
+      assert(false);
+    });
+  });
+
+  test('inactive trace after', () => {
+    new Channel((trace, preq, cb) => {
+      trace.expire();
+      cb(null);
+    }).call(new Trace(), {}, () => {
+      assert(false);
+    });
   });
 });

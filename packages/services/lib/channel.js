@@ -53,14 +53,6 @@ class Trace {
     Object.seal(this);
   }
 
-  static isTrace(any) {
-    return !!(any && any._isAvroTrace);
-  }
-
-  get _isAvroTrace() {
-    return true;
-  }
-
   get remainingDuration() {
     return this.deadline ? this.deadline.diffNow() : null;
   }
@@ -103,6 +95,14 @@ class Trace {
 
   _deadlineExceeded() {
     this._deactivate(new SystemError('ERR_AVRO_DEADLINE_EXCEEDED'));
+  }
+
+  static isTrace(any) {
+    return !!(any && any._isTrace);
+  }
+
+  get _isTrace() {
+    return true;
   }
 }
 

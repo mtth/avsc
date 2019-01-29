@@ -10,12 +10,17 @@ const {Service} = require('../lib/service');
 
 const assert = require('assert');
 const {Type} = require('avsc');
+const {DateTime} = require('luxon');
 const net = require('net');
 const sinon = require('sinon');
 
-suite('netty client server', () => {
-  const echoService = new Service({
-    protocol: 'Echo',
+suite('netty codec', () => {
+  let clock;
+  setup(() => { clock = sinon.useFakeTimers(); });
+  teardown(() => { clock.restore(); });
+
+  const stringService = new Service({
+    protocol: 'StringService',
     messages: {
       echo: {
         request: [{name: 'message', type: 'string'}],
@@ -31,11 +36,11 @@ suite('netty client server', () => {
     },
   });
 
-  suite('same protocol no routing', () => {
+  suite('same service', () => {
     let client, server, cleanup;
 
     setup((done) => {
-      routing(echoService, (err, obj) => {
+      routing(stringService, stringService, (err, obj) => {
         if (err) {
           done(err);
           return;
@@ -47,11 +52,9 @@ suite('netty client server', () => {
       });
     });
 
-    teardown(() => {
-      cleanup();
-    });
+    teardown(() => { cleanup(); });
 
-    test('simple', (done) => {
+    test('emit and receive message', (done) => {
       server.onMessage()
         .upper((msg, cb) => {
           cb(null, null, msg.toUpperCase());
@@ -65,7 +68,7 @@ suite('netty client server', () => {
         });
     });
 
-    test('cancel', (done) => {
+    test('expire trace', (done) => {
       const trace = new Trace();
       server.onMessage().upper((msg, cb) => {
         trace.expire();
@@ -76,205 +79,89 @@ suite('netty client server', () => {
       });
     });
 
-    test('middleware with handler', (done) => {
-      const evts = [];
+    test('trace deadline and label propagation', (done) => {
+      const deadline = DateTime.fromMillis(1234);
+      const uuid = 'abc';
+      let ok = false;
       server
-        .use((wreq, wres, next) => {
-          evts.push('server mw in');
-          next(null, (err, prev) => {
-            evts.push('server mw out');
-            prev(err);
-          });
-        })
-        .onMessage().echo((msg, cb) => {
-          evts.push('server handler');
-          cb(null, msg);
-        });
-      client
-        .use((wreq, wres, next) => {
-          evts.push('client mw in');
-          next(null, (err, prev) => {
-            evts.push('client mw out');
-            prev(err);
-          });
-        })
-        .emitMessage(new Trace()).echo('foo', (err, res) => {
-          assert(!err, err);
-          assert.equal(res, 'foo');
-          assert.deepEqual(evts, [
-            'client mw in',
-            'server mw in',
-            'server handler',
-            'server mw out',
-            'client mw out',
-          ]);
-          done();
-        });
-    });
-
-    test('retry middleware', (done) => {
-      const intType = Type.forSchema('int');
-      client.tagTypes.attempt = intType;
-      server.tagTypes.attempt = intType;
-      server
-        .use((wreq, wres, next) => {
-          if (wreq.tags.attempt === 1) {
-            next();
-            return;
-          }
-          next(new Error('try again'));
-        })
-        .onMessage().echo((msg, cb) => {
-          cb(null, msg);
-        });
-      client
-        .use((wreq, wres, next) => {
-          const attempt = wreq.tags.attempt;
-          if (attempt === undefined) {
-            wreq.tags.attempt = 0;
-          } else {
-            wreq.tags.attempt = attempt + 1;
-          }
+        .use(function (wreq, wres, next) {
+          assert.equal(+this.trace.deadline, +deadline);
+          assert.deepEqual(this.trace.labels, {uuid});
+          ok = true;
           next();
         })
-        .emitMessage(new Trace(), retry(1)).echo('foo', (err, res) => {
-          assert(!err, err);
-          assert.equal(res, 'foo');
-          done();
-        });
-
-      function retry(n) {
-        return (wreq, wres, next) => {
-          tryOnce(0);
-
-          function tryOnce(i) {
-            next(null, (err, prev) => {
-              assert(!err, err);
-              if (i >= n) {
-                prev();
-                return;
-              }
-              wres.error = undefined;
-              tryOnce(i + 1);
-            });
-          }
-        };
-      }
-    });
-
-    test('middleware missing handler', (done) => {
-      const evts = [];
-      server
-        .use((wreq, wres, next) => {
-          evts.push('server mw in');
-          next(null, (err, prev) => {
-            evts.push('server mw out');
-            prev();
-          });
-        });
-      client
-        .use((wreq, wres, next) => {
-          evts.push('client mw in');
-          next(null, (err, prev) => {
-            evts.push('client mw out');
-            prev();
-          });
-        })
-        .emitMessage(new Trace()).echo('foo', (err, res) => {
-          assert(!res, res);
-          assert.equal(err.code, 'ERR_AVRO_NOT_IMPLEMENTED');
-          assert.deepEqual(evts, [
-            'client mw in',
-            'server mw in',
-            'server mw out',
-            'client mw out',
-          ]);
-          done();
-        });
-    });
-  });
-
-  suite('timing no routing', () => {
-    let clock;
-    let client, server, cleanup;
-
-    setup((done) => {
-      clock = sinon.useFakeTimers();
-      routing(echoService, (err, obj) => {
-        if (err) {
-          done(err);
-          return;
-        }
-        client = obj.client;
-        server = obj.server;
-        cleanup = obj.cleanup;
-        done();
-      });
-    });
-
-    teardown(() => {
-      clock.restore();
-      cleanup();
-    });
-
-    test('deadline propagation', (done) => {
-      server
-        .use((wreq, wres, next) => {
-          clock.tick(10); // Exceed deadline.
-          next();
-        });
-      client.emitMessage(new Trace(5)).echo('foo', (err) => {
-        assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
+        .onMessage().echo((str, cb) => { cb(null, str); });
+      const trace = new Trace(deadline);
+      trace.labels.uuid = uuid;
+      client.emitMessage(trace).echo('foo', (err) => {
+        assert(!err, err);
+        assert(ok);
         done();
       });
     });
   });
 
-  suite('same protocol with routing', () => {
-    let client, server, cleanup;
-
-    setup((done) => {
-      routing(echoService, (err, obj) => {
+  suite('different services', () => {
+    test('compatible using alias', (done) => {
+      const echoService = new Service({
+        protocol: 'EchoService',
+        aliases: ['StringService'],
+        messages: {
+          echo: {
+            request: [{name: 'message', type: 'string'}],
+            response: 'string',
+          },
+        },
+      });
+      routing(echoService, stringService, (err, obj) => {
         if (err) {
+          obj.cleanup();
           done(err);
           return;
         }
-        client = obj.client;
-        server = obj.server;
-        cleanup = obj.cleanup;
-        done();
+        obj.server.onMessage().echo((str, cb) => { cb(null, str); });
+        obj.client.emitMessage(new Trace()).echo('foo', (err, str) => {
+          assert.ifError(err);
+          assert.equal(str, 'foo');
+          obj.cleanup();
+          done();
+        });
       });
     });
 
-    teardown(() => {
-      cleanup();
-    });
-
-    test('simple', (done) => {
-      server.onMessage()
-        .upper((msg, cb) => {
-          cb(null, null, msg.toUpperCase());
-        });
-      client.emitMessage(new Trace())
-        .upper('foo', (err1, err2, res) => {
-          assert(!err1, err1);
-          assert(!err2, err2);
-          assert.equal(res, 'FOO');
+    test('incompatible', (done) => {
+      const svc = new Service({
+        protocol: 'StringService',
+        messages: {
+          echo: {
+            request: [{name: 'data', type: 'string'}], // Different name.
+            response: 'string',
+          },
+        },
+      });
+      routing(svc, stringService, (err, obj) => {
+        if (err) {
+          obj.cleanup();
+          done(err);
+          return;
+        }
+        obj.server.onMessage().echo(() => { assert(false); }); // Not called.
+        obj.client.emitMessage(new Trace()).echo('', (err) => {
+          assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
+          obj.cleanup();
           done();
         });
+      });
     });
   });
 });
 
-function routing(svc, cb) {
-  const client = new Client(svc);
-  const server = new Server(svc);
+function routing(clientSvc, serverSvc, cb) {
+  const client = new Client(clientSvc);
+  const server = new Server(serverSvc);
   const gateway = new netty.Gateway(Router.forServers(server));
   net.createServer()
-    .on('connection', (conn) => {
-      conn.on('unpipe', () => { conn.destroy(); });
-      gateway.accept(conn);
-    })
+    .on('connection', (conn) => { gateway.accept(conn); })
     .listen(0, function () {
       const tcpServer = this;
       const port = tcpServer.address().port;

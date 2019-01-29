@@ -11,12 +11,13 @@ const {DateTime} = require('luxon');
 const {SystemError} = utils;
 const d = debug('@avro/services:call');
 
+/** The context used for all middleware and handler calls. */
 class CallContext {
   constructor(trace, msg) {
     this.trace = trace;
     this.message = msg;
-    this.client = null;
-    this.server = null;
+    this.client = null; // Populated on clients.
+    this.server = null; // Populated on servers.
   }
 }
 
@@ -28,9 +29,10 @@ class WrappedRequest {
 }
 
 class WrappedResponse {
-  constructor(res, err) {
+  constructor(res, err, tags) {
     this.response = res;
     this.error = err;
+    this.tags = tags || {};
   }
 
   get systemError() {
@@ -241,8 +243,6 @@ function messageEmitter(msg) {
     };
   }
 }
-
-/** Ping a channel. */
 
 class Server {
   constructor(svc, chanConsumer) {
