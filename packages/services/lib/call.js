@@ -3,6 +3,7 @@
 'use strict';
 
 const {Channel, Packet, Trace, randomId} = require('./channel');
+const {Decoder} = require('./service');
 const utils = require('./utils');
 
 const debug = require('debug');
@@ -41,49 +42,6 @@ class WrappedResponse {
 
   _setSystemError(code, cause) {
     this.error = {string: SystemError.orCode(code, cause)};
-  }
-}
-
-class Decoder {
-  constructor(clientSvc, serverSvc) {
-    const rs = new Map();
-    for (const clientMsg of clientSvc.messages.values()) {
-      const name = clientMsg.name;
-      const serverMsg = serverSvc.messages.get(name);
-      if (!serverMsg) {
-        throw new Error(`missing server message: ${name}`);
-      }
-      if (serverMsg.oneWay !== clientMsg.oneWay) {
-        throw new Error(`inconsistent one-way message: ${name}`);
-      }
-      addResolver(name + '?', serverMsg.request, clientMsg.request);
-      addResolver(name + '*', clientMsg.error, serverMsg.error);
-      addResolver(name + '!', clientMsg.response, serverMsg.response);
-    }
-    this._resolvers = rs;
-    this._clientService = clientSvc;
-    this._serverService = serverSvc;
-
-    function addResolver(key, rtype, wtype) {
-      if (!rtype.equals(wtype)) {
-        rs.set(key, rtype.createResolver(wtype));
-      }
-    }
-  }
-
-  decodeRequest(name, buf) {
-    const msg = this._serverService.messages.get(name);
-    return msg.request.fromBuffer(buf, this._resolvers.get(name + '?'));
-  }
-
-  decodeError(name, buf) {
-    const msg = this._clientService.messages.get(name);
-    return msg.error.fromBuffer(buf, this._resolvers.get(name + '*'));
-  }
-
-  decodeResponse(name, buf) {
-    const msg = this._clientService.messages.get(name);
-    return msg.response.fromBuffer(buf, this._resolvers.get(name + '!'));
   }
 }
 

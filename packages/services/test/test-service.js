@@ -6,8 +6,7 @@ const {Message, Service} = require('../lib/service');
 
 const assert = require('assert');
 
-suite('service', () => {
-
+suite('Service', () => {
   test('empty', () => {
     const svc = new Service({protocol: 'Foo'});
     assert.equal(svc.name, 'Foo');
@@ -32,5 +31,19 @@ suite('service', () => {
       request:[],
       response: {name: 'Empty', type: 'record', fields: []},
     });
+  });
+
+  test('compatible', () => {
+    const svc = new Service({
+      protocol: 'Echo',
+      types: [
+        {name: 'Empty', type: 'record', fields: []},
+      ],
+      messages: {
+        ping: {request: [], response: 'Empty'},
+      },
+    });
+    assert(Service.compatible(svc, svc));
+    assert(!Service.compatible(svc, new Service({protocol: 'Echo'})));
   });
 });
