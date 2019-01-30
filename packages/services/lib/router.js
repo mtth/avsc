@@ -123,7 +123,8 @@ class Router extends EventEmitter {
       opts = undefined;
     }
     const bkf = opts && opts.refreshBackoff || backoff.fibonacci();
-    bkf.on('ready', onReady).on('fail', onFail).backoff();
+    bkf.on('ready', onReady).on('fail', onFail);
+    onReady();
 
     function onReady() {
       provider((err, router, ...args) => {

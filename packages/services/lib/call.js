@@ -314,7 +314,8 @@ class Server {
       } else {
         d('Routing packet %s to placeholder handler for %j...', id, msg.name);
         chain(cc, wreq, wres, this._middlewares, (prev) => {
-          wres._setSystemError('ERR_AVRO_NOT_IMPLEMENTED');
+          const cause = new Error(`no handler for ${msg.name}`);
+          wres._setSystemError('ERR_AVRO_NOT_IMPLEMENTED', cause);
           prev();
         }, done);
       }
