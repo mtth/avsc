@@ -44,8 +44,7 @@ stringClient.emitMessage(new Trace()).upperCase('hello!', (err, str) => {
 ### TCP server hosting two services
 
 ```javascript
-const {Router, Server, Service, netty} = require('../lib');
-
+const {Router, Server, Service, netty} = require('@avro/services');
 const net = require('net');
 
 const echoService = new Service({
@@ -74,8 +73,7 @@ const echoServer = new Server(echoService)
 const upperServer = new Server(upperService)
   .onMessage().upper((str, cb) => { cb(null, str.toUpperCase()); });
 
-const router = Router.forServers(echoServer, upperServer);
-const gateway = new netty.Gateway(router);
+const gateway = new netty.Gateway(Router.forServers(echoServer, upperServer));
 
 net.createServer()
   .on('connection', (conn) => {
