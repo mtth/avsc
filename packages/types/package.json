@@ -1,0 +1,50 @@
+{
+  "name": "@avro/types",
+  "version": "0.1.0",
+  "description": "Avro serialization",
+  "homepage": "https://github.com/mtth/avsc",
+  "keywords": [
+    "avro",
+    "avsc",
+    "binary",
+    "buffer",
+    "data",
+    "decoding",
+    "encoding",
+    "interface",
+    "json",
+    "marshalling",
+    "schema",
+    "serialization",
+    "type"
+  ],
+  "files": [
+    "lib",
+    "types"
+  ],
+  "main": "./lib",
+  "types": "./types",
+  "engines": {
+    "node": ">=0.11"
+  },
+  "scripts": {
+    "cover": "istanbul cover _mocha",
+    "clean": "rm -rf coverage dist node_modules",
+    "test": "mocha"
+  },
+  "devDependencies": {
+    "coveralls": "^3.0.2",
+    "istanbul": "^0.4.5",
+    "mocha": "^5.2.0",
+    "tmp": "^0.0.33"
+  },
+  "author": {
+    "name": "Matthieu Monsch",
+    "email": "monsch@alum.mit.edu"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mtth/avsc.git"
+  }
+}
