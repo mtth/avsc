@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Type, types: {LogicalType}} = require('avsc');
+const {Type, LogicalType} = require('@avro/types');
 const {DateTime} = require('luxon');
 
 // Namespace used for all internal types declared here.

@@ -6,7 +6,7 @@
 
 const utils = require('./utils');
 
-const {Type, types: {WrappedUnionType}} = require('avsc');
+const {Type, WrappedUnionType} = require('@avro/types');
 const crypto = require('crypto');
 
 /** An Avro message, containing its request, response, etc. */

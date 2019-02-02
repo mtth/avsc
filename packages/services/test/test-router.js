@@ -7,8 +7,8 @@ const {Client, Server} = require('../lib/call');
 const {Service} = require('../lib/service');
 const {Router} = require('../lib/router');
 
+const {Type} = require('@avro/types');
 const assert = require('assert');
-const {Type} = require('avsc');
 const backoff = require('backoff');
 const sinon = require('sinon');
 

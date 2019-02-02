@@ -21,7 +21,7 @@ var utils = require('./utils'),
 
 // Convenience imports.
 var Tap = utils.Tap;
-var debug = util.debuglog('avsc:types');
+var debug = util.debuglog('avro:types');
 var f = util.format;
 
 // All non-union concrete (i.e. non-logical) Avro types.

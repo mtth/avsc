@@ -8,8 +8,8 @@ const netty = require('../lib/codecs/netty');
 const {Router} = require('../lib/router');
 const {Service} = require('../lib/service');
 
+const {Type} = require('@avro/types');
 const assert = require('assert');
-const {Type} = require('avsc');
 const {DateTime} = require('luxon');
 const net = require('net');
 const sinon = require('sinon');

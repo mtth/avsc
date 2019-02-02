@@ -6,8 +6,8 @@ const {Client, Server} = require('../lib/call');
 const {Trace} = require('../lib/channel');
 const {Service} = require('../lib/service');
 
+const {Type} = require('@avro/types');
 const assert = require('assert');
-const {Type} = require('avsc');
 
 suite('client server', () => {
   const echoSvc = new Service({

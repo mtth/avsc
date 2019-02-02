@@ -1,0 +1,2 @@
+@namespace("id")
+fixed Id(64)

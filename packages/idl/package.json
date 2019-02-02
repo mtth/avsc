@@ -1,31 +1,28 @@
 {
-  "name": "@avro/types",
-  "version": "0.2.0",
-  "description": "Avro serialization",
+  "name": "@avro/idl",
+  "version": "0.1.0",
+  "description": "Avro IDL parsing",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
     "avro",
+    "avdl",
     "avsc",
     "binary",
-    "buffer",
-    "data",
-    "decoding",
-    "encoding",
     "interface",
     "json",
-    "marshalling",
     "schema",
-    "serialization",
     "type"
   ],
   "files": [
-    "lib",
-    "types"
+    "etc/browser",
+    "lib"
   ],
   "main": "./lib",
-  "types": "./types",
   "engines": {
     "node": ">=0.11"
+  },
+  "browser": {
+    "./lib/files": "./etc/browser/files.js"
   },
   "scripts": {
     "cover": "istanbul cover _mocha",
