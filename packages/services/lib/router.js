@@ -2,9 +2,6 @@
 
 'use strict';
 
-// TODO: Add routing key option (Protocol -> String, defaulting to the
-// protocol's name), to allow configuring how routing is performed.
-
 const {Server} = require('./call');
 const {Channel} = require('./channel');
 const {SystemError} = require('./utils');
@@ -15,19 +12,27 @@ const {EventEmitter} = require('events');
 
 const d = debug('@avro/services:router');
 
+/**
+ * Base channel routing class.
+ *
+ * This class should not be instantiated directly. Instead use one of the
+ * available factory methods (e.g. `forChannel`, `forServers`).
+ */
 class Router extends EventEmitter {
-  constructor(svcs, handler) {
+  constructor(svcs, handler, routingKeys) {
     if (!svcs || !svcs.length) {
       throw new Error('no services');
     }
     super();
     this.closed = false;
+    this._routingKeys = routingKeys || defaultRoutingKeys;
     this._services = new Map();
     for (const svc of svcs) {
-      if (this._services.has(svc.name)) {
-        throw new Error(`duplicate service name: ${svc.name}`);
+      const key = this._routingKeys(svc.protocol)[0];
+      if (this._services.has(key)) {
+        throw new Error(`duplicate service key: ${key}`);
       }
-      this._services.set(svc.name, svc);
+      this._services.set(key, svc);
     }
     this.channel = new Channel((trace, preq, cb) => {
       if (this.closed) {
@@ -37,22 +42,26 @@ class Router extends EventEmitter {
       const clientSvc = preq.service;
       const serverSvc = this.service(clientSvc);
       if (!serverSvc) {
-        const cause = new Error(`no route for service ${clientSvc.name}`);
-        cb(new SystemError('ERR_AVRO_SERVICE_NOT_FOUND', cause));
+        cb(new SystemError('ERR_AVRO_SERVICE_NOT_FOUND'));
         return;
       }
-      d('Routing %s to %s.', clientSvc.name, serverSvc.name);
       handler(serverSvc, trace, preq, cb);
     });
   }
 
+  /** All server services that can be routed to. */
   get services() {
     return Array.from(this._services.values());
   }
 
+  /**
+   * Which server service a given client service will be routed to.
+   *
+   * If no routing key match is found, this method returns `null`.
+   */
   service(clientSvc) {
-    for (const name of routingNames(clientSvc)) {
-      const svc = this._services.get(name);
+    for (const key of this._routingKeys(clientSvc.protocol)) {
+      const svc = this._services.get(key);
       if (svc) {
         return svc;
       }
@@ -60,6 +69,7 @@ class Router extends EventEmitter {
     return null;
   }
 
+  /** Close the router. */
   close() {
     if (this.closed) {
       return;
@@ -69,11 +79,19 @@ class Router extends EventEmitter {
     this.emit('close');
   }
 
-  static forChannel(chan, svcs) {
-    return new Router(svcs, (svc, ...args) => { chan.call(...args); });
-  }
-
-  static forServers(...servers) {
+  /**
+   * Wrap multiple servers into a single router.
+   *
+   * Options:
+   *
+   * + `routingKeys`, a function taking as input a protocol and returning a
+   *   (non-empty) array of valid string "routing keys" for the protocol. The
+   *   first item will be the protocol's primary key. A client service's
+   *   routing keys will be matched in order against all the router's servers'
+   *   services' primary keys. This option defaults to a function returning the
+   *   protocol's name followed by its aliases if any.
+   */
+  static forServers(servers, opts) {
     if (!servers || !servers.length) {
       throw new Error('no servers');
     }
@@ -82,12 +100,24 @@ class Router extends EventEmitter {
       if (!Server.isServer(server)) {
         throw new Error(`not a server: ${server}`);
       }
-      routers.push(Router.forChannel(server.channel, [server.service]));
+      routers.push(Router.forChannel(server.channel, [server.service], opts));
     }
-    return routers.length === 1 ? routers[0] : Router.forRouters(...routers);
+    return routers.length === 1 ?
+      routers[0] :
+      Router.forRouters(routers, opts);
   }
 
-  static forRouters(...routers) {
+  /**
+   * Combine multiple routers into a single one.
+   *
+   * All routers must still be open. The list of input routers will be
+   * available on the returned router as `router.downstreamRouters`.
+   *
+   * Options:
+   *
+   * + `routingKeys`, see `Router.forServer`.
+   */
+  static forRouters(routers, opts) {
     const routerMap = new Map();
     const svcs = [];
     let upstream;
@@ -97,15 +127,20 @@ class Router extends EventEmitter {
       }
       downstream.on('close', onClose);
       for (const svc of downstream.services) {
-        routerMap.set(svc.name, downstream);
+        routerMap.set(svc, downstream);
         svcs.push(svc);
       }
     }
     const handler = (serverSvc, trace, preq, cb) => {
-      routerMap.get(serverSvc.name).channel.call(trace, preq, cb);
+      routerMap.get(serverSvc).channel.call(trace, preq, cb);
     };
     const downstreamRouters = Array.from(routerMap.values());
-    upstream = new DispatchingRouter(svcs, handler, downstreamRouters);
+    upstream = new DispatchingRouter(
+      svcs,
+      handler,
+      opts && opts.routingKeys,
+      downstreamRouters
+    );
     return upstream;
 
     function onClose() {
@@ -116,8 +151,40 @@ class Router extends EventEmitter {
     }
   }
 
-  // TODO: Add `queueBackoff` option.
+  /**
+   * Wrap a single channel into a router.
+   *
+   * The input services must be available on the given channel, otherwise calls
+   * will likely fail with `ERR_AVRO_INCOMPATIBLE_PROTOCOL`. If you are
+   * wrapping a single server's channel, prefer `Router.forServers`.
+   *
+   * Options:
+   *
+   * + `routingKeys`, see `Router.forServer`.
+   */
+  static forChannel(chan, svcs, opts) {
+    return new Router(
+      svcs,
+      (svc, ...args) => { chan.call(...args); },
+      opts && opts.routingKeys
+    );
+  }
+
+  /**
+   * Transform a router factory method into a single resilient router.
+   *
+   * Options:
+   *
+   * + `refreshBackoff`, `backoff` instance used to throttle provider calls.
+   * + `routingKeys`, see `Router.forServer`.
+   *
+   * The returned router will emit the standard `Router` events as well as:
+   *
+   * + `'up'`, each time the underlying router is refreshed.
+   * + `'down'`, each time the underlying router is closed.
+   */
   static selfRefreshing(provider, opts, cb) {
+    // TODO: Add `queueBackoff` option.
     if (!cb && typeof opts == 'function') {
       cb = opts;
       opts = undefined;
@@ -139,7 +206,6 @@ class Router extends EventEmitter {
           .reset();
         cb(null, new SelfRefreshingRouter(router, args, provider, bkf));
       });
-
     }
 
     function onFail() {
@@ -149,8 +215,8 @@ class Router extends EventEmitter {
 }
 
 class DispatchingRouter extends Router {
-  constructor(svcs, handler, downstreamRouters) {
-    super(svcs, handler);
+  constructor(svcs, handler, routingKeys, downstreamRouters) {
+    super(svcs, handler, routingKeys);
     this.downstreamRouters = downstreamRouters;
   }
 }
@@ -253,9 +319,9 @@ class SelfRefreshingRouter extends Router {
   }
 }
 
-function routingNames(svc) {
-  const keys = [svc.name];
-  const aliases = svc.protocol.aliases;
+function defaultRoutingKeys(ptcl) {
+  const keys = [ptcl.protocol];
+  const aliases = ptcl.aliases;
   if (aliases) {
     for (const alias of aliases) {
       keys.push(alias);

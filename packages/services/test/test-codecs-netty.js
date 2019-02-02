@@ -186,7 +186,7 @@ suite('netty codec', () => {
 function routing(clientSvc, serverSvc, cb) {
   const client = new Client(clientSvc);
   const server = new Server(serverSvc);
-  const gateway = new netty.Gateway(Router.forServers(server));
+  const gateway = new netty.Gateway(Router.forServers([server]));
   net.createServer()
     .on('connection', (conn) => { gateway.accept(conn); })
     .listen(0, function () {

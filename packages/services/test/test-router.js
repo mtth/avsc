@@ -38,7 +38,7 @@ suite('server routers', () => {
   test('single service', (done) => {
     const echoServer = new Server(echoSvc)
       .onMessage().echo((str, cb) => { cb(null, str); });
-    const router = Router.forServers(echoServer);
+    const router = Router.forServers([echoServer]);
     const echoClient = new Client(echoSvc);
     echoClient.channel = router.channel;
     const upperClient = new Client(upperSvc);
@@ -57,7 +57,7 @@ suite('server routers', () => {
     const echoServer = new Server(echoSvc)
       .onMessage().echo((str, cb) => { cb(null, str); });
     const upperServer = new Server(upperSvc);
-    const router = Router.forServers(echoServer, upperServer);
+    const router = Router.forServers([echoServer, upperServer]);
     const echoClient = new Client(echoSvc);
     echoClient.channel = router.channel;
     echoClient.emitMessage(new Trace()).echo('foo', (err, res) => {
@@ -67,13 +67,21 @@ suite('server routers', () => {
     });
   });
 
+  test('duplicate service', () => {
+    const echoServer = new Server(echoSvc);
+    assert.throws(
+      () => { Router.forServers([echoServer, echoServer]); },
+      /duplicate/
+    );
+  });
+
   test('dispatching closing child', (done) => {
     const echoServer = new Server(echoSvc)
       .onMessage().echo((str, cb) => { cb(null, str); });
     const upperServer = new Server(upperSvc);
-    const echoRouter = Router.forServers(echoServer);
-    const upperRouter = Router.forServers(upperServer);
-    const router = Router.forRouters(echoRouter, upperRouter)
+    const echoRouter = Router.forServers([echoServer]);
+    const upperRouter = Router.forServers([upperServer]);
+    const router = Router.forRouters([echoRouter, upperRouter])
       .once('close', () => {
         done();
       });
@@ -84,6 +92,35 @@ suite('server routers', () => {
       assert.equal(res, 'foo');
       echoRouter.close();
     });
+  });
+
+  test('custom routing key', (done) => {
+    const svc1 = new Service({
+      protocol: 'EchoService',
+      version: 1,
+      messages: echoSvc.protocol.messages,
+    });
+    const svc2 = new Service({
+      protocol: 'EchoService',
+      version: 2,
+      messages: echoSvc.protocol.messages,
+    });
+    const server1 = new Server(svc1)
+      .onMessage().echo((str, cb) => { cb(null, str); });
+    const server2 = new Server(svc2);
+    const router = Router.forServers([server1, server2], {routingKeys});
+
+    const echoClient = new Client(svc1)
+    echoClient.channel = router.channel;
+    echoClient.emitMessage(new Trace()).echo('foo', (err, str) => {
+      assert.ifError(err);
+      assert.equal(str, 'foo');
+      done();
+    });
+
+    function routingKeys(ptcl) {
+      return [`${ptcl.protocol}-v${ptcl.version}`];
+    }
   });
 });
 
@@ -111,7 +148,7 @@ suite('self-refreshing', () => {
     clock.tick(100);
 
     function routerProvider(cb) {
-      cb(null, Router.forServers(echoServer));
+      cb(null, Router.forServers([echoServer]));
     }
   });
 
@@ -136,7 +173,7 @@ suite('self-refreshing', () => {
     clock.tick(1000);
 
     function routerProvider(cb) {
-      cb(null, Router.forServers(echoServer));
+      cb(null, Router.forServers([echoServer]));
     }
   });
 
@@ -165,7 +202,7 @@ suite('self-refreshing', () => {
     clock.tick(100);
 
     function routerProvider(cb) {
-      const router = Router.forServers(echoServer);
+      const router = Router.forServers([echoServer]);
       setTimeout(() => { router.close(); }, 500);
       cb(null, router);
     }

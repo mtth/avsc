@@ -30,6 +30,7 @@
   "scripts": {
     "cover": "istanbul cover _mocha",
     "clean": "rm -rf coverage dist node_modules",
+    "prepublish": "npm test",
     "test": "mocha"
   },
   "devDependencies": {
