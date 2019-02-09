@@ -45,5 +45,7 @@ suite('Service', () => {
     });
     assert(Service.compatible(svc, svc));
     assert(!Service.compatible(svc, new Service({protocol: 'Echo'})));
+    assert(Service.compatible(new Service({protocol: 'Echo'}), svc));
+    assert(!Service.compatible(new Service({protocol: 'Empty'}), svc));
   });
 });

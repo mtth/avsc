@@ -3,9 +3,8 @@
 'use strict';
 
 const {Client, Server} = require('../lib/call');
-const {Trace} = require('../lib/channel');
-const netty = require('../lib/codecs/netty');
-const {Router} = require('../lib/router');
+const {Trace} = require('../lib/trace');
+const {NettyChannel, NettyGateway} = require('../lib/codecs/netty');
 const {Service} = require('../lib/service');
 
 const {Type} = require('@avro/types');
@@ -37,7 +36,7 @@ suite('netty codec', () => {
   });
 
   suite('same service', () => {
-    let client, server, cleanup;
+    let client, server;
 
     setup((done) => {
       routing(stringService, stringService, (err, obj) => {
@@ -47,12 +46,11 @@ suite('netty codec', () => {
         }
         client = obj.client;
         server = obj.server;
-        cleanup = obj.cleanup;
         done();
       });
     });
 
-    teardown(() => { cleanup(); });
+    teardown(() => { client.channel().close(); });
 
     test('emit and receive message', (done) => {
       server.onMessage()
@@ -129,10 +127,9 @@ suite('netty codec', () => {
   });
 
   suite('different services', () => {
-    test('compatible using alias', (done) => {
+    test('compatible', (done) => {
       const echoService = new Service({
-        protocol: 'EchoService',
-        aliases: ['StringService'],
+        protocol: 'StringService',
         messages: {
           echo: {
             request: [{name: 'message', type: 'string'}],
@@ -142,15 +139,15 @@ suite('netty codec', () => {
       });
       routing(echoService, stringService, (err, obj) => {
         if (err) {
-          obj.cleanup();
           done(err);
           return;
         }
-        obj.server.onMessage().echo((str, cb) => { cb(null, str); });
-        obj.client.emitMessage(new Trace()).echo('foo', (err, str) => {
+        const {client, server} = obj;
+        server.onMessage().echo((str, cb) => { cb(null, str); });
+        client.emitMessage(new Trace()).echo('foo', (err, str) => {
           assert.ifError(err);
           assert.equal(str, 'foo');
-          obj.cleanup();
+          client.channel().close();
           done();
         });
       });
@@ -168,14 +165,14 @@ suite('netty codec', () => {
       });
       routing(svc, stringService, (err, obj) => {
         if (err) {
-          obj.cleanup();
           done(err);
           return;
         }
-        obj.server.onMessage().echo(() => { assert(false); }); // Not called.
-        obj.client.emitMessage(new Trace()).echo('', (err) => {
+        const {client, server} = obj;
+        server.onMessage().echo(() => { assert(false); }); // Not called.
+        client.emitMessage(new Trace()).echo('', (err) => {
           assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
-          obj.cleanup();
+          client.channel().close();
           done();
         });
       });
@@ -184,27 +181,19 @@ suite('netty codec', () => {
 });
 
 function routing(clientSvc, serverSvc, cb) {
-  const client = new Client(clientSvc);
   const server = new Server(serverSvc);
-  const gateway = new netty.Gateway(Router.forServers([server]));
+  const gateway = new NettyGateway(server.channel());
   net.createServer()
     .on('connection', (conn) => { gateway.accept(conn); })
     .listen(0, function () {
       const tcpServer = this;
       const port = tcpServer.address().port;
       const conn = net.createConnection(port).setNoDelay();
-      netty.router(conn, (err, router) => {
-        if (err) {
-          cb(err);
-          return;
-        }
-        client.channel = router.channel;
-        cb(null, {client, server, cleanup});
-      });
-
-      function cleanup() {
+      const chan = new NettyChannel(conn).on('close', () => {
         conn.destroy();
         tcpServer.close();
-      }
+      });
+      const client = new Client(clientSvc).channel(chan);
+      cb(null, {client, server});
     });
 }

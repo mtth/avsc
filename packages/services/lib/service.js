@@ -141,6 +141,9 @@ class Service {
 
 class Decoder {
   constructor(clientSvc, serverSvc) {
+    if (clientSvc.name !== serverSvc.name) {
+      throw new Error('protocol name mismatch');
+    }
     const rs = new Map();
     for (const clientMsg of clientSvc.messages.values()) {
       const name = clientMsg.name;

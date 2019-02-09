@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Router, Server, Service, netty} = require('../lib');
+const {NettyGateway, RoutingChannel, Server, Service} = require('../lib');
 
 const net = require('net');
 
@@ -32,8 +32,8 @@ const echoServer = new Server(echoService)
 const upperServer = new Server(upperService)
   .onMessage().upper((str, cb) => { cb(null, str.toUpperCase()); });
 
-const router = Router.forServers(echoServer, upperServer);
-const gateway = new netty.Gateway(router);
+const chan = RoutingChannel.forServers([echoServer, upperServer]);
+const gateway = new NettyGateway(chan);
 
 net.createServer()
   .on('connection', (conn) => {

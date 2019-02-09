@@ -2,8 +2,9 @@
 
 'use strict';
 
-const {Channel, Packet, Trace, randomId} = require('./channel');
+const {Channel, Packet} = require('./channel');
 const {Decoder} = require('./service');
+const {Trace} = require('./trace');
 const utils = require('./utils');
 
 const debug = require('debug');
@@ -47,9 +48,9 @@ class WrappedResponse {
 
 class Client {
   constructor(svc) {
-    this.channel = null;
     this.service = svc;
     this.tagTypes = {};
+    this._channel = null;
     this._decoders = new Map();
     this._emitterProto = {_client$: this};
     for (const msg of svc.messages.values()) {
@@ -60,6 +61,17 @@ class Client {
 
   use(fn) {
     this._middlewares.push(fn);
+    return this;
+  }
+
+  channel(chan) {
+    if (chan === undefined) {
+      return this._channel;
+    }
+    if (!Channel.isChannel(chan)) {
+      throw new Error(`not a channel: ${chan}`);
+    }
+    this._channel = chan;
     return this;
   }
 
@@ -92,7 +104,7 @@ class Client {
       wres,
       mws.concat(this._middlewares),
       (prev) => {
-        const id = randomId();
+        const id = utils.randomId();
         const preq = new Packet(id, svc);
         try {
           preq.headers = serializeTags(wreq.tags, this.tagTypes);
@@ -107,13 +119,13 @@ class Client {
           return;
         }
         d('Sending request packet %s...', id);
-        if (!this.channel) {
+        if (!this._channel) {
           d('No channel to send request packet %s.', id);
           wres._setSystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL');
           prev();
           return;
         }
-        this.channel.call(cc.trace, preq, (err, pres) => {
+        this._channel.call(cc.trace, preq, (err, pres) => {
           if (err) {
             wres._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
             prev();
@@ -129,7 +141,10 @@ class Client {
               prev();
               return;
             }
-            d('Adding decoder for server service %j.', serverSvc.hash);
+            d(
+              'Adding client decoder for server service %s (%s).',
+              serverSvc.name, toHex(serverSvc.hash)
+            );
             this._decoders.set(serverSvc.hash, decoder);
           }
           d('Received response packet %s!', id);
@@ -213,7 +228,7 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this.channel = new Channel((trace, preq, cb) => {
+    this._handler = (trace, preq, cb) => {
       const id = preq.id;
       const cc = new CallContext(trace);
       cc.server = this;
@@ -228,7 +243,10 @@ class Server {
           cb(new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL' , err));
           return;
         }
-        d('Adding decoder for client service %j.', clientSvc.hash);
+        d(
+          'Adding server decoder for client service %s (%s).',
+          clientSvc.name, toHex(clientSvc.hash)
+        );
         this._decoders.set(clientSvc.hash, decoder);
       }
       const tagTypes = this.tagTypes;
@@ -303,12 +321,22 @@ class Server {
         d('Sending response packet %s!', id);
         cb(null, new Packet(id, svc, Buffer.concat(bufs), headers));
       }
-    });
+    };
   }
 
   use(fn) {
     this._middlewares.push(fn);
     return this;
+  }
+
+  channel() {
+    return new Channel(this._handler);
+  }
+
+  client() {
+    const client = new Client(this.service);
+    client.channel(this.channel());
+    return client;
   }
 
   _onMessage(mws, name, fn) {
@@ -430,6 +458,10 @@ function deserializeTags(headers, tagTypes) {
     }
   }
   return tags;
+}
+
+function toHex(str) {
+  return Buffer.from(str, 'binary').toString('hex');
 }
 
 function throwIfError(err) {

@@ -3,8 +3,8 @@
 'use strict';
 
 const {Client, Server} = require('../lib/call');
-const {Trace} = require('../lib/channel');
 const {Service} = require('../lib/service');
+const {Trace} = require('../lib/trace');
 
 const {Type} = require('@avro/types');
 const assert = require('assert');
@@ -50,6 +50,15 @@ suite('client server', () => {
     });
     client.emitMessage(trace).upper('foo', (err) => {
       assert.equal(err.code, 'ERR_AVRO_EXPIRED');
+      done();
+    });
+  });
+
+  test('closed channel', (done) => {
+    const {client, server} = clientServer(echoSvc);
+    client.channel().close();
+    client.emitMessage(new Trace()).upper('foo', (err) => {
+      assert.equal(err.code, 'ERR_AVRO_CHANNEL_CLOSED');
       done();
     });
   });
@@ -176,8 +185,7 @@ suite('client server', () => {
 });
 
 function clientServer(svc) {
-  const client = new Client(svc);
   const server = new Server(svc);
-  client.channel = server.channel;
+  const client = server.client();
   return {client, server};
 }

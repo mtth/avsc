@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Client, Router, Service, Trace, netty} = require('../lib');
+const {Client, NettyChannel, SelfRefreshingChannel, Service, Trace} = require('../lib');
 const net = require('net');
 
 const echoService = new Service({
@@ -25,7 +25,20 @@ const upperService = new Service({
   },
 });
 
+function channelProvider(cb) {
+  net.createConnection({port: 8080}).setNoDelay()
+    .on('error', cb)
+    .once('connect', function () {
+      this.removeListener('error', cb);
+      cb(null, new NettyChannel(this).once('close', () => { this.end(); }));
+    })
+}
+
+const chan = new SelfRefreshingChannel(channelProvider)
+  .on('error', (err) => { console.error(`channel error: ${err}`); });
+
 const echoClient = new Client(echoService)
+  .channel(chan)
   .use((wreq, wres, next) => {
     console.time(wreq.request.message);
     next(null, (err, prev) => {
@@ -34,31 +47,9 @@ const echoClient = new Client(echoService)
     });
   });
 
-function routerProvider(cb) {
-  const conn = net.createConnection({port: 8080}).setNoDelay();
-  netty.router(conn, (err, router) => {
-    if (err) {
-      cb(err);
-      return;
-    }
-    router.once('close', () => { conn.end(); });
-    cb(null, router, conn);
-  });
-}
-
-Router.selfRefreshing(routerProvider, (err, router) => {
-  if (err) {
-    console.error(err);
-    return;
-  }
-  router.on('error', (err) => { console.error(`router error: ${err}`); });
-  echoClient.channel = router.channel;
-
-  const trace = new Trace(2000);
-  trace.onceInactive(() => { router.close(); });
-  poll(trace);
-});
-
+const trace = new Trace(2000);
+trace.onceInactive(() => { chan.close(); });
+poll(trace);
 
 function poll(trace) {
   let i = 0;

@@ -3,16 +3,19 @@
 'use strict';
 
 const {Client, Server} = require('./call');
-const {Trace} = require('./channel');
-const netty = require('./codecs/netty');
-const {Router} = require('./router');
+const {Channel, RoutingChannel, SelfRefreshingChannel} = require('./channel');
+const {NettyChannel, NettyGateway} = require('./codecs/netty');
 const {Message, Service} = require('./service');
+const {Trace} = require('./trace');
 
 module.exports = {
+  Channel,
   Client,
-  Router,
+  NettyChannel,
+  NettyGateway,
+  RoutingChannel,
+  SelfRefreshingChannel,
   Server,
   Service,
   Trace,
-  netty,
 };

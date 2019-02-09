@@ -138,6 +138,19 @@ const dateTimeType = Type.forSchema({
   logicalType: 'datetime-millis',
 }, opts);
 
+/**
+ * Random ID generator, mostly useful for packets.
+ *
+ * We are using 31 bit IDs since this is what the Java Netty implementation
+ * uses (see http://goto.mtth.xyz/avro-java-netty), hopefully there aren't ever
+ * enough packets in flight for collisions to be an issue. (We could use 32
+ * bits but the extra bit isn't worth the inconvenience of negative numbers or
+ * additional logic to transform them.)
+ */
+function randomId() {
+  return ((-1 >>> 1) * Math.random()) | 0;
+}
+
 module.exports = {
   NAMESPACE,
   SystemError,
@@ -146,6 +159,7 @@ module.exports = {
   handshakeResponseType,
   mapOfBytesType,
   mapOfJsonType,
+  randomId,
   stringType,
   systemErrorType,
 };
