@@ -46,6 +46,7 @@ class NettyChannel extends Channel {
     this._onReadableEnd = () => {
       d('Channel readable end.');
       if (!this.closed) {
+        this.close();
         this.emit('error', new Error('readable socket ended before writable'));
       }
     };
