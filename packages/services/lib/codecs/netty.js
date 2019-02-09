@@ -29,8 +29,7 @@ class NettyChannel extends Channel {
       writable = readable;
     }
     super((trace, preq, cb) => {
-      const meta = this._track(trace, preq, cb);
-      this._send(preq, meta, false);
+      this._send(preq, this._track(trace, preq, cb), false);
     });
 
     this.knownServices = new Map(); // Keyed by _remote_ hash.

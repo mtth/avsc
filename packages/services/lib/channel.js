@@ -264,7 +264,7 @@ class SelfRefreshingChannel extends Channel {
             this._refreshChannel();
           }
         });
-      this._handler = chan._handler;
+      this._handler = (trace, preq, cb) => { chan.call(trace, preq, cb); };
       d('Set active channel.');
       this.emit('_flush');
       this.emit('up', ...args);
