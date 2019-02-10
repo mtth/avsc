@@ -159,7 +159,7 @@ class RoutingChannel extends Channel {
       function routeUsing(chan) {
         chan.call(trace, preq, (err, pres) => {
           if (err && err.code === 'ERR_AVRO_INCOMPATIBLE_PROTOCOL') {
-            d('Channel for %s is not compatible anymore, purging.', name);
+            d('Channel for %s is not compatible, purging.', name);
             cache.delete(name);
           }
           cb(err, pres);
@@ -291,7 +291,7 @@ function multiPing(trace, svc, chans, cb) {
         errs.push(err);
         return;
       }
-      if (!match || match[0] > idx) {
+      if (!err && (!match || match[0] > idx)) {
         match = [idx, chan];
       }
       if (pending) {
