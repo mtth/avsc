@@ -86,16 +86,16 @@ class Client {
   }
 
   _emitMessage(trace, mws, name, req, cb) {
-    if (!trace.active) {
-      d('Not emitting message, trace is already inactive.');
-      process.nextTick(() => { cb(trace.deactivatedBy); });
-      return;
-    }
-    const cleanup = trace.onceInactive(done);
     const svc = this.service;
     const msg = svc.messages.get(name); // Guaranteed defined.
     const cc = new CallContext(trace, msg);
     cc.client = this;
+    if (!trace.active) {
+      d('Not emitting message, trace is already inactive.');
+      process.nextTick(onInactive);
+      return;
+    }
+    const cleanup = trace.onceInactive(onInactive);
     const wreq = new WrappedRequest(req);
     const wres = new WrappedResponse();
     chain(
@@ -166,10 +166,14 @@ class Client {
           prev();
         });
       },
-      done
+      onResponse
     );
 
-    function done(err) {
+    function onInactive() {
+      cb.call(cc, {string: trace.deactivatedBy});
+    }
+
+    function onResponse(err) {
       if (!cleanup()) {
         return;
       }

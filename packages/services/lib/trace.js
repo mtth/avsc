@@ -47,11 +47,12 @@ class Trace {
         this._deadlineExceeded();
         return;
       }
-      this._timer = setTimeout(() => {
-        this._deadlineExceeded();
-      }, remainingTimeout);
+      if (!parent || parent.deadline !== this.deadline) {
+        this._timer = setTimeout(() => {
+          this._deadlineExceeded();
+        }, remainingTimeout);
+      }
     }
-    Object.seal(this);
   }
 
   get remainingDuration() {
