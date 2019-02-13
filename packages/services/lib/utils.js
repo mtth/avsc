@@ -99,6 +99,8 @@ const mapOfJsonType = Type.forSchema({
   type: 'map', values: {type: 'string', logicalType: 'json'},
 }, opts);
 
+const mapOfStringType = Type.forSchema({type: 'map', values: 'string'}, opts);
+
 const handshakeRequestType = Type.forSchema({
   name: 'HandshakeRequest',
   type: 'record',
@@ -158,6 +160,7 @@ module.exports = {
   handshakeRequestType,
   handshakeResponseType,
   mapOfBytesType,
+  mapOfStringType,
   mapOfJsonType,
   randomId,
   stringType,

@@ -17,8 +17,8 @@ const d = debug('@avro/services:codecs:netty');
 // Keys used for propagating trace information (from the client to the server)
 // in request handshakes' meta field. If the keys are absent in a request, the
 // server's trace will simply not have the corresponding field.
-const DEADLINE_META = 'avro.trace.deadline';
-const LABELS_META = 'avro.trace.labels';
+const DEADLINE_META = 'avro.netty.trace-deadline';
+const LABELS_META = 'avro.netty.trace-labels';
 
 /**
  * Netty-backed channel.
@@ -527,14 +527,14 @@ class NettyPacket {
   }
 
   toPayload() {
-    const type = utils.mapOfBytesType;
+    const type = utils.mapOfStringType;
     return Buffer.concat([type.toBuffer(this.headers), this.body]);
   }
 
   static forPayload(buf) {
     const pkt = new NettyPacket();
     let obj;
-    obj = utils.mapOfBytesType.decode(buf, 0);
+    obj = utils.mapOfStringType.decode(buf, 0);
     if (obj.offset < 0) {
       throw new Error('truncated request headers');
     }

@@ -13,6 +13,10 @@ const {DateTime} = require('luxon');
 const {SystemError} = utils;
 const d = debug('@avro/services:call');
 
+// Prefix used for storing tags inside packet headers. Headers starting with
+// `avro.` are all reserved.
+const TAG_HEADER_PREFIX = 'avro.tag.';
+
 /** The context used for all middleware and handler calls. */
 class CallContext {
   constructor(trace, msg) {
@@ -445,7 +449,8 @@ function serializeTags(tags, tagTypes) {
       // headers, tags are under the same process' control).
       throw new Error(`unknown tag: ${key}`);
     }
-    headers[key] = type.toBuffer(tags[key]);
+    const str = type.toBuffer(tags[key]).toString('binary');
+    headers[TAG_HEADER_PREFIX + key] = str;
   }
   return headers;
 }
@@ -456,9 +461,9 @@ function deserializeTags(headers, tagTypes) {
     return tags;
   }
   for (const key of Object.keys(tagTypes)) {
-    const buf = headers[key];
-    if (buf !== undefined) {
-      tags[key] = tagTypes[key].fromBuffer(buf);
+    const str = headers[TAG_HEADER_PREFIX + key];
+    if (str !== undefined) {
+      tags[key] = tagTypes[key].fromBuffer(Buffer.from(str, 'binary'));
     }
   }
   return tags;
