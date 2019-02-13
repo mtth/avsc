@@ -24,7 +24,7 @@ class Trace {
       timeout = undefined;
     }
 
-    this.labels = parent ? Object.create(parent.labels, {}) : {};
+    this.headers = parent ? Object.create(parent.headers, {}) : {};
     this.deactivatedBy = parent ? parent.deactivatedBy : null;
     this.deadline = deadlineFromTimeout(timeout);
 

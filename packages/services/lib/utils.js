@@ -71,22 +71,11 @@ class DateTimeType extends LogicalType {
   }
 }
 
-class JsonType extends LogicalType {
-  _fromValue(val) {
-    return JSON.parse(val);
-  }
-
-  _toValue(any) {
-    return JSON.stringify(any);
-  }
-}
-
 // Various useful types. We instantiate options once, to share the registry.
 const opts = {
   namespace: NAMESPACE,
   logicalTypes: {
     'datetime-millis': DateTimeType,
-    'json': JsonType,
     'system-error': SystemErrorType,
   },
 };
@@ -94,10 +83,6 @@ const opts = {
 const stringType = Type.forSchema('string', opts);
 
 const mapOfBytesType = Type.forSchema({type: 'map', values: 'bytes'}, opts);
-
-const mapOfJsonType = Type.forSchema({
-  type: 'map', values: {type: 'string', logicalType: 'json'},
-}, opts);
 
 const mapOfStringType = Type.forSchema({type: 'map', values: 'string'}, opts);
 
@@ -161,7 +146,6 @@ module.exports = {
   handshakeResponseType,
   mapOfBytesType,
   mapOfStringType,
-  mapOfJsonType,
   randomId,
   stringType,
   systemErrorType,

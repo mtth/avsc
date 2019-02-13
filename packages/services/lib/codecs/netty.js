@@ -18,7 +18,7 @@ const d = debug('@avro/services:codecs:netty');
 // in request handshakes' meta field. If the keys are absent in a request, the
 // server's trace will simply not have the corresponding field.
 const DEADLINE_META = 'avro.netty.trace-deadline';
-const LABELS_META = 'avro.netty.trace-labels';
+const LABELS_META = 'avro.netty.trace-headers';
 
 /**
  * Netty-backed channel.
@@ -150,7 +150,7 @@ class NettyChannel extends Channel {
     d('Tracking packet request %s.', id);
     const meta = {};
     try {
-      meta[LABELS_META] = utils.mapOfJsonType.toBuffer(trace.labels);
+      meta[LABELS_META] = utils.mapOfStringType.toBuffer(trace.headers);
     } catch (err) {
       cb(err);
       return;
@@ -248,15 +248,15 @@ class NettyGateway {
           }
           const metaLabels = hreq.meta && hreq.meta[LABELS_META];
           if (metaLabels) {
-            let labels;
+            let headers;
             try {
-              labels = utils.mapOfJsonType.fromBuffer(metaLabels);
+              headers = utils.mapOfStringType.fromBuffer(metaLabels);
             } catch (err) {
               d('Bad label in packet %s: %s', id, err);
               readable.emit('error', err);
               return;
             }
-            Object.assign(trace.labels, labels);
+            Object.assign(trace.headers, headers);
           }
           const clientHash = hreq.clientHash.toString('binary');
           clientSvc = this.knownServices.get(clientHash);

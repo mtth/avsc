@@ -13,10 +13,6 @@ const {DateTime} = require('luxon');
 const {SystemError} = utils;
 const d = debug('@avro/services:call');
 
-// Prefix used for storing tags inside packet headers. Headers starting with
-// `avro.` are all reserved.
-const TAG_HEADER_PREFIX = 'avro.tag.';
-
 /** The context used for all middleware and handler calls. */
 class CallContext {
   constructor(trace, msg) {
@@ -28,17 +24,17 @@ class CallContext {
 }
 
 class WrappedRequest {
-  constructor(req, tags) {
+  constructor(req, hdrs) {
     this.request = req;
-    this.tags = tags || {};
+    this.headers = hdrs || {};
   }
 }
 
 class WrappedResponse {
-  constructor(res, err, tags) {
+  constructor(res, err, hdrs) {
     this.response = res;
     this.error = err;
-    this.tags = tags || {};
+    this.headers = hdrs || {};
   }
 
   get systemError() {
@@ -109,9 +105,8 @@ class Client {
       mws.concat(this._middlewares),
       (prev) => {
         const id = utils.randomId();
-        const preq = new Packet(id, svc);
+        const preq = new Packet(id, svc, null, wreq.headers);
         try {
-          preq.headers = serializeTags(wreq.tags, this.tagTypes);
           preq.body = Buffer.concat([
             utils.stringType.toBuffer(name),
             msg.request.toBuffer(wreq.request),
@@ -152,12 +147,9 @@ class Client {
             this._decoders.set(serverSvc.hash, decoder);
           }
           d('Received response packet %s!', id);
+          Object.assign(wres.headers, pres.headers);
           const buf = pres.body;
           try {
-            const tags = deserializeTags(pres.headers, this.tagTypes);
-            for (const key of Object.keys(tags)) {
-              wres.tags[key] = tags[key];
-            }
             if (buf[0]) { // Error.
               wres.error = decoder.decodeError(name, buf.slice(1));
             } else {
@@ -259,13 +251,9 @@ class Server {
       }
       const tagTypes = this.tagTypes;
 
-      const wreq = new WrappedRequest();
+      const wreq = new WrappedRequest(null, preq.headers);
       const wres = new WrappedResponse();
       try {
-        const tags = deserializeTags(preq.headers, tagTypes);
-        for (const key of Object.keys(tags)) {
-          wreq.tags[key] = tags[key];
-        }
         const obj = utils.stringType.decode(preq.body);
         if (obj.offset < 0) {
           throw new Error('unable to decode message name');
@@ -309,9 +297,8 @@ class Server {
           // This will happen if an error was returned by a middleware.
           err = SystemError.orCode('ERR_AVRO_INTERNAL', err);
         }
-        let bufs, headers;
+        let bufs;
         try {
-          headers = serializeTags(wres.tags, tagTypes);
           const msg = cc.message;
           if (msg) {
             if (wres.error !== undefined) {
@@ -327,7 +314,7 @@ class Server {
           bufs = [Buffer.from([1, 0]), utils.systemErrorType.toBuffer(err)];
         }
         d('Sending response packet %s!', id);
-        cb(null, new Packet(id, svc, Buffer.concat(bufs), headers));
+        cb(null, new Packet(id, svc, Buffer.concat(bufs), wres.headers));
       }
     };
   }
@@ -435,38 +422,6 @@ function chain(cc, wreq, wres, mws, turn, end) {
     }
     cb(err, (err) => { backward(err, cbs); });
   }
-}
-
-function serializeTags(tags, tagTypes) {
-  const headers = {};
-  if (!tags) {
-    return headers;
-  }
-  for (const key of Object.keys(tags)) {
-    const type = tagTypes[key];
-    if (!type) {
-      // We throw an error here to avoid silently failing (unlike remote
-      // headers, tags are under the same process' control).
-      throw new Error(`unknown tag: ${key}`);
-    }
-    const str = type.toBuffer(tags[key]).toString('binary');
-    headers[TAG_HEADER_PREFIX + key] = str;
-  }
-  return headers;
-}
-
-function deserializeTags(headers, tagTypes) {
-  const tags = {};
-  if (!headers) {
-    return tags;
-  }
-  for (const key of Object.keys(tagTypes)) {
-    const str = headers[TAG_HEADER_PREFIX + key];
-    if (str !== undefined) {
-      tags[key] = tagTypes[key].fromBuffer(Buffer.from(str, 'binary'));
-    }
-  }
-  return tags;
 }
 
 function toHex(str) {

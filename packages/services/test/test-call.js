@@ -107,7 +107,7 @@ suite('client server', () => {
     server.tagTypes.attempt = intType;
     server
       .use((wreq, wres, next) => {
-        if (wreq.tags.attempt === 1) {
+        if (wreq.headers.attempt === '1') {
           next();
           return;
         }
@@ -118,11 +118,11 @@ suite('client server', () => {
       });
     client
       .use((wreq, wres, next) => {
-        const attempt = wreq.tags.attempt;
+        const attempt = wreq.headers.attempt;
         if (attempt === undefined) {
-          wreq.tags.attempt = 0;
+          wreq.headers.attempt = '0';
         } else {
-          wreq.tags.attempt = attempt + 1;
+          wreq.headers.attempt = '' + (+attempt + 1);
         }
         next();
       })

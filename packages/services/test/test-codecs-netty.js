@@ -84,13 +84,13 @@ suite('netty codec', () => {
       server
         .use(function (wreq, wres, next) {
           assert.equal(+this.trace.deadline, +deadline);
-          assert.deepEqual(this.trace.labels, {uuid});
+          assert.deepEqual(this.trace.headers, {uuid});
           ok = true;
           next();
         })
         .onMessage().echo((str, cb) => { cb(null, str); });
       const trace = new Trace(deadline);
-      trace.labels.uuid = uuid;
+      trace.headers.uuid = uuid;
       client.emitMessage(trace).echo('foo', (err) => {
         assert(!err, err);
         assert(ok);
@@ -100,27 +100,25 @@ suite('netty codec', () => {
 
     test('header propagation', (done) => {
       const type = Type.forSchema('int');
-      client.tagTypes.cost = type;
-      server.tagTypes.cost = type;
       server
         .use((wreq, wres, next) => {
-          wres.tags.cost = wreq.tags.cost + 1;
+          wres.headers.chars = wreq.headers.chars + 'b';
           next();
         })
         .onMessage().echo((str, cb) => { cb(null, str); });
-      let cost = 0;
+      let chars = 0;
       client
         .use((wreq, wres, next) => {
-          wreq.tags.cost = 1;
+          wreq.headers.chars = 'a';
           next(null, (err, prev) => {
-            cost = wres.tags.cost;
+            chars = wres.headers.chars;
             prev(err);
           });
         })
         .emitMessage(new Trace()).echo('foo', (err, res) => {
           assert.ifError(err);
           assert.equal(res, 'foo');
-          assert.equal(cost, 2);
+          assert.equal(chars, 'ab');
           done();
         });
     });
