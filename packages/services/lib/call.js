@@ -382,7 +382,11 @@ function messageListener(msg) {
             return;
           }
         }
-        cb.call(this, undefined, resArgs[msg.error.types.length]);
+        let res = resArgs[msg.error.types.length];
+        if (res === undefined && msg.oneWay) {
+          res = null;
+        }
+        cb.call(this, undefined, res);
       });
       fn.apply(this, reqArgs);
     });
@@ -410,7 +414,7 @@ function chain(cc, wreq, wres, mws, turn, end) {
         backward(err, cbs);
         return;
       }
-      forward(i + 1, fn && !cc.message.oneWay ? cbs.concat(fn): cbs);
+      forward(i + 1, fn ? cbs.concat(fn): cbs);
     });
   }
 

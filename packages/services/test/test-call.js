@@ -24,6 +24,11 @@ suite('client server', () => {
           {name: 'UpperError', type: 'error', fields: []},
         ],
       },
+      ping: {
+        request: [{name: 'beat', type: 'int'}],
+        response: 'null',
+        'one-way': true,
+      },
     },
   });
 
@@ -52,6 +57,20 @@ suite('client server', () => {
       assert.equal(err.code, 'ERR_AVRO_EXPIRED');
       done();
     });
+  });
+
+  test('one way message', (done) => {
+    const {client, server} = clientServer(echoSvc);
+    server.onMessage()
+      .ping((beat, cb) => {
+        assert.equal(beat, 123);
+        cb();
+      });
+    client.emitMessage(new Trace())
+      .ping(123, (err) => {
+        assert.ifError(err);
+        done();
+      });
   });
 
   test('closed channel', (done) => {

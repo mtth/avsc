@@ -63,7 +63,7 @@ class Channel extends EventEmitter {
     this.emit('close');
   }
 
-  /** If the trace is inactive, call will _not_ respond. */
+  /** If the trace is (or becomes) inactive, call will _not_ respond. */
   call(trace, preq, cb) {
     if (!trace.active) {
       d('Dropping packet request %s (inactive trace).', preq.id);
