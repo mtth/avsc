@@ -47,7 +47,7 @@ class Trace {
         this._deadlineExceeded();
         return;
       }
-      if (!parent || parent.deadline !== this.deadline) {
+      if (!parent || this.deadline < parent.deadline) {
         this._timer = setTimeout(() => {
           this._deadlineExceeded();
         }, remainingTimeout);
@@ -85,6 +85,7 @@ class Trace {
   }
 
   expire(cause) {
+    const wasActive = this.active;
     if (this.deactivatedBy) {
       return;
     }
@@ -93,6 +94,7 @@ class Trace {
       this._timer = null;
     }
     this._deactivate(new SystemError('ERR_AVRO_EXPIRED', cause));
+    return wasActive;
   }
 
   _deadlineExceeded() {
