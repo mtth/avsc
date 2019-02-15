@@ -18,13 +18,20 @@ const d = debug('@avro/services:channel');
  * deadlines and cancel them early.
  */
 class Trace {
-  constructor(timeout, parent) {
-    if (typeof parent == 'undefined' && Trace.isTrace(timeout)) {
+  constructor(timeout, parent, opts) {
+    if (Trace.isTrace(timeout)) {
+      opts = parent;
       parent = timeout;
       timeout = undefined;
     }
+    if (!Trace.isTrace(parent)) {
+      opts = parent;
+      parent = undefined;
+    }
+    opts = opts || {};
+    const headers = opts.headers || {};
 
-    this.headers = parent ? Object.create(parent.headers, {}) : {};
+    this.headers = parent ? Object.create(parent.headers, headers) : headers;
     this.deactivatedBy = parent ? parent.deactivatedBy : null;
     this.deadline = deadlineFromTimeout(timeout);
 
@@ -33,7 +40,9 @@ class Trace {
     this._timer = null;
 
     if (parent) {
-      parent._children.push(this);
+      if (!opts.free) {
+        parent._children.push(this);
+      }
       if (parent.deadline) {
         this.deadline = this.deadline ?
            DateTime.min(this.deadline, parent.deadline) :

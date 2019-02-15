@@ -99,4 +99,16 @@ suite('Trace', () => {
     trace.onceInactive(() => { expired = true; });
     assert(expired);
   });
+
+  test('timeout free child', (done) => {
+    const parent = new Trace(10);
+    const child = new Trace(parent, {free: true});
+    child.onceInactive(() => {
+      done();
+    })
+    clock.tick(15);
+    assert(!parent.active);
+    assert(child.active);
+    child.expire();
+  });
 });
