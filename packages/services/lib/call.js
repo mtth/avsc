@@ -40,10 +40,6 @@ class WrappedResponse {
   get systemError() {
     return this.error && this.error.string;
   }
-
-  _setSystemError(code, cause) {
-    this.error = {string: SystemError.orCode(code, cause)};
-  }
 }
 
 class Client {
@@ -113,21 +109,18 @@ class Client {
           ]);
         } catch (err) {
           d('Unable to encode request: %s', err);
-          wres._setSystemError('ERR_AVRO_BAD_REQUEST', err);
-          prev();
+          prev(new SystemError('ERR_AVRO_BAD_REQUEST', err));
           return;
         }
         d('Sending request packet %s...', id);
         if (!this._channel) {
           d('No channel to send request packet %s.', id);
-          wres._setSystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL');
-          prev();
+          prev(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
           return;
         }
         this._channel.call(cc.trace, preq, (err, pres) => {
           if (err) {
-            wres._setSystemError('ERR_AVRO_CHANNEL_FAILURE', err);
-            prev();
+            prev(SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err));
             return;
           }
           const serverSvc = pres.service;
@@ -136,8 +129,7 @@ class Client {
             try {
               decoder = new Decoder(svc, serverSvc);
             } catch (err) {
-              wres._setSystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err);
-              prev();
+              prev(new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err));
               return;
             }
             d(
@@ -157,7 +149,8 @@ class Client {
             }
           } catch (err) {
             d('Unable to decode response packet %s: %s', id, err);
-            wres._setSystemError('ERR_AVRO_CORRUPT_RESPONSE', err);
+            prev(new SystemError('ERR_AVRO_CORRUPT_RESPONSE', err));
+            return;
           }
           prev();
         });
@@ -174,7 +167,7 @@ class Client {
         return;
       }
       if (err) {
-        wres._setSystemError('ERR_AVRO_INTERNAL', err);
+        wres.error = {string: SystemError.orCode('ERR_AVRO_APPLICATION', err)};
       }
       cb.call(cc, wres.error, wres.response);
     }
@@ -269,8 +262,7 @@ class Server {
         }
       } catch (cause) {
         d('Unable to decode request packet %s: %s', id, cause);
-        wres._setSystemError('ERR_AVRO_CORRUPT_REQUEST', cause);
-        done();
+        done(new SystemError('ERR_AVRO_CORRUPT_REQUEST', cause));
         return;
       }
       const msg = cc.message;
@@ -287,30 +279,26 @@ class Server {
         d('Routing packet %s to placeholder handler for %j...', id, msg.name);
         chain(cc, wreq, wres, this._middlewares, (prev) => {
           const cause = new Error(`no handler for ${msg.name}`);
-          wres._setSystemError('ERR_AVRO_NOT_IMPLEMENTED', cause);
-          prev();
+          prev(new SystemError('ERR_AVRO_NOT_IMPLEMENTED', cause));
         }, done);
       }
 
       function done(err) {
-        if (err) {
-          // This will happen if an error was returned by a middleware.
-          err = SystemError.orCode('ERR_AVRO_INTERNAL', err);
-        }
+        const msg = cc.message;
         let bufs;
-        try {
-          const msg = cc.message;
-          if (msg) {
+        if (!err && msg) {
+          try {
             if (wres.error !== undefined) {
               bufs = [Buffer.from([1]), msg.error.toBuffer(wres.error)];
             } else {
               bufs = [Buffer.from([0]), msg.response.toBuffer(wres.response)];
             }
+          } catch (cause) {
+            err = new SystemError('ERR_AVRO_BAD_RESPONSE', cause);
           }
-        } catch (cause) {
-          err = new SystemError('ERR_AVRO_BAD_RESPONSE', cause);
         }
         if (err) {
+          err = SystemError.orCode('ERR_AVRO_APPLICATION', err);
           bufs = [Buffer.from([1, 0]), utils.systemErrorType.toBuffer(err)];
         }
         d('Sending response packet %s!', id);
@@ -339,11 +327,11 @@ class Server {
     this._handlers.set(name, function (wreq, wres, cb) {
       chain(this, wreq, wres, mws, (prev) => {
         d('Starting %j handler call...', name);
-        fn.call(this, wreq.request, (err, res) => {
+        fn.call(this, wreq.request, (err, errRes, okRes) => {
           d('Done calling %j handler.', name);
-          wres.error = err;
-          wres.response = res;
-          prev();
+          wres.error = errRes;
+          wres.response = okRes;
+          prev(err);
         });
       }, cb);
     });
@@ -373,12 +361,13 @@ function messageListener(msg) {
       }
       reqArgs.push((...resArgs) => {
         for (const [i, type] of msg.error.types.entries()) {
-          let arg = resArgs[i];
+          const arg = resArgs[i];
           if (arg) {
-            if (i === 0) {
-              arg = new SystemError('ERR_AVRO_APPLICATION', arg);
+            if (i === 0 && typeof arg != 'string') { // System error.
+              cb.call(this, arg);
+            } else {
+              cb.call(this, {[type.branchName]: arg});
             }
-            cb.call(this, {[type.branchName]: arg});
             return;
           }
         }
@@ -386,7 +375,7 @@ function messageListener(msg) {
         if (res === undefined && msg.oneWay) {
           res = null;
         }
-        cb.call(this, undefined, res);
+        cb.call(this, null, undefined, res);
       });
       fn.apply(this, reqArgs);
     });

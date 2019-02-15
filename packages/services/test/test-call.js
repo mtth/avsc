@@ -73,6 +73,36 @@ suite('client server', () => {
       });
   });
 
+  test('handler application error', (done) => {
+    const {client, server} = clientServer(echoSvc);
+    server.onMessage()
+      .echo((str, cb) => {
+        const err = new Error('boom');
+        err.code = 'ERR_UNAVAILABLE';
+        cb(err);
+      });
+    client.emitMessage(new Trace())
+      .echo('abc', (err) => {
+        assert.equal(err.applicationCode, 'ERR_UNAVAILABLE');
+        done();
+      });
+  });
+
+  test('middleware application error', (done) => {
+    const {client, server} = clientServer(echoSvc);
+    server
+      .use((wreq, wres, next) => {
+        const err = new Error('bar');
+        err.code = 'ERR_BAR';
+        next(err);
+      });
+    client
+      .emitMessage(new Trace()).echo('foo', (err) => {
+        assert.equal(err.applicationCode, 'ERR_BAR');
+        done();
+      });
+  });
+
   test('closed channel', (done) => {
     const {client, server} = clientServer(echoSvc);
     client.channel().close();
@@ -178,7 +208,7 @@ suite('client server', () => {
         evts.push('server mw in');
         next(null, (err, prev) => {
           evts.push('server mw out');
-          prev();
+          prev(err);
         });
       });
     client
@@ -186,7 +216,7 @@ suite('client server', () => {
         evts.push('client mw in');
         next(null, (err, prev) => {
           evts.push('client mw out');
-          prev();
+          prev(err);
         });
       })
       .emitMessage(new Trace()).echo('foo', (err, res) => {

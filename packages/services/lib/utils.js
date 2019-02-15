@@ -24,6 +24,11 @@ class SystemError extends Error {
     return `SystemError [${this.code}]`;
   }
 
+  get applicationCode() {
+    const cause = this.cause;
+    return this.code === 'ERR_AVRO_APPLICATION' && cause ? cause.code : '';
+  }
+
   static isSystemError(any) {
     return any &&
       typeof any.code == 'string' &&
@@ -44,7 +49,7 @@ class SystemErrorType extends LogicalType {
     try {
       obj = JSON.parse(val);
     } catch (err) { // Possibly message from an incompatible server.
-      obj = {code: 'ERR_AVRO_GENERIC', cause: new Error(val)};
+      obj = {code: 'ERR_AVRO_UNKNOWN', cause: new Error(val)};
     }
     return new SystemError(obj.code, obj.cause);
   }
@@ -55,7 +60,11 @@ class SystemErrorType extends LogicalType {
     }
     const obj = {code: any.code};
     if (any.cause) {
-      obj.cause = Object.assign({message: any.cause.message}, any.cause);
+      obj.cause = Object.assign({
+        code: any.cause.code,
+        message: any.cause.message,
+        stack: any.cause.stack,
+      }, any.cause);
     }
     return JSON.stringify(obj);
   }
