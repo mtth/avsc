@@ -28,10 +28,7 @@ const stringService = new Service({
 const stringServer = new Server(stringService)
   .onMessage().upperCase((str, cb) => { cb(null, str.toUpperCase()); });
 
-const stringClient = new Client(stringService);
-
-// Point the client to our server.
-stringClient.channel = stringServer.channel;
+const stringClient = stringService.client(); // In-process client.
 
 stringClient.emitMessage(new Trace()).upperCase('hello!', (err, str) => {
   if (err) {
@@ -44,7 +41,7 @@ stringClient.emitMessage(new Trace()).upperCase('hello!', (err, str) => {
 ### TCP server hosting two services
 
 ```javascript
-const {Router, Server, Service, netty} = require('@avro/services');
+const {NettyGateway, RoutingChannel, Server, Service} = require('@avro/services');
 const net = require('net');
 
 const echoService = new Service({
@@ -73,7 +70,8 @@ const echoServer = new Server(echoService)
 const upperServer = new Server(upperService)
   .onMessage().upper((str, cb) => { cb(null, str.toUpperCase()); });
 
-const gateway = new netty.Gateway(Router.forServers(echoServer, upperServer));
+const channel = RoutingChannel.forServers([echoServer, upperServer]);
+const gateway = new NettyGateway(channel);
 
 net.createServer()
   .on('connection', (conn) => {
