@@ -18,23 +18,31 @@ const d = debug('@avro/services:channel');
  * deadlines and cancel them early.
  */
 class Trace {
+  /**
+   * Build a new trace.
+   *
+   * Options:
+   *
+   * + free, the trace will not expire with its parent (but will still share
+   *   its headers).
+   * + headers, initial header values.
+   */
   constructor(timeout, parent, opts) {
-    if (Trace.isTrace(timeout)) {
+    this.deadline = deadlineFromTimeout(timeout);
+    if (this.deadline === undefined) {
       opts = parent;
       parent = timeout;
-      timeout = undefined;
+      this.deadline = null;
     }
     if (!Trace.isTrace(parent)) {
       opts = parent;
       parent = undefined;
     }
     opts = opts || {};
-    const headers = opts.headers || {};
 
-    this.headers = parent ? Object.create(parent.headers, headers) : headers;
+    this.headers = parent ? Object.create(parent.headers) : {};
+    Object.assign(this.headers, opts.headers);
     this.deactivatedBy = parent ? parent.deactivatedBy : null;
-    this.deadline = deadlineFromTimeout(timeout);
-
     this._children = [];
     this._fns = new Map();
     this._timer = null;
@@ -133,7 +141,7 @@ function deadlineFromTimeout(timeout) {
   if (Duration.isDuration(timeout)) {
     return DateTime.local().plus(timeout);
   }
-  throw new Error(`bad timeout: ${timeout}`);
+  return undefined;
 }
 
 module.exports = {

@@ -111,4 +111,12 @@ suite('Trace', () => {
     assert(child.active);
     child.expire();
   });
+
+  test('child headers', () => {
+    const parent = new Trace(null, {headers: {one: '1', two: '2'}});
+    const child = new Trace(parent, {headers: {two: '22'}});
+    assert.equal(child.headers.one, '1');
+    assert.equal(child.headers.two, '22');
+    assert.equal(parent.headers.two, '2');
+  });
 });
