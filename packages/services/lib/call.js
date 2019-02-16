@@ -323,9 +323,9 @@ class Server {
   }
 
   _onMessage(mws, name, fn) {
-    mws = this._middlewares.concat(mws);
+    const serverMws = this._middlewares;
     this._handlers.set(name, function (wreq, wres, cb) {
-      chain(this, wreq, wres, mws, (prev) => {
+      chain(this, wreq, wres, serverMws.concat(mws), (prev) => {
         d('Starting %j handler call...', name);
         fn.call(this, wreq.request, (err, errRes, okRes) => {
           d('Done calling %j handler.', name);

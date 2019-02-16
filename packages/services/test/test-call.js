@@ -231,6 +231,24 @@ suite('client server', () => {
         done();
       });
   });
+
+  test('add middleware after message handlers', (done) => {
+    const {client, server} = clientServer(echoSvc);
+    let called = false;
+    server.onMessage()
+      .echo((str, cb) => { cb(null, str); })
+      .use((wreq, wres, next) => {
+        called = true;
+        next();
+      });
+    client.emitMessage(new Trace())
+      .echo('abc', (err, str) => {
+        assert.ifError(err);
+        assert.equal(str, 'abc');
+        assert(called);
+        done();
+      });
+  });
 });
 
 function clientServer(svc) {
