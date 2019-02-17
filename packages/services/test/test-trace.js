@@ -119,4 +119,32 @@ suite('Trace', () => {
     assert.equal(child.headers.two, '22');
     assert.equal(parent.headers.two, '2');
   });
+
+  test('wrap without deadline', (done) => {
+    const trace = new Trace();
+    const wrapped = trace.wrap(done);
+    wrapped();
+  });
+
+  test('wrap callback finishes first', (done) => {
+    const trace = new Trace(10);
+    const wrapped = trace.wrap((err, str) => {
+      assert.ifError(err);
+      assert.equal(str, 'foo');
+      clock.tick(15);
+      done();
+    });
+    wrapped(null, 'foo');
+  });
+
+  test('wrap trace finishes first', (done) => {
+    const trace = new Trace(10);
+    const wrapped = trace.wrap((err) => {
+      assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
+      clock.tick(10);
+      done();
+    });
+    setTimeout(() => { wrapped(new Error('boom')); }, 20);
+    clock.tick(15);
+  });
 });

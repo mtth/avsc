@@ -118,6 +118,23 @@ class Trace {
     this._deactivate(new SystemError('ERR_AVRO_DEADLINE_EXCEEDED'));
   }
 
+  /** Race a callback against the trace's deadline. */
+  wrap(fn) {
+    if (!this.deadline) {
+      return fn;
+    }
+    const cleanup = this.onceInactive(done);
+    return done;
+
+    function done(err, ...args) {
+      if (cleanup()) {
+        fn.call(this, err, ...args);
+      } else if (err) {
+        d('Orphaned wrapped function error.', err);
+      }
+    }
+  }
+
   static isTrace(any) {
     return !!(any && any._isTrace);
   }
