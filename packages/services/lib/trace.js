@@ -26,6 +26,9 @@ class Trace {
    * + free, the trace will not expire with its parent (but will still share
    *   its headers).
    * + headers, initial header values.
+   * + unref, allow node to terminate before the trace's timeout (if any). Note
+   *   that this might cause performance issues if used for too many traces
+   *   (see https://nodejs.org/api/timers.html#timers_timeout_unref).
    */
   constructor(timeout, parent, opts) {
     this.deadline = deadlineFromTimeout(timeout);
@@ -68,6 +71,9 @@ class Trace {
         this._timer = setTimeout(() => {
           this._deadlineExceeded();
         }, remainingTimeout);
+        if (opts.unref) {
+          this._timer.unref();
+        }
       }
     }
   }
@@ -104,7 +110,7 @@ class Trace {
   expire(cause) {
     const wasActive = this.active;
     if (this.deactivatedBy) {
-      return;
+      return false;
     }
     if (this._timer) {
       clearTimeout(this._timer);
@@ -119,18 +125,30 @@ class Trace {
   }
 
   /** Race a callback against the trace's deadline. */
-  wrap(fn) {
+  wrap(opts, fn) {
+    if (!fn && typeof opts == 'function') {
+      fn = opts;
+      opts = undefined;
+    }
+    if (!this.active) {
+      process.nextTick(fn, this.deactivatedBy);
+      return;
+    }
     if (!this.deadline) {
       return fn;
     }
+    const self = this;
     const cleanup = this.onceInactive(done);
     return done;
 
     function done(err, ...args) {
       if (cleanup()) {
+        if (opts && opts.expire) {
+          self.expire(err);
+        }
         fn.call(this, err, ...args);
       } else if (err) {
-        d('Orphaned wrapped function error.', err);
+        d('Orphaned error (trace headers: %j).', self.headers, err);
       }
     }
   }

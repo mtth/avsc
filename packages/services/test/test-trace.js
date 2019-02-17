@@ -147,4 +147,13 @@ suite('Trace', () => {
     setTimeout(() => { wrapped(new Error('boom')); }, 20);
     clock.tick(15);
   });
+
+  test('wrap trace already inactive', (done) => {
+    const trace = new Trace();
+    trace.expire();
+    const wrapped = trace.wrap((err) => {
+      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
+      done();
+    });
+  });
 });
