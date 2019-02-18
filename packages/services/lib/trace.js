@@ -134,9 +134,6 @@ class Trace {
       process.nextTick(fn, this.deactivatedBy);
       return;
     }
-    if (!this.deadline) {
-      return fn;
-    }
     const self = this;
     const cleanup = this.onceInactive(done);
     return done;
