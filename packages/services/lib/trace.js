@@ -4,12 +4,11 @@
 
 const {SystemError, randomId} = require('./utils');
 
-const backoff = require('backoff');
 const debug = require('debug');
 const {EventEmitter} = require('events');
 const {DateTime, Duration} = require('luxon');
 
-const d = debug('@avro/services:channel');
+const d = debug('@avro/services:trace');
 
 /**
  * An RPC context thread.
@@ -23,12 +22,12 @@ class Trace {
    *
    * Options:
    *
-   * + free, the trace will not expire with its parent (but will still share
+   * + `free`, the trace will not expire with its parent (but will still share
    *   its headers).
-   * + headers, initial header values.
-   * + unref, allow node to terminate before the trace's timeout (if any). Note
-   *   that this might cause performance issues if used for too many traces
-   *   (see https://nodejs.org/api/timers.html#timers_timeout_unref).
+   * + `headers`, initial header values.
+   * + `unref`, allow node to terminate before the trace's timeout (if any).
+   *   Note that this might cause performance issues if used for too many
+   *   traces (see https://nodejs.org/api/timers.html#timers_timeout_unref).
    */
   constructor(timeout, parent, opts) {
     this.deadline = deadlineFromTimeout(timeout);
@@ -45,7 +44,7 @@ class Trace {
 
     this.headers = parent ? Object.create(parent.headers) : {};
     Object.assign(this.headers, opts.headers);
-    this.deactivatedBy = parent ? parent.deactivatedBy : null;
+    this._expiredBy = parent ? parent._expiredBy : undefined;
     this._children = [];
     this._fns = new Map();
     this._timer = null;
@@ -61,15 +60,15 @@ class Trace {
       }
     }
 
-    if (!this.deactivatedBy && this.deadline) {
+    if (!this.expired && this.deadline) {
       const remainingTimeout = +this.deadline.diffNow();
       if (remainingTimeout <= 0) {
-        this._deadlineExceeded();
+        this.expire(deadlineExceededError());
         return;
       }
       if (!parent || this.deadline < parent.deadline) {
         this._timer = setTimeout(() => {
-          this._deadlineExceeded();
+          this.expire(deadlineExceededError());
         }, remainingTimeout);
         if (opts.unref) {
           this._timer.unref();
@@ -82,13 +81,29 @@ class Trace {
     return this.deadline ? this.deadline.diffNow() : null;
   }
 
-  get active() {
-    return !this.deactivatedBy;
+  get expired() {
+    return this._expiredBy !== undefined;
   }
 
-  onceInactive(fn) {
-    if (this.deactivatedBy) {
-      fn.call(this, this.deactivatedBy);
+  get expiredBy() {
+    return this._expiredBy;
+  }
+
+  /**
+   * Run a callback when the trace expires.
+   *
+   * Note that the callback might never be run if the trace doesn't have a
+   * deadline and is never manually expired. If the trace has already expired,
+   * the callback will be run before `whenExpired` returns.
+   *
+   * `whenExpired` returns a cleanup function which will unregister the
+   * callback. It should be called as soon as possible to avoid memory leaks.
+   * This cleanup function returns `true` iff the callback has not already been
+   * (fully) run.
+   */
+  whenExpired(fn) {
+    if (this.expired) {
+      fn.call(this, this._expiredBy);
       return () => false;
     }
     const id = randomId();
@@ -96,50 +111,60 @@ class Trace {
     return () => this._fns.delete(id);
   }
 
-  _deactivate(err) { // Logic shared by timed and manual cancellations.
-    this.deactivatedBy = err;
-    for (const fn of this._fns.values()) {
-      fn.call(this, err);
-    }
-    this._fns.clear();
-    while (this._children.length) {
-      this._children.pop()._deactivate(err);
-    }
-  }
-
-  expire(cause) {
-    const wasActive = this.active;
-    if (this.deactivatedBy) {
+  /**
+   * Manually expire a trace.
+   *
+   * If the trace has already expired, this method has no effect and will
+   * return `false`. Otherwise `expire` will return `true` and the input
+   * error--if any--will be forwarded to all expiration callbacks (added via
+   * `whenExpired`) and available via `trace.expiredBy`.
+   */
+  expire(err) {
+    if (this.expired) {
+      d('Trace has already expired.');
       return false;
     }
     if (this._timer) {
       clearTimeout(this._timer);
       this._timer = null;
     }
-    this._deactivate(new SystemError('ERR_AVRO_EXPIRED', cause));
-    return wasActive;
+    this._expiredBy = err || null;
+    for (const [id, fn] of this._fns) {
+      fn.call(this, err);
+      this._fns.delete(id);
+    }
+    while (this._children.length) {
+      this._children.pop().expire(err);
+    }
+    return true;
   }
 
-  _deadlineExceeded() {
-    this._deactivate(new SystemError('ERR_AVRO_DEADLINE_EXCEEDED'));
-  }
-
-  /** Race a callback against the trace's deadline. */
+  /**
+   * Race a callback against the trace's expiration.
+   *
+   * Available options:
+   *
+   * + `expire`, to expire the trace when the returned function is first
+   *   called.
+   *
+   * If the trace has already expired, `fn` will be run on the process' next
+   * tick.
+   */
   wrap(opts, fn) {
     if (!fn && typeof opts == 'function') {
       fn = opts;
       opts = undefined;
     }
-    if (!this.active) {
-      process.nextTick(fn, this.deactivatedBy);
+    if (this.expired) {
+      process.nextTick(fn, this.expiredBy);
       return;
     }
     const self = this;
-    const cleanup = this.onceInactive(done);
+    const cleanup = this.whenExpired(done);
     return done;
 
     function done(err, ...args) {
-      if (cleanup()) {
+      if (cleanup()) { // First time we are running this callback.
         if (opts && opts.expire) {
           self.expire(err);
         }
@@ -157,6 +182,10 @@ class Trace {
   get _isTrace() {
     return true;
   }
+}
+
+function deadlineExceededError() {
+  return new SystemError('ERR_AVRO_DEADLINE_EXCEEDED');
 }
 
 /** Parse various timeout formats into a `DateTime` deadline. */

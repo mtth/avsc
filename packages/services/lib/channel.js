@@ -63,10 +63,10 @@ class Channel extends EventEmitter {
     this.emit('close');
   }
 
-  /** If the trace is (or becomes) inactive, call will _not_ respond. */
+  /** If the trace is (or becomes) expired, call will _not_ respond. */
   call(trace, preq, cb) {
-    if (!trace.active) {
-      d('Dropping packet request %s (inactive trace).', preq.id);
+    if (trace.expired) {
+      d('Dropping packet request %s (expired trace).', preq.id);
       return;
     }
     if (this.closed) {
@@ -78,18 +78,18 @@ class Channel extends EventEmitter {
       const onFlush = () => {
         cleanup();
         this.removeListener('_flush', onFlush);
-        if (trace.active) {
+        if (!trace.expired) {
           this.call(trace, preq, cb);
         }
       };
-      const cleanup = trace.onceInactive(onFlush);
+      const cleanup = trace.whenExpired(onFlush);
       this.on('_flush', onFlush);
       return;
     }
     this.emit('requestPacket', preq, trace);
     this._handler.call(this, trace, preq, (err, pres) => {
-      if (!trace.active) {
-        d('Dropping packet response %s (inactive trace).', preq.id);
+      if (trace.expired) {
+        d('Dropping packet response %s (expired trace).', preq.id);
         return;
       }
       this.emit('responsePacket', pres, trace);
@@ -97,7 +97,7 @@ class Channel extends EventEmitter {
     });
   }
 
-  /** Similar to call, if the trace is inactive, ping will _not_ respond. */
+  /** Similar to call, if the trace has expired, ping will _not_ respond. */
   ping(trace, svc, headers, cb) {
     if (!cb && typeof headers == 'function') {
       cb = headers;

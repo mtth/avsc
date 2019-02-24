@@ -48,14 +48,14 @@ const echoClient = new Client(echoService)
   });
 
 const trace = new Trace(2000);
-trace.onceInactive(() => { chan.close(); });
+trace.whenExpired(() => { chan.close(); });
 poll(trace);
 
 function poll(trace) {
   let i = 0;
   const timer = setInterval(emit, 500);
 
-  trace.onceInactive(() => { clearInterval(timer); });
+  trace.whenExpired(() => { clearInterval(timer); });
 
   function emit() {
     echoClient.emitMessage(trace).echo('poll-' + (i++), (err, str) => {

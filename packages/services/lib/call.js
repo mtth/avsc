@@ -79,14 +79,14 @@ class Client {
     if (typeof cb != 'function') {
       throw new Error('bad callback');
     }
-    if (!trace.active) {
-      d('Not emitting message, trace is already inactive.');
-      process.nextTick(onInactive);
-      return;
-    }
-    const cleanup = trace.onceInactive(onInactive);
     const cc = new CallContext(trace, msg);
     cc.client = this;
+    if (trace.expired) {
+      d('Not emitting message, trace has already expired.');
+      process.nextTick(whenExpired);
+      return;
+    }
+    const cleanup = trace.whenExpired(whenExpired);
     const wreq = new WrappedRequest(req);
     const wres = new WrappedResponse();
     chain(
@@ -153,8 +153,8 @@ class Client {
       onResponse
     );
 
-    function onInactive() {
-      cb.call(cc, {string: cc.trace.deactivatedBy});
+    function whenExpired(err) {
+      cb.call(cc, {string: SystemError.orCode('ERR_AVRO_EXPIRED', err)});
     }
 
     function onResponse(err) {

@@ -158,7 +158,7 @@ class NettyChannel extends Channel {
     if (trace.deadline) {
       meta[DEADLINE_META] = utils.dateTimeType.toBuffer(trace.deadline);
     }
-    const cleanup = trace.onceInactive(() => { this._untrack(id); });
+    const cleanup = trace.whenExpired(() => { this._untrack(id); });
     this._callbacks.set(id, {
       cb: (...args) => {
         if (cleanup()) {
@@ -242,7 +242,7 @@ class NettyGateway {
             }
           }
           trace = new Trace(deadline);
-          if (!trace.active) {
+          if (trace.expired) {
             d('Packet %s is past its deadline, dropping request.', id);
             return;
           }

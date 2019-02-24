@@ -7,6 +7,7 @@ const {SystemError} = require('./utils');
 
 const Promise = require('bluebird');
 
+/** A client which supports both callback and promise APIs. */
 class PromiseClient extends Client {
   call(trace, msgName, req, mws, cb) {
     if (cb) {
@@ -37,6 +38,7 @@ class PromiseClient extends Client {
   }
 }
 
+/** A server which supports both callback and promise APIs. */
 class PromiseServer extends Server {
   onCall(msgName, mws, fn) {
     const msg = this.service.messages.get(msgName);

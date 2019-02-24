@@ -54,14 +54,14 @@ suite('Channel', () => {
     assert.deepEqual(evts, ['req', 'handle', 'res', 'done']);
   });
 
-  test('inactive trace ping', () => {
+  test('expired trace ping', () => {
     new Channel(() => { assert(false); })
       .ping(new Trace(-1), null, {}, () => {
       assert(false);
     });
   });
 
-  test('inactive trace after', () => {
+  test('expired trace after', () => {
     new Channel((trace, preq, cb) => {
       trace.expire();
       cb(null);

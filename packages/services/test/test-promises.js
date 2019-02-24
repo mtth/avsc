@@ -45,7 +45,7 @@ suite('promises', () => {
       });
   });
 
-  test('application error', () => {
+  test('application error', async () => {
     const {client, server} = clientServer(echoSvc);
     const UpperError = echoSvc.types.get('UpperError').recordConstructor;
     server.onMessage().upper(() => {
@@ -53,12 +53,13 @@ suite('promises', () => {
       err.code = 'ERR_BOOM';
       throw err;
     });
-    return client.emitMessage(new Trace()).upper('foo')
-      .catch((err) => {
-        assert.equal(err.code, 'ERR_AVRO_APPLICATION');
-        assert.equal(err.cause.message, 'boom');
-        assert.equal(err.applicationCode, 'ERR_BOOM');
-      });
+    try {
+      await client.emitMessage(new Trace()).upper('foo');
+    } catch (err) {
+      assert.equal(err.code, 'ERR_AVRO_APPLICATION');
+      assert.equal(err.cause.message, 'boom');
+      assert.equal(err.applicationCode, 'ERR_BOOM');
+    }
   });
 
   test('custom error', () => {
@@ -71,7 +72,7 @@ suite('promises', () => {
       });
   });
 
-  test('middleware ok', () => {
+  test('middleware ok', async () => {
     const {client, server} = clientServer(echoSvc);
     const evts = [];
     server
@@ -81,37 +82,32 @@ suite('promises', () => {
         evts.push('server mw out');
       })
       .onMessage().upper((msg) => msg)
-    return client
+    client
       .use(async (wreq, wres, next) => {
         evts.push('client mw in');
         await next();
         evts.push('client mw out');
       })
-      .emitMessage(new Trace()).upper('foo')
-      .then((res) => {
-        assert.equal(res, 'foo');
-        assert.deepEqual(evts, [
-          'client mw in',
-          'server mw in',
-          'server mw out',
-          'client mw out',
-        ]);
-      });
+    const res = await client.emitMessage(new Trace()).upper('foo');
+    assert.equal(res, 'foo');
+    assert.deepEqual(evts, [
+      'client mw in',
+      'server mw in',
+      'server mw out',
+      'client mw out',
+    ]);
   });
 
-  test('middleware simple case', () => {
+  test('middleware simple case', async () => {
     const {client, server} = clientServer(echoSvc);
     const evts = [];
     server
       .use(() => { evts.push('server'); })
       .onMessage().upper((msg) => msg)
-    return client
-      .use(() => { evts.push('client'); })
-      .emitMessage(new Trace()).upper('bar')
-      .then((res) => {
-        assert.equal(res, 'bar');
-        assert.deepEqual(evts, ['client', 'server']);
-      });
+    client.use(() => { evts.push('client'); });
+    const res = await client.emitMessage(new Trace()).upper('bar');
+    assert.equal(res, 'bar');
+    assert.deepEqual(evts, ['client', 'server']);
   });
 });
 

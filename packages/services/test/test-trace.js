@@ -15,9 +15,9 @@ suite('Trace', () => {
 
   test('expire with default error', (done) => {
     const trace = new Trace();
-    trace.onceInactive((err) => {
-      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
-      assert(!trace.active);
+    trace.whenExpired((err) => {
+      assert.ifError(err);
+      assert(trace.expired);
       done();
     })
     trace.expire();
@@ -26,9 +26,8 @@ suite('Trace', () => {
   test('expire with custom error', (done) => {
     const trace = new Trace();
     const cause = new Error('foo');
-    trace.onceInactive((err) => {
-      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
-      assert.strictEqual(err.cause, cause);
+    trace.whenExpired((err) => {
+      assert.strictEqual(err, cause);
       done();
     })
     trace.expire(cause);
@@ -36,13 +35,13 @@ suite('Trace', () => {
 
   test('deadline exceeded', (done) => {
     const trace = new Trace(50);
-    trace.onceInactive((err) => {
+    trace.whenExpired((err) => {
       assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
-      assert(!trace.active);
+      assert(trace.expired);
       done();
     });
     clock.tick(25);
-    assert(trace.active);
+    assert(!trace.expired);
     clock.tick(55);
   });
 
@@ -61,9 +60,9 @@ suite('Trace', () => {
   test('expire propagates to child', (done) => {
     const parent = new Trace();
     const child = new Trace(parent);
-    child.onceInactive(() => {
-      assert(!child.active);
-      assert(!parent.active);
+    child.whenExpired(() => {
+      assert(child.expired);
+      assert(parent.expired);
       done();
     })
     parent.expire();
@@ -73,9 +72,9 @@ suite('Trace', () => {
   test('expire does not propagate from child', (done) => {
     const parent = new Trace();
     const child = new Trace(10, parent);
-    child.onceInactive(() => {
-      assert(!child.active);
-      assert(parent.active);
+    child.whenExpired(() => {
+      assert(child.expired);
+      assert(!parent.expired);
       done();
     })
     child.expire();
@@ -84,31 +83,31 @@ suite('Trace', () => {
   test('timeout child', (done) => {
     const parent = new Trace(10);
     const child = new Trace(parent);
-    child.onceInactive(() => {
-      assert(!child.active);
-      assert(!parent.active);
+    child.whenExpired(() => {
+      assert(child.expired);
+      assert(child.expired);
       done();
     })
     clock.tick(15);
   });
 
-  test('inactive calls handler immediately', () => {
+  test('expired calls handler immediately', () => {
     const trace = new Trace();
     trace.expire();
     let expired = false;
-    trace.onceInactive(() => { expired = true; });
+    trace.whenExpired(() => { expired = true; });
     assert(expired);
   });
 
   test('timeout free child', (done) => {
     const parent = new Trace(10);
     const child = new Trace(parent, {free: true});
-    child.onceInactive(() => {
+    child.whenExpired(() => {
       done();
     })
     clock.tick(15);
-    assert(!parent.active);
-    assert(child.active);
+    assert(parent.expired);
+    assert(!child.expired);
     child.expire();
   });
 
@@ -148,11 +147,11 @@ suite('Trace', () => {
     clock.tick(15);
   });
 
-  test('wrap trace already inactive', (done) => {
+  test('wrap trace already expired', (done) => {
     const trace = new Trace();
     trace.expire();
     const wrapped = trace.wrap((err) => {
-      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
+      assert.strictEqual(err, null);
       done();
     });
   });
