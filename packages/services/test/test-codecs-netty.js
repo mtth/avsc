@@ -167,7 +167,10 @@ suite('netty codec', () => {
           return;
         }
         const {client, server} = obj;
-        server.onMessage().echo(() => { assert(false); }); // Not called.
+        server.onMessage().echo((msg, cb) => { // Not called.
+          assert(false);
+          cb();
+        });
         client.emitMessage(new Trace()).echo('', (err) => {
           assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
           client.channel().close();

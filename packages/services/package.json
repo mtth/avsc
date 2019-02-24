@@ -1,6 +1,6 @@
 {
   "name": "@avro/services",
-  "version": "0.7.9",
+  "version": "0.8.0",
   "description": "Avro services",
   "homepage": "https://github.com/mtth/avsc",
   "files": [
@@ -16,11 +16,6 @@
     "prepublishOnly": "npm test",
     "test": "mocha -C"
   },
-  "devDependencies": {
-    "istanbul": "~0.4.5",
-    "mocha": "~5.2.0",
-    "sinon": "~7.2.2"
-  },
   "author": {
     "name": "Matthieu Monsch",
     "email": "monsch@alum.mit.edu"
@@ -31,9 +26,17 @@
     "url": "git://github.com/mtth/avsc.git"
   },
   "dependencies": {
-    "@avro/types": "~0.2.0",
-    "backoff": "~2.5.0",
-    "debug": "~4.1.1",
-    "luxon": "~1.10.0"
+    "@avro/types": "^0.2.0",
+    "backoff": "^2.5.0",
+    "debug": "^4.1.1",
+    "luxon": "^1.10.0"
+  },
+  "optionalDependencies": {
+    "bluebird": "^3.5.3"
+  },
+  "devDependencies": {
+    "istanbul": "^0.4.5",
+    "mocha": "^5.2.0",
+    "sinon": "^7.2.2"
   }
 }

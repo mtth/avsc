@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Client, Server} = require('../lib/call');
+const {Server} = require('../lib/call');
 const {Service} = require('../lib/service');
 const {Trace} = require('../lib/trace');
 
@@ -152,8 +152,6 @@ suite('client server', () => {
   test('retry middleware', (done) => {
     const {client, server} = clientServer(echoSvc);
     const intType = Type.forSchema('int');
-    client.tagTypes.attempt = intType;
-    server.tagTypes.attempt = intType;
     server
       .use((wreq, wres, next) => {
         if (wreq.headers.attempt === '1') {

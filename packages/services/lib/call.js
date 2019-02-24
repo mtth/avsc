@@ -45,7 +45,6 @@ class WrappedResponse {
 class Client {
   constructor(svc) {
     this.service = svc;
-    this.tagTypes = {};
     this._channel = null;
     this._decoders = new Map();
     this._emitterProto = {_client$: this};
@@ -71,27 +70,23 @@ class Client {
     return this;
   }
 
-  emitMessage(trace, ...mws) {
-    if (!Trace.isTrace(trace)) {
-      throw new Error(`missing or invalid trace: ${trace}`);
-    }
-    const obj = Object.create(this._emitterProto);
-    obj._trace$ = trace;
-    obj._middlewares$ = mws;
-    return obj;
-  }
-
-  _emitMessage(trace, mws, name, req, cb) {
+  call(trace, msgName, req, mws, cb) {
     const svc = this.service;
-    const msg = svc.messages.get(name); // Guaranteed defined.
-    const cc = new CallContext(trace, msg);
-    cc.client = this;
+    const msg = svc.messages.get(msgName);
+    if (!msg) {
+      throw new Error(`no such message: ${msgName}`);
+    }
+    if (typeof cb != 'function') {
+      throw new Error('bad callback');
+    }
     if (!trace.active) {
       d('Not emitting message, trace is already inactive.');
       process.nextTick(onInactive);
       return;
     }
     const cleanup = trace.onceInactive(onInactive);
+    const cc = new CallContext(trace, msg);
+    cc.client = this;
     const wreq = new WrappedRequest(req);
     const wres = new WrappedResponse();
     chain(
@@ -104,7 +99,7 @@ class Client {
         const preq = new Packet(id, svc, null, wreq.headers);
         try {
           preq.body = Buffer.concat([
-            utils.stringType.toBuffer(name),
+            utils.stringType.toBuffer(msg.name),
             msg.request.toBuffer(wreq.request),
           ]);
         } catch (err) {
@@ -143,9 +138,9 @@ class Client {
           const buf = pres.body;
           try {
             if (buf[0]) { // Error.
-              wres.error = decoder.decodeError(name, buf.slice(1));
+              wres.error = decoder.decodeError(msg.name, buf.slice(1));
             } else {
-              wres.response = decoder.decodeResponse(name, buf.slice(1));
+              wres.response = decoder.decodeResponse(msg.name, buf.slice(1));
             }
           } catch (err) {
             d('Unable to decode response packet %s: %s', id, err);
@@ -159,7 +154,7 @@ class Client {
     );
 
     function onInactive() {
-      cb.call(cc, {string: trace.deactivatedBy});
+      cb.call(cc, {string: cc.trace.deactivatedBy});
     }
 
     function onResponse(err) {
@@ -173,6 +168,16 @@ class Client {
     }
   }
 
+  emitMessage(trace, ...mws) {
+    if (!Trace.isTrace(trace)) {
+      throw new Error(`missing or invalid trace: ${trace}`);
+    }
+    const obj = Object.create(this._emitterProto);
+    obj._trace$ = trace;
+    obj._middlewares$ = mws;
+    return obj;
+  }
+
   get _isClient() {
     return true;
   }
@@ -183,39 +188,35 @@ class Client {
 }
 
 function messageEmitter(msg) {
-  return function(...args) {
+  return function(...reqArgs) {
     const req = {};
     const fields = msg.request.fields;
     for (const [i, field] of fields.entries()) {
-      req[field.name] = args[i];
+      req[field.name] = reqArgs[i];
     }
-    return this._client$._emitMessage(
-      this._trace$,
-      this._middlewares$,
-      msg.name,
-      req,
-      flatteningErr(args[fields.length] || throwIfError)
-    );
-  };
-
-  function flatteningErr(cb) {
-    return function (err, res) {
-      const args = [];
+    const trace = this._trace$;
+    const client = this._client$;
+    const mws = this._middlewares$;
+    const cb = reqArgs[fields.length];
+    if (!cb) {
+      return client.call(trace, msg.name, req, mws);
+    }
+    client.call(trace, msg.name, req, mws, function (err, res) {
+      const resArgs = [];
       for (const type of msg.error.types) {
-        args.push(err ? err[type.branchName] : undefined);
+        resArgs.push(err ? err[type.branchName] : null);
       }
-      args.push(res);
-      return cb.apply(this, args);
-    };
-  }
+      resArgs.push(res);
+      cb.apply(this, resArgs);
+    });
+  };
 }
 
 class Server {
   constructor(svc, chanConsumer) {
-    this.tagTypes = {};
     this.service = svc;
     this._middlewares = [];
-    this._handlers = new Map();
+    this._receivers = new Map();
     this._decoders = new Map();
     this._listenerProto = {_server$: this};
     for (const msg of svc.messages.values()) {
@@ -242,8 +243,6 @@ class Server {
         );
         this._decoders.set(clientSvc.hash, decoder);
       }
-      const tagTypes = this.tagTypes;
-
       const wreq = new WrappedRequest(null, preq.headers);
       const wres = new WrappedResponse();
       try {
@@ -271,17 +270,27 @@ class Server {
         cb(null, new Packet(id, svc, Buffer.alloc(1)));
         return;
       }
-      const handler = this._handlers.get(msg.name);
-      if (handler) {
-        d('Dispatching packet %s to handler for %j...', id, msg.name);
-        handler.call(cc, wreq, wres, done);
-      } else {
-        d('Routing packet %s to placeholder handler for %j...', id, msg.name);
-        chain(cc, wreq, wres, this._middlewares, (prev) => {
-          const cause = new Error(`no handler for ${msg.name}`);
-          prev(new SystemError('ERR_AVRO_NOT_IMPLEMENTED', cause));
-        }, done);
+      const receiver = this._receivers.get(msg.name);
+      let mws = this._middlewares;
+      if (receiver && receiver.middlewares.length) {
+        mws = mws.concat(receiver.middlewares);
       }
+      chain(cc, wreq, wres, mws, (prev) => {
+        if (!receiver) {
+          const cause = new Error(`no receiver for ${msg.name}`);
+          prev(new SystemError('ERR_AVRO_NOT_IMPLEMENTED', cause));
+          return;
+        }
+        receiver.callback.call(cc, wreq.request, (err, rpcErr, rpcRes) => {
+          if (err) {
+            prev(err);
+            return;
+          }
+          wres.error = rpcErr;
+          wres.response = rpcRes;
+          prev();
+        });
+      }, done);
 
       function done(err) {
         const msg = cc.message;
@@ -322,19 +331,16 @@ class Server {
     return client;
   }
 
-  _onMessage(mws, name, fn) {
-    const serverMws = this._middlewares;
-    this._handlers.set(name, function (wreq, wres, cb) {
-      chain(this, wreq, wres, serverMws.concat(mws), (prev) => {
-        d('Starting %j handler call...', name);
-        fn.call(this, wreq.request, (err, errRes, okRes) => {
-          d('Done calling %j handler.', name);
-          wres.error = errRes;
-          wres.response = okRes;
-          prev(err);
-        });
-      }, cb);
-    });
+  onCall(msgName, mws, fn) {
+    const msg = this.service.messages.get(msgName);
+    if (!msg) {
+      throw new Error(`no such message: ${msgName}`);
+    }
+    if (fn.length && fn.length < 2) {
+      throw new Error('too few handler arguments');
+    }
+    this._receivers.set(msgName, {middlewares: mws, callback: fn});
+    return this;
   }
 
   onMessage(...mws) {
@@ -354,33 +360,44 @@ class Server {
 
 function messageListener(msg) {
   return function (fn) {
-    this._server$._onMessage(this._middlewares$, msg.name, function (req, cb) {
-      const reqArgs = [];
-      for (const field of msg.request.fields) {
-        reqArgs.push(req[field.name]);
-      }
-      reqArgs.push((...resArgs) => {
-        for (const [i, type] of msg.error.types.entries()) {
-          const arg = resArgs[i];
-          if (arg) {
-            if (i === 0 && typeof arg != 'string') { // System error.
-              cb.call(this, arg);
-            } else {
-              cb.call(this, {[type.branchName]: arg});
+    let callback;
+    if (fn.length <= msg.request.fields.length) {
+      // Useful for promise servers.
+      callback = function (req) { return fn.apply(this, requestArgs(req)); };
+    } else {
+      callback = function (req, cb) {
+        const reqArgs = requestArgs(req);
+        reqArgs.push((...resArgs) => {
+          for (const [i, type] of msg.error.types.entries()) {
+            const arg = resArgs[i];
+            if (arg) {
+              if (i === 0 && typeof arg != 'string') { // System error.
+                cb.call(this, arg);
+              } else {
+                cb.call(this, null, {[type.branchName]: arg});
+              }
+              return;
             }
-            return;
           }
-        }
-        let res = resArgs[msg.error.types.length];
-        if (res === undefined && msg.oneWay) {
-          res = null;
-        }
-        cb.call(this, null, undefined, res);
-      });
-      fn.apply(this, reqArgs);
-    });
-    return this._server$;
+          let res = resArgs[msg.error.types.length];
+          if (res === undefined && msg.oneWay) {
+            res = null;
+          }
+          cb.call(this, null, undefined, res);
+        });
+        return fn.apply(this, reqArgs);
+      };
+    }
+    return this._server$.onCall(msg.name, this._middlewares$, callback);
   };
+
+  function requestArgs(req) {
+    const args = [];
+    for (const field of msg.request.fields) {
+      args.push(req[field.name]);
+    }
+    return args;
+  }
 }
 
 function chain(cc, wreq, wres, mws, turn, end) {
@@ -419,12 +436,6 @@ function chain(cc, wreq, wres, mws, turn, end) {
 
 function toHex(str) {
   return Buffer.from(str, 'binary').toString('hex');
-}
-
-function throwIfError(err) {
-  if (err) {
-    throw err;
-  }
 }
 
 module.exports = {
