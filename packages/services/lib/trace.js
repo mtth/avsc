@@ -122,7 +122,6 @@ class Trace {
    */
   expire(err) {
     if (this.expired) {
-      d('Trace has already expired.');
       return false;
     }
     if (this._timer) {
