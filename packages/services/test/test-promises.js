@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {PromiseServer} = require('../lib/promises');
+const {PromisifiedServer} = require('../lib/promises');
 const {Service} = require('../lib/service');
 const {Trace} = require('../lib/trace');
 
@@ -112,7 +112,7 @@ suite('promises', () => {
 });
 
 function clientServer(svc) {
-  const server = new PromiseServer(svc);
+  const server = new PromisifiedServer(svc);
   const client = server.client();
   return {client, server};
 }

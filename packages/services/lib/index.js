@@ -9,9 +9,13 @@ const {Trace} = require('./trace');
 
 let Client, Server;
 if (process.env.AVRO_SERVICES_NO_PROMISES) {
-  {Client, Server} = require('./call');
+  const exports = require('./call');
+  Client = exports.Client;
+  Server = exports.Server;
 } else {
-  {PromiseClient: Client, PromiseServer: Server} = require('./promises');
+  const exports = require('./promises');
+  Client = exports.PromisifiedClient;
+  Server = exports.PromisifiedServer;
 }
 
 module.exports = {

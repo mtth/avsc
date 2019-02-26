@@ -172,10 +172,10 @@ class Client {
     if (!Trace.isTrace(trace)) {
       throw new Error(`missing or invalid trace: ${trace}`);
     }
-    const obj = Object.create(this._emitterProto);
-    obj._trace$ = trace;
-    obj._middlewares$ = mws;
-    return obj;
+    return Object.assign(
+      Object.create(this._emitterProto),
+      {_trace$: trace, _middlewares$: mws }
+    );
   }
 
   get _isClient() {
@@ -344,9 +344,10 @@ class Server {
   }
 
   onMessage(...mws) {
-    const obj = Object.create(this._listenerProto);
-    obj._middlewares$ = mws;
-    return obj;
+    return Object.assign(
+      Object.create(this._listenerProto),
+      {_middlewares$: mws}
+    );
   }
 
   get _isServer() {

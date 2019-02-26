@@ -8,7 +8,7 @@ const {SystemError} = require('./utils');
 const Promise = require('bluebird');
 
 /** A client which supports both callback and promise APIs. */
-class PromiseClient extends Client {
+class PromisifiedClient extends Client {
   call(trace, msgName, req, mws, cb) {
     if (cb) {
       super.call(trace, msgName, req, mws, cb);
@@ -39,13 +39,9 @@ class PromiseClient extends Client {
 }
 
 /** A server which supports both callback and promise APIs. */
-class PromiseServer extends Server {
+class PromisifiedServer extends Server {
   onCall(msgName, mws, fn) {
-    const msg = this.service.messages.get(msgName);
-    if (!msg) {
-      throw new Error(`no such message: ${msgName}`);
-    }
-    if (fn.length > msg.request.fields.length) {
+    if (fn.length > 1) { // The handler already has a callback argument.
       return super.onCall(msgName, mws, fn);
     }
     return super.onCall(msgName, mws, function (req, cb) {
@@ -66,7 +62,7 @@ class PromiseServer extends Server {
   }
 
   client() {
-    const client = new PromiseClient(this.service);
+    const client = new PromisifiedClient(this.service);
     client.channel(this.channel());
     return client;
   }
@@ -133,6 +129,6 @@ function promisifyMiddleware(fn) {
 }
 
 module.exports = {
-  PromiseClient,
-  PromiseServer,
+  PromisifiedClient,
+  PromisifiedServer,
 };
