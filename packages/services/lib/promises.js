@@ -3,9 +3,32 @@
 'use strict';
 
 const {Client, Server} = require('./call');
+const {Trace} = require('./trace');
 const {SystemError} = require('./utils');
 
 const Promise = require('bluebird');
+
+class PromisifiedTrace extends Trace {
+  constructor(...args) {
+    super(...args);
+    this._expiration = null;
+  }
+
+  get expiration() {
+    if (!this._expiration) {
+      this._expiration = new Promise((ok, fail) => {
+        this.whenExpired((err) => {
+          if (err) {
+            fail(err);
+            return;
+          }
+          ok(null);
+        });
+      });
+    }
+    return this._expiration;
+  }
+}
 
 /** A client which supports both callback and promise APIs. */
 class PromisifiedClient extends Client {
@@ -131,4 +154,5 @@ function promisifyMiddleware(fn) {
 module.exports = {
   PromisifiedClient,
   PromisifiedServer,
+  PromisifiedTrace,
 };

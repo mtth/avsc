@@ -5,17 +5,18 @@
 const {Channel, RoutingChannel, SelfRefreshingChannel} = require('./channel');
 const {NettyChannel, NettyGateway} = require('./codecs/netty');
 const {Message, Service} = require('./service');
-const {Trace} = require('./trace');
 
-let Client, Server;
+let Client, Server, Trace;
 if (process.env.AVRO_SERVICES_NO_PROMISES) {
-  const exports = require('./call');
-  Client = exports.Client;
-  Server = exports.Server;
+  const call = require('./call');
+  Client = call.Client;
+  Server = call.Server;
+  Trace = require('./trace').Trace;
 } else {
-  const exports = require('./promises');
-  Client = exports.PromisifiedClient;
-  Server = exports.PromisifiedServer;
+  const promises = require('./promises');
+  Client = promises.PromisifiedClient;
+  Server = promises.PromisifiedServer;
+  Trace = promises.PromisifiedTrace;
 }
 
 module.exports = {

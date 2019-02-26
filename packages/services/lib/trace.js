@@ -45,6 +45,7 @@ class Trace {
     this.headers = parent ? Object.create(parent.headers) : {};
     Object.assign(this.headers, opts.headers);
     this._expiredBy = parent ? parent._expiredBy : undefined;
+    this._expiration = null;
     this._children = [];
     this._fns = new Map();
     this._timer = null;
