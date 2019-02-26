@@ -129,6 +129,22 @@ class Service {
     Object.freeze(this);
   }
 
+  /** Returns all value constructors in the given namespace. */
+  constructors(ns = '') {
+    const obj = {};
+    for (const [qualifiedName, type] of this.types) {
+      const parts = qualifiedName.split('.');
+      const name = parts.pop();
+      // TODO: Rename `type.recordConstructor` on errors and records to
+      // `valueConstructor`. This name extends more naturally to logical types.
+      const ctor = type.recordConstructor || type.valueConstructor;
+      if (ctor && parts.join('.') === ns) {
+        obj[name] = ctor;
+      }
+    }
+    return obj;
+  }
+
   static compatible(clientSvc, serverSvc) {
     try {
       new Decoder(clientSvc, serverSvc);

@@ -33,6 +33,20 @@ suite('Service', () => {
     });
   });
 
+  test('constructors', () => {
+    const svc = new Service({
+      protocol: 'Echo',
+      types: [
+        {name: 'Empty', type: 'record', fields: []},
+        {name: 'foo.Foo', type: 'error', fields: []},
+      ],
+    });
+    const {Empty} = svc.constructors();
+    assert.equal(Empty.type.name, 'Empty');
+    const {Foo} = svc.constructors('foo');
+    assert.equal(Foo.type.name, 'foo.Foo');
+  });
+
   test('compatible', () => {
     const svc = new Service({
       protocol: 'Echo',
