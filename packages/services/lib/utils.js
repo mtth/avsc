@@ -51,7 +51,11 @@ class SystemErrorType extends LogicalType {
     } catch (err) { // Possibly message from an incompatible server.
       obj = {code: 'ERR_AVRO_UNKNOWN', cause: new Error(val)};
     }
-    return new SystemError(obj.code, obj.cause);
+    const err = new SystemError(obj.code, obj.cause);
+    if (obj.cause && obj.cause.stack) {
+      err.stack += `\nCaused by ${obj.cause.stack}`;
+    }
+    return err;
   }
 
   _toValue(any) {
