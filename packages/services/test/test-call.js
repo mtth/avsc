@@ -73,6 +73,27 @@ suite('client server', () => {
       });
   });
 
+  test('omit optional argument', (done) => {
+    const {client, server} = clientServer(new Service({
+      protocol: 'Echo',
+      messages: {
+        echo: {
+          request: [
+            {name: 'message', type: 'string'},
+            {name: 'option', type: ['null', 'string'], default: null},
+          ],
+          response: 'string',
+        },
+      },
+    }));
+    server.onMessage().echo((str, opt, cb) => { cb(null, str); });
+    client.emitMessage(new Trace()).echo('abc', (err, str) => {
+      assert.ifError(err);
+      assert.equal(str, 'abc');
+      done();
+    });
+  });
+
   test('handler application error', (done) => {
     const {client, server} = clientServer(echoSvc);
     server.onMessage()

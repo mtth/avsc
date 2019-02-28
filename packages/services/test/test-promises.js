@@ -116,6 +116,24 @@ suite('promises', () => {
       ]);
     });
 
+    test('omit optional argument', async () => {
+      const {client, server} = clientServer(new Service({
+        protocol: 'Echo',
+        messages: {
+          echo: {
+            request: [
+              {name: 'message', type: 'string'},
+              {name: 'option', type: ['null', 'string'], default: null},
+            ],
+            response: 'string',
+          },
+        },
+      }));
+      server.onMessage().echo((str) => str);
+      const str = await client.emitMessage(new Trace()).echo('abc');
+      assert.equal(str, 'abc');
+    });
+
     test('middleware simple case', async () => {
       const {client, server} = clientServer(echoSvc);
       const evts = [];

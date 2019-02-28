@@ -77,7 +77,7 @@ class Client {
       throw new Error(`no such message: ${msgName}`);
     }
     if (typeof cb != 'function') {
-      throw new Error('bad callback');
+      throw new Error(`not a function: ${cb}`);
     }
     const cc = new CallContext(trace, msg);
     cc.client = this;
@@ -191,13 +191,16 @@ function messageEmitter(msg) {
   return function(...reqArgs) {
     const req = {};
     const fields = msg.request.fields;
-    for (const [i, field] of fields.entries()) {
-      req[field.name] = reqArgs[i];
+    for (const field of fields) {
+      if (typeof reqArgs[0] == 'function') {
+        break;
+      }
+      req[field.name] = reqArgs.shift();
     }
     const trace = this._trace$;
     const client = this._client$;
     const mws = this._middlewares$;
-    const cb = reqArgs[fields.length];
+    const cb = reqArgs[0];
     if (!cb) {
       return client.call(trace, msg.name, req, mws);
     }
