@@ -36,7 +36,7 @@ suite('Trace', () => {
   test('deadline exceeded', (done) => {
     const trace = new Trace(50);
     trace.whenExpired((err) => {
-      assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
+      assert.equal(err.code, 'ERR_DEADLINE_EXCEEDED');
       assert(trace.expired);
       done();
     });
@@ -139,7 +139,7 @@ suite('Trace', () => {
   test('wrap trace finishes first', (done) => {
     const trace = new Trace(10);
     const wrapped = trace.wrap((err) => {
-      assert.equal(err.code, 'ERR_AVRO_DEADLINE_EXCEEDED');
+      assert.equal(err.code, 'ERR_DEADLINE_EXCEEDED');
       clock.tick(10);
       done();
     });

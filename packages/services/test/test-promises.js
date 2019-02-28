@@ -74,7 +74,7 @@ suite('promises', () => {
       try {
         await client.emitMessage(new Trace()).upper('foo');
       } catch (err) {
-        assert.equal(err.code, 'ERR_AVRO_APPLICATION');
+        assert.equal(err.code, 'ERR_APPLICATION');
         assert.equal(err.cause.message, 'boom');
         assert.equal(err.applicationCode, 'ERR_BOOM');
       }

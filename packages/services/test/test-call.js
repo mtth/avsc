@@ -54,7 +54,7 @@ suite('client server', () => {
       trace.expire();
     });
     client.emitMessage(trace).upper('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_EXPIRED');
+      assert.equal(err.code, 'ERR_TRACE_EXPIRED');
       done();
     });
   });
@@ -128,7 +128,7 @@ suite('client server', () => {
     const {client, server} = clientServer(echoSvc);
     client.channel().close();
     client.emitMessage(new Trace()).upper('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_CHANNEL_CLOSED');
+      assert.equal(err.code, 'ERR_CHANNEL_CLOSED');
       done();
     });
   });
@@ -240,7 +240,7 @@ suite('client server', () => {
       })
       .emitMessage(new Trace()).echo('foo', (err, res) => {
         assert(!res, res);
-        assert.equal(err.code, 'ERR_AVRO_NOT_IMPLEMENTED');
+        assert.equal(err.code, 'ERR_NOT_IMPLEMENTED');
         assert.deepEqual(evts, [
           'client mw in',
           'server mw in',

@@ -264,7 +264,7 @@ class NettyGateway {
             if (!hreq.clientProtocol) {
               d('No service for packet %s, responding with match NONE.', id);
               // A retry will be required.
-              const err = new SystemError('ERR_AVRO_UNKNOWN_CLIENT_PROTOCOL');
+              const err = new SystemError('ERR_UNKNOWN_CLIENT_PROTOCOL');
               const packet = NettyPacket.forSystemError(err);
               encoder.write({handshake: {match: 'NONE'}, id, packet});
               return;
@@ -292,7 +292,7 @@ class NettyGateway {
           }
           if (err) {
             d('Error while responding to packet %s: %s', id, err);
-            err = SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err);
+            err = SystemError.orCode('ERR_CHANNEL_FAILURE', err);
             const headers = pres ? pres.headers : undefined;
             const packet = NettyPacket.forSystemError(err, headers);
             const hres = hreq ? {match: 'NONE'} : null;

@@ -185,7 +185,7 @@ class Trace {
 }
 
 function deadlineExceededError() {
-  return new SystemError('ERR_AVRO_DEADLINE_EXCEEDED');
+  return new SystemError('ERR_DEADLINE_EXCEEDED');
 }
 
 /** Parse various timeout formats into a `DateTime` deadline. */

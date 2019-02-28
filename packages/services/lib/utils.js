@@ -8,13 +8,8 @@ const {DateTime} = require('luxon');
 // Namespace used for all internal types declared here.
 const NAMESPACE = 'org.apache.avro.ipc';
 
-const ERROR_PREFIX = 'ERR_AVRO_';
-
 class SystemError extends Error {
   constructor(code, cause) {
-    if (!code.startsWith(ERROR_PREFIX)) {
-      throw new Error(`bad error code: ${code}`);
-    }
     super(cause ? cause.message : undefined);
     this.code = code;
     this.cause = cause || null;
@@ -26,13 +21,15 @@ class SystemError extends Error {
 
   get applicationCode() {
     const cause = this.cause;
-    return this.code === 'ERR_AVRO_APPLICATION' && cause ? cause.code : '';
+    return this.code === 'ERR_APPLICATION' && cause ? cause.code : '';
+  }
+
+  get _isSystemError() {
+    return true;
   }
 
   static isSystemError(any) {
-    return any &&
-      typeof any.code == 'string' &&
-      any.code.startsWith(ERROR_PREFIX);
+    return any && any._isSystemError;
   }
 
   static orCode(code, err) {
@@ -49,11 +46,11 @@ class SystemErrorType extends LogicalType {
     try {
       obj = JSON.parse(val);
     } catch (err) { // Possibly message from an incompatible server.
-      obj = {code: 'ERR_AVRO_UNKNOWN', cause: new Error(val)};
+      obj = {code: 'ERR_UNKNOWN', cause: new Error(val)};
     }
     const err = new SystemError(obj.code, obj.cause);
     if (obj.cause && obj.cause.stack) {
-      err.stack += `\nCaused by ${obj.cause.stack}`;
+      err.stack += `\n  Caused by ${obj.cause.stack}`;
     }
     return err;
   }

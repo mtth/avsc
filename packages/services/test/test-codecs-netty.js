@@ -72,7 +72,7 @@ suite('netty codec', () => {
         trace.expire();
       });
       client.emitMessage(trace).upper('foo', (err) => {
-        assert.equal(err.code, 'ERR_AVRO_EXPIRED');
+        assert.equal(err.code, 'ERR_TRACE_EXPIRED');
         done();
       });
     });
@@ -172,7 +172,7 @@ suite('netty codec', () => {
           cb();
         });
         client.emitMessage(new Trace()).echo('', (err) => {
-          assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
+          assert.equal(err.code, 'ERR_INCOMPATIBLE_PROTOCOL');
           client.channel().close();
           done();
         });

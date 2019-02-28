@@ -70,7 +70,7 @@ class Channel extends EventEmitter {
       return;
     }
     if (this.closed) {
-      cb(new SystemError('ERR_AVRO_CHANNEL_CLOSED'));
+      cb(new SystemError('ERR_CHANNEL_CLOSED'));
       return;
     }
     if (!this._handler) {
@@ -158,7 +158,7 @@ class RoutingChannel extends Channel {
 
       function routeUsing(chan) {
         chan.call(trace, preq, (err, pres) => {
-          if (err && err.code === 'ERR_AVRO_INCOMPATIBLE_PROTOCOL') {
+          if (err && err.code === 'ERR_INCOMPATIBLE_PROTOCOL') {
             d('Channel for %s is not compatible, purging.', name);
             cache.delete(name);
           }
@@ -287,7 +287,7 @@ function multiPing(trace, svc, chans, cb) {
   function onPing(idx, chan) {
     return (err) => {
       pending--;
-      if (err && err.code !== 'ERR_AVRO_INCOMPATIBLE_PROTOCOL') {
+      if (err && err.code !== 'ERR_INCOMPATIBLE_PROTOCOL') {
         errs.push(err);
         return;
       }
@@ -312,7 +312,7 @@ function multiPing(trace, svc, chans, cb) {
 
 function notFound(svc) {
   const cause = new Error(`no match for protocol ${svc.name}`);
-  return new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', cause);
+  return new SystemError('ERR_INCOMPATIBLE_PROTOCOL', cause);
 }
 
 module.exports = {

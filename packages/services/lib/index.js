@@ -5,6 +5,7 @@
 const {Channel, RoutingChannel, SelfRefreshingChannel} = require('./channel');
 const {NettyChannel, NettyGateway} = require('./codecs/netty');
 const {Message, Service} = require('./service');
+const {SystemError} = require('./utils');
 
 let Client, Server, Trace;
 if (process.env.AVRO_SERVICES_NO_PROMISES) {
@@ -28,5 +29,6 @@ module.exports = {
   SelfRefreshingChannel,
   Server,
   Service,
+  SystemError,
   Trace,
 };

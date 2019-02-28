@@ -100,7 +100,7 @@ suite('RoutingChannel', () => {
     const chan = RoutingChannel.forServers([upperServer]);
     const client = new Client(echoSvc).channel(chan);
     client.emitMessage(new Trace()).echo('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
+      assert.equal(err.code, 'ERR_INCOMPATIBLE_PROTOCOL');
       done();
     });
   });
@@ -109,7 +109,7 @@ suite('RoutingChannel', () => {
     const chan = new RoutingChannel();
     const client = new Client(echoSvc).channel(chan);
     client.emitMessage(new Trace()).echo('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
+      assert.equal(err.code, 'ERR_INCOMPATIBLE_PROTOCOL');
       done();
     });
   });
@@ -119,12 +119,12 @@ suite('RoutingChannel', () => {
     const chan = new RoutingChannel([upperChan]);
     const client = new Client(echoSvc).channel(chan);
     client.emitMessage(new Trace()).echo('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
+      assert.equal(err.code, 'ERR_INCOMPATIBLE_PROTOCOL');
       upperChan.close();
       const echoServer = new Server(echoSvc);
       chan.addDownstream(echoServer.channel());
       client.emitMessage(new Trace()).echo('bar', (err) => {
-        assert.equal(err.code, 'ERR_AVRO_NOT_IMPLEMENTED');
+        assert.equal(err.code, 'ERR_NOT_IMPLEMENTED');
         echoServer.onMessage().echo((str, cb) => { cb(null, str); });
         client.emitMessage(new Trace()).echo('baz', (err, str) => {
           assert.ifError(err);
@@ -199,7 +199,7 @@ suite('SelfRefreshingChannel', () => {
     const echoClient = new Client(echoSvc).channel(chan);
     const trace = new Trace();
     echoClient.emitMessage(trace).echo('foo', (err) => {
-      assert.equal(err.code, 'ERR_AVRO_INCOMPATIBLE_PROTOCOL');
+      assert.equal(err.code, 'ERR_INCOMPATIBLE_PROTOCOL');
       upperChan.close();
       echoClient.emitMessage(trace).echo('bar', (err, str) => {
         assert.ifError(err);

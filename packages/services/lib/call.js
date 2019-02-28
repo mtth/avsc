@@ -104,18 +104,18 @@ class Client {
           ]);
         } catch (err) {
           d('Unable to encode request: %s', err);
-          prev(new SystemError('ERR_AVRO_BAD_REQUEST', err));
+          prev(new SystemError('ERR_BAD_REQUEST', err));
           return;
         }
         d('Sending request packet %s...', id);
         if (!this._channel) {
           d('No channel to send request packet %s.', id);
-          prev(new SystemError('ERR_AVRO_NO_AVAILABLE_CHANNEL'));
+          prev(new SystemError('ERR_NO_AVAILABLE_CHANNEL'));
           return;
         }
         this._channel.call(cc.trace, preq, (err, pres) => {
           if (err) {
-            prev(SystemError.orCode('ERR_AVRO_CHANNEL_FAILURE', err));
+            prev(SystemError.orCode('ERR_CHANNEL_FAILURE', err));
             return;
           }
           const serverSvc = pres.service;
@@ -124,7 +124,7 @@ class Client {
             try {
               decoder = new Decoder(svc, serverSvc);
             } catch (err) {
-              prev(new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL', err));
+              prev(new SystemError('ERR_INCOMPATIBLE_PROTOCOL', err));
               return;
             }
             d(
@@ -144,7 +144,7 @@ class Client {
             }
           } catch (err) {
             d('Unable to decode response packet %s: %s', id, err);
-            prev(new SystemError('ERR_AVRO_CORRUPT_RESPONSE', err));
+            prev(new SystemError('ERR_CORRUPT_RESPONSE', err));
             return;
           }
           prev();
@@ -154,7 +154,7 @@ class Client {
     );
 
     function whenExpired(err) {
-      cb.call(cc, {string: SystemError.orCode('ERR_AVRO_EXPIRED', err)});
+      cb.call(cc, {string: SystemError.orCode('ERR_TRACE_EXPIRED', err)});
     }
 
     function onResponse(err) {
@@ -162,7 +162,7 @@ class Client {
         return;
       }
       if (err) {
-        wres.error = {string: SystemError.orCode('ERR_AVRO_APPLICATION', err)};
+        wres.error = {string: SystemError.orCode('ERR_APPLICATION', err)};
       }
       cb.call(cc, wres.error, wres.response);
     }
@@ -237,7 +237,7 @@ class Server {
         try {
           decoder = new Decoder(clientSvc, svc);
         } catch (err) {
-          cb(new SystemError('ERR_AVRO_INCOMPATIBLE_PROTOCOL' , err));
+          cb(new SystemError('ERR_INCOMPATIBLE_PROTOCOL' , err));
           return;
         }
         d(
@@ -264,7 +264,7 @@ class Server {
         }
       } catch (cause) {
         d('Unable to decode request packet %s: %s', id, cause);
-        done(new SystemError('ERR_AVRO_CORRUPT_REQUEST', cause));
+        done(new SystemError('ERR_CORRUPT_REQUEST', cause));
         return;
       }
       const msg = cc.message;
@@ -280,8 +280,8 @@ class Server {
       }
       chain(cc, wreq, wres, mws, (prev) => {
         if (!receiver) {
-          const cause = new Error(`no receiver for ${msg.name}`);
-          prev(new SystemError('ERR_AVRO_NOT_IMPLEMENTED', cause));
+          const cause = new Error(`no handler for ${msg.name}`);
+          prev(new SystemError('ERR_NOT_IMPLEMENTED', cause));
           return;
         }
         receiver.callback.call(cc, wreq.request, (err, rpcErr, rpcRes) => {
@@ -306,11 +306,11 @@ class Server {
               bufs = [Buffer.from([0]), msg.response.toBuffer(wres.response)];
             }
           } catch (cause) {
-            err = new SystemError('ERR_AVRO_BAD_RESPONSE', cause);
+            err = new SystemError('ERR_BAD_RESPONSE', cause);
           }
         }
         if (err) {
-          err = SystemError.orCode('ERR_AVRO_APPLICATION', err);
+          err = SystemError.orCode('ERR_APPLICATION', err);
           bufs = [Buffer.from([1, 0]), utils.systemErrorType.toBuffer(err)];
         }
         d('Sending response packet %s!', id);
