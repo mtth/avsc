@@ -134,6 +134,23 @@ suite('promises', () => {
       assert.equal(str, 'abc');
     });
 
+    test('return undefined from one-way handler', async () => {
+      const {client, server} = clientServer(new Service({
+        protocol: 'Ping',
+        messages: {
+          ping: {
+            request: [],
+            response: 'null',
+            'one-way': true,
+          },
+        },
+      }));
+      server.onMessage().ping(() => {});
+      const ok = await client.emitMessage(new Trace()).ping();
+      assert.strictEqual(ok, null);
+    });
+
+
     test('middleware simple case', async () => {
       const {client, server} = clientServer(echoSvc);
       const evts = [];

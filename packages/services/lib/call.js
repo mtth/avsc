@@ -303,7 +303,11 @@ class Server {
             if (wres.error !== undefined) {
               bufs = [Buffer.from([1]), msg.error.toBuffer(wres.error)];
             } else {
-              bufs = [Buffer.from([0]), msg.response.toBuffer(wres.response)];
+              let res = wres.response;
+              if (res === undefined && msg.oneWay) {
+                res = null;
+              }
+              bufs = [Buffer.from([0]), msg.response.toBuffer(res)];
             }
           } catch (cause) {
             err = new SystemError('ERR_BAD_RESPONSE', cause);
@@ -383,11 +387,7 @@ function messageListener(msg) {
               return;
             }
           }
-          let res = resArgs[msg.error.types.length];
-          if (res === undefined && msg.oneWay) {
-            res = null;
-          }
-          cb.call(this, null, undefined, res);
+          cb.call(this, null, undefined, resArgs[msg.error.types.length]);
         });
         return fn.apply(this, reqArgs);
       };
