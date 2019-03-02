@@ -38,6 +38,19 @@ class SystemError extends Error {
     }
     return new SystemError(code, err);
   }
+
+  static forPacket(pkt) {
+    const body = pkt.body;
+    if (!body[0] || body[1]) {
+      return null;
+    }
+    try {
+      const {value} = systemErrorType.decode(body, 2);
+      return value;
+    } catch (err) {
+      return null;
+    }
+  }
 }
 
 class SystemErrorType extends LogicalType {

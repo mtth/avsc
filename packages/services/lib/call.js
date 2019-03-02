@@ -264,7 +264,7 @@ class Server {
         }
       } catch (cause) {
         d('Unable to decode request packet %s: %s', id, cause);
-        done(new SystemError('ERR_CORRUPT_REQUEST', cause));
+        cb(new SystemError('ERR_CORRUPT_REQUEST', cause));
         return;
       }
       const msg = cc.message;

@@ -195,7 +195,7 @@ suite('client server', () => {
         next();
       })
       .emitMessage(new Trace(), retry(1)).echo('foo', (err, res) => {
-        assert(!err, err);
+        assert.ifError(err);
         assert.equal(res, 'foo');
         done();
       });
@@ -206,7 +206,7 @@ suite('client server', () => {
 
         function tryOnce(i) {
           next(null, (err, prev) => {
-            assert(!err, err);
+            assert.ifError(err);
             if (i >= n) {
               prev();
               return;

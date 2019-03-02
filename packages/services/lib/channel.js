@@ -67,6 +67,7 @@ class Channel extends EventEmitter {
   call(trace, preq, cb) {
     if (trace.expired) {
       d('Dropping packet request %s (expired trace).', preq.id);
+      this.emit('drop', trace, preq.id);
       return;
     }
     if (this.closed) {
@@ -90,7 +91,17 @@ class Channel extends EventEmitter {
     this._handler.call(this, trace, preq, (err, pres) => {
       if (trace.expired) {
         d('Dropping packet response %s (expired trace).', preq.id);
+        this.emit('drop', trace, preq.id);
         return;
+      }
+      let systemErr;
+      if (err) {
+        systemErr = err = SystemError.orCode('ERR_CHANNEL_FAILURE', err);
+      } else if (pres) {
+        systemErr = SystemError.forPacket(pres);
+      }
+      if (systemErr) {
+        this.emit('systemError', systemErr, trace);
       }
       this.emit('responsePacket', pres, trace);
       cb(err, pres);

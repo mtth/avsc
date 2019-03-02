@@ -3,7 +3,7 @@
 'use strict';
 
 const {Client, Server} = require('../lib/call');
-const {Channel, RoutingChannel, SelfRefreshingChannel} = require('../lib/channel');
+const {Channel, Packet, RoutingChannel, SelfRefreshingChannel} = require('../lib/channel');
 const {Service} = require('../lib/service');
 const {Trace} = require('../lib/trace');
 
@@ -44,7 +44,7 @@ suite('Channel', () => {
     const evts = [];
     const chan = new Channel((trace, preq, cb) => {
       evts.push('handle');
-      cb(null);
+      cb(null, Packet.ping(null));
     }).on('requestPacket', () => { evts.push('req'); })
       .on('responsePacket', () => { evts.push('res'); });
     chan.call(new Trace(), {}, (err) => {
@@ -74,7 +74,7 @@ suite('Channel', () => {
     const chan = new Channel();
     const boom = new Error('boom');
     chan.call(new Trace(), {}, (err) => {
-      assert.strictEqual(err, boom);
+      assert.strictEqual(err.cause, boom);
       done();
     });
     process.nextTick(() => { chan.open((trace, preq, cb) => { cb(boom); }); });

@@ -116,6 +116,25 @@ suite('promises', () => {
       ]);
     });
 
+    test('middleware error', async () => {
+      const {client, server} = clientServer(echoSvc);
+      const boom = new Error();
+      server
+        .use(async (wreq, wres, next) => {
+          try {
+            await next();
+          } catch (err) {
+            assert.strictEqual(err, boom);
+            wres.response = 'bar';
+            return;
+          }
+          assert(false);
+        })
+        .onMessage().upper(() => { throw boom; })
+      const res = await client.emitMessage(new Trace()).upper('foo');
+      assert.equal(res, 'bar');
+    });
+
     test('omit optional argument', async () => {
       const {client, server} = clientServer(new Service({
         protocol: 'Echo',
