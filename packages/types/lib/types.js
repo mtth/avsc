@@ -2192,15 +2192,34 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
     util.inherits(Record, Error);
     Record.prototype.name = self.name;
   }
-  Record.prototype.clone = function (o) { return self.clone(this, o); };
-  Record.prototype.compare = function (v, o) {
-    return self.compare(this, v, o);
-  };
-  Record.prototype.isValid = function (o) { return self.isValid(this, o); };
-  Record.prototype.toBuffer = function () { return self.toBuffer(this); };
-  Record.prototype.toString = function () { return self.toString(this); };
-  Record.prototype.wrap = function () { return self.wrap(this); };
+  // We don't add these directly on the prototype such that they are not
+  // enumerable.
+  Object.defineProperty(Record.prototype, 'clone', {
+    get: function () { return clone; }
+  });
+  Object.defineProperty(Record.prototype, 'compare', {
+    get: function () { return compare; }
+  });
+  Object.defineProperty(Record.prototype, 'isValid', {
+    get: function () { return isValid; }
+  });
+  Object.defineProperty(Record.prototype, 'toBuffer', {
+    get: function () { return toBuffer; }
+  });
+  Object.defineProperty(Record.prototype, 'toString', {
+    get: function () { return toString; }
+  });
+  Object.defineProperty(Record.prototype, 'wrap', {
+    get: function () { return wrap; }
+  });
   return Record;
+
+  function clone(opts) { return self.clone(this, opts); }
+  function compare(val, opts) { return self.compare(this, val, opts); }
+  function isValid(opts) { return self.isValid(this, opts); };
+  function toBuffer() { return self.toBuffer(this); };
+  function toString() { return self.toString(this); };
+  function wrap() { return self.wrap(this); };
 };
 
 RecordType.prototype._createChecker = function () {
