@@ -40,6 +40,18 @@ suite('values', function () {
       });
       assert.deepEqual(fromJSON({}, t), {age: 20});
     });
+
+    test('record with multiple fields and default', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [
+          {name: 'f2', type: 'string'},
+          {name: 'f3', type: 'int', default: 3}
+        ]
+      });
+      assert.deepEqual(fromJSON({f2: 'a'}, t), {f2: 'a', f3: 3});
+    });
   });
 
   suite('fromDefaultJSON', function () {

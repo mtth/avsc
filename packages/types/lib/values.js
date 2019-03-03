@@ -165,6 +165,7 @@ Cloner.prototype._onPrimitive = function (any, type, path) {
 
 Cloner.prototype._onRecord = function (any, type, path) {
   var builder = new Builder();
+  var desc;
   if (!any || typeof any != 'object') {
     builder.addError('is not an object', any, type, path);
     return builder;
@@ -181,32 +182,32 @@ Cloner.prototype._onRecord = function (any, type, path) {
       }
     }
     if (extraFields.length) {
-      var desc = f('has undeclared field(s) (%s)', extraFields.join(', '));
+      desc = f('has undeclared field(s) (%s)', extraFields.join(', '));
       builder.addError(desc, any, type, path);
     }
   }
   var missingFields = [];
   var args = [undefined];
-  var field;
+  var field, fieldAny, fieldVal, fieldPath, fieldValBuilder;
   for (i = 0, l = type.fields.length; i < l; i++) {
-    var field = type.fields[i];
-    var fieldAny = any[field.name];
-    var fieldVal;
+    field = type.fields[i];
+    fieldAny = any[field.name];
+    fieldVal = undefined;
     if (fieldAny === undefined) {
       if (field.defaultValue() === undefined) {
         missingFields.push(field.name);
       }
     } else {
-      var fieldPath = path.slice();
+      fieldPath = path.slice();
       fieldPath.push(field.name);
-      var fieldValBuilder = this.clone(fieldAny, field.type, fieldPath);
+      fieldValBuilder = this.clone(fieldAny, field.type, fieldPath);
       builder.copyErrorsFrom(fieldValBuilder);
       fieldVal = fieldValBuilder.value;
     }
     args.push(fieldVal);
   }
   if (missingFields.length) {
-    var desc = f(
+    desc = f(
       'is missing %s required field(s) (%s)',
       missingFields.length,
       missingFields.join()

@@ -604,6 +604,10 @@ Type.prototype.toJSON = function (val) {
 };
 
 Type.prototype.toString = function (val) {
+  if (val === undefined) {
+    // Consistent behavior with standard `toString` expectations.
+    return JSON.stringify(this.schema({noDeref: true}));
+  }
   return JSON.stringify(this.schema({noDeref: true}));
 };
 
