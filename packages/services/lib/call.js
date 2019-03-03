@@ -98,6 +98,7 @@ class Client {
         const id = utils.randomId();
         const preq = new Packet(id, svc, null, wreq.headers);
         try {
+          msg.request.checkValid(wreq.request);
           preq.body = Buffer.concat([
             utils.stringType.toBuffer(msg.name),
             msg.request.toBuffer(wreq.request),
@@ -301,12 +302,14 @@ class Server {
         if (!err && msg) {
           try {
             if (wres.error !== undefined) {
+              msg.error.checkValid(wres.error);
               bufs = [Buffer.from([1]), msg.error.toBuffer(wres.error)];
             } else {
               let res = wres.response;
               if (res === undefined && msg.oneWay) {
                 res = null;
               }
+              msg.response.checkValid(res);
               bufs = [Buffer.from([0]), msg.response.toBuffer(res)];
             }
           } catch (cause) {

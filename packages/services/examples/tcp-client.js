@@ -61,6 +61,7 @@ function poll(trace) {
     echoClient.emitMessage(trace).echo('poll-' + (i++), (err, str) => {
       if (err) {
         console.error(err);
+        return;
       }
       console.log('ok');
     });
