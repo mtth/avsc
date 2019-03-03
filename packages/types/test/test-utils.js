@@ -24,57 +24,6 @@ suite('utils', function () {
     assert.throws(utils.abstractFunction, utils.Error);
   });
 
-  suite('Lcg', function () {
-    test('seed', function () {
-      var r1 = new utils.Lcg(48);
-      var r2 = new utils.Lcg(48);
-      assert.equal(r1.nextInt(), r2.nextInt());
-    });
-
-    test('integer', function () {
-      var r = new utils.Lcg(48);
-      var i;
-      i = r.nextInt();
-      assert(i >= 0 && i === (i | 0));
-      i = r.nextInt(1);
-      assert.equal(i, 0);
-      i = r.nextInt(1, 2);
-      assert.equal(i, 1);
-    });
-
-    test('float', function () {
-      var r = new utils.Lcg(48);
-      var f;
-      f = r.nextFloat();
-      assert(0 <= f && f < 1);
-      f = r.nextFloat(0);
-      assert.equal(f, 0);
-      f = r.nextFloat(1, 1);
-      assert.equal(f, 1);
-    });
-
-    test('boolean', function () {
-      var r = new utils.Lcg(48);
-      assert(typeof r.nextBoolean() == 'boolean');
-    });
-
-    test('choice', function () {
-      var r = new utils.Lcg(48);
-      var arr = ['a'];
-      assert(r.choice(arr), 'a');
-      assert.throws(function () { r.choice([]); });
-    });
-
-    test('string', function () {
-      var r = new utils.Lcg(48);
-      var s;
-      s = r.nextString(10, 'aA#!');
-      assert.equal(s.length, 10);
-      s = r.nextString(5, '#!');
-      assert.equal(s.length, 5);
-    });
-  });
-
   suite('Tap', function () {
     var Tap = utils.Tap;
 

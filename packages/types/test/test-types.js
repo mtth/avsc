@@ -27,11 +27,6 @@ suite('types', function () {
 
     testType(constructors.BooleanType, data);
 
-    test('to JSON', function () {
-      var t = new constructors.BooleanType();
-      assert.equal(t.toJSON(), 'boolean');
-    });
-
     test('compare buffers', function () {
       var t = new constructors.BooleanType();
       var bt = t.toBuffer(true);
@@ -108,10 +103,6 @@ suite('types', function () {
       var n = Math.pow(2, 30) + 1;
       var buf = wt.toBuffer(n);
       assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), n);
-    });
-
-    test('toString', function () {
-      assert.equal(Type.forSchema('int').toString(), '"int"');
     });
 
     test('clone', function () {
@@ -272,12 +263,6 @@ suite('types', function () {
       assert.throws(function () { getResolver('float', 'double'); });
     });
 
-    test('fromString', function () {
-      var t = Type.forSchema('float');
-      var f = t.fromString('3.1');
-      assert(t.isValid(f));
-    });
-
     test('clone from double', function () {
       var t = Type.forSchema('float');
       var d = 3.1;
@@ -349,20 +334,6 @@ suite('types', function () {
       clone[0] = 0;
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); });
-      clone = t.clone(buf.toJSON(), {coerceBuffers: true});
-      assert.deepEqual(clone, buf);
-      assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
-    });
-
-    test('fromString', function () {
-      var t = Type.forSchema('bytes');
-      var s = '\x01\x02';
-      var buf = utils.bufferFrom(s);
-      var clone;
-      clone = t.fromString(JSON.stringify(s));
-      assert.deepEqual(clone, buf);
-      clone = t.fromString(JSON.stringify(s), {});
-      assert.deepEqual(clone, buf);
     });
 
     test('compare', function () {
@@ -458,46 +429,15 @@ suite('types', function () {
       assert.throws(function () { type.toBuffer(2.5); });
     });
 
-    test('fromString', function () {
-      var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.strictEqual(type.fromString('null'), null);
-      assert.deepEqual(type.fromString('{"int": 48}'), 48);
-      assert.throws(function () { type.fromString('48'); });
-      assert.throws(function () { type.fromString('{"long": 48}'); });
-    });
-
-    test('toString', function () {
-      var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.strictEqual(type.toString(null), 'null');
-      assert.deepEqual(type.toString(48), '{"int":48}');
-      assert.throws(function () { type.toString(2.5); });
-    });
-
     test('non wrapped write', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
       assert.deepEqual(type.toBuffer(23), utils.bufferFrom([2, 46]));
       assert.deepEqual(type.toBuffer(null), utils.bufferFrom([0]));
     });
 
-    test('coerce buffers', function () {
-      var type = new constructors.UnwrappedUnionType(['null', 'bytes']);
-      var obj = {type: 'Buffer', data: [1, 2]};
-      assert.throws(function () { type.clone(obj); });
-      assert.deepEqual(
-        type.clone(obj, {coerceBuffers: true}),
-        utils.bufferFrom([1, 2])
-      );
-      assert.deepEqual(type.clone(null, {coerceBuffers: true}), null);
-    });
-
     test('wrapped write', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
       assert.throws(function () { type.toBuffer({'int': 1}); });
-    });
-
-    test('to JSON', function () {
-      var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.equal(JSON.stringify(type), '["null","int"]');
     });
 
     test('resolve int to [string, long]', function () {
@@ -542,19 +482,6 @@ suite('types', function () {
       assert.throws(function () { t.clone([]); });
       assert.throws(function () { t.clone([], {}); });
       assert.throws(function () { t.clone(undefined); });
-    });
-
-    test('invalid null', function () {
-      var t = new constructors.UnwrappedUnionType(['string', 'int']);
-      assert.throws(function () { t.fromString(null); }, /invalid/);
-    });
-
-    test('invalid multiple keys', function () {
-      var t = new constructors.UnwrappedUnionType(['null', 'int']);
-      var o = {'int': 2};
-      assert.equal(t.fromString(JSON.stringify(o)), 2);
-      o.foo = 3;
-      assert.throws(function () { t.fromString(JSON.stringify(o)); });
     });
 
     test('clone named type', function () {
@@ -690,11 +617,6 @@ suite('types', function () {
       }, Error);
     });
 
-    test('to JSON', function () {
-      var type = new constructors.WrappedUnionType(['null', 'int']);
-      assert.equal(JSON.stringify(type), '["null","int"]');
-    });
-
     test('resolve int to [long, int]', function () {
       var t1 = Type.forSchema('int');
       var t2 = new constructors.WrappedUnionType(['long', 'int']);
@@ -748,16 +670,6 @@ suite('types', function () {
       assert.throws(function () { t.clone(undefined); });
     });
 
-    test('clone and wrap', function () {
-      var t = new constructors.WrappedUnionType(['string', 'int']);
-      var o;
-      o = t.clone('hi', {wrapUnions: true});
-      assert.deepEqual(o, {'string': 'hi'});
-      o = t.clone(3, {wrapUnions: true});
-      assert.deepEqual(o, {'int': 3});
-      assert.throws(function () { t.clone(null, {wrapUnions: 2}); });
-    });
-
     test('unwrap', function () {
       var t = new constructors.WrappedUnionType(['string', 'int']);
       var v = t.clone({string: 'hi'});
@@ -777,22 +689,6 @@ suite('types', function () {
       var o = {'int': 2, foo: 3};
       assert.throws(function () { t.clone(o); });
       assert.throws(function () { t.clone(o, {}); });
-    });
-
-    test('clone qualify names', function () {
-      var t = Type.forSchema({
-        name: 'Person',
-        type: 'record',
-        fields: [
-          {name: 'id1', type: {name: 'an.Id', type: 'fixed', size: 1}},
-          {name: 'id2', type: ['null', 'an.Id']}
-        ]
-      }, {wrapUnions: true});
-      var b = utils.bufferFrom([0]);
-      var o = {id1: b, id2: {Id: b}};
-      var c = {id1: b, id2: {'an.Id': b}};
-      assert.throws(function () { t.clone(o, {}); });
-      assert.deepEqual(t.clone(o, {qualifyNames: true}), c);
     });
 
     test('clone invalid qualified names', function () {
@@ -1094,18 +990,7 @@ suite('types', function () {
       assert.equal(buf[0], 1);
       assert.throws(function () { t.clone(s); });
       assert.throws(function () { t.clone(s, {}); });
-      clone = t.clone(buf.toJSON(), {coerceBuffers: true});
-      assert.deepEqual(clone, buf);
-      assert.throws(function () { t.clone(1, {coerceBuffers: true}); });
       assert.throws(function () { t.clone(utils.bufferFrom([2])); });
-    });
-
-    test('fromString', function () {
-      var t = new constructors.FixedType({name: 'Id', size: 2});
-      var s = '\x01\x02';
-      var buf = utils.bufferFrom(s);
-      var clone = t.fromString(JSON.stringify(s));
-      assert.deepEqual(clone, buf);
     });
 
     test('compare buffers', function () {
@@ -1250,15 +1135,6 @@ suite('types', function () {
       assert.throws(function () { t.clone(undefined, {}); });
     });
 
-    test('clone coerce buffers', function () {
-      var t = new constructors.MapType({type: 'map', values: 'bytes'});
-      var o = {one: {type: 'Buffer', data: [1]}};
-      assert.throws(function () { t.clone(o, {}); });
-      assert.throws(function () { t.clone(o); });
-      var c = t.clone(o, {coerceBuffers: true});
-      assert.deepEqual(c, {one: utils.bufferFrom([1])});
-    });
-
     test('compare buffers', function () {
       var t = new constructors.MapType({type: 'map', values: 'bytes'});
       var b1 = t.toBuffer({});
@@ -1391,8 +1267,6 @@ suite('types', function () {
       var o = [{type: 'Buffer', data: [1, 2]}];
       assert.throws(function () { t.clone(o); });
       assert.throws(function () { t.clone(o, {}); });
-      var c = t.clone(o, {coerceBuffers: true});
-      assert.deepEqual(c, [utils.bufferFrom([1, 2])]);
     });
 
     test('compare buffers', function () {
@@ -1710,7 +1584,7 @@ suite('types', function () {
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
-      var p = v1.random();
+      var p = {name: 'ann'};
       var buf = v1.toBuffer(p);
       var v2 = Type.forSchema({
         type: 'record',
@@ -2031,32 +1905,6 @@ suite('types', function () {
       );
     });
 
-    test('fromString', function () {
-      var t = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [
-          {name: 'age', type: 'int'},
-          {name: 'name', type: 'string', 'default': 'UNKNOWN'}
-        ]
-      });
-      assert.deepEqual(
-        t.fromString('{"age": 23}'),
-        {age: 23, name: 'UNKNOWN'}
-      );
-      assert.throws(function () { t.fromString('{}'); });
-    });
-
-    test('toString record', function () {
-      var T = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'pwd', type: 'bytes'}]
-      }).recordConstructor;
-      var r = new T(utils.bufferFrom([1, 2]));
-      assert.equal(r.toString(), T.type.toString(r));
-    });
-
     test('clone', function () {
       var t = Type.forSchema({
         type: 'record',
@@ -2098,42 +1946,7 @@ suite('types', function () {
         t.clone({id: 1, name: 'Ann', age: {'int': 21}}, {}),
         {id: 1, name: 'Ann', age: {'int': 21}}
       );
-      assert.deepEqual(
-        t.clone({id: 1, name: 'Ann', age: 21}, {wrapUnions: true}),
-        {id: 1, name: 'Ann', age: {'int': 21}}
-      );
       assert.throws(function () { t.clone({}); });
-    });
-
-    test('clone field hook', function () {
-      var t = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'age', type: 'int'}, {name: 'name', type: 'string'}]
-      });
-      var o = {name: 'Ann', age: 25};
-      var c = t.clone(o, {fieldHook: function (f, o, r) {
-        assert.strictEqual(r, t);
-        return f.type instanceof constructors.StringType ? o.toUpperCase() : o;
-      }});
-      assert.deepEqual(c, {name: 'ANN', age: 25});
-    });
-
-    test('clone missing fields', function () {
-      var t = Type.forSchema({
-        type: 'record',
-        name: 'Person',
-        fields: [
-          {name: 'id', type: 'int'},
-          {name: 'name', type: ['null', 'string']},
-          {name: 'age', type: ['null', 'int'], 'default': null},
-        ]
-      });
-      assert.throws(function () { t.clone({id: 1}); }, /invalid/);
-      assert.deepEqual(
-        t.clone({id: 1}, {skipMissingFields: true}),
-        {id: 1, name: undefined, age: null}
-      );
     });
 
     test('unwrapped union field default', function () {
@@ -2157,7 +1970,6 @@ suite('types', function () {
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
-      assert.deepEqual(t.toString({}), '{"name":{"string":"Bob"}}');
       assert.deepEqual(t.schema({exportAttrs: true}), schema);
     });
 
@@ -2370,7 +2182,7 @@ suite('types', function () {
         fields: [{name: 'code', type: 'int', 'default': -1}]
       });
       var res = t2.createResolver(t1);
-      var err1 = t1.random();
+      var err1 = {name: 'foo'};
       var err2 = t2.fromBuffer(t1.toBuffer(err1), res);
       assert.deepEqual(err2, {code: -1});
     });
@@ -2418,9 +2230,9 @@ suite('types', function () {
         fields: [{name: 'foo', type: 'int'}]
       });
       var obj = {foo: 1, bar: 'bar'};
-      assert(t.isValid(obj));
-      assert(!t.isValid(obj, {noUndeclaredFields: true}));
-      assert(t.isValid({foo: 23}, {noUndeclaredFields: true}));
+      assert(!t.isValid(obj));
+      assert(t.isValid(obj, {allowUndeclaredFields: true}));
+      assert(t.isValid({foo: 23}, {allowUndeclaredFields: true}));
     });
 
     test('qualified name namespacing', function () {
@@ -2500,12 +2312,6 @@ suite('types', function () {
       test('clone', function () {
         assert.equal(slowLongType.clone(123), 123);
         assert.equal(slowLongType.clone(123, {}), 123);
-        assert.equal(slowLongType.fromString('-1'), -1);
-        assert.equal(slowLongType.toString(-1), '-1');
-      });
-
-      test('random', function () {
-        assert(slowLongType.isValid(slowLongType.random()));
       });
 
       test('isValid hook', function () {
@@ -2588,14 +2394,7 @@ suite('types', function () {
 
       test('clone', function () {
         assert.equal(slowLongType.clone(123), 123);
-        assert.equal(slowLongType.fromString('-1'), -1);
-        assert.equal(slowLongType.toString(-1), '-1');
       });
-
-      test('random', function () {
-        assert(slowLongType.isValid(slowLongType.random()));
-      });
-
     });
 
     test('within unwrapped union', function () {
@@ -2691,14 +2490,12 @@ suite('types', function () {
       }, {logicalTypes: logicalTypes});
       assert(t instanceof DateType);
       assert(t.underlyingType instanceof constructors.LongType);
-      assert(t.isValid(t.random()));
+      assert(t.isValid(new Date()));
       var d = new Date(123);
-      assert.equal(t.toString(d), '123');
       assert.deepEqual(t.wrap(d), {long: d});
       assert.strictEqual(t.name, undefined);
       assert.equal(t.branchName, 'long');
       assert.equal(t.typeName, 'logical:date');
-      assert.deepEqual(t.fromString('123'), d);
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
       assert.equal(t.schema(), 'long');
@@ -2909,7 +2706,6 @@ suite('types', function () {
       assert(!t.isValid('abc'));
       assert.equal(t.fromBuffer(utils.bufferFrom([4])), 2);
       assert.equal(t.clone(4), 4);
-      assert.equal(t.fromString('6'), 6);
       assert.equal(t.schema(), 'long');
       assert.deepEqual(
         JSON.stringify(t.schema({exportAttrs: true})),
@@ -2919,7 +2715,6 @@ suite('types', function () {
       assert(!Type.isType(t, 'int'));
       assert(Type.isType(t, 'logical'));
       assert.throws(function () { t.clone(3); });
-      assert.throws(function () { t.fromString('5'); });
       assert.throws(function () { t.toBuffer(3); });
       assert.throws(function () { t.fromBuffer(utils.bufferFrom([2])); });
     });
@@ -3007,45 +2802,6 @@ suite('types', function () {
           }
         };
       }
-
-      test('unwrapped', function () {
-
-        /**
-        * A generic union type which exposes its values directly.
-        *
-        * This implementation predates the existence of the
-        * `UnwrappedUnionType` currently in the built-in types. It can still be
-        * used as an example to implement custom unwrapped unions (which would
-        * be able to cover ambiguous unions).
-        *
-        */
-        function UnwrappedUnionType(schema, opts) {
-          LogicalType.call(this, schema, opts);
-        }
-        util.inherits(UnwrappedUnionType, LogicalType);
-
-        UnwrappedUnionType.prototype._fromValue = function (val) {
-          return val === null ? null : val[Object.keys(val)[0]];
-        };
-
-        UnwrappedUnionType.prototype._toValue = function (any) {
-          return this.underlyingType.clone(any, {wrapUnions: true});
-        };
-
-        var t1 = Type.forSchema(
-          schema,
-          {typeHook: createUnionTypeHook(UnwrappedUnionType), wrapUnions: true}
-        );
-        var obj = {name: 'Ann', age: 23};
-        assert(t1.isValid(obj));
-        var buf = t1.toBuffer(obj);
-        var t2 = Type.forSchema(schema, {wrapUnions: true});
-        assert.deepEqual(
-          t2.fromBuffer(buf),
-          {Person: {name: 'Ann', age: {'int': 23}}}
-        );
-
-      });
 
       test('optional', function () {
 
@@ -3361,7 +3117,7 @@ suite('types', function () {
             {name: 'id', type: ['null', 'int'], 'default': 2}
           ]
         }, {wrapUnions: false});
-      }, /invalid "null"/);
+      }, /bad default/);
     });
 
     test('anonymous types', function () {
@@ -3396,45 +3152,6 @@ suite('types', function () {
       assert.throws(function () {
         Type.forSchema('string', {wrapUnions: 123});
       }, /invalid wrap unions option/);
-    });
-
-  });
-
-  suite('fromString', function () {
-
-    test('int', function () {
-      var t = Type.forSchema('int');
-      assert.equal(t.fromString('2'), 2);
-      assert.throws(function () { t.fromString('"a"'); });
-    });
-
-    test('string', function () {
-      var t = Type.forSchema('string');
-      assert.equal(t.fromString('"2"'), '2');
-      assert.throws(function () { t.fromString('a'); });
-    });
-
-    test('coerce buffers', function () {
-      var t = Type.forSchema({
-        name: 'Ids',
-        type: 'record',
-        fields: [{name: 'id1', type: {name: 'Id1', type: 'fixed', size: 2}}]
-      });
-      var o = {id1: utils.bufferFrom([0, 1])};
-      var s = '{"id1": "\\u0000\\u0001"}';
-      var c = t.fromString(s);
-      assert.deepEqual(c, o);
-      assert(c instanceof t.recordConstructor);
-    });
-
-  });
-
-  suite('toString', function () {
-
-    test('int', function () {
-      var t = Type.forSchema('int');
-      assert.equal(t.toString(2), '2');
-      assert.throws(function () { t.toString('a'); });
     });
 
   });
@@ -4018,7 +3735,6 @@ function testType(Type, data, invalidSchemas) {
         assert(type.isValid(v), '' + v);
         var fn = elem.check || assert.deepEqual;
         fn(type.fromBuffer(type.toBuffer(v)), v);
-        fn(type.fromString(type.toString(v), {coerceBuffers: true}), v);
       });
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);
@@ -4027,11 +3743,6 @@ function testType(Type, data, invalidSchemas) {
 
         function hook() { throw new Error(); }
       });
-      var n = 50;
-      while (n--) {
-        // Run a few times to make sure we cover any branches.
-        assert(type.isValid(type.random()));
-      }
     });
   });
 

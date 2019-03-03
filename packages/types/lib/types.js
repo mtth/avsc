@@ -5,7 +5,7 @@
 // major release.
 // TODO: Allow configuring when to write the size when writing arrays and maps,
 // and customizing their block size.
-// TODO: Code-generate `compare` and `clone` record and union methods.
+// TODO: Code-generate `compare` record and union methods.
 
 'use strict';
 
@@ -15,6 +15,7 @@
  */
 
 var utils = require('./utils'),
+    values = require('./values'),
     buffer = require('buffer'), // For `SlowBuffer`.
     util = require('util');
 
@@ -44,9 +45,6 @@ var TYPES = {
 
 // Valid (field, type, and symbol) name regex.
 var NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
-
-// Random generator.
-var RANDOM = new utils.Lcg();
 
 // Encoding tap (shared for performance).
 var TAP = new Tap(new buffer.SlowBuffer(1024));
@@ -96,7 +94,7 @@ function Type(schema, opts) {
       schema.namespace;
     if (name !== undefined) {
       // This isn't an anonymous type.
-      name = qualify(name, namespace);
+      name = qualifyName(name, namespace);
       if (isPrimitive(name)) {
         // Avro doesn't allow redefining primitive names.
         throw new Error(f('cannot rename primitive type: %j', name));
@@ -113,7 +111,7 @@ function Type(schema, opts) {
     }
     this.name = name;
     this.aliases = schema.aliases ?
-      schema.aliases.map(function (s) { return qualify(s, namespace); }) :
+      schema.aliases.map(function (s) { return qualifyName(s, namespace); }) :
       [];
   }
 }
@@ -149,20 +147,20 @@ Type.forSchema = function (schema, opts) {
     throw new Error('invalid type: null (did you mean "null"?)');
   }
 
-  if (Type.isType(schema)) {
+  if (utils.isType(schema)) {
     return schema;
   }
 
   var type;
   if (opts.typeHook && (type = opts.typeHook(schema, opts))) {
-    if (!Type.isType(type)) {
+    if (!utils.isType(type)) {
       throw new Error(f('invalid typehook return value: %j', type));
     }
     return type;
   }
 
   if (typeof schema == 'string') { // Type reference.
-    schema = qualify(schema, opts.namespace);
+    schema = qualifyName(schema, opts.namespace);
     type = opts.registry[schema];
     if (type) {
       // Type was already defined, return it.
@@ -235,7 +233,7 @@ Type.forValue = function (val, opts) {
   if (opts.valueHook) {
     var type = opts.valueHook(val, opts);
     if (type !== undefined) {
-      if (!Type.isType(type)) {
+      if (!utils.isType(type)) {
         throw new Error(f('invalid value hook return value: %j', type));
       }
       return type;
@@ -413,37 +411,7 @@ Type.forTypes = function (types, opts) {
   }
 };
 
-Type.isType = function (/* any, [prefix] ... */) {
-  var l = arguments.length;
-  if (!l) {
-    return false;
-  }
-
-  var any = arguments[0];
-  if (
-    !any ||
-    typeof any._update != 'function' ||
-    typeof any.fingerprint != 'function'
-  ) {
-    // Not fool-proof, but most likely good enough.
-    return false;
-  }
-
-  if (l === 1) {
-    // No type names specified, we are done.
-    return true;
-  }
-
-  // We check if at least one of the prefixes matches.
-  var typeName = any.typeName;
-  var i;
-  for (i = 1; i < l; i++) {
-    if (typeName.indexOf(arguments[i]) === 0) {
-      return true;
-    }
-  }
-  return false;
-};
+Type.isType = utils.isType;
 
 Type.__reset = function (size) {
   debug('resetting type buffer to %d', size);
@@ -456,30 +424,13 @@ Object.defineProperty(Type.prototype, 'branchName', {
     if (this.name) {
       return this.name;
     }
-    var type = Type.isType(this, 'logical') ? this.underlyingType : this;
-    if (Type.isType(type, 'abstract')) {
+    var type = utils.isType(this, 'logical') ? this.underlyingType : this;
+    if (utils.isType(type, 'abstract')) {
       return type._concreteTypeName;
     }
-    return Type.isType(type, 'union') ? undefined : type.typeName;
+    return utils.isType(type, 'union') ? undefined : type.typeName;
   }
 });
-
-Type.prototype.clone = function (val, opts) {
-  if (opts) {
-    opts = {
-      coerce: !!opts.coerceBuffers | 0, // Coerce JSON to Buffer.
-      fieldHook: opts.fieldHook,
-      qualifyNames: !!opts.qualifyNames,
-      skip: !!opts.skipMissingFields,
-      wrap: !!opts.wrapUnions | 0 // Wrap first match into union.
-    };
-    return this._copy(val, opts);
-  } else {
-    // If no modifications are required, we can get by with a serialization
-    // roundtrip (generally much faster than a standard deep copy).
-    return this.fromBuffer(this.toBuffer(val));
-  }
-};
 
 Type.prototype.compare = utils.abstractFunction;
 
@@ -488,13 +439,13 @@ Type.prototype.compareBuffers = function (buf1, buf2) {
 };
 
 Type.prototype.createResolver = function (type, opts) {
-  if (!Type.isType(type)) {
+  if (!utils.isType(type)) {
     // More explicit error message than the "incompatible type" thrown
     // otherwise (especially because of the overridden `toJSON` method).
     throw new Error(f('not a type: %j', type));
   }
 
-  if (!Type.isType(this, 'union', 'logical') && Type.isType(type, 'logical')) {
+  if (!utils.isType(this, 'union', 'logical') && utils.isType(type, 'logical')) {
     // Trying to read a logical type as a built-in: unwrap the logical type.
     // Note that we exclude unions to support resolving into unions containing
     // logical types.
@@ -506,8 +457,8 @@ Type.prototype.createResolver = function (type, opts) {
 
   var resolver, key;
   if (
-    Type.isType(this, 'record', 'error') &&
-    Type.isType(type, 'record', 'error')
+    utils.isType(this, 'record', 'error') &&
+    utils.isType(type, 'record', 'error')
   ) {
     // We allow conversions between records and errors.
     key = this.name + ':' + type.name; // ':' is illegal in Avro type names.
@@ -517,12 +468,12 @@ Type.prototype.createResolver = function (type, opts) {
     }
   }
 
-  resolver = new Resolver(this);
+  resolver = new Resolver(type, this);
   if (key) { // Register resolver early for recursive schemas.
     opts.registry[key] = resolver;
   }
 
-  if (Type.isType(type, 'union')) {
+  if (utils.isType(type, 'union')) {
     var resolvers = type.types.map(function (t) {
       return this.createResolver(t, opts);
     }, this);
@@ -566,7 +517,7 @@ Type.prototype.encode = function (val, buf, pos) {
 
 Type.prototype.equals = function (type) {
   return (
-    Type.isType(type) &&
+    utils.isType(type) &&
     this.fingerprint().equals(type.fingerprint())
   );
 };
@@ -595,35 +546,6 @@ Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
   return val;
 };
 
-Type.prototype.fromString = function (str) {
-  return this._copy(JSON.parse(str), {coerce: 2});
-};
-
-Type.prototype.isValid = function (val, opts) {
-  // We only have a single flag for now, so no need to complicate things.
-  var flags = (opts && opts.noUndeclaredFields) | 0;
-  var errorHook = opts && opts.errorHook;
-  var hook, path;
-  if (errorHook) {
-    path = [];
-    hook = function (any, type) {
-      errorHook.call(this, path.slice(), any, type, val);
-    };
-  }
-  return this._check(val, flags, hook, path);
-};
-
-Type.prototype.random = utils.abstractFunction;
-
-Type.prototype.schema = function (opts) {
-  // Copy the options to avoid mutating the original options object when we add
-  // the registry of dereferenced types.
-  return this._attrs({
-    exportAttrs: !!(opts && opts.exportAttrs),
-    noDeref: !!(opts && opts.noDeref)
-  });
-};
-
 Type.prototype.toBuffer = function (val) {
   TAP.pos = 0;
   this._write(TAP, val);
@@ -636,17 +558,57 @@ Type.prototype.toBuffer = function (val) {
   return buf;
 };
 
-Type.prototype.toJSON = function () {
-  // Convenience to allow using `JSON.stringify(type)` to get a type's schema.
-  return this.schema({exportAttrs: true});
+Type.prototype.checkValid = function (val, opts) {
+  var allowUndeclaredFields = opts && opts.allowUndeclaredFields;
+  if (this.isValid(val, {allowUndeclaredFields: allowUndeclaredFields})) {
+    return;
+  }
+  values.copy(val, this, opts); // Ignore return value.
+};
+
+Type.prototype.isValid = function (val, opts) {
+  // We only have a single flag for now, so no need to complicate things.
+  var flags = !(opts && opts.allowUndeclaredFields) | 0;
+  var errorHook = opts && opts.errorHook;
+  var hook, path;
+  if (errorHook) {
+    path = [];
+    hook = function (any, type) {
+      errorHook.call(this, path.slice(), any, type, val);
+    };
+  }
+  return this._check(val, flags, hook, path);
+};
+
+Type.prototype.schema = function (opts) {
+  // Copy the options to avoid mutating the original options object when we add
+  // the registry of dereferenced types.
+  return this._attrs({
+    exportAttrs: !!(opts && opts.exportAttrs),
+    noDeref: !!(opts && opts.noDeref)
+  });
+};
+
+Type.prototype.fromJSON = function (any, resolver, allowUndeclaredFields) {
+  var opts = {allowUndeclaredFields: allowUndeclaredFields};
+  if (!resolver) {
+    return values.fromJSON(any, this, opts);
+  }
+  var type = resolver._writerType;
+  var val = values.fromJSON(any, type, opts);
+  return this.fromBuffer(type.toBuffer(val), resolver);
+};
+
+Type.prototype.toJSON = function (val) {
+  return values.toJSON(val, this, {allowUndeclaredFields: true});
 };
 
 Type.prototype.toString = function (val) {
-  if (val === undefined) {
-    // Consistent behavior with standard `toString` expectations.
-    return JSON.stringify(this.schema({noDeref: true}));
-  }
-  return JSON.stringify(this._copy(val, {coerce: 3}));
+  return JSON.stringify(this.schema({noDeref: true}));
+};
+
+Type.prototype.clone = function (val) {
+  return this.fromBuffer(this.toBuffer(val));
 };
 
 Type.prototype.wrap = function (val) {
@@ -720,7 +682,6 @@ Type.prototype._peek = function (tap) {
 };
 
 Type.prototype._check = utils.abstractFunction;
-Type.prototype._copy = utils.abstractFunction;
 Type.prototype._deref = utils.abstractFunction;
 Type.prototype._match = utils.abstractFunction;
 Type.prototype._read = utils.abstractFunction;
@@ -751,11 +712,6 @@ PrimitiveType.prototype._update = function (resolver, type) {
   if (type.typeName === this.typeName) {
     resolver._read = this._read;
   }
-};
-
-PrimitiveType.prototype._copy = function (val) {
-  this._check(val, undefined, throwInvalidError);
-  return val;
 };
 
 PrimitiveType.prototype._deref = function () { return this.typeName; };
@@ -790,8 +746,6 @@ NullType.prototype.compare = NullType.prototype._match;
 
 NullType.prototype.typeName = 'null';
 
-NullType.prototype.random = NullType.prototype._read;
-
 /** Booleans. */
 function BooleanType() { PrimitiveType.call(this); }
 util.inherits(BooleanType, PrimitiveType);
@@ -821,8 +775,6 @@ BooleanType.prototype._match = function (tap1, tap2) {
 
 BooleanType.prototype.typeName = 'boolean';
 
-BooleanType.prototype.random = function () { return RANDOM.nextBoolean(); };
-
 /** Integers. */
 function IntType() { PrimitiveType.call(this); }
 util.inherits(IntType, PrimitiveType);
@@ -851,8 +803,6 @@ IntType.prototype._match = function (tap1, tap2) {
 };
 
 IntType.prototype.typeName = 'int';
-
-IntType.prototype.random = function () { return RANDOM.nextInt(1000) | 0; };
 
 /**
  * Longs.
@@ -906,8 +856,6 @@ LongType.prototype._update = function (resolver, type) {
 };
 
 LongType.prototype.typeName = 'long';
-
-LongType.prototype.random = function () { return RANDOM.nextInt(); };
 
 LongType.__with = function (methods, noUnpack) {
   methods = methods || {}; // Will give a more helpful error message.
@@ -975,8 +923,6 @@ FloatType.prototype._update = function (resolver, type) {
 
 FloatType.prototype.typeName = 'float';
 
-FloatType.prototype.random = function () { return RANDOM.nextFloat(1e3); };
-
 /** Doubles. */
 function DoubleType() { PrimitiveType.call(this); }
 util.inherits(DoubleType, PrimitiveType);
@@ -1021,8 +967,6 @@ DoubleType.prototype._update = function (resolver, type) {
 
 DoubleType.prototype.typeName = 'double';
 
-DoubleType.prototype.random = function () { return RANDOM.nextFloat(); };
-
 /** Strings. */
 function StringType() { PrimitiveType.call(this); }
 util.inherits(StringType, PrimitiveType);
@@ -1060,18 +1004,12 @@ StringType.prototype._update = function (resolver, type) {
 
 StringType.prototype.typeName = 'string';
 
-StringType.prototype.random = function () {
-  return RANDOM.nextString(RANDOM.nextInt(32));
-};
-
 /**
  * Bytes.
  *
  * These are represented in memory as `Buffer`s rather than binary-encoded
  * strings. This is more efficient (when decoding/encoding from bytes, the
  * common use-case), idiomatic, and convenient.
- *
- * Note the coercion in `_copy`.
  */
 function BytesType() { PrimitiveType.call(this); }
 util.inherits(BytesType, PrimitiveType);
@@ -1101,39 +1039,9 @@ BytesType.prototype._match = function (tap1, tap2) {
 
 BytesType.prototype._update = StringType.prototype._update;
 
-BytesType.prototype._copy = function (obj, opts) {
-  var buf;
-  switch ((opts && opts.coerce) | 0) {
-    case 3: // Coerce buffers to strings.
-      this._check(obj, undefined, throwInvalidError);
-      return obj.toString('binary');
-    case 2: // Coerce strings to buffers.
-      if (typeof obj != 'string') {
-        throw new Error(f('cannot coerce to buffer: %j', obj));
-      }
-      buf = utils.bufferFrom(obj, 'binary');
-      this._check(buf, undefined, throwInvalidError);
-      return buf;
-    case 1: // Coerce buffer JSON representation to buffers.
-      if (!isJsonBuffer(obj)) {
-        throw new Error(f('cannot coerce to buffer: %j', obj));
-      }
-      buf = utils.bufferFrom(obj.data);
-      this._check(buf, undefined, throwInvalidError);
-      return buf;
-    default: // Copy buffer.
-      this._check(obj, undefined, throwInvalidError);
-      return utils.bufferFrom(obj);
-  }
-};
-
 BytesType.prototype.compare = Buffer.compare;
 
 BytesType.prototype.typeName = 'bytes';
-
-BytesType.prototype.random = function () {
-  return RANDOM.nextBuffer(RANDOM.nextInt(32));
-};
 
 /** Base "abstract" Avro union type. */
 function UnionType(schema, opts) {
@@ -1151,7 +1059,7 @@ function UnionType(schema, opts) {
 
   this._branchIndices = {};
   this.types.forEach(function (type, i) {
-    if (Type.isType(type, 'union')) {
+    if (utils.isType(type, 'union')) {
       throw new Error('unions cannot be directly nested');
     }
     var branch = type.branchName;
@@ -1217,7 +1125,7 @@ function UnwrappedUnionType(schema, opts) {
   this._dynamicBranches = null;
   this._bucketIndices = {};
   this.types.forEach(function (type, index) {
-    if (Type.isType(type, 'abstract', 'logical')) {
+    if (utils.isType(type, 'abstract', 'logical')) {
       if (!this._dynamicBranches) {
         this._dynamicBranches = [];
       }
@@ -1311,60 +1219,6 @@ UnwrappedUnionType.prototype._update = function (resolver, type, opts) {
   }
 };
 
-UnwrappedUnionType.prototype._copy = function (val, opts) {
-  var coerce = opts && opts.coerce | 0;
-  var wrap = opts && opts.wrap | 0;
-  var index;
-  if (wrap === 2) {
-    // We are parsing a default, so always use the first branch's type.
-    index = 0;
-  } else {
-    switch (coerce) {
-      case 1:
-        // Using the `coerceBuffers` option can cause corruption and erroneous
-        // failures with unwrapped unions (in rare cases when the union also
-        // contains a record which matches a buffer's JSON representation).
-        if (isJsonBuffer(val) && this._bucketIndices.buffer !== undefined) {
-          index = this._bucketIndices.buffer;
-        } else {
-          index = this._getIndex(val);
-        }
-        break;
-      case 2:
-        // Decoding from JSON, we must unwrap the value.
-        if (val === null) {
-          index = this._bucketIndices['null'];
-        } else if (typeof val === 'object') {
-          var keys = Object.keys(val);
-          if (keys.length === 1) {
-            index = this._branchIndices[keys[0]];
-            val = val[keys[0]];
-          }
-        }
-        break;
-      default:
-        index = this._getIndex(val);
-    }
-    if (index === undefined) {
-      throwInvalidError(val, this);
-    }
-  }
-  var type = this.types[index];
-  if (val === null || wrap === 3) {
-    return type._copy(val, opts);
-  } else {
-    switch (coerce) {
-      case 3:
-        // Encoding to JSON, we wrap the value.
-        var obj = {};
-        obj[type.branchName] = type._copy(val, opts);
-        return obj;
-      default:
-        return type._copy(val, opts);
-    }
-  }
-};
-
 UnwrappedUnionType.prototype.branchType = function (val) {
   var index = this._getIndex(val);
   return index === undefined ? undefined : this.types[index];
@@ -1389,11 +1243,6 @@ UnwrappedUnionType.prototype.compare = function (val1, val2, opts) {
 };
 
 UnwrappedUnionType.prototype.typeName = 'union:unwrapped';
-
-UnwrappedUnionType.prototype.random = function () {
-  var index = RANDOM.nextInt(this.types.length);
-  return this.types[index].random();
-};
 
 /**
  * Compatible union type.
@@ -1509,62 +1358,6 @@ WrappedUnionType.prototype._update = function (resolver, type, opts) {
   }
 };
 
-WrappedUnionType.prototype._copy = function (val, opts) {
-  var wrap = opts && opts.wrap | 0;
-  if (wrap === 2) {
-    var firstType = this.types[0];
-    // Promote into first type (used for schema defaults).
-    if (val === null && firstType.typeName === 'null') {
-      return null;
-    }
-    return new firstType._branchConstructor(firstType._copy(val, opts));
-  }
-  if (val === null && this._branchIndices['null'] !== undefined) {
-    return null;
-  }
-
-  var i, l, obj;
-  if (typeof val == 'object') {
-    var keys = Object.keys(val);
-    if (keys.length === 1) {
-      var name = keys[0];
-      i = this._branchIndices[name];
-      if (i === undefined && opts.qualifyNames) {
-        // We are a bit more flexible than in `_check` here since we have
-        // to deal with other serializers being less strict, so we fall
-        // back to looking up unqualified names.
-        var j, type;
-        for (j = 0, l = this.types.length; j < l; j++) {
-          type = this.types[j];
-          if (type.name && name === unqualify(type.name)) {
-            i = j;
-            break;
-          }
-        }
-      }
-      if (i !== undefined) {
-        obj = this.types[i]._copy(val[name], opts);
-      }
-    }
-  }
-  if (wrap === 1 && obj === undefined) {
-    // Try promoting into first match (convenience, slow).
-    i = 0;
-    l = this.types.length;
-    while (i < l && obj === undefined) {
-      try {
-        obj = this.types[i]._copy(val, opts);
-      } catch (err) {
-        i++;
-      }
-    }
-  }
-  if (obj !== undefined) {
-    return wrap === 3 ? obj : new this.types[i]._branchConstructor(obj);
-  }
-  throwInvalidError(val, this);
-};
-
 WrappedUnionType.prototype.branchType = function (val) {
   if (typeof val != 'object') {
     return undefined;
@@ -1595,16 +1388,6 @@ WrappedUnionType.prototype.compare = function (val1, val2, opts) {
 };
 
 WrappedUnionType.prototype.typeName = 'union:wrapped';
-
-WrappedUnionType.prototype.random = function () {
-  var index = RANDOM.nextInt(this.types.length);
-  var type = this.types[index];
-  var Branch = type._branchConstructor;
-  if (!Branch) {
-    return null;
-  }
-  return new Branch(type.random());
-};
 
 /**
  * Avro enum type.
@@ -1686,20 +1469,11 @@ EnumType.prototype._update = function (resolver, type) {
   }
 };
 
-EnumType.prototype._copy = function (val) {
-  this._check(val, undefined, throwInvalidError);
-  return val;
-};
-
 EnumType.prototype._deref = function (schema) {
   schema.symbols = this.symbols;
 };
 
 EnumType.prototype.typeName = 'enum';
-
-EnumType.prototype.random = function () {
-  return RANDOM.choice(this.symbols);
-};
 
 /** Avro fixed type. Represented simply as a `Buffer`. */
 function FixedType(schema, opts) {
@@ -1753,15 +1527,9 @@ FixedType.prototype._update = function (resolver, type) {
   }
 };
 
-FixedType.prototype._copy = BytesType.prototype._copy;
-
 FixedType.prototype._deref = function (schema) { schema.size = this.size; };
 
 FixedType.prototype.typeName = 'fixed';
-
-FixedType.prototype.random = function () {
-  return RANDOM.nextBuffer(this.size);
-};
 
 /** Avro map. Represented as vanilla objects. */
 function MapType(schema, opts) {
@@ -1867,21 +1635,6 @@ MapType.prototype._update = function (rsv, type, opts) {
   }
 };
 
-MapType.prototype._copy = function (val, opts) {
-  if (val && typeof val == 'object' && !Array.isArray(val)) {
-    var values = this.valuesType;
-    var keys = Object.keys(val);
-    var i, l, key;
-    var copy = {};
-    for (i = 0, l = keys.length; i < l; i++) {
-      key = keys[i];
-      copy[key] = values._copy(val[key], opts);
-    }
-    return copy;
-  }
-  throwInvalidError(val, this);
-};
-
 MapType.prototype.compare = function (val1, val2, opts) {
   if (!opts || !opts.allowMaps) {
     return this._match();
@@ -1904,15 +1657,6 @@ MapType.prototype.compare = function (val1, val2, opts) {
 };
 
 MapType.prototype.typeName = 'map';
-
-MapType.prototype.random = function () {
-  var val = {};
-  var i, l;
-  for (i = 0, l = RANDOM.nextInt(10); i < l; i++) {
-    val[RANDOM.nextString(RANDOM.nextInt(20))] = this.valuesType.random();
-  }
-  return val;
-};
 
 MapType.prototype._deref = function (schema, opts) {
   schema.values = this.valuesType._attrs(opts);
@@ -2033,18 +1777,6 @@ ArrayType.prototype._update = function (resolver, type, opts) {
   }
 };
 
-ArrayType.prototype._copy = function (val, opts) {
-  if (!Array.isArray(val)) {
-    throwInvalidError(val, this);
-  }
-  var items = new Array(val.length);
-  var i, l;
-  for (i = 0, l = val.length; i < l; i++) {
-    items[i] = this.itemsType._copy(val[i], opts);
-  }
-  return items;
-};
-
 ArrayType.prototype._deref = function (schema, opts) {
   schema.items = this.itemsType._attrs(opts);
 };
@@ -2062,15 +1794,6 @@ ArrayType.prototype.compare = function (val1, val2, opts) {
 };
 
 ArrayType.prototype.typeName = 'array';
-
-ArrayType.prototype.random = function () {
-  var arr = [];
-  var i, l;
-  for (i = 0, l = RANDOM.nextInt(10); i < l; i++) {
-    arr.push(this.itemsType.random());
-  }
-  return arr;
-};
 
 /**
  * Avro record.
@@ -2133,7 +1856,7 @@ util.inherits(RecordType, Type);
 
 RecordType.prototype._getConstructorName = function () {
   return this.name ?
-    unqualify(this.name) :
+    utils.unqualifyName(this.name) :
     this._isError ? 'Error$' : 'Record$';
 };
 
@@ -2151,7 +1874,7 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
     name = field.name;
     if (
       errorStackTraces && this._isError && name === 'stack' &&
-      Type.isType(field.type, 'string') && !hasDefault
+      utils.isType(field.type, 'string') && !hasDefault
     ) {
       // We keep track of whether we've encountered a valid stack field (in
       // particular, without a default) to populate a stack trace below.
@@ -2192,6 +1915,13 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
     util.inherits(Record, Error);
     Record.prototype.name = self.name;
   }
+
+  Record.fromBuffer = function () { return self.fromBuffer.apply(arguments); };
+  Record.fromJSON = function (obj) { return values.fromJSON(obj, self); };
+  Record.fromObject = function (obj, opts) {
+    return values.copy(obj, self, opts);
+  };
+
   // We don't add these directly on the prototype such that they are not
   // enumerable.
   Object.defineProperty(Record.prototype, 'clone', {
@@ -2206,19 +1936,15 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   Object.defineProperty(Record.prototype, 'toBuffer', {
     get: function () { return toBuffer; }
   });
-  Object.defineProperty(Record.prototype, 'toString', {
-    get: function () { return toString; }
-  });
   Object.defineProperty(Record.prototype, 'wrap', {
     get: function () { return wrap; }
   });
   return Record;
 
-  function clone(opts) { return self.clone(this, opts); }
+  function clone() { return self.clone(this); };
   function compare(val, opts) { return self.compare(this, val, opts); }
   function isValid(opts) { return self.isValid(this, opts); };
   function toBuffer() { return self.toBuffer(this); };
-  function toString() { return self.toString(this); };
   function wrap() { return self.wrap(this); };
 };
 
@@ -2467,29 +2193,6 @@ RecordType.prototype._checkFields = function (obj) {
   return true;
 };
 
-RecordType.prototype._copy = function (val, opts) {
-  // jshint -W058
-  var hook = opts && opts.fieldHook;
-  var values = [undefined];
-  var i, l, field, value;
-  for (i = 0, l = this.fields.length; i < l; i++) {
-    field = this.fields[i];
-    value = val[field.name];
-    if (value === undefined && field.hasOwnProperty('defaultValue')) {
-      value = field.defaultValue();
-    }
-    if ((opts && !opts.skip) || value !== undefined) {
-      value = field.type._copy(value, opts);
-    }
-    if (hook) {
-      value = hook(field, value, this);
-    }
-    values.push(value);
-  }
-  var Record = this.recordConstructor;
-  return new (Record.bind.apply(Record, values))();
-};
-
 RecordType.prototype._deref = function (schema, opts) {
   schema.fields = this.fields.map(function (field) {
     var fieldType = field.type;
@@ -2498,10 +2201,9 @@ RecordType.prototype._deref = function (schema, opts) {
       type: fieldType._attrs(opts)
     };
     if (opts.exportAttrs) {
-      var val = field.defaultValue();
-      if (val !== undefined) {
+      if (field._defaultValue !== undefined) {
         // We must both unwrap all unions and coerce buffers to strings.
-        fieldSchema['default'] = fieldType._copy(val, {coerce: 3, wrap: 3});
+        fieldSchema['default'] = field._defaultValue;
       }
       var fieldOrder = field.order;
       if (fieldOrder !== 'ascending') {
@@ -2538,14 +2240,6 @@ RecordType.prototype.compare = function (val1, val2, opts) {
   return 0;
 };
 
-RecordType.prototype.random = function () {
-  // jshint -W058
-  var fields = this.fields.map(function (f) { return f.type.random(); });
-  fields.unshift(undefined);
-  var Record = this.recordConstructor;
-  return new (Record.bind.apply(Record, fields))();
-};
-
 RecordType.prototype.field = function (name) {
   return this._fieldsByName[name];
 };
@@ -2574,7 +2268,7 @@ function LogicalType(schema, opts) {
   }
   // We create a separate branch constructor for logical types to keep them
   // monomorphic.
-  if (Type.isType(this.underlyingType, 'union')) {
+  if (utils.isType(this.underlyingType, 'union')) {
     this._branchConstructor = this.underlyingType._branchConstructor;
   } else {
     this._branchConstructor = this.underlyingType._createBranchConstructor();
@@ -2631,18 +2325,6 @@ LogicalType.prototype._check = function (any, flags, hook, path) {
   return this.underlyingType._check(val, flags, hook, path);
 };
 
-LogicalType.prototype._copy = function (any, opts) {
-  var type = this.underlyingType;
-  switch (opts && opts.coerce) {
-    case 3: // To string.
-      return type._copy(this._toValue(any), opts);
-    case 2: // From string.
-      return this._fromValue(type._copy(any, opts));
-    default: // Normal copy.
-      return this._fromValue(type._copy(this._toValue(any), opts));
-  }
-};
-
 LogicalType.prototype._update = function (resolver, type, opts) {
   var _fromValue = this._resolve(type, opts);
   if (_fromValue) {
@@ -2654,10 +2336,6 @@ LogicalType.prototype.compare = function (obj1, obj2, opts) {
   var val1 = this._toValue(obj1);
   var val2 = this._toValue(obj2);
   return this.underlyingType.compare(val1, val2, opts);
-};
-
-LogicalType.prototype.random = function () {
-  return this._fromValue(this.underlyingType.random());
 };
 
 LogicalType.prototype._deref = function (schema, opts) {
@@ -2744,19 +2422,6 @@ AbstractLongType.prototype._write = function (tap, val) {
   }
 };
 
-AbstractLongType.prototype._copy = function (val, opts) {
-  switch (opts && opts.coerce) {
-    case 3: // To string.
-      return this._toJSON(val);
-    case 2: // From string.
-      return this._fromJSON(val);
-    default: // Normal copy.
-      // Slow but guarantees most consistent results. Faster alternatives would
-      // require assumptions on the long class used (e.g. immutability).
-      return this._fromJSON(this._toJSON(val));
-  }
-};
-
 AbstractLongType.prototype._deref = function () { return 'long'; }
 
 AbstractLongType.prototype._update = function (resolver, type) {
@@ -2768,15 +2433,11 @@ AbstractLongType.prototype._update = function (resolver, type) {
   }
 };
 
-AbstractLongType.prototype.random = function () {
-  return this._fromJSON(LongType.prototype.random());
-};
-
 // Methods to be implemented by the user.
 AbstractLongType.prototype._fromBuffer = utils.abstractFunction;
 AbstractLongType.prototype._toBuffer = utils.abstractFunction;
 AbstractLongType.prototype._fromJSON = utils.abstractFunction;
-AbstractLongType.prototype._toJSON = utils.abstractFunction;
+AbstractLongType.prototype._tojSON = utils.abstractFunction;
 AbstractLongType.prototype._isValid = utils.abstractFunction;
 AbstractLongType.prototype.compare = utils.abstractFunction;
 
@@ -2805,24 +2466,24 @@ function Field(schema, opts) {
     }
   })(schema.order === undefined ? 'ascending' : schema.order);
 
-  var value = schema['default'];
+  this._defaultValue = schema['default'];
+  var value = this._defaultValue;
   if (value !== undefined) {
     // We need to convert defaults back to a valid format (unions are
     // disallowed in default definitions, only the first type of each union is
-    // allowed instead).
-    // http://apache-avro.679487.n3.nabble.com/field-union-default-in-Java-td1175327.html
+    // allowed instead). http://mtth.xyz/_yj86ehjssa6bta
     var type = this.type;
     try {
-      var val = type._copy(value, {coerce: 2, wrap: 2});
+      var val = values.fromDefaultJSON(value, type);
     } catch (err) {
-      throw new Error(f('bad default in schema %j: %s', schema, err))
+      throw new Error(f('bad default in field %s: %s', name, err))
     }
-    // The clone call above will throw an error if the default is invalid.
     if (isPrimitive(type.typeName) && type.typeName !== 'bytes') {
-      // These are immutable.
-      this.defaultValue = function () { return val; };
+      this.defaultValue = function () { return val; }; // These are immutable.
     } else {
-      this.defaultValue = function () { return type._copy(val); };
+      this.defaultValue = function () {
+        return values.fromDefaultJSON(value, type);
+      };
     }
   }
 
@@ -2843,8 +2504,9 @@ Object.defineProperty(Field.prototype, 'order', {
  *
  * @param readerType {Type} The type to convert to.
  */
-function Resolver(readerType) {
+function Resolver(writerType, readerType) {
   // Add all fields here so that all resolvers share the same hidden class.
+  this._writerType = writerType;
   this._readerType = readerType;
   this._read = null;
   this.itemsType = null;
@@ -2880,23 +2542,13 @@ function readValue(type, tap, resolver, lazy) {
 }
 
 /**
- * Remove namespace from a name.
- *
- * @param name {String} Full or short name.
- */
-function unqualify(name) {
-  var parts = name.split('.');
-  return parts[parts.length - 1];
-}
-
-/**
  * Verify and return fully qualified name.
  *
  * @param name {String} Full or short name. It can be prefixed with a dot to
  * force global namespace.
  * @param namespace {String} Optional namespace.
  */
-function qualify(name, namespace) {
+function qualifyName(name, namespace) {
   if (~name.indexOf('.')) {
     name = name.replace(/^\./, ''); // Allow absolute referencing.
   } else if (namespace) {
@@ -2907,7 +2559,7 @@ function qualify(name, namespace) {
       throw new Error(f('invalid name: %j', name));
     }
   });
-  var tail = unqualify(name);
+  var tail = utils.unqualifyName(name);
   // Primitives are always in the global namespace.
   return isPrimitive(tail) ? tail : name;
 }
@@ -3082,7 +2734,7 @@ function isAmbiguous(types) {
   var i, l, bucket, type;
   for (i = 0, l = types.length; i < l; i++) {
     type = types[i];
-    if (!Type.isType(type, 'logical')) {
+    if (!utils.isType(type, 'logical')) {
       bucket = getTypeBucket(type);
       if (buckets[bucket]) {
         return true;
@@ -3292,5 +2944,5 @@ module.exports = {
   getValueBucket: getValueBucket,
   isPrimitive: isPrimitive,
   isValidName: isValidName,
-  qualify: qualify
+  qualifyName: qualifyName
 };

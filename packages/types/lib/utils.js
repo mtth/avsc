@@ -161,6 +161,48 @@ function jsonEnd(str, pos) {
   return -1;
 }
 
+function isType(/* any, [prefix] ... */) {
+  var l = arguments.length;
+  if (!l) {
+    return false;
+  }
+
+  var any = arguments[0];
+  if (
+    !any ||
+    typeof any._update != 'function' ||
+    typeof any.fingerprint != 'function'
+  ) {
+    // Not fool-proof, but most likely good enough.
+    return false;
+  }
+
+  if (l === 1) {
+    // No type names specified, we are done.
+    return true;
+  }
+
+  // We check if at least one of the prefixes matches.
+  var typeName = any.typeName;
+  var i;
+  for (i = 1; i < l; i++) {
+    if (typeName.indexOf(arguments[i]) === 0) {
+      return true;
+    }
+  }
+  return false;
+};
+
+/**
+ * Remove namespace from a name.
+ *
+ * @param name {String} Full or short name.
+ */
+function unqualifyName(name) {
+  var parts = name.split('.');
+  return parts[parts.length - 1];
+}
+
 /** "Abstract" function to help with "subclassing". */
 function abstractFunction() { throw new Error('abstract'); }
 
@@ -185,84 +227,6 @@ BufferPool.prototype.alloc = function (len) {
     this._pos = 0;
   }
   return this._slab.slice(this._pos, this._pos += len);
-};
-
-/**
- * Generator of random things.
- *
- * Inspired by: http://stackoverflow.com/a/424445/1062617
- */
-function Lcg(seed) {
-  var a = 1103515245;
-  var c = 12345;
-  var m = Math.pow(2, 31);
-  var state = Math.floor(seed || Math.random() * (m - 1));
-
-  this._max = m;
-  this._nextInt = function () { return state = (a * state + c) % m; };
-}
-
-Lcg.prototype.nextBoolean = function () {
-  // jshint -W018
-  return !!(this._nextInt() % 2);
-};
-
-Lcg.prototype.nextInt = function (start, end) {
-  if (end === undefined) {
-    end = start;
-    start = 0;
-  }
-  end = end === undefined ? this._max : end;
-  return start + Math.floor(this.nextFloat() * (end - start));
-};
-
-Lcg.prototype.nextFloat = function (start, end) {
-  if (end === undefined) {
-    end = start;
-    start = 0;
-  }
-  end = end === undefined ? 1 : end;
-  return start + (end - start) * this._nextInt() / this._max;
-};
-
-Lcg.prototype.nextString = function(len, flags) {
-  len |= 0;
-  flags = flags || 'aA';
-  var mask = '';
-  if (flags.indexOf('a') > -1) {
-    mask += 'abcdefghijklmnopqrstuvwxyz';
-  }
-  if (flags.indexOf('A') > -1) {
-    mask += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  }
-  if (flags.indexOf('#') > -1) {
-    mask += '0123456789';
-  }
-  if (flags.indexOf('!') > -1) {
-    mask += '~`!@#$%^&*()_+-={}[]:";\'<>?,./|\\';
-  }
-  var result = [];
-  for (var i = 0; i < len; i++) {
-    result.push(this.choice(mask));
-  }
-  return result.join('');
-};
-
-Lcg.prototype.nextBuffer = function (len) {
-  var arr = [];
-  var i;
-  for (i = 0; i < len; i++) {
-    arr.push(this.nextInt(256));
-  }
-  return bufferFrom(arr);
-};
-
-Lcg.prototype.choice = function (arr) {
-  var len = arr.length;
-  if (!len) {
-    throw new Error('choosing from empty array');
-  }
-  return arr[this.nextInt(len)];
 };
 
 /**
@@ -710,14 +674,15 @@ function invert(buf, len) {
 
 
 module.exports = {
+  Tap: Tap,
   abstractFunction: abstractFunction,
   bufferFrom: bufferFrom,
   capitalize: capitalize,
-  getHash: getHash,
   compare: compare,
+  getHash: getHash,
+  isType: isType,
+  hasDuplicates: hasDuplicates,
   newBuffer: newBuffer,
   toMap: toMap,
-  hasDuplicates: hasDuplicates,
-  Lcg: Lcg,
-  Tap: Tap
+  unqualifyName: unqualifyName
 };
