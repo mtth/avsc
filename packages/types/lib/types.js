@@ -604,10 +604,6 @@ Type.prototype.toJSON = function (val) {
 };
 
 Type.prototype.toString = function (val) {
-  if (val === undefined) {
-    // Consistent behavior with standard `toString` expectations.
-    return JSON.stringify(this.schema({noDeref: true}));
-  }
   return JSON.stringify(this.schema({noDeref: true}));
 };
 
@@ -1940,6 +1936,9 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   Object.defineProperty(Record.prototype, 'toBuffer', {
     get: function () { return toBuffer; }
   });
+  Object.defineProperty(Record.prototype, 'toJSON', {
+    get: function () { return toJSON; }
+  });
   Object.defineProperty(Record.prototype, 'wrap', {
     get: function () { return wrap; }
   });
@@ -1949,6 +1948,7 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   function compare(val, opts) { return self.compare(this, val, opts); }
   function isValid(opts) { return self.isValid(this, opts); };
   function toBuffer() { return self.toBuffer(this); };
+  function toJSON() { return self.toJSON(this); };
   function wrap() { return self.wrap(this); };
 };
 

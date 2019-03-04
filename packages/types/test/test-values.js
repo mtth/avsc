@@ -90,4 +90,26 @@ suite('values', function () {
       assert.deepEqual(fromDefaultJSON(null, t), null);
     });
   });
+
+  suite('toJSON', function () {
+    var toJSON = values.toJSON;
+
+    test('int', function () {
+      var t = Type.forSchema('int');
+      assert.equal(toJSON(123, t), 123);
+    });
+
+    test('record', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'age', type: ['null', 'int']}
+        ]
+      });
+      var foo = {name: 'bar', age: 1234};
+      assert.deepStrictEqual(toJSON(foo, t), {name: 'bar', age: {int: 1234}});
+    });
+  });
 });

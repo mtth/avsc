@@ -107,32 +107,38 @@ Cloner.prototype._onLogical = function (any, type, path) {
   var mode = this._mode;
   var builder = new Builder();
   var desc;
-  if (mode === 'TO_JSON' || mode === 'COPY') {
-    try {
-      builder.value = type._toValue(any);
-      if (builder.value === undefined) {
-        builder.addError('logical type encoding failed', any, type, path);
+  switch (mode) {
+    case 'COPY':
+    case 'TO_JSON':
+      try {
+        builder.value = type._toValue(any);
+        if (builder.value === undefined) {
+          builder.addError('logical type encoding failed', any, type, path);
+          return builder;
+        }
+      } catch (err) {
+        desc = f('logical type encoding failed (%s)', err.message);
+        builder.addError(desc, any, type, path);
         return builder;
       }
-    } catch (err) {
-      desc = f('logical type encoding failed (%s)', err.message);
-      builder.addError(desc, any, type, path);
-      return builder;
-    }
-  } else {
-    builder.value = any;
+      break;
+    default:
+      builder.value = any;
   }
   builder = this.clone(builder.value, type.underlyingType, path);
   if (!builder.isOk()) {
     return builder;
   }
-  if (mode === 'FROM_JSON' || mode === 'FROM_DEFAULT_JSON') {
-    try {
-      builder.value = type._fromValue(builder.value);
-    } catch (err) {
-      desc = f('logical type decoding failed (%s)', err.message);
-      builder.addError(desc, any, type, path);
-    }
+  switch (mode) {
+    case 'COPY':
+    case 'FROM_JSON':
+    case 'FROM_DEFAULT_JSON':
+      try {
+        builder.value = type._fromValue(builder.value);
+      } catch (err) {
+        desc = f('logical type decoding failed (%s)', err.message);
+        builder.addError(desc, any, type, path);
+      }
   }
   return builder;
 }
@@ -215,8 +221,15 @@ Cloner.prototype._onRecord = function (any, type, path) {
     builder.addError(desc, any, type, path);
   }
   if (builder.isOk()) {
-    var Record = type.recordConstructor;
-    builder.value = new (Record.bind.apply(Record, args))();
+    if (this._mode === 'TO_JSON') {
+      builder.value = {};
+      for (i = 0, l = type.fields.length; i < l; i++) {
+        builder.value[type.fields[i].name] = args[i + 1];
+      }
+    } else {
+      var Record = type.recordConstructor;
+      builder.value = new (Record.bind.apply(Record, args))();
+    }
   }
   return builder;
 }
@@ -328,7 +341,10 @@ Cloner.prototype._onUnion = function (any, unionType, path) {
   var branchBuilder = this.clone(any[key], branchType, branchPath);
   builder.copyErrorsFrom(branchBuilder);
   if (branchBuilder.isOk()) {
-    if (mode !== 'TO_JSON' && !isWrapped) {
+    if (mode === 'TO_JSON') {
+      builder.value = {};
+      builder.value[branchType.branchName] = branchBuilder.value;
+    } else if (!isWrapped) {
       builder.value = branchBuilder.value;
     } else {
       builder.value = branchType.wrap(branchBuilder.value);

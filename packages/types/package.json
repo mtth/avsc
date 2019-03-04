@@ -1,6 +1,6 @@
 {
   "name": "@avro/types",
-  "version": "0.3.1",
+  "version": "0.3.3",
   "description": "Avro serialization",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
