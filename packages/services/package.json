@@ -1,6 +1,6 @@
 {
   "name": "@avro/services",
-  "version": "0.9.6",
+  "version": "0.9.7",
   "description": "Avro services",
   "homepage": "https://github.com/mtth/avsc",
   "files": [
@@ -25,8 +25,10 @@
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
   },
+  "peerDependencies": {
+    "@avro/types": "^0.3.4"
+  },
   "dependencies": {
-    "@avro/types": "^0.3.3",
     "backoff": "^2.5.0",
     "debug": "^4.1.1",
     "luxon": "^1.11.4"
@@ -35,6 +37,7 @@
     "bluebird": "^3.5.3"
   },
   "devDependencies": {
+    "@avro/types": "^0.3.4",
     "istanbul": "^0.4.5",
     "mocha": "^6.0.2",
     "sinon": "^7.2.7"
