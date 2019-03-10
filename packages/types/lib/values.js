@@ -39,7 +39,7 @@ Builder.prototype.build = function (type) {
   if (!this.errors.length) {
     return this.value;
   }
-  var details = []
+  var details = [];
   var i, l;
   for (i = 0, l = this.errors.length; i < l; i++) {
     details.push(f('\t%s', this.errors[i].message));
@@ -69,12 +69,12 @@ Builder.prototype.copyErrorsFrom = function (builder) {
 
 function typeInfo(type) {
   if (utils.isType(type, 'union')) {
-    var names = type.types.map((type) => type.branchName).join(', ');
-    return `a type among ${names}`;
+    var names = type.types.map(function (type) { return type.branchName; });
+    return f('a type among %s', names.join(', '));
   } else if (utils.isType(type, 'logical')) {
-    return `type ${type.typeName} (${type.branchName})`;
+    return f('type %s (%s)', type.typeName, type.branchName);
   } else {
-    return `type ${type.branchName}`;
+    return f('type %s', type.branchName);
   }
 }
 
@@ -101,7 +101,7 @@ Cloner.prototype.clone = function (any, type, path) {
         this._onLogical(any, type, path) :
         this._onPrimitive(any, type, path);
   }
-}
+};
 
 Cloner.prototype._onLogical = function (any, type, path) {
   var mode = this._mode;
@@ -141,7 +141,7 @@ Cloner.prototype._onLogical = function (any, type, path) {
       }
   }
   return builder;
-}
+};
 
 Cloner.prototype._onPrimitive = function (any, type, path) {
   var builder = new Builder();
@@ -167,7 +167,7 @@ Cloner.prototype._onPrimitive = function (any, type, path) {
     builder.value = builder.value.toString('binary');
   }
   return builder;
-}
+};
 
 Cloner.prototype._onRecord = function (any, type, path) {
   var builder = new Builder();
@@ -232,7 +232,7 @@ Cloner.prototype._onRecord = function (any, type, path) {
     }
   }
   return builder;
-}
+};
 
 Cloner.prototype._onArray = function (any, type, path) {
   var builder = new Builder();
@@ -256,7 +256,7 @@ Cloner.prototype._onArray = function (any, type, path) {
     builder.value = val;
   }
   return builder;
-}
+};
 
 Cloner.prototype._onMap = function (any, type, path) {
   var builder = new Builder();
@@ -282,15 +282,16 @@ Cloner.prototype._onMap = function (any, type, path) {
     builder.value = val;
   }
   return builder;
-}
+};
 
 Cloner.prototype._onUnion = function (any, unionType, path) {
   var mode = this._mode;
   var isWrapped = unionType.typeName === 'union:wrapped';
   var builder = new Builder();
   if (any === null) {
-    for (var branchType of unionType.types) {
-      if (branchType.typeName === 'null') {
+    var i, l;
+    for (i = 0, l = unionType.types.length; i < l; i++) {
+      if (unionType.types[i].typeName === 'null') {
         builder.value = null;
         return builder;
       }
@@ -324,15 +325,16 @@ Cloner.prototype._onUnion = function (any, unionType, path) {
     return builder;
   }
   var keys = Object.keys(any);
+  var reason;
   if (keys.length !== 1) {
-    var reason = f('has %s keys (%s)', keys.length, keys);
+    reason = f('has %s keys (%s)', keys.length, keys);
     builder.addError(reason, any, unionType, path);
     return builder;
   }
   var key = keys[0];
   branchType = unionType.type(key);
   if (!branchType) {
-    var reason = f('contains an unknown branch (%s)', key);
+    reason = f('contains an unknown branch (%s)', key);
     builder.addError(reason, any, unionType, path);
     return builder;
   }
@@ -351,11 +353,13 @@ Cloner.prototype._onUnion = function (any, unionType, path) {
     }
   }
   return builder;
-}
+};
 
 function joinPath(parts) {
-  const strs = [];
-  for (const part of parts) {
+  var strs = [];
+  var i, l, part;
+  for (i = 0, l = parts.length; i < l; i++) {
+    part = parts[i];
     if (isNaN(part)) {
       strs.push('.' + part);
     } else {

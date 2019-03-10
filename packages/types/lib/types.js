@@ -603,8 +603,8 @@ Type.prototype.toJSON = function (val) {
   return values.toJSON(val, this, {allowUndeclaredFields: true});
 };
 
-Type.prototype.toString = function (val) {
-  return JSON.stringify(this.schema({noDeref: true}));
+Type.prototype.toString = function () {
+  return f('<%s>', getClassName(this.typeName));
 };
 
 Type.prototype.clone = function (val) {
@@ -664,13 +664,15 @@ Type.prototype._createBranchConstructor = function () {
   var attr = ~name.indexOf('.') ? 'this[\'' + name + '\']' : 'this.' + name;
   var body = 'return function Branch$(val) { ' + attr + ' = val; };';
   var Branch = (new Function(body))();
-  var self = this;
-  Branch.type = self;
-  Branch.prototype.unwrap = new Function('return ' + attr + ';');
-  var switchBody = 'var fn = fns[\'' + name + '\'];\n';
-  switchBody += 'if (fn) { return fn(' + attr + '); }\n';
-  switchBody += 'if (defaultFn) { return defaultFn(\'' + name + '\'); }';
-  Branch.prototype.switch = new Function('fns,defaultFn', switchBody);
+  Branch.type = this;
+  var toString = new Function('return \'<Branch$ ' + name + '>\'');
+  Object.defineProperty(Branch.prototype, 'toString', {
+    get: function () { return toString; }
+  });
+  var unwrap = new Function('return ' + attr + ';');
+  Object.defineProperty(Branch.prototype, 'unwrap', {
+    get: function () { return unwrap; }
+  });
   return Branch;
 };
 
@@ -1861,7 +1863,7 @@ RecordType.prototype._getConstructorName = function () {
 };
 
 RecordType.prototype._createConstructor = function (errorStackTraces) {
-  // jshint -W054
+  // jshint -W040,-W054
   var outerArgs = [];
   var innerArgs = [];
   var ds = []; // Defaults.
@@ -1939,17 +1941,35 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   Object.defineProperty(Record.prototype, 'toJSON', {
     get: function () { return toJSON; }
   });
+  Object.defineProperty(Record.prototype, 'toString', {
+    get: function () { return toString; }
+  });
   Object.defineProperty(Record.prototype, 'wrap', {
     get: function () { return wrap; }
   });
   return Record;
 
-  function clone() { return self.clone(this); };
+  function clone() { return self.clone(this); }
   function compare(val, opts) { return self.compare(this, val, opts); }
-  function isValid(opts) { return self.isValid(this, opts); };
-  function toBuffer() { return self.toBuffer(this); };
-  function toJSON() { return self.toJSON(this); };
-  function wrap() { return self.wrap(this); };
+  function isValid(opts) { return self.isValid(this, opts); }
+  function toBuffer() { return self.toBuffer(this); }
+  function toJSON() { return self.toJSON(this); }
+  function toString() {
+    var str;
+    if (self._isError) {
+      str = self.constructorName;
+      if (this.code !== undefined) {
+        str += ' [' + this.code + ']';
+      }
+      if (this.message !== undefined) {
+        str += ': ' + this.message;
+      }
+    } else {
+      str = '<' + this._getConstructorName() + '>';
+    }
+    return str;
+  }
+  function wrap() { return self.wrap(this); }
 };
 
 RecordType.prototype._createChecker = function () {
@@ -2426,7 +2446,7 @@ AbstractLongType.prototype._write = function (tap, val) {
   }
 };
 
-AbstractLongType.prototype._deref = function () { return 'long'; }
+AbstractLongType.prototype._deref = function () { return 'long'; };
 
 AbstractLongType.prototype._update = function (resolver, type) {
   var self = this;
@@ -2480,7 +2500,7 @@ function Field(schema, opts) {
     try {
       var val = values.fromDefaultJSON(value, type);
     } catch (err) {
-      throw new Error(f('bad default in field %s: %s', name, err))
+      throw new Error(f('bad default in field %s: %s', name, err));
     }
     if (isPrimitive(type.typeName) && type.typeName !== 'bytes') {
       this.defaultValue = function () { return val; }; // These are immutable.
@@ -2650,13 +2670,6 @@ function readArraySize(tap) {
  */
 function isSafeLong(n) {
   return n >= -9007199254740990 && n <= 9007199254740990;
-}
-
-/**
- * Check whether an object is the JSON representation of a buffer.
- */
-function isJsonBuffer(obj) {
-  return obj && obj.type === 'Buffer' && Array.isArray(obj.data);
 }
 
 /**
