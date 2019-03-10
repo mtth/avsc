@@ -4,7 +4,6 @@
 
 const {Client, Server} = require('./call');
 const {Trace} = require('./trace');
-const {SystemError} = require('./utils');
 
 const Promise = require('bluebird');
 
@@ -33,6 +32,10 @@ class PromisifiedTrace extends Trace {
 /** A client which supports both callback and promise APIs. */
 class PromisifiedClient extends Client {
   call(trace, msgName, req, mws, cb) {
+    if (!cb && typeof mws == 'function') {
+      cb = mws;
+      mws = [];
+    }
     if (cb) {
       super.call(trace, msgName, req, mws, cb);
       return;

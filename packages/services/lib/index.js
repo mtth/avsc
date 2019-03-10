@@ -4,7 +4,7 @@
 
 const {Channel, RoutingChannel, SelfRefreshingChannel} = require('./channel');
 const {NettyChannel, NettyGateway} = require('./codecs/netty');
-const {Message, Service} = require('./service');
+const {Service} = require('./service');
 const {SystemError} = require('./utils');
 
 let Client, Server, Trace;

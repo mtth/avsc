@@ -8,7 +8,6 @@ const {Trace} = require('./trace');
 const utils = require('./utils');
 
 const debug = require('debug');
-const {DateTime} = require('luxon');
 
 const {SystemError} = utils;
 const d = debug('@avro/services:call');
@@ -75,6 +74,10 @@ class Client {
     const msg = svc.messages.get(msgName);
     if (!msg) {
       throw new Error(`no such message: ${msgName}`);
+    }
+    if (!cb && typeof mws == 'function') {
+      cb = mws;
+      mws = [];
     }
     if (typeof cb != 'function') {
       throw new Error(`not a function: ${cb}`);
@@ -217,7 +220,7 @@ function messageEmitter(msg) {
 }
 
 class Server {
-  constructor(svc, chanConsumer) {
+  constructor(svc) {
     this.service = svc;
     this._middlewares = [];
     this._receivers = new Map();

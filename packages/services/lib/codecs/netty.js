@@ -8,7 +8,6 @@ const {Trace} = require('../trace');
 const utils = require('../utils');
 
 const debug = require('debug');
-const {EventEmitter} = require('events');
 const stream = require('stream');
 
 const {SystemError} = utils;
@@ -59,7 +58,7 @@ class NettyChannel extends Channel {
       d('Channel writable error: %s', err);
       this.close();
       this.emit('error', err);
-    }
+    };
     this._onWritableFinish = () => {
       d('Channel writable finished.');
       this.close();
@@ -75,7 +74,7 @@ class NettyChannel extends Channel {
       .on('finish', this._onWritableFinish);
 
     if (this._readable !== this._writable) {
-      this._writable.on('error', onWritableError);
+      this._writable.on('error', this._onWritableError);
     }
 
     this._readable

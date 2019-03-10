@@ -5,7 +5,6 @@
 const {SystemError, randomId} = require('./utils');
 
 const debug = require('debug');
-const {EventEmitter} = require('events');
 const {DateTime, Duration} = require('luxon');
 
 const d = debug('@avro/services:trace');
@@ -168,7 +167,7 @@ class Trace {
         if (opts && opts.expire) {
           self.expire(err);
         }
-        fn.call(this, err, ...args);
+        fn.call(this, err, ...args); // jshint ignore:line
       } else if (err) {
         d('Orphaned error (trace headers: %j).', self.headers, err);
       }

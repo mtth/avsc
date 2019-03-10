@@ -2,13 +2,11 @@
 
 'use strict';
 
-const {Trace} = require('./trace');
 const {SystemError, randomId} = require('./utils');
 
 const backoff = require('backoff');
 const debug = require('debug');
 const {EventEmitter} = require('events');
-const {DateTime, Duration} = require('luxon');
 
 const d = debug('@avro/services:channel');
 
