@@ -34,8 +34,8 @@ class PromisifiedClient extends Client {
   call(trace, msgName, req, mws, cb) {
     if (!cb && typeof mws == 'function') {
       cb = mws;
-      mws = [];
     }
+    mws = mws || [];
     if (cb) {
       super.call(trace, msgName, req, mws, cb);
       return;
