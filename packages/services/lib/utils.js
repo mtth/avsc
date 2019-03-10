@@ -24,6 +24,10 @@ class SystemError extends Error {
     return this.code === 'ERR_APPLICATION' && cause ? cause.code : '';
   }
 
+  wrap() {
+    return stringType.wrap(this);
+  }
+
   get _isSystemError() {
     return true;
   }

@@ -158,7 +158,7 @@ class Client {
     );
 
     function whenExpired(err) {
-      cb.call(cc, {string: SystemError.orCode('ERR_TRACE_EXPIRED', err)});
+      cb.call(cc, SystemError.orCode('ERR_TRACE_EXPIRED', err).wrap());
     }
 
     function onResponse(err) {
@@ -166,7 +166,7 @@ class Client {
         return;
       }
       if (err) {
-        wres.error = {string: SystemError.orCode('ERR_APPLICATION', err)};
+        wres.error = SystemError.orCode('ERR_APPLICATION', err).wrap();
       }
       cb.call(cc, wres.error, wres.response);
     }
