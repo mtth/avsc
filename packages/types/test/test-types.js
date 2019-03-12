@@ -15,9 +15,7 @@ var LogicalType = types.constructors.LogicalType;
 
 
 suite('types', function () {
-
   suite('BooleanType', function () {
-
     var data = [
       {
         valid: [true, false],
@@ -41,11 +39,9 @@ suite('types', function () {
       assert.strictEqual(t.name, undefined);
       assert.equal(t.branchName, 'boolean');
     });
-
   });
 
   suite('IntType', function () {
-
     var data = [
       {
         valid: [1, -3, 12314, 0, 1e9],
@@ -115,11 +111,9 @@ suite('types', function () {
     test('resolve invalid', function () {
       assert.throws(function () { getResolver('int', 'long'); });
     });
-
   });
 
   suite('LongType', function () {
-
     var data = [
       {
         valid: [1, -3, 12314, 9007199254740990, 900719925474090],
@@ -152,11 +146,9 @@ suite('types', function () {
     test('using missing methods', function () {
       assert.throws(function () { constructors.LongType.__with(); });
     });
-
   });
 
   suite('StringType', function () {
-
     var data = [
       {
         valid: [
@@ -211,11 +203,9 @@ suite('types', function () {
       assert(pos >= 0);
       assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
     });
-
   });
 
   suite('NullType', function () {
-
     var data = [
       {
         schema: 'null',
@@ -230,11 +220,9 @@ suite('types', function () {
       var t = Type.forSchema('null');
       assert.strictEqual(t.wrap(null), null);
     });
-
   });
 
   suite('FloatType', function () {
-
     var data = [
       {
         valid: [1, -3, 123e7],
@@ -270,11 +258,9 @@ suite('types', function () {
       f = t.clone(d);
       assert(t.isValid(f));
     });
-
   });
 
   suite('DoubleType', function () {
-
     var data = [
       {
         valid: [1, -3.4, 12314e31, 5e37],
@@ -298,11 +284,9 @@ suite('types', function () {
       var b3 = t.toBuffer(175);
       assert.equal(t.compareBuffers(b1, b3), -1);
     });
-
   });
 
   suite('BytesType', function () {
-
     var data = [
       {
         valid: [utils.newBuffer(1), utils.bufferFrom('abc')],
@@ -345,11 +329,9 @@ suite('types', function () {
       var b3 = t.toBuffer(utils.bufferFrom([1]));
       assert.equal(t.compareBuffers(b3, b1), 1);
     });
-
   });
 
   suite('UnwrappedUnionType', function () {
-
     var data = [
       {
         name: 'null & string',
@@ -541,7 +523,6 @@ suite('types', function () {
   });
 
   suite('WrappedUnionType', function () {
-
     var data = [
       {
         name: 'null & string',
@@ -761,7 +742,6 @@ suite('types', function () {
   });
 
   suite('EnumType', function () {
-
     var data = [
       {
         name: 'single symbol',
@@ -904,11 +884,9 @@ suite('types', function () {
       assert.equal(t.compare('b', 'a'), -1);
       assert.equal(t.compare('a', 'a'), 0);
     });
-
   });
 
   suite('FixedType', function () {
-
     var data = [
       {
         name: 'size 1',
@@ -991,11 +969,9 @@ suite('types', function () {
       var b2 = utils.bufferFrom([2, 2]);
       assert.equal(t.compareBuffers(b1, b2), -1);
     });
-
   });
 
   suite('MapType', function () {
-
     var data = [
       {
         name: 'int',
@@ -1169,7 +1145,6 @@ suite('types', function () {
   });
 
   suite('ArrayType', function () {
-
     var data = [
       {
         name: 'int',
@@ -1334,11 +1309,9 @@ suite('types', function () {
         ['hi', 'hey', 'hello']
       );
     });
-
   });
 
   suite('RecordType', function () {
-
     var data = [
       {
         name: 'union field null and string with default',
@@ -2236,11 +2209,9 @@ suite('types', function () {
       }, {namespace: 'bar'});
       assert.equal(t.field('id').type.name, 'Bar');
     });
-
   });
 
   suite('AbstractLongType', function () {
-
     var fastLongType = new constructors.LongType();
 
     suite('unpacked', function () {
@@ -2424,7 +2395,6 @@ suite('types', function () {
   });
 
   suite('LogicalType', function () {
-
     function DateType(schema, opts) {
       LogicalType.call(this, schema, opts);
       if (!Type.isType(this.underlyingType, 'long', 'string')) {
@@ -2845,11 +2815,9 @@ suite('types', function () {
       });
 
     });
-
   });
 
   suite('Type.forSchema', function  () {
-
     test('null type', function () {
       assert.throws(function () { Type.forSchema(null); });
     });
@@ -3144,11 +3112,9 @@ suite('types', function () {
         Type.forSchema('string', {wrapUnions: 123});
       }, /invalid wrap unions option/);
     });
-
   });
 
   suite('resolve', function () {
-
     test('non type', function () {
       var t = Type.forSchema({type: 'map', values: 'int'});
       var obj = {type: 'map', values: 'int'};
@@ -3204,10 +3170,32 @@ suite('types', function () {
       assert.doesNotThrow(function () { t3.createResolver(t1); });
     });
 
+    test('record field underlying type to logical type', function () {
+      function DateType(schema, opts) { LogicalType.call(this, schema, opts); }
+      util.inherits(DateType, LogicalType);
+      DateType.prototype._fromValue = function (val) { return new Date(val); };
+      DateType.prototype._toValue = function (any) { return +any; };
+      DateType.prototype._resolve = function (type) {
+        var self = this;
+        if (type instanceof DateType || utils.isType(type, 'long')) {
+          return function (val) { return self._fromValue(val); };
+        }
+      };
+      var schema = {
+        name: 'Foo',
+        type: 'record',
+        fields: [
+          {name: 'createdAt', type: {type: 'long', logicalType: 'date'}}
+        ]
+      };
+      var t1 = Type.forSchema(schema, {logicalTypes: {date: DateType}});
+      var t2 = Type.forSchema(schema);
+      assert.doesNotThrow(function () { t1.createResolver(t2); });
+      assert.doesNotThrow(function () { t2.createResolver(t1); });
+    });
   });
 
   suite('type references', function () {
-
     test('null', function () {
       assert.throws(function () { Type.forSchema(null); }, /did you mean/);
     });
@@ -3334,11 +3322,9 @@ suite('types', function () {
         '[{"type":"enum","symbols":["A"]},"int",{"type":"record","fields":[{"name":"foo","type":"string"}]}]'
       );
     });
-
   });
 
   suite('decode', function () {
-
     test('long valid', function () {
       var t = Type.forSchema('long');
       var buf = utils.bufferFrom([0, 128, 2, 0]);
@@ -3352,11 +3338,9 @@ suite('types', function () {
       var res = t.decode(buf, 0);
       assert.deepEqual(res, {value: undefined, offset: -1});
     });
-
   });
 
   suite('encode', function () {
-
     test('int valid', function () {
       var t = Type.forSchema('int');
       var buf = utils.newBuffer(2);
@@ -3384,7 +3368,6 @@ suite('types', function () {
       var buf = utils.newBuffer(2);
       assert.throws(function () { t.encode('hi', buf, -1); });
     });
-
   });
 
   test('equals', function () {
@@ -3428,7 +3411,6 @@ suite('types', function () {
   });
 
   suite('forTypes', function () {
-
     var combine = Type.forTypes;
 
     test('empty', function () {
@@ -3648,11 +3630,9 @@ suite('types', function () {
         ['null', 'int', 'long', 'string']
       );
     });
-
   });
 
   suite('forValue', function () {
-
     var infer = Type.forValue;
 
     test('numbers', function () {
@@ -3712,13 +3692,10 @@ suite('types', function () {
         }
       }
     });
-
   });
-
 });
 
 function testType(Type, data, invalidSchemas) {
-
   data.forEach(function (elem) {
     test('roundtrip', function () {
       var type = new Type(elem.schema);
@@ -3761,7 +3738,6 @@ function testType(Type, data, invalidSchemas) {
       });
     });
   }
-
 }
 
 function getResolver(reader, writer) {

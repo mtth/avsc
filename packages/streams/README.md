@@ -1,0 +1,3 @@
+# Avro streams
+
+Container streams.

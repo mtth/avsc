@@ -53,7 +53,7 @@ Builder.prototype.build = function (type) {
 
 Builder.prototype.addError = function (desc, val, type, path) {
   var info = typeInfo(type);
-  var msg = f('$%s has %s but %s: %j', joinPath(path), info, desc, val);
+  var msg = f('$%s has %s but %s', joinPath(path), info, desc);
   var err = new Error(msg);
   err.value = val;
   err.expectedType = type;
