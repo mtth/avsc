@@ -1957,15 +1957,15 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   function toString() {
     var str;
     if (self._isError) {
-      str = self.constructorName;
+      str = self._getConstructorName();
       if (this.code !== undefined) {
         str += ' [' + this.code + ']';
       }
-      if (this.message !== undefined) {
+      if (this.message) {
         str += ': ' + this.message;
       }
     } else {
-      str = '<' + this._getConstructorName() + '>';
+      str = '<' + self._getConstructorName() + '>';
     }
     return str;
   }
