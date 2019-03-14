@@ -296,7 +296,6 @@ class NettyGateway {
             const packet = NettyPacket.forSystemError(err, headers);
             const hres = hreq ? {match: 'NONE'} : null;
             encoder.write({handshake: hres, id, packet});
-            close();
             return;
           }
           const serverSvc = pres.service;
