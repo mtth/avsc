@@ -13,6 +13,18 @@ suite('utils', function () {
     assert.equal(utils.capitalize('aBc'), 'ABc');
   });
 
+  test('jsonEquals', function () {
+    var jsonEquals = utils.jsonEquals;
+    assert(jsonEquals({}, {}));
+    assert(jsonEquals({a: 1}, {a: 1}));
+    assert(jsonEquals(null, null));
+    assert(!jsonEquals({a: 2}, null));
+    assert(!jsonEquals({a: 2}, [{a: 2}]));
+    assert(jsonEquals([], []));
+    assert(jsonEquals([1, 2, 3], [1, 2, 3]));
+    assert(!jsonEquals([1, 3], [3, 1]));
+  });
+
   test('hasDuplicates', function () {
     assert(utils.hasDuplicates([1, 3, 1]));
     assert(!utils.hasDuplicates([]));

@@ -55,6 +55,52 @@ function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function compare(n1, n2) { return n1 === n2 ? 0 : (n1 < n2 ? -1 : 1); }
 
 /**
+ * Check whether two JSON values are equal.
+ *
+ * Result is undefined for invalid JSON values (e.g. `Buffer`s).
+ */
+function jsonEquals(val1, val2) {
+  if (typeof val1 != typeof val2) {
+    return false;
+  }
+  switch (typeof val1) {
+    case 'number':
+    case 'string':
+      return val1 === val2;
+    case 'object':
+      if (val1 === null || val2 === null) {
+        return val1 === val2;
+      }
+      var i, l;
+      if (Array.isArray(val1)) {
+        if (!Array.isArray(val2) || val1.length !== val2.length) {
+          return false;
+        }
+        for (i = 0, l = val1.length; i < l; i++) {
+          if (!jsonEquals(val1[i], val2[i])) {
+            return false;
+          }
+        }
+        return true;
+      }
+      var keys1 = Object.keys(val1).sort();
+      var keys2 = Object.keys(val2).sort();
+      if (!jsonEquals(keys1, keys2)) {
+        return false;
+      }
+      for (i = 0, l = keys1.length; i < l; i++) {
+        var key = keys1[i];
+        if (!jsonEquals(val1[key], val2[key])) {
+          return false;
+        }
+      }
+      return true;
+    default:
+      return false;
+  }
+}
+
+/**
  * Compute a string's hash.
  *
  * @param str {String} The string to hash.
@@ -624,8 +670,9 @@ module.exports = {
   capitalize: capitalize,
   compare: compare,
   getHash: getHash,
-  isType: isType,
   hasDuplicates: hasDuplicates,
+  isType: isType,
+  jsonEquals: jsonEquals,
   newBuffer: newBuffer,
   toMap: toMap,
   unqualifyName: unqualifyName

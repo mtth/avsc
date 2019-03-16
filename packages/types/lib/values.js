@@ -6,22 +6,61 @@ var utils = require('./utils'),
 
 var f = util.format;
 
+/**
+ * Deserialize a value from its JSON encoding.
+ *
+ * This method is the inverse of `toJSON`.
+ *
+ * Options:
+ *
+ * + `allowUndeclaredFields`, to skip record fields which are not declared in
+ *   the schema.
+ */
 function fromJSON(any, type, opts) {
   return clone('FROM_JSON', any, type, opts);
 }
 
+/**
+ * Deserialize a value from its encoding as a default.
+ *
+ * This method is mostly useful internally, to decode record schemas.
+ *
+ * Options:
+ *
+ * + `allowUndeclaredFields`, to skip record fields which are not declared in
+ *   the schema.
+ */
 function fromDefaultJSON(any, type, opts) {
   return clone('FROM_DEFAULT_JSON', any, type, opts);
 }
 
+/**
+ * JSON-serialize a value.
+ *
+ * This method is the inverse of `fromJSON`.
+ *
+ * Options:
+ *
+ * + `omitDefaultValues`, to omit values equal to their default in the returned
+ *   JSON.
+ */
 function toJSON(any, type, opts) {
   return clone('TO_JSON', any, type, opts);
 }
 
-/** Deep copy. */
-function copy(any, type, opts) {
-  return clone('COPY', any, type, opts);
+/**
+ * Deep copy a value.
+ *
+ * Options:
+ *
+ * + `allowUndeclaredFields`, to skip record fields which are not declared in
+ *   the schema.
+ */
+function copy(any, type) {
+  return clone('COPY', any, type);
 }
+
+// Internal functions below.
 
 function clone(mode, any, type, opts) {
   return new Cloner(mode, opts).clone(any, type, []).build(type);
@@ -82,6 +121,10 @@ function Cloner(mode, opts) {
   opts = opts || {};
   this._mode = mode; // TO_JSON, FROM_JSON, FROM_DEFAULT_JSON, COPY.
   this._allowUndeclaredFields = !!opts.allowUndeclaredFields;
+  this._omitDefaultValues = !!opts.omitDefaultValues;
+  if (this._omitDefaultValues && this._mode !== 'TO_JSON') {
+    throw new Error('invalid cloner options');
+  }
 }
 
 Cloner.prototype.clone = function (any, type, path) {
@@ -194,14 +237,17 @@ Cloner.prototype._onRecord = function (any, type, path) {
   }
   var missingFields = [];
   var args = [undefined];
-  var field, fieldAny, fieldVal, fieldPath, fieldValBuilder;
+  var field, fieldAny, fieldVal, fieldPath, fieldValBuilder, defaultVal;
   for (i = 0, l = type.fields.length; i < l; i++) {
     field = type.fields[i];
     fieldAny = any[field.name];
+    defaultVal = field.defaultValue();
     fieldVal = undefined;
-    if (fieldAny === undefined) {
-      if (field.defaultValue() === undefined) {
-        missingFields.push(field.name);
+    if (fieldAny === undefined && defaultVal === undefined) {
+      missingFields.push(field.name);
+    } else if (fieldAny === undefined) {
+      if (this._mode === 'TO_JSON' && !this._omitDefaultValues) {
+        fieldVal = this.clone(defaultVal, field.type, fieldPath).value;
       }
     } else {
       fieldPath = path.slice();
@@ -209,6 +255,12 @@ Cloner.prototype._onRecord = function (any, type, path) {
       fieldValBuilder = this.clone(fieldAny, field.type, fieldPath);
       builder.copyErrorsFrom(fieldValBuilder);
       fieldVal = fieldValBuilder.value;
+      if (
+        this._omitDefaultValues &&
+        !field.type.compare(fieldVal, defaultVal, {allowMaps: true})
+      ) {
+        fieldVal = undefined;
+      }
     }
     args.push(fieldVal);
   }
@@ -224,7 +276,10 @@ Cloner.prototype._onRecord = function (any, type, path) {
     if (this._mode === 'TO_JSON') {
       builder.value = {};
       for (i = 0, l = type.fields.length; i < l; i++) {
-        builder.value[type.fields[i].name] = args[i + 1];
+        fieldVal = args[i + 1];
+        if (fieldVal !== undefined) {
+          builder.value[type.fields[i].name] = fieldVal;
+        }
       }
     } else {
       var Record = type.recordConstructor;
@@ -361,6 +416,7 @@ function joinPath(parts) {
   for (i = 0, l = parts.length; i < l; i++) {
     part = parts[i];
     if (isNaN(part)) {
+      // TODO: Improve handling for non-identifier keys (e.g. `"this-key"`).
       strs.push('.' + part);
     } else {
       strs.push('[' + part + ']');

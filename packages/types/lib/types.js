@@ -563,7 +563,7 @@ Type.prototype.checkValid = function (val, opts) {
   if (this.isValid(val, {allowUndeclaredFields: allowUndeclaredFields})) {
     return;
   }
-  values.copy(val, this, opts); // Ignore return value.
+  values.copy(val, this, opts); // Ignore return value, this will throw.
 };
 
 Type.prototype.isValid = function (val, opts) {
@@ -599,8 +599,8 @@ Type.prototype.fromJSON = function (any, resolver, allowUndeclaredFields) {
   return this.fromBuffer(type.toBuffer(val), resolver);
 };
 
-Type.prototype.toJSON = function (val) {
-  return values.toJSON(val, this, {allowUndeclaredFields: true});
+Type.prototype.toJSON = function (val, opts) {
+  return values.toJSON(val, this, opts);
 };
 
 Type.prototype.toString = function () {

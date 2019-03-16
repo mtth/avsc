@@ -105,11 +105,27 @@ suite('values', function () {
         name: 'Foo',
         fields: [
           {name: 'name', type: 'string'},
-          {name: 'age', type: ['null', 'int']}
+          {name: 'age', type: ['null', 'int'], default: null}
         ]
       });
       var foo = {name: 'bar', age: 1234};
       assert.deepStrictEqual(toJSON(foo, t), {name: 'bar', age: {int: 1234}});
+      assert.deepStrictEqual(toJSON({name: 'b'}, t), {name: 'b', age: null});
+    });
+
+    test('record omitting default', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [
+          {name: 'name', type: 'string'},
+          {name: 'age', type: ['null', 'int'], default: null}
+        ]
+      });
+      assert.deepStrictEqual(
+        toJSON({name: 'bar', age: null}, t, {omitDefaultValues: true}),
+        {name: 'bar'}
+      );
     });
   });
 });
