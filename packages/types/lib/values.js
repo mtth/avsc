@@ -257,6 +257,7 @@ Cloner.prototype._onRecord = function (any, type, path) {
       fieldVal = fieldValBuilder.value;
       if (
         this._omitDefaultValues &&
+        defaultVal !== undefined &&
         !field.type.compare(fieldVal, defaultVal, {allowMaps: true})
       ) {
         fieldVal = undefined;

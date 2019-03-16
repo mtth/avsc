@@ -1953,7 +1953,7 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   function compare(val, opts) { return self.compare(this, val, opts); }
   function isValid(opts) { return self.isValid(this, opts); }
   function toBuffer() { return self.toBuffer(this); }
-  function toJSON() { return self.toJSON(this); }
+  function toJSON(opts) { return self.toJSON(this, opts); }
   function toString() {
     var str;
     if (self._isError) {
