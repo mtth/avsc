@@ -61,7 +61,7 @@ run_test() {
     cd "$dname"
     if [[ ! -d node_modules ]]; then
       echo "Skipping $dname, it was not installed."
-      break
+      continue
     fi
     if (( "${AVRO_COVERAGE:-0}" )); then
       npm run coverAndPublish
