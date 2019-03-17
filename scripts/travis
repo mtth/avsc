@@ -15,12 +15,29 @@ shopt -s nullglob
 
 __dirname="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# Checks whether a package is compatible with the current node version.
+#
+# Usage: supported_engine path/to/package
+#
+# The function will return 0 if the engine is supported and 1 otherwise. The
+# package directory should contain a `package.json` with its `engines.node`
+# field set to a "greater than" value (e.g. `>=7`).
+supported_engine() {
+  local active="$(node --version | tr -cd '.0-9')"
+  local requirement="$(jq -r <"$1/package.json" .engines.node)"
+  if [[ ! $requirement =~ ^\>=[0-9.]+$ ]]; then
+    fail "unsupported requirement: $requirement"
+  fi
+  local required="${requirement:2}" # Strip leading `>=`.
+  local oldest="$(echo -e "$active\n$required" | sort -ruV | tail +2)"
+  [[ $oldest == $active ]] && return 0 || return 1
+}
+
 run_install() {
   echo 'Installing all packages...'
   cd "$__dirname/../packages"
-  npm install -g npm-install-checks@3.0.0
   for dname in *; do
-    if node ../scripts/check-engine.js "$dname"; then
+    if supported_engine "$dname"; then
       (
         echo "Installing $dname."
         cd "$dname"
