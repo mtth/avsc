@@ -64,9 +64,9 @@ run_test() {
       break
     fi
     if (( "${AVRO_COVERAGE:-0}" )); then
-      npm test
-    else
       npm run coverAndPublish
+    else
+      npm test
     fi
     if (($?)); then
       echo "Tests for ${dname} failed."
