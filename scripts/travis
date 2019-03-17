@@ -1,0 +1,73 @@
+#!/usr/bin/env bash
+
+# Travis utilities.
+#
+# This is mostly useful to help us handle the multiple NPM packages hosted in
+# this repository.
+#
+# Usage:
+#   travis (install|test)
+
+set -o nounset
+set -o errexit
+set -o pipefail
+shopt -s nullglob
+
+__dirname="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+run_install() {
+  echo 'Installing all packages...'
+  cd "$__dirname/../packages"
+  for fname in *; do
+    (
+      cd "$fname"
+      npm install
+      # Mocha 4+ requires node>=4.
+      node -e 'const a = b => 1;' 2>/dev/null || npm i mocha@~3.0.0
+    )
+  done
+  echo 'Done installing packages.'
+}
+
+run_test() {
+  echo 'Testing all packages...'
+  cd "$__dirname/../packages"
+  local failed=false
+  set +o errexit
+  for fname in *; do
+    cd "$fname"
+    npm test
+    if (($?)); then
+      failed=true
+    fi
+    cd ..
+  done
+  set -o errexit
+  if "$failed"; then
+    fail 'At least one test failed.'
+  else
+    echo 'All tests succeeded!'
+  fi
+}
+
+fail() {
+  echo "$1" >&2 && exit 2
+}
+
+main() {
+  if (($# == 0)); then
+    fail 'missing command'
+  fi
+  case "$1" in
+    install)
+      run_install
+      ;;
+    test)
+      run_test
+      ;;
+    *)
+      fail "unknown command: $1"
+  esac
+}
+
+main "$@"

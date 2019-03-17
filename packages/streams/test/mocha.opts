@@ -1,3 +1,2 @@
 --no-colors
---reporter dot
 --ui tdd
