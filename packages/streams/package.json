@@ -31,8 +31,9 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "cover": "nyc mocha",
     "clean": "rm -rf coverage dist node_modules",
+    "cover": "nyc mocha",
+    "coverAndPublish": "nyc mocha",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },

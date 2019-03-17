@@ -28,14 +28,16 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "cover": "nyc mocha",
     "clean": "rm -rf coverage dist node_modules",
+    "cover": "nyc mocha",
+    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
   "devDependencies": {
-    "coveralls": "^3.0.2",
+    "coveralls": "^3.0.3",
     "mocha": "^5.2.0",
+    "mocha-lcov-reporter": "~1.3.0",
     "nyc": "~13.3.0",
     "tmp": "^0.0.33"
   },

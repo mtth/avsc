@@ -13,6 +13,7 @@
   "scripts": {
     "clean": "rm -rf node_modules",
     "cover": "nyc mocha",
+    "coverAndPublish": "nyc mocha",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },

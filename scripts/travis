@@ -63,8 +63,16 @@ run_test() {
       echo "Skipping $dname, it was not installed."
       break
     fi
+    if [[ -z $AVRO_COVERAGE ]]; then
+      npm test
+    else
+      npm run coverAndPublish
+    fi
     if (($?)); then
+      echo "Tests for ${dname} failed."
       failed=true
+    else
+      echo "Tests for ${dname} OK."
     fi
     cd ..
   done
