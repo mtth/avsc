@@ -3,20 +3,20 @@ node_js:
   # Note that the latest version (node) is handled by the coverage run,
   # included in the matrix below.
   - '11'
-  # - '10'
-  # - '9'
-  # - '8'
-  # - '7'
-  # - '6'
-  # - '5'
-  # - '4'
-  # - iojs
-  # - '3'
-  # - '2'
-  # - '1.8'
-  # - '1.0'
-  # - '0.12'
-  # - '0.11'
+  - '10'
+  - '9'
+  - '8'
+  - '7'
+  - '6'
+  - '5'
+  - '4'
+  - iojs
+  - '3'
+  - '2'
+  - '1.8'
+  - '1.0'
+  - '0.12'
+  - '0.11'
 matrix:
   include:
     - node_js: node
@@ -25,3 +25,8 @@ before_script:
   - ./scripts/travis install
 script:
   - ./scripts/travis test
+env:
+  - COVERALLS_PARALLEL=true
+notifications:
+  # For parallel coverall builds.
+  webhooks: https://coveralls.io/webhook
