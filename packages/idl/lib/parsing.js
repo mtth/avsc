@@ -1,4 +1,4 @@
-/* jshint esversion: 6, node: true */
+/* jshint node: true */
 
 'use strict';
 
@@ -6,8 +6,6 @@
 
 // TODO: Add option to prefix nested type declarations with the outer types'
 // names.
-
-'use strict';
 
 /** IDL to protocol (services) and schema (types) parsing logic. */
 
@@ -109,7 +107,7 @@ function readProtocol(str, opts) {
     protocolSchema.messages = messages;
   }
   return {protocol: protocolSchema, imports: imports};
-};
+}
 
 function readSchema(str, opts) {
   var reader = new Reader(str, opts);
@@ -117,7 +115,7 @@ function readSchema(str, opts) {
   var schema = reader.readType(javadoc === undefined ? {} : {doc: javadoc});
   reader.tk.next({id: '(eof)'}); // Check that we have read everything.
   return schema;
-};
+}
 
 function Reader(str, opts) {
   opts = opts || {};

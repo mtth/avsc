@@ -7,10 +7,7 @@ if (process.browser) {
 }
 
 var parsing = require('../lib/parsing'),
-    assert = require('assert'),
-    path = require('path');
-
-var DPATH = path.join(__dirname, 'dat');
+    assert = require('assert');
 
 suite('parsing', function () {
   suite('readSchema', function () {
@@ -121,7 +118,7 @@ suite('parsing', function () {
     test('anonymous protocol with javadoced type', function () {
       assert.deepEqual(
         readProtocol('protocol { /** Foo. */ int; }'),
-        {imports: [], protocol: {types: [{doc: 'Foo.', type: 'int'}]}},
+        {imports: [], protocol: {types: [{doc: 'Foo.', type: 'int'}]}}
       );
     });
 

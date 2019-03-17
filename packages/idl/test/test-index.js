@@ -1,4 +1,4 @@
-/* jshint esversion: 6, node: true */
+/* jshint node: true, mocha: true */
 
 'use strict';
 
@@ -590,7 +590,7 @@ suite('index', function () {
 
     // Import hook from strings.
     function createImportHook(imports) {
-      return function (fpath, kind) {
+      return function (fpath) {
         var fname = path.basename(fpath);
         var str = imports[fname];
         delete imports[fname];

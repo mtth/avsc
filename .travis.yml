@@ -1,6 +1,7 @@
 language: node_js
 node_js:
-  - node
+  # Note that the latest version (node) is handled by the coverage run,
+  # included in the matrix below.
   - '11'
   - '10'
   - '9'
