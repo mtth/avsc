@@ -12,7 +12,7 @@
   },
   "scripts": {
     "clean": "rm -rf node_modules",
-    "cover": "istanbul cover _mocha",
+    "cover": "nyc mocha",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
@@ -31,15 +31,14 @@
   "dependencies": {
     "backoff": "^2.5.0",
     "debug": "^4.1.1",
-    "luxon": "^1.11.4",
-    "npm-install-checks": "~3.0.0"
+    "luxon": "^1.11.4"
   },
   "optionalDependencies": {
     "bluebird": "^3.5.3"
   },
   "devDependencies": {
     "@avro/types": "^0.3.11",
-    "istanbul": "^0.4.5",
+    "nyc": "~13.3.0",
     "mocha": "^6.0.2",
     "sinon": "^7.2.7"
   }

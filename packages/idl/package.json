@@ -25,15 +25,15 @@
     "./lib/files": "./etc/browser/files.js"
   },
   "scripts": {
-    "cover": "istanbul cover _mocha",
-    "clean": "rm -rf coverage dist node_modules",
+    "cover": "nyc mocha",
+    "clean": "rm -rf coverage node_modules",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
   "devDependencies": {
     "coveralls": "^3.0.2",
-    "istanbul": "^0.4.5",
     "mocha": "^5.2.0",
+    "nyc": "~13.3.0",
     "tmp": "^0.0.33"
   },
   "author": {
