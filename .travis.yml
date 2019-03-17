@@ -22,7 +22,6 @@ matrix:
     - node_js: node
       env: AVRO_COVERAGE=1
 before_script:
-  - npm config set engine-strict true
   - ./scripts/travis install
 script:
   - ./scripts/travis test
