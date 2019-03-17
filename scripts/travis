@@ -61,18 +61,18 @@ run_test() {
     cd "$dname"
     if [[ ! -d node_modules ]]; then
       echo "Skipping $dname, it was not installed."
-      continue
-    fi
-    if (( "${AVRO_COVERAGE:-0}" )); then
-      npm run coverAndPublish
     else
-      npm test
-    fi
-    if (($?)); then
-      echo "Tests for ${dname} failed."
-      failed=true
-    else
-      echo "Tests for ${dname} OK."
+      if (( "${AVRO_COVERAGE:-0}" )); then
+        npm run coverAndPublish
+      else
+        npm test
+      fi
+      if (($?)); then
+        echo "Tests for ${dname} failed."
+        failed=true
+      else
+        echo "Tests for ${dname} OK."
+      fi
     fi
     cd ..
   done
