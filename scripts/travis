@@ -18,7 +18,7 @@ __dirname="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 run_install() {
   echo 'Installing all packages...'
   cd "$__dirname/../packages"
-  npm install npm-install-checks@3.0.0
+  npm install -g npm-install-checks@3.0.0
   for dname in *; do
     if ../scripts/check-engine "$dname"; then
       (
