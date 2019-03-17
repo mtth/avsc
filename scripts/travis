@@ -29,8 +29,8 @@ supported_engine() {
     fail "unsupported requirement: $requirement"
   fi
   local required="${requirement:2}" # Strip leading `>=`.
-  local oldest="$(echo -e "$active\n$required" | sort -ruV | tail +2)"
-  [[ $oldest == $active ]] && return 0 || return 1
+  local oldest="$(echo -e "$active\n$required" | sort -ruV | tail -n +2)"
+  [[ $oldest == $active ]] && return 1 || return 0
 }
 
 run_install() {
@@ -89,7 +89,8 @@ main() {
       run_install
       ;;
     test)
-      run_test
+      supported_engine "$2"
+      # run_test
       ;;
     *)
       fail "unknown command: $1"
