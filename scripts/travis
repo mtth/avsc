@@ -22,6 +22,7 @@ run_install() {
   for dname in *; do
     if ../scripts/check-engine "$dname"; then
       (
+        echo "Installing $dname."
         cd "$dname"
         npm install
         # Mocha 4+ requires node>=4.
@@ -41,7 +42,10 @@ run_test() {
   set +o errexit
   for dname in *; do
     cd "$dname"
-    npm test
+    if [[ ! -d node_modules ]]; then
+      echo "Skipping $dname, it was not installed."
+      break
+    fi
     if (($?)); then
       failed=true
     fi
