@@ -13,7 +13,7 @@ mkdir -p dist
 for fpath in etc/browser/*.js; do
   filename="$(basename "$fpath")"
   filename="${filename%.*}"
-  browserify --standalone avro "$fpath" | uglifyjs --preamble "$preamble" -o "dist/$filename.js"
-  browserify --standalone avro "$fpath" | uglifyjs --preamble "$preamble" -c -m -o "dist/$filename.min.js"
+  browserify --standalone avro "$fpath" | uglifyjs -o "dist/$filename.js"
+  browserify --standalone avro "$fpath" | uglifyjs -c -m -o "dist/$filename.min.js"
   gzip -9 -f -k "dist/$filename.min.js"
 done
