@@ -23,7 +23,7 @@ before_script:
   # Mocha 4+ requires node>=4.
   - node -e 'const a = b => 1;' 2>/dev/null || npm i mocha@~3.0.0
 script:
-  - if [[ -n "$AVSC_COVERAGE" ]]; then npm run coverAndPublish; else npm test; done
+  - if [[ -n "$AVSC_COVERAGE" ]]; then npm run coverAndPublish; else npm test; fi
 deploy:
   provider: npm
   email: monsch@alum.mit.edu
