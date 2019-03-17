@@ -14,7 +14,7 @@
     "clean": "rm -rf node_modules",
     "cover": "istanbul cover _mocha",
     "prepublishOnly": "npm test",
-    "test": "mocha -C"
+    "test": "mocha"
   },
   "author": {
     "name": "Matthieu Monsch",

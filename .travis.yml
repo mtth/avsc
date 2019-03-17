@@ -2,26 +2,27 @@ language: node_js
 node_js:
   # Note that the latest version (node) is handled by the coverage run,
   # included in the matrix below.
-  - '11'
-  - '10'
-  - '9'
-  - '8'
+  # - '11'
+  # - '10'
+  # - '9'
+  # - '8'
   - '7'
   - '6'
-  - '5'
-  - '4'
-  - iojs
-  - '3'
-  - '2'
-  - '1.8'
-  - '1.0'
-  - '0.12'
-  - '0.11'
+  # - '5'
+  # - '4'
+  # - iojs
+  # - '3'
+  # - '2'
+  # - '1.8'
+  # - '1.0'
+  # - '0.12'
+  # - '0.11'
 matrix:
   include:
     - node_js: node
       env: AVRO_COVERAGE=1
 before_script:
+  - npm config set engine-strict true
   - ./scripts/travis install
 script:
   - ./scripts/travis test
