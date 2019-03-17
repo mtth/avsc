@@ -540,11 +540,12 @@ Type.prototype.toBuffer = function (val) {
 };
 
 Type.prototype.checkValid = function (val, opts) {
-  var allowUndeclaredFields = opts && opts.allowUndeclaredFields;
-  if (this.isValid(val, {allowUndeclaredFields: allowUndeclaredFields})) {
+  opts = {allowUndeclaredFields: opts && opts.allowUndeclaredFields};
+  if (this.isValid(val, opts)) { // Fast check.
     return;
   }
-  values.copy(val, this, opts); // Ignore return value, this will throw.
+  // Slower, full pass check (we ignore the return value: it will throw).
+  values.toJSON(val, this, opts);
 };
 
 Type.prototype.isValid = function (val, opts) {
@@ -589,6 +590,7 @@ Type.prototype.toString = function () {
 };
 
 Type.prototype.clone = function (val) {
+  // A serialization round trip is usually the fastest.
   return this.fromBuffer(this.toBuffer(val));
 };
 

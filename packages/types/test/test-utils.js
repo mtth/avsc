@@ -17,12 +17,15 @@ suite('utils', function () {
     var jsonEquals = utils.jsonEquals;
     assert(jsonEquals({}, {}));
     assert(jsonEquals({a: 1}, {a: 1}));
+    assert(!jsonEquals('a', 1));
     assert(jsonEquals(null, null));
     assert(!jsonEquals({a: 2}, null));
     assert(!jsonEquals({a: 2}, [{a: 2}]));
     assert(jsonEquals([], []));
     assert(jsonEquals([1, 2, 3], [1, 2, 3]));
     assert(!jsonEquals([1, 3], [3, 1]));
+    assert(!jsonEquals([1, 3], [3]));
+    assert(!jsonEquals(function () {}, function () {}));
   });
 
   test('hasDuplicates', function () {

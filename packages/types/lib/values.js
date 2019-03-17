@@ -23,7 +23,8 @@ function fromJSON(any, type, opts) {
 /**
  * Deserialize a value from its encoding as a default.
  *
- * This method is mostly useful internally, to decode record schemas.
+ * This method is mostly useful internally, to decode record schemas (which
+ * include fields with defaults serialized using this encoding).
  *
  * Options:
  *
@@ -46,18 +47,6 @@ function fromDefaultJSON(any, type, opts) {
  */
 function toJSON(any, type, opts) {
   return clone('TO_JSON', any, type, opts);
-}
-
-/**
- * Deep copy a value.
- *
- * Options:
- *
- * + `allowUndeclaredFields`, to skip record fields which are not declared in
- *   the schema.
- */
-function copy(any, type) {
-  return clone('COPY', any, type);
 }
 
 // Internal functions below.
@@ -92,7 +81,7 @@ Builder.prototype.build = function (type) {
 
 Builder.prototype.addError = function (desc, val, type, path) {
   var info = typeInfo(type);
-  var msg = f('$%s has %s but %s', joinPath(path), info, desc);
+  var msg = f('$%s has %s but %s: %s', joinPath(path), info, desc, val);
   var err = new Error(msg);
   err.value = val;
   err.expectedType = type;
@@ -119,7 +108,7 @@ function typeInfo(type) {
 
 function Cloner(mode, opts) {
   opts = opts || {};
-  this._mode = mode; // TO_JSON, FROM_JSON, FROM_DEFAULT_JSON, COPY.
+  this._mode = mode; // TO_JSON, FROM_JSON, FROM_DEFAULT_JSON.
   this._allowUndeclaredFields = !!opts.allowUndeclaredFields;
   this._omitDefaultValues = !!opts.omitDefaultValues;
   if (this._omitDefaultValues && this._mode !== 'TO_JSON') {
@@ -128,6 +117,9 @@ function Cloner(mode, opts) {
 }
 
 Cloner.prototype.clone = function (any, type, path) {
+  if (!utils.isType(type)) {
+    throw new Error(f('not a type: %s', type));
+  }
   switch (type.typeName) {
     case 'array':
       return this._onArray(any, type, path);
@@ -147,41 +139,34 @@ Cloner.prototype.clone = function (any, type, path) {
 };
 
 Cloner.prototype._onLogical = function (any, type, path) {
-  var mode = this._mode;
   var builder = new Builder();
   var desc;
-  switch (mode) {
-    case 'COPY':
-    case 'TO_JSON':
-      try {
-        builder.value = type._toValue(any);
-        if (builder.value === undefined) {
-          builder.addError('logical type encoding failed', any, type, path);
-          return builder;
-        }
-      } catch (err) {
-        desc = f('logical type encoding failed (%s)', err.message);
-        builder.addError(desc, any, type, path);
+  if (this._mode === 'TO_JSON') {
+    try {
+      builder.value = type._toValue(any);
+      if (builder.value === undefined) {
+        builder.addError('logical type encoding failed', any, type, path);
         return builder;
       }
-      break;
-    default:
-      builder.value = any;
+    } catch (err) {
+      desc = f('logical type encoding failed (%s)', err.message);
+      builder.addError(desc, any, type, path);
+      return builder;
+    }
+  } else {
+    builder.value = any;
   }
   builder = this.clone(builder.value, type.underlyingType, path);
   if (!builder.isOk()) {
     return builder;
   }
-  switch (mode) {
-    case 'COPY':
-    case 'FROM_JSON':
-    case 'FROM_DEFAULT_JSON':
-      try {
-        builder.value = type._fromValue(builder.value);
-      } catch (err) {
-        desc = f('logical type decoding failed (%s)', err.message);
-        builder.addError(desc, any, type, path);
-      }
+  if (this._mode !== 'TO_JSON') {
+    try {
+      builder.value = type._fromValue(builder.value);
+    } catch (err) {
+      desc = f('logical type decoding failed (%s)', err.message);
+      builder.addError(desc, any, type, path);
+    }
   }
   return builder;
 };
@@ -190,21 +175,17 @@ Cloner.prototype._onPrimitive = function (any, type, path) {
   var builder = new Builder();
   var isBufferType = utils.isType(type, 'bytes', 'fixed');
   var val = any;
-  if (isBufferType) {
-    switch (this._mode) {
-      case 'FROM_JSON':
-      case 'FROM_DEFAULT_JSON':
-        if (typeof any != 'string') {
-          builder.addError('is not a string', any, type, path);
-          return builder;
-        }
-        val = utils.bufferFrom(any, 'binary');
+  if (isBufferType && this._mode !== 'TO_JSON') {
+    if (typeof any != 'string') {
+      builder.addError('is not a string', any, type, path);
+      return builder;
     }
+    val = utils.bufferFrom(any, 'binary');
   }
   if (type.isValid(val)) {
     builder.value = isBufferType ? utils.bufferFrom(val) : val;
   } else {
-    builder.addError('has incompatible value', any, type, path);
+    builder.addError('invalid value', any, type, path);
   }
   if (this._mode === 'TO_JSON' && isBufferType) {
     builder.value = builder.value.toString('binary');
@@ -216,7 +197,7 @@ Cloner.prototype._onRecord = function (any, type, path) {
   var builder = new Builder();
   var desc;
   if (!any || typeof any != 'object') {
-    builder.addError('is not an object', any, type, path);
+    builder.addError('is not a valid object', any, type, path);
     return builder;
   }
   var i, l;
@@ -231,7 +212,10 @@ Cloner.prototype._onRecord = function (any, type, path) {
       }
     }
     if (extraFields.length) {
-      desc = f('has undeclared field(s) (%s)', extraFields.join(', '));
+      desc = f(
+        'contains %s undeclared field(s) (%s)',
+        extraFields.length, extraFields.join(', ')
+      );
       builder.addError(desc, any, type, path);
     }
   }
@@ -267,7 +251,7 @@ Cloner.prototype._onRecord = function (any, type, path) {
   }
   if (missingFields.length) {
     desc = f(
-      'is missing %s required field(s) (%s)',
+      'is missing %s field(s) (%s)',
       missingFields.length,
       missingFields.join()
     );
@@ -317,7 +301,7 @@ Cloner.prototype._onArray = function (any, type, path) {
 Cloner.prototype._onMap = function (any, type, path) {
   var builder = new Builder();
   if (!any || typeof any != 'object') {
-    builder.addError('is not an object', any, type, path);
+    builder.addError('is not a valid object', any, type, path);
     return builder;
   }
   var val = {};
@@ -341,7 +325,6 @@ Cloner.prototype._onMap = function (any, type, path) {
 };
 
 Cloner.prototype._onUnion = function (any, unionType, path) {
-  var mode = this._mode;
   var isWrapped = unionType.typeName === 'union:wrapped';
   var builder = new Builder();
   if (any === null) {
@@ -356,25 +339,20 @@ Cloner.prototype._onUnion = function (any, unionType, path) {
     return builder;
   }
   var branchType;
-  switch (mode) {
-    case 'FROM_DEFAULT_JSON':
-      branchType = unionType.types[0];
-      if (branchType.typeName === 'null') {
-        builder.addError('does not match first (null)', any, unionType, path);
-        return builder;
-      }
-      any = branchType.wrap(any);
-      break;
-    case 'COPY':
-    case 'TO_JSON':
-      if (!isWrapped) {
-        branchType = unionType.branchType(any);
-        if (!branchType) {
-          builder.addError('is not a valid branch', any, unionType, path);
-          return builder;
-        }
-        any = branchType.wrap(any);
-      }
+  if (this._mode === 'FROM_DEFAULT_JSON') {
+    branchType = unionType.types[0];
+    if (branchType.typeName === 'null') {
+      builder.addError('does not match first (null)', any, unionType, path);
+      return builder;
+    }
+    any = branchType.wrap(any);
+  } else if (this._mode === 'TO_JSON' && !isWrapped) {
+    branchType = unionType.branchType(any);
+    if (!branchType) {
+      builder.addError('is not a valid branch', any, unionType, path);
+      return builder;
+    }
+    any = branchType.wrap(any);
   }
   if (typeof any != 'object') { // Null will (correctly) be ignored here.
     builder.addError('is not an object', any, unionType, path);
@@ -399,7 +377,7 @@ Cloner.prototype._onUnion = function (any, unionType, path) {
   var branchBuilder = this.clone(any[key], branchType, branchPath);
   builder.copyErrorsFrom(branchBuilder);
   if (branchBuilder.isOk()) {
-    if (mode === 'TO_JSON') {
+    if (this._mode === 'TO_JSON') {
       builder.value = {};
       builder.value[branchType.branchName] = branchBuilder.value;
     } else if (!isWrapped) {
@@ -429,6 +407,5 @@ function joinPath(parts) {
 module.exports = {
   fromJSON: fromJSON,
   fromDefaultJSON: fromDefaultJSON,
-  toJSON: toJSON,
-  copy: copy
+  toJSON: toJSON
 };

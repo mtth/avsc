@@ -4,7 +4,8 @@
 
 var types = require('../lib/types'),
     values = require('../lib/values'),
-    assert = require('assert');
+    assert = require('assert'),
+    util = require('util');
 
 var Type = types.constructors.Type;
 
@@ -41,6 +42,17 @@ suite('values', function () {
       assert.deepEqual(fromJSON({}, t), {age: 20});
     });
 
+    test('record missing fields', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [
+          {name: 'age', type: 'int', default: 20}
+        ]
+      });
+      assert.deepEqual(fromJSON({}, t), {age: 20});
+    });
+
     test('record with multiple fields and default', function () {
       var t = Type.forSchema({
         type: 'record',
@@ -52,6 +64,16 @@ suite('values', function () {
       });
       assert.deepEqual(fromJSON({f2: 'a'}, t), {f2: 'a', f3: 3});
     });
+
+    test('record missing fields', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [{name: 'age', type: 'int'}]
+      });
+      assert.throws(function () { fromJSON({}, t); }, /missing 1 field/);
+    });
+
   });
 
   suite('fromDefaultJSON', function () {
@@ -108,9 +130,14 @@ suite('values', function () {
           {name: 'age', type: ['null', 'int'], default: null}
         ]
       });
-      var foo = {name: 'bar', age: 1234};
-      assert.deepStrictEqual(toJSON(foo, t), {name: 'bar', age: {int: 1234}});
-      assert.deepStrictEqual(toJSON({name: 'b'}, t), {name: 'b', age: null});
+      var ok = {name: 'bar', age: 1234};
+      var json = {name: 'bar', age: {int: 1234}};
+      assert.deepEqual(toJSON(ok, t), json);
+      assert.deepEqual(toJSON({name: 'b'}, t), {name: 'b', age: null});
+      assert.throws(function () { toJSON('a', t); }, /not a valid object/);
+      var extra = {name: 'bar', age: 1234, address: 'here'};
+      assert.deepEqual(toJSON(extra, t, {allowUndeclaredFields: true}), json);
+      assert.throws(function () { toJSON(extra, t); }, /undeclared field/);
     });
 
     test('record omitting default', function () {
@@ -122,10 +149,64 @@ suite('values', function () {
           {name: 'age', type: ['null', 'int'], default: null}
         ]
       });
-      assert.deepStrictEqual(
+      assert.deepEqual(
         toJSON({name: 'bar', age: null}, t, {omitDefaultValues: true}),
         {name: 'bar'}
       );
     });
+
+    test('map', function () {
+      var t = Type.forSchema({
+        type: 'map',
+        values: ['null', 'string'],
+      });
+      assert.deepEqual(
+        toJSON({name: 'bar'}, t),
+        {name: {string: 'bar'}}
+      );
+      assert.deepEqual(
+        toJSON({name: '', age: null}, t),
+        {name: {string: ''}, age: null}
+      );
+    });
+
+    test('array', function () {
+      var t = Type.forSchema({type: 'array', items: 'int'});
+      assert.deepEqual(toJSON([], t), []);
+      assert.deepEqual(toJSON([1, 3, 2], t), [1, 3, 2]);
+
+      assert.throws(function () { toJSON([1, null], t); }, /\[1\]/);
+      assert.throws(function () { toJSON({one: 1}, t); }, /not an array/);
+    });
+
+    test('logical type', function () {
+      var t = Type.forSchema({
+        type: 'long',
+        logicalType: 'date',
+        items: 'int'
+      }, {logicalTypes: {date: DateType}});
+      var d = new Date(1234);
+      assert.equal(toJSON(d, t), 1234);
+      assert.throws(function () { toJSON(123, t); }, /encoding failed/);
+    });
   });
 });
+
+function DateType(schema, opts) {
+  types.constructors.LogicalType.call(this, schema, opts);
+}
+util.inherits(DateType, types.constructors.LogicalType);
+
+DateType.prototype._fromValue = function (val) { return new Date(val); };
+
+DateType.prototype._toValue = function (date) {
+  if (!(date instanceof Date)) {
+    return undefined;
+  }
+  if (this.underlyingType.typeName === 'long') {
+    return +date;
+  } else {
+    // String.
+    return '' + date;
+  }
+};

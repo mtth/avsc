@@ -16,6 +16,7 @@ var POOL = new BufferPool(4096);
  * @param size {Number} The buffer's size.
  */
 function newBuffer(size) {
+  /* istanbul ignore else */
   if (typeof Buffer.alloc == 'function') {
     return Buffer.alloc(size);
   } else {
@@ -30,6 +31,7 @@ function newBuffer(size) {
  * @param enc {String} Encoding, used if data is a string.
  */
 function bufferFrom(data, enc) {
+  /* istanbul ignore else */
   if (typeof Buffer.from == 'function') {
     return Buffer.from(data, enc);
   } else {

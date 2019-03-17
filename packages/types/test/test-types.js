@@ -134,7 +134,7 @@ suite('types', function () {
       var buf = t1.toBuffer(n);
       var f = t2.fromBuffer(buf, t2.createResolver(t1));
       assert(Math.abs(f - n) / n < 1e-7);
-      assert(t2.isValid(f));
+      t2.checkValid(f);
     });
 
     test('precision loss', function () {
@@ -2195,8 +2195,11 @@ suite('types', function () {
       });
       var obj = {foo: 1, bar: 'bar'};
       assert(!t.isValid(obj));
-      assert(t.isValid(obj, {allowUndeclaredFields: true}));
-      assert(t.isValid({foo: 23}, {allowUndeclaredFields: true}));
+      assert.throws(function () { t.checkValid(obj); }, /undeclared field/);
+      var opts = {allowUndeclaredFields: true};
+      t.checkValid(obj, opts);
+      assert(t.isValid(obj, opts));
+      assert(t.isValid({foo: 23}, opts));
     });
 
     test('qualified name namespacing', function () {
@@ -3144,6 +3147,14 @@ suite('types', function () {
       var resolver = t2.createResolver(t1);
       var buf = t1.toBuffer('\x01\x02');
       assert.deepEqual(t2.fromBuffer(buf, resolver), utils.bufferFrom([1, 2]));
+    });
+
+    test('non union to unwrapped union as JSON', function () {
+      var t1 = Type.forSchema('string');
+      var t2 = Type.forSchema(['null', 'string']);
+      var resolver = t2.createResolver(t1);
+      assert.equal(t2.fromJSON({string: 'bar'}), 'bar');
+      assert.equal(t2.fromJSON('foo', resolver), 'foo');
     });
 
     test('union to invalid non union', function () {
