@@ -43,8 +43,9 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "cover": "istanbul cover _mocha",
     "clean": "rm -rf coverage dist node_modules",
+    "cover": "nyc mocha",
+    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "dist": "./etc/scripts/dist",
     "perf": "./etc/scripts/perf etc/schemas/*",
     "test": "mocha",
@@ -53,8 +54,8 @@
   "devDependencies": {
     "benchmark": "~2.1.4",
     "coveralls": "^3.0.1",
-    "istanbul": "^0.4.5",
     "mocha": "^5.2.0",
+    "nyc": "~13.3.0",
     "tmp": "^0.0.33"
   },
   "author": {
