@@ -89,8 +89,7 @@ main() {
       run_install
       ;;
     test)
-      supported_engine "$2"
-      # run_test
+      run_test
       ;;
     *)
       fail "unknown command: $1"
