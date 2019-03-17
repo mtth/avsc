@@ -7,8 +7,6 @@
 
 /** Various utilities used across this library. */
 
-var crypto = require('crypto');
-
 // Shared buffer pool for all taps.
 var POOL = new BufferPool(4096);
 
@@ -101,19 +99,6 @@ function jsonEquals(val1, val2) {
 }
 
 /**
- * Compute a string's hash.
- *
- * @param str {String} The string to hash.
- * @param algorithm {String} The algorithm used. Defaults to MD5.
- */
-function getHash(str, algorithm) {
-  algorithm = algorithm || 'md5';
-  var hash = crypto.createHash(algorithm);
-  hash.end(str);
-  return hash.read();
-}
-
-/**
  * Convert array to map.
  *
  * @param arr {Array} Elements.
@@ -160,8 +145,8 @@ function isType(/* any, [prefix] ... */) {
   var any = arguments[0];
   if (
     !any ||
-    typeof any._update != 'function' ||
-    typeof any.fingerprint != 'function'
+    typeof any.createResolver != 'function' ||
+    typeof any._createBranchConstructor != 'function'
   ) {
     // Not fool-proof, but most likely good enough.
     return false;
@@ -669,7 +654,6 @@ module.exports = {
   bufferFrom: bufferFrom,
   capitalize: capitalize,
   compare: compare,
-  getHash: getHash,
   hasDuplicates: hasDuplicates,
   isType: isType,
   jsonEquals: jsonEquals,

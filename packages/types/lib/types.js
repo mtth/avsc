@@ -78,10 +78,6 @@ function Type(schema, opts) {
     type = this;
   }
 
-  // Lazily instantiated hash string. It will be generated the first time the
-  // type's default fingerprint is computed (for example when using `equals`).
-  // We use a mutable object since types are frozen after instantiation.
-  this._hash = new Hash();
   this.name = undefined;
   this.aliases = undefined;
   this.doc = (schema && schema.doc) ? '' + schema.doc : undefined;
@@ -516,22 +512,7 @@ Type.prototype.encode = function (val, buf, pos) {
 };
 
 Type.prototype.equals = function (type) {
-  return (
-    utils.isType(type) &&
-    this.fingerprint().equals(type.fingerprint())
-  );
-};
-
-Type.prototype.fingerprint = function (algorithm) {
-  if (!algorithm) {
-    if (!this._hash.str) {
-      var schemaStr = JSON.stringify(this.schema());
-      this._hash.str = utils.getHash(schemaStr).toString('binary');
-    }
-    return utils.bufferFrom(this._hash.str, 'binary');
-  } else {
-    return utils.getHash(JSON.stringify(this.schema()), algorithm);
-  }
+  return utils.isType(type) && utils.jsonEquals(this.schema(), type.schema());
 };
 
 Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
@@ -2540,11 +2521,6 @@ function Resolver(writerType, readerType) {
 }
 
 Resolver.prototype._peek = Type.prototype._peek;
-
-/** Mutable hash container. */
-function Hash() {
-  this.str = undefined;
-}
 
 /**
  * Read a value from a tap.

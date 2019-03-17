@@ -3038,13 +3038,6 @@ suite('types', function () {
       }
     });
 
-    test('fingerprint', function () {
-      var t = Type.forSchema('int');
-      var buf = utils.bufferFrom('ef524ea1b91e73173d938ade36c1db32', 'hex');
-      assert.deepEqual(t.fingerprint('md5'), buf);
-      assert.deepEqual(t.fingerprint(), buf);
-    });
-
     test('schema default', function () {
       var type = Type.forSchema({
         type: 'record',

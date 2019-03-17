@@ -121,7 +121,6 @@ export class Type {
   decode(buf: Buffer, pos?: number, resolver?: Resolver): { value: any, offset: number};
   encode(val: any, buf: Buffer, pos?: number): number;
   equals(type: Type): boolean;
-  fingerprint(algorithm?: string): Buffer;
   fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any;
   fromString(str: string): any;
   isValid(val: any, opts?: Partial<IsValidOptions>): boolean;
