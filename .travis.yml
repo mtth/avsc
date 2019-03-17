@@ -8,11 +8,7 @@ matrix:
     - node_js: node
       env:
         - AVRO_COVERAGE=1
-        - COVERALLS_PARALLEL=true
 before_script:
   - ./scripts/travis install
 script:
   - ./scripts/travis test
-notifications:
-  # For parallel coverall builds.
-  webhooks: https://coveralls.io/webhook
