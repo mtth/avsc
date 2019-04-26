@@ -3985,6 +3985,21 @@ suite('types', function () {
       }
     });
 
+    test('type hook nested array', function () {
+      var i = 1;
+      var outer = infer([[{foo: 2}], [{foo: 3}]], {typeHook: hook});
+      var inner = outer.itemsType.itemsType;
+      assert.equal(inner.name, 'Foo3');
+      assert.equal(inner.field('foo').type.typeName, 'int');
+
+      function hook(schema) {
+        if (schema.type !== 'record') {
+          return;
+        }
+        schema.name = 'Foo' + (i++);
+      }
+    });
+
   });
 
 });
