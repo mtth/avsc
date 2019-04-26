@@ -3971,6 +3971,20 @@ suite('types', function () {
       }
     });
 
+    test('type hook array', function () {
+      var i = 1;
+      var t = infer([{foo: 2}, {foo: 3}], {typeHook: hook}).itemsType;
+      assert.equal(t.name, 'Foo3');
+      assert.equal(t.field('foo').type.typeName, 'int');
+
+      function hook(schema) {
+        if (schema.type !== 'record') {
+          return;
+        }
+        schema.name = 'Foo' + (i++);
+      }
+    });
+
   });
 
 });
