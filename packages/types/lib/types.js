@@ -391,7 +391,7 @@ Type.forTypes = function (types, opts) {
             type: 'array',
             items: Type.forTypes(bucketTypes.map(function (t) {
               return t.itemsType;
-            }))
+            }), opts)
           }, opts);
         default:
           return combineObjects(bucketTypes, opts);
@@ -2668,7 +2668,7 @@ function isValidName(str) { return NAME_PATTERN.test(str); }
  * with a hook since the path is not propagated (for efficiency reasons).
  */
 function throwInvalidError(val, type) {
-  throw new Error(f('invalid %s: %j', type, val));
+  throw new Error(f('invalid %j: %j', type.schema(), val));
 }
 
 /**
