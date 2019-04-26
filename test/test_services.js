@@ -134,7 +134,7 @@ suite('services', function () {
     test('get messages', function () {
       var svc;
       svc = Service.forProtocol({protocol: 'Empty'});
-      assert.deepEqual(svc.messages, {});
+      assert.deepEqual(svc.messages, []);
       svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {
@@ -2827,7 +2827,7 @@ suite('services', function () {
               // Attach error handler to channel.
               server.on('error', function (err, chn) {
                 assert(/duplicate backward middleware/.test(err), err);
-                assert.strictEqual(chn.server. server);
+                assert.strictEqual(chn.server, server);
                 setTimeout(function () { done(); }, 0);
               });
               next(null, function (err, prev) {
@@ -2861,7 +2861,7 @@ suite('services', function () {
                 return;
               }
               assert.equal(sawFoo, 1);
-              assert(/invalid "bytes"/.test(err.message));
+              assert(/invalid "bytes"/.test(err.message), err);
               setTimeout(function () { done(); }, 0);
             })
             .use(function (wreq, wres, next) {
