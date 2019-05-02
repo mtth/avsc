@@ -2992,7 +2992,7 @@ suite('types', function () {
       assert.equal(ts.length, 1);
       assert.equal(ts[0].name, 'Human');
 
-      function hook(schema, opts) {
+      function hook(schema, opts, scope) {
         if (~refs.indexOf(schema)) {
           // Already seen this schema.
           return;
@@ -3001,6 +3001,7 @@ suite('types', function () {
 
         var type = Type.forSchema(schema, opts);
         if (type instanceof constructors.RecordType) {
+          assert.deepEqual(scope.path, []);
           ts.push(type);
         }
         return type;
@@ -3038,6 +3039,30 @@ suite('types', function () {
         if (name === 'R2') {
           return Type.forSchema(a2, opts);
         }
+      }
+    });
+
+    test('type hook scope', function () {
+      var a1 = {
+        type: 'record',
+        name: 'Outer',
+        fields: [
+          {
+            name: 'inner',
+            type: {
+              type: 'record',
+              name: 'Inner',
+              fields: []
+            }
+          }
+        ]
+      };
+      var paths = [];
+      Type.forSchema(a1, {typeHook: hook});
+      assert.deepEqual(paths, [[], ['inner']]);
+
+      function hook(name, opts, scope) {
+        paths.push(scope.path);
       }
     });
 

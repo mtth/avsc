@@ -68,7 +68,7 @@ var UNDERLYING_TYPES = [];
  *
  *  See individual subclasses for details.
  */
-function Type(schema, opts) {
+function Type(schema, opts, scope) {
   var type;
   if (LOGICAL_TYPE) {
     type = LOGICAL_TYPE;
@@ -86,7 +86,7 @@ function Type(schema, opts) {
     // This is a complex (i.e. non-primitive) type.
     var name = schema.name;
     var namespace = schema.namespace === undefined ?
-      opts && opts.namespace :
+      scope && scope.namespace :
       schema.namespace;
     if (name !== undefined) {
       // This isn't an anonymous type.
@@ -112,9 +112,10 @@ function Type(schema, opts) {
   }
 }
 
-Type.forSchema = function (schema, opts) {
+Type.forSchema = function (schema, opts, scope) {
   opts = opts || {};
   opts.registry = opts.registry || {};
+  scope = scope || Scope.forOptions(opts);
 
   var UnionType = (function (wrapUnions) {
     if (wrapUnions === true) {
@@ -148,7 +149,7 @@ Type.forSchema = function (schema, opts) {
   }
 
   var type;
-  if (opts.typeHook && (type = opts.typeHook(schema, opts))) {
+  if (opts.typeHook && (type = opts.typeHook(schema, opts, scope))) {
     if (!utils.isType(type)) {
       throw new Error(f('invalid typehook return value: %j', type));
     }
@@ -156,7 +157,7 @@ Type.forSchema = function (schema, opts) {
   }
 
   if (typeof schema == 'string') { // Type reference.
-    schema = qualifyName(schema, opts.namespace);
+    schema = qualifyName(schema, scope.namespace);
     type = opts.registry[schema];
     if (type) {
       // Type was already defined, return it.
@@ -174,7 +175,6 @@ Type.forSchema = function (schema, opts) {
   if (schema.logicalType && opts.logicalTypes && !LOGICAL_TYPE) {
     var DerivedType = opts.logicalTypes[schema.logicalType];
     if (DerivedType) {
-      var namespace = opts.namespace;
       var registry = {};
       Object.keys(opts.registry).forEach(function (key) {
         registry[key] = opts.registry[key];
@@ -191,15 +191,14 @@ Type.forSchema = function (schema, opts) {
           throw err;
         }
         LOGICAL_TYPE = null;
-        opts.namespace = namespace;
         opts.registry = registry;
       }
     }
   }
 
   if (Array.isArray(schema)) { // Union.
-    var types = schema.map(function (obj) {
-      return Type.forSchema(obj, opts);
+    var types = schema.map(function (obj, i) {
+      return Type.forSchema(obj, opts, scope.child(i));
     });
     if (!UnionType) {
       UnionType = isAmbiguous(types) ? WrappedUnionType : UnwrappedUnionType;
@@ -211,14 +210,15 @@ Type.forSchema = function (schema, opts) {
       if (Type === undefined) {
         throw new Error(f('unknown type: %j', typeName));
       }
-      return new Type(schema, opts);
+      return new Type(schema, opts, scope);
     })(schema.type);
   }
   return type;
 };
 
-Type.forValue = function (val, opts) {
+Type.forValue = function (val, opts, scope) {
   opts = opts || {};
+  scope = scope || Scope.forOptions(opts);
 
   // Sentinel used when inferring the types of empty arrays.
   opts.emptyArrayType = opts.emptyArrayType || Type.forSchema({
@@ -227,7 +227,7 @@ Type.forValue = function (val, opts) {
 
   // Optional custom inference hook.
   if (opts.valueHook) {
-    var type = opts.valueHook(val, opts);
+    var type = opts.valueHook(val, opts, scope);
     if (type !== undefined) {
       if (!utils.isType(type)) {
         throw new Error(f('invalid value hook return value: %j', type));
@@ -239,19 +239,19 @@ Type.forValue = function (val, opts) {
   // Default inference logic.
   switch (typeof val) {
     case 'string':
-      return Type.forSchema('string', opts);
+      return Type.forSchema('string', opts, scope);
     case 'boolean':
-      return Type.forSchema('boolean', opts);
+      return Type.forSchema('boolean', opts, scope);
     case 'number':
       if ((val | 0) === val) {
-        return Type.forSchema('int', opts);
+        return Type.forSchema('int', opts, scope);
       } else if (Math.abs(val) < 9007199254740991) {
-        return Type.forSchema('float', opts);
+        return Type.forSchema('float', opts, scope);
       }
-      return Type.forSchema('double', opts);
+      return Type.forSchema('double', opts, scope);
     case 'object':
       if (val === null) {
-        return Type.forSchema('null', opts);
+        return Type.forSchema('null', opts, scope);
       } else if (Array.isArray(val)) {
         if (!val.length) {
           return opts.emptyArrayType;
@@ -259,11 +259,12 @@ Type.forValue = function (val, opts) {
         return Type.forSchema({
           type: 'array',
           items: Type.forTypes(
-            val.map(function (v) { return Type.forValue(v, opts); })
-          )
-        }, opts);
+            val.map(function (v, i) {
+              return Type.forValue(v, opts, scope.child(i));
+            }), opts, scope.child('*'))
+        }, opts, scope);
       } else if (Buffer.isBuffer(val)) {
-        return Type.forSchema('bytes', opts);
+        return Type.forSchema('bytes', opts, scope);
       }
       var fieldNames = Object.keys(val);
       if (fieldNames.some(function (s) { return !isValidName(s); })) {
@@ -271,22 +272,22 @@ Type.forValue = function (val, opts) {
         return Type.forSchema({
           type: 'map',
           values: Type.forTypes(fieldNames.map(function (s) {
-            return Type.forValue(val[s], opts);
-          }), opts)
-        }, opts);
+            return Type.forValue(val[s], opts, scope.child(s));
+          }), opts, scope.child('*'))
+        }, opts, scope);
       }
       return Type.forSchema({
         type: 'record',
         fields: fieldNames.map(function (s) {
-          return {name: s, type: Type.forValue(val[s], opts)};
+          return {name: s, type: Type.forValue(val[s], opts, scope.child(s))};
         })
-      }, opts);
+      }, opts, scope);
     default:
       throw new Error(f('cannot infer type from: %j', val));
   }
 };
 
-Type.forTypes = function (types, opts) {
+Type.forTypes = function (types, opts, scope) {
   if (!types.length) {
     throw new Error('no types to combine');
   }
@@ -294,6 +295,7 @@ Type.forTypes = function (types, opts) {
     return types[0]; // Nothing to do.
   }
   opts = opts || {};
+  scope = scope || Scope.forOptions(opts);
 
   // Extract any union types, with special care for wrapped unions (see below).
   var expanded = [];
@@ -340,7 +342,7 @@ Type.forTypes = function (types, opts) {
     try {
       unionType = Type.forSchema(Object.keys(branchTypes).map(function (name) {
         return branchTypes[name];
-      }), opts);
+      }), opts, scope);
     } catch (err) {
       opts.wrapUnions = wrapUnions;
       throw err;
@@ -374,9 +376,9 @@ Type.forTypes = function (types, opts) {
         case 'number':
           return combineNumbers(bucketTypes);
         case 'string':
-          return combineStrings(bucketTypes, opts);
+          return combineStrings(bucketTypes, opts, scope);
         case 'buffer':
-          return combineBuffers(bucketTypes, opts);
+          return combineBuffers(bucketTypes, opts, scope);
         case 'array':
           // Remove any sentinel arrays (used when inferring from empty arrays)
           // to avoid making things nullable when they shouldn't be.
@@ -391,10 +393,10 @@ Type.forTypes = function (types, opts) {
             type: 'array',
             items: Type.forTypes(bucketTypes.map(function (t) {
               return t.itemsType;
-            }), opts)
-          }, opts);
+            }), opts, scope.child('*'))
+          }, opts, scope);
         default:
-          return combineObjects(bucketTypes, opts);
+          return combineObjects(bucketTypes, opts, scope);
       }
     }
   });
@@ -403,7 +405,7 @@ Type.forTypes = function (types, opts) {
     return augmented[0];
   } else {
     // We return an (unwrapped) union of all augmented types.
-    return Type.forSchema(augmented, opts);
+    return Type.forSchema(augmented, opts, scope);
   }
 };
 
@@ -1029,7 +1031,7 @@ BytesType.prototype.compare = Buffer.compare;
 BytesType.prototype.typeName = 'bytes';
 
 /** Base "abstract" Avro union type. */
-function UnionType(schema, opts) {
+function UnionType(schema, opts, scope) {
   Type.call(this);
 
   if (!Array.isArray(schema)) {
@@ -1039,7 +1041,7 @@ function UnionType(schema, opts) {
     throw new Error('empty union');
   }
   this.types = Object.freeze(schema.map(function (obj) {
-    return Type.forSchema(obj, opts);
+    return Type.forSchema(obj, opts, scope);
   }));
 
   this._branchIndices = {};
@@ -1386,8 +1388,8 @@ WrappedUnionType.prototype.typeName = 'union:wrapped';
  * TypeScript `enum`s) by overriding the `EnumType` with a `LongType` (e.g. via
  * `parse`'s registry).
  */
-function EnumType(schema, opts) {
-  Type.call(this, schema, opts);
+function EnumType(schema, opts, scope) {
+  Type.call(this, schema, opts, scope);
   if (!Array.isArray(schema.symbols) || !schema.symbols.length) {
     throw new Error(f('invalid enum symbols: %j', schema.symbols));
   }
@@ -1461,8 +1463,8 @@ EnumType.prototype._deref = function (schema) {
 EnumType.prototype.typeName = 'enum';
 
 /** Avro fixed type. Represented simply as a `Buffer`. */
-function FixedType(schema, opts) {
-  Type.call(this, schema, opts);
+function FixedType(schema, opts, scope) {
+  Type.call(this, schema, opts, scope);
   if (schema.size !== (schema.size | 0) || schema.size < 1) {
     throw new Error(f('invalid %s size', this.branchName));
   }
@@ -1517,12 +1519,13 @@ FixedType.prototype._deref = function (schema) { schema.size = this.size; };
 FixedType.prototype.typeName = 'fixed';
 
 /** Avro map. Represented as vanilla objects. */
-function MapType(schema, opts) {
+function MapType(schema, opts, scope) {
   Type.call(this);
   if (!schema.values) {
     throw new Error(f('missing map values: %j', schema));
   }
-  this.valuesType = Type.forSchema(schema.values, opts);
+  scope = scope || Scope.forOptions(opts);
+  this.valuesType = Type.forSchema(schema.values, opts, scope.child('*'));
   this._branchConstructor = this._createBranchConstructor();
   Object.freeze(this);
 }
@@ -1648,12 +1651,13 @@ MapType.prototype._deref = function (schema, opts) {
 };
 
 /** Avro array. Represented as vanilla arrays. */
-function ArrayType(schema, opts) {
+function ArrayType(schema, opts, scope) {
   Type.call(this);
   if (!schema.items) {
     throw new Error(f('missing array items: %j', schema));
   }
-  this.itemsType = Type.forSchema(schema.items, opts);
+  scope = scope || Scope.forOptions(opts);
+  this.itemsType = Type.forSchema(schema.items, opts, scope.child('*'));
   this._branchConstructor = this._createBranchConstructor();
   Object.freeze(this);
 }
@@ -1795,24 +1799,24 @@ ArrayType.prototype.typeName = 'array';
  * This type is also used for errors (similar, except for the extra `Error`
  * constructor call) and for messages (see comment below).
  */
-function RecordType(schema, opts) {
+function RecordType(schema, opts, scope) {
   // Force creation of the options object in case we need to register this
   // record's name.
   opts = opts || {};
+  scope = scope || Scope.forOptions(opts);
 
   // Save the namespace to restore it as we leave this record's scope.
-  var namespace = opts.namespace;
   if (schema.namespace !== undefined) {
-    opts.namespace = schema.namespace;
+    scope.namespace = schema.namespace;
   } else if (schema.name) {
     // Fully qualified names' namespaces are used when no explicit namespace
     // attribute was specified.
     var match = /^(.*)\.[^.]+$/.exec(schema.name);
     if (match) {
-      opts.namespace = match[1];
+      scope.namespace = match[1];
     }
   }
-  Type.call(this, schema, opts);
+  Type.call(this, schema, opts, scope);
 
   if (!Array.isArray(schema.fields)) {
     throw new Error(f('non-array record fields: %j', schema.fields));
@@ -1822,7 +1826,7 @@ function RecordType(schema, opts) {
   }
   this._fieldsByName = {};
   this.fields = Object.freeze(schema.fields.map(function (f) {
-    var field = new Field(f, opts);
+    var field = new Field(f, opts, scope);
     this._fieldsByName[field.name] = field;
     return field;
   }, this));
@@ -1834,7 +1838,6 @@ function RecordType(schema, opts) {
   this._write = this._createWriter();
   this._check = this._createChecker();
 
-  opts.namespace = namespace;
   Object.freeze(this);
 }
 util.inherits(RecordType, Type);
@@ -2257,12 +2260,12 @@ Object.defineProperty(RecordType.prototype, 'typeName', {
 });
 
 /** Derived type abstract class. */
-function LogicalType(schema, opts) {
+function LogicalType(schema, opts, scope) {
   this._logicalTypeName = schema.logicalType;
   Type.call(this);
   LOGICAL_TYPE = this;
   try {
-    this._underlyingType = Type.forSchema(schema, opts);
+    this._underlyingType = Type.forSchema(schema, opts, scope);
   } finally {
     LOGICAL_TYPE = null;
     // Remove the underlying type now that we're done instantiating. Note that
@@ -2449,14 +2452,14 @@ AbstractLongType.prototype._isValid = utils.abstractFunction;
 AbstractLongType.prototype.compare = utils.abstractFunction;
 
 /** A record field. */
-function Field(schema, opts) {
+function Field(schema, opts, scope) {
   var name = schema.name;
   if (typeof name != 'string' || !isValidName(name)) {
     throw new Error(f('invalid field name: %s', name));
   }
 
   this.name = name;
-  this.type = Type.forSchema(schema.type, opts);
+  this.type = Type.forSchema(schema.type, opts, scope.child(name));
   this.aliases = schema.aliases || [];
   this.doc = schema.doc !== undefined ? '' + schema.doc : undefined;
 
@@ -2523,6 +2526,19 @@ function Resolver(writerType, readerType) {
 }
 
 Resolver.prototype._peek = Type.prototype._peek;
+
+function Scope(namespace, path) {
+  this.namespace = namespace;
+  this.path = path || [];
+}
+
+Scope.forOptions = function (opts) {
+  return new Scope(opts ? opts.namespace : undefined);
+};
+
+Scope.prototype.child = function (step) {
+  return new Scope(this.namespace, this.path.concat('' + step));
+};
 
 /**
  * Read a value from a tap.
@@ -2768,7 +2784,7 @@ function combineNumbers(types) {
  * The order of the returned symbols is undefined and the returned enum is
  *
  */
-function combineStrings(types, opts) {
+function combineStrings(types, opts, scope) {
   var symbols = {};
   var i, l, type, typeSymbols;
   for (i = 0, l = types.length; i < l; i++) {
@@ -2783,7 +2799,10 @@ function combineStrings(types, opts) {
       symbols[typeSymbols[j]] = true;
     }
   }
-  return Type.forSchema({type: 'enum', symbols: Object.keys(symbols)}, opts);
+  return Type.forSchema({
+    type: 'enum',
+    symbols: Object.keys(symbols)
+  }, opts, scope);
 }
 
 /**
@@ -2794,7 +2813,7 @@ function combineStrings(types, opts) {
  * through the array to find an existing bytes type (rather than exit early by
  * creating one eagerly).
  */
-function combineBuffers(types, opts) {
+function combineBuffers(types, opts, scope) {
   var size = -1;
   var i, l, type;
   for (i = 0, l = types.length; i < l; i++) {
@@ -2810,7 +2829,7 @@ function combineBuffers(types, opts) {
       size = -2;
     }
   }
-  return size < 0 ? Type.forSchema('bytes', opts) : types[0];
+  return size < 0 ? Type.forSchema('bytes', opts, scope) : types[0];
 }
 
 /**
@@ -2819,7 +2838,7 @@ function combineBuffers(types, opts) {
  * Field defaults are kept when possible (i.e. when no coercion to a map
  * happens), with later definitions overriding previous ones.
  */
-function combineObjects(types, opts) {
+function combineObjects(types, opts, scope) {
   var allTypes = []; // Field and value types.
   var fieldTypes = {}; // Record field types grouped by field name.
   var fieldDefaults = {};
@@ -2869,7 +2888,9 @@ function combineObjects(types, opts) {
         if (opts && opts.strictDefaults) {
           isValidRecord = false;
         } else {
-          fieldTypes[fieldName].unshift(Type.forSchema('null', opts));
+          fieldTypes[fieldName].unshift(
+            Type.forSchema('null', opts, scope.child(fieldName))
+          );
           fieldDefaults[fieldName] = null;
         }
       }
@@ -2881,7 +2902,8 @@ function combineObjects(types, opts) {
     schema = {
       type: 'record',
       fields: fieldNames.map(function (s) {
-        var fieldType = Type.forTypes(fieldTypes[s], opts);
+        var childScope = scope.child(s);
+        var fieldType = Type.forTypes(fieldTypes[s], opts, childScope);
         var fieldDefault = fieldDefaults[s];
         if (
           fieldDefault !== undefined &&
@@ -2899,7 +2921,7 @@ function combineObjects(types, opts) {
             var unionType = unionTypes[0];
             unionTypes[0] = unionTypes[i];
             unionTypes[i] = unionType;
-            fieldType = Type.forSchema(unionTypes, opts);
+            fieldType = Type.forSchema(unionTypes, opts, childScope);
           }
         }
         return {
@@ -2912,10 +2934,10 @@ function combineObjects(types, opts) {
   } else {
     schema = {
       type: 'map',
-      values: Type.forTypes(allTypes, opts)
+      values: Type.forTypes(allTypes, opts, scope.child('*'))
     };
   }
-  return Type.forSchema(schema, opts);
+  return Type.forSchema(schema, opts, scope);
 }
 
 
