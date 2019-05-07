@@ -1803,7 +1803,7 @@ function RecordType(schema, opts, scope) {
   // Force creation of the options object in case we need to register this
   // record's name.
   opts = opts || {};
-  scope = scope || Scope.forOptions(opts);
+  scope = scope ? scope.clone() : Scope.forOptions(opts);
 
   // Save the namespace to restore it as we leave this record's scope.
   if (schema.namespace !== undefined) {
@@ -2527,6 +2527,13 @@ function Resolver(writerType, readerType) {
 
 Resolver.prototype._peek = Type.prototype._peek;
 
+/**
+ * Type creation scope.
+ *
+ * Currently it holds the current namespace and the path to the type being
+ * generated (useful in type hooks when generating record names for
+ * `Type.forValue` for example).
+ */
 function Scope(namespace, path) {
   this.namespace = namespace;
   this.path = path || [];
@@ -2534,6 +2541,10 @@ function Scope(namespace, path) {
 
 Scope.forOptions = function (opts) {
   return new Scope(opts ? opts.namespace : undefined);
+};
+
+Scope.prototype.clone = function () {
+  return new Scope(this.namespace, this.path);
 };
 
 Scope.prototype.child = function (step) {
