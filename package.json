@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "5.4.10",
+  "version": "5.4.11",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -53,9 +53,9 @@
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
-    "coveralls": "^3.0.1",
+    "coveralls": "^3.0.4",
     "mocha": "^5.2.0",
-    "nyc": "~13.3.0",
+    "nyc": "~14.1.1",
     "tmp": "^0.0.33"
   },
   "author": {

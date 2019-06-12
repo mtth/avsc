@@ -2534,6 +2534,22 @@ suite('types', function () {
         assert(slowLongType.isValid(slowLongType.random()));
       });
 
+      test('evolution to/from', function () {
+        var t1 = Type.forSchema({
+          type: 'record',
+          name: 'Foo',
+          fields: [{name: 'foo', type: 'long'}],
+        }, {registry: {long: slowLongType}});
+        var t2 = Type.forSchema({
+          type: 'record',
+          name: 'Foo',
+          fields: [{name: 'bar', aliases: ['foo'], type: 'long'}],
+        }, {registry: {long: slowLongType}});
+        var rsv = t2.createResolver(t1);
+        var buf = t1.toBuffer({foo: 2});
+        assert.deepEqual(t2.fromBuffer(buf, rsv), {bar: 2});
+      });
+
     });
 
     test('within unwrapped union', function () {
