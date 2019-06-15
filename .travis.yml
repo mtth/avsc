@@ -15,27 +15,30 @@ node_js:
   - '1.0'
   - '0.12'
   - '0.11'
-matrix:
-  include:
-    - node_js: node
-      env: AVSC_COVERAGE=1
 before_script:
   # Mocha 4+ requires node>=4.
   - node -e 'const a = b => 1;' 2>/dev/null || npm i mocha@~3.0.0
-script:
-  - if [[ -n "$AVSC_COVERAGE" ]]; then npm run coverAndPublish; else npm test; fi
+stages:
+  - coverage
+  - test
+  - deploy
 jobs:
   include:
+    - stage: coverage
+      node_js: node
+      script: npm run coverAndPublish
     - stage: deploy
+      if: branch = master AND tag =~ ^v[\d\.]+$
+      node_js: node
       deploy:
-        provider: npm
         script: skip
+        provider: npm
         email: mtth@apache.org
         api_key:
           secure: e8RPZexsWnXMe7SYLJEfESwsEs0dF9DakZ1XKe+I2VO3nBX8ap3DVdzG+fh5oucJq+jwMV2WIJAGVlC01bJEnzrzkofKyFSqwcdA1uf+Z38CkoTH2QSWRLN6SFvcEUxBb0uMaRz86SZUZREX2PAyk8cjgdjiPgliUJIKT/0XoJYs+OGtDC21Ltwq/jADaMnueAoD0r75P25nNoTna9qt0snEMcA4xGSnh74Id+wya+56pHV07SgiYF9c4R6962Ua7g3tMjQY13OFjpOUKjMXzQxmm3S0wY/4HX+vU3i6GPLxGOVz2pA5dTFyTR0naVs9U46icO6rpoQ90eKhfIG0e0M1IofGvUwGmgST7GaXpBHzilmrEm79DbTTgsqFsVcdFRxgQD4mX6vA0BpEv4nQga431VNI+qKrkMsvtISSioNMPwl/F4J/U65TgWAFYpj4ICFu9AYCaLkSce2o3fYKfoiaA2bayzYuiv27zK+l1x4OfOZIN7B+1DzWnerFM0KOgqW2t5m/tAvUF4U4lV7HZgQrPOTTd+qPMJbCbWFb3JBSZJelag5mbpXtMVTeEVQ8aC2kmmSDnw5jWMJdEToDSr9Ohls5kBZrm9/YG2NAP6s1u+tW68FZuso0zzc33t24rH/XuTjShf6BWQRXXlNH1sp7/GwQRcnSwLW3X+wOl8s=
-        on:
-          tags: true
+        on: # Extra safety.
           repo: mtth/avsc
+          tags: true
 env:
   global:
   - secure: jfZPWrrkjE3Xvk7T8EYBRJ3tfYKXCK8V6XqgttCDIXFp1149Pf766v1oaHQHJV6BqKGe98q2ooBXFKmV9o64qI+7rPGUVagHdpbrkQceQHbEdZu8OU4heGCoQ/ltmcdp+oNZzMh7MuBvhw6FlnM37TDFEzNs5dsybA97NDkEeK0EJQxThap6EN2HqdWCt8NB+6jF6cyWyxpIYd1fO9ZlZ/OYTVddGxa5brLIwhS7IBEP5S9bEqgO2YQnm2zmmhGlLNaCYfk0T3iqax5NHOb6yAGxQfm/Tbv3Z4mVfjVECMUaKCg83sEV6+Qbky+psRHI2uAhbteLAj8Qvo6xfUsxhJ9JPqxiCCp7EyDm23KapGxNxpMEa3OCJH0OSYe2HZsUNJkMnhyk3hUOB04eMH3t/COxFA05j2xj+WAnT1u6xRXl50bZDBOEJ5kuhWxSVYBVJEoo9nkDudANh83rqkCIGV84uMMa05wOBmgTh3wOMuCF9Ok5U1SYIatBkan7ulHxgEGNfP6iF1XJWy0q6spRDvavs8XIT6w5Il6E/6vS9F0Fdn+QwErvUcbGzHARprm6RkgWKtjoNmfaSMJolCItLpq0FfHU3j9ZJ6mjUcUAvH6zAc8+XjRc2X+skT2n7TryM4196f630dejJ/ZL8dWsVulEwoVfviB+6SgVffXjagE=
