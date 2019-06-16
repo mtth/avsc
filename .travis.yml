@@ -28,7 +28,7 @@ jobs:
       node_js: node
       script: npm run coverAndPublish
     - stage: deploy
-      if: branch = master AND tag =~ ^v[\d\.]+$
+      if: tag =~ ^[\d\.]+$
       node_js: node
       deploy:
         script: skip
