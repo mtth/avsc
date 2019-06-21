@@ -13,7 +13,7 @@ Avro-powered RPC services.
 ### In-process client and server
 
 ```javascript
-const {Client, Server, Service, Trace} = require('@avro/services');
+const {Client, Deadline, Server, Service, Trace} = require('@avro/services');
 
 const stringService = new Service({
   protocol: 'StringService',
@@ -30,16 +30,14 @@ const stringServer = new Server(stringService)
 
 const stringClient = stringServer.client(); // In-process client.
 
-stringClient.emitMessage().upperCase('hello!', (err, str) => {
-  if (err) {
-    throw err;
-  }
-  console.log(str); // HELLO!
-});
+stringClient.emitMessage(Deadline.forMillis(100))
+  .upperCase('hello!', (err, str) => {
+    if (err) {
+      throw err;
+    }
+    console.log(str); // HELLO!
+  });
 ```
-+ rename `Trace` to `Deadline`
-+ make it available as `ctx.deadline`
-+ move `deadline.headers` to `ctx.tags`
 
 ### TCP server hosting two services
 
