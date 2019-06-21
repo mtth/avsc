@@ -2,132 +2,112 @@
 
 'use strict';
 
-const {Trace} = require('../lib/trace');
+const {Deadline} = require('../lib/deadline');
 
 const assert = require('assert');
 const sinon = require('sinon');
 
-suite('Trace', () => {
+suite('Deadline', () => {
   let clock;
 
   setup(() => { clock = sinon.useFakeTimers(); });
   teardown(() => { clock.restore(); });
 
   test('expire with default error', (done) => {
-    const trace = new Trace();
-    trace.whenExpired((err) => {
+    const deadline = Deadline.infinite();
+    deadline.whenExpired((err) => {
       assert.ifError(err);
-      assert(trace.expired);
+      assert(deadline.expired);
       done();
-    })
-    trace.expire();
+    });
+    deadline.expire();
   });
 
   test('expire with custom error', (done) => {
-    const trace = new Trace();
+    const deadline = Deadline.infinite();
     const cause = new Error('foo');
-    trace.whenExpired((err) => {
+    deadline.whenExpired((err) => {
       assert.strictEqual(err, cause);
       done();
-    })
-    trace.expire(cause);
+    });
+    deadline.expire(cause);
   });
 
   test('deadline exceeded', (done) => {
-    const trace = new Trace(50);
-    trace.whenExpired((err) => {
+    const deadline = Deadline.forMillis(50);
+    deadline.whenExpired((err) => {
       assert.equal(err.code, 'ERR_DEADLINE_EXCEEDED');
-      assert(trace.expired);
+      assert(deadline.expired);
       done();
     });
     clock.tick(25);
-    assert(!trace.expired);
+    assert(!deadline.expired);
     clock.tick(55);
   });
 
   test('deadline propagates to child', () => {
-    const parent = new Trace(50);
-    const child = new Trace(parent);
-    assert(child.deadline.equals(parent.deadline));
+    const parent = Deadline.forMillis(50);
+    const child = Deadline.infinite(parent);
+    assert(child.expiration.equals(parent.expiration));
   });
 
   test('child adjusts parent deadline', () => {
-    const parent = new Trace(50);
-    const child = new Trace(40, parent);
+    const parent = Deadline.forMillis(50);
+    const child = Deadline.forMillis(40, parent);
     assert.equal(+child.remainingDuration, 40);
   });
 
   test('expire propagates to child', (done) => {
-    const parent = new Trace();
-    const child = new Trace(parent);
+    const parent = Deadline.infinite();
+    const child = Deadline.infinite(parent);
     child.whenExpired(() => {
       assert(child.expired);
       assert(parent.expired);
       done();
-    })
+    });
     parent.expire();
     parent.expire();
   });
 
   test('expire does not propagate from child', (done) => {
-    const parent = new Trace();
-    const child = new Trace(10, parent);
+    const parent = Deadline.infinite();
+    const child = Deadline.forMillis(10, parent);
     child.whenExpired(() => {
       assert(child.expired);
       assert(!parent.expired);
       done();
-    })
+    });
     child.expire();
   });
 
   test('timeout child', (done) => {
-    const parent = new Trace(10);
-    const child = new Trace(parent);
+    const parent = Deadline.forMillis(10);
+    const child = Deadline.infinite(parent);
     child.whenExpired(() => {
       assert(child.expired);
       assert(child.expired);
       done();
-    })
+    });
     clock.tick(15);
   });
 
   test('expired calls handler immediately', () => {
-    const trace = new Trace();
-    trace.expire();
+    const deadline = Deadline.infinite();
+    deadline.expire();
     let expired = false;
-    trace.whenExpired(() => { expired = true; });
+    deadline.whenExpired(() => { expired = true; });
     assert(expired);
   });
 
-  test('timeout free child', (done) => {
-    const parent = new Trace(10);
-    const child = new Trace(parent, {free: true});
-    child.whenExpired(() => {
-      done();
-    })
-    clock.tick(15);
-    assert(parent.expired);
-    assert(!child.expired);
-    child.expire();
-  });
-
-  test('child headers', () => {
-    const parent = new Trace(null, {headers: {one: '1', two: '2'}});
-    const child = new Trace(parent, {headers: {two: '22'}});
-    assert.equal(child.headers.one, '1');
-    assert.equal(child.headers.two, '22');
-    assert.equal(parent.headers.two, '2');
-  });
-
   test('wrap without deadline', (done) => {
-    const trace = new Trace();
-    const wrapped = trace.wrap(done);
+    const deadline = Deadline.infinite();
+    const wrapped = deadline.wrap(done);
     wrapped();
   });
 
   test('wrap callback finishes first', (done) => {
-    const trace = new Trace(10);
-    const wrapped = trace.wrap((err, str) => {
+    const deadline = Deadline.forMillis(10);
+    const wrapped = deadline.wrap((err, str) => {
       assert.ifError(err);
       assert.equal(str, 'foo');
       clock.tick(15);
@@ -136,9 +116,9 @@ suite('Trace', () => {
     wrapped(null, 'foo');
   });
 
-  test('wrap trace finishes first', (done) => {
-    const trace = new Trace(10);
-    const wrapped = trace.wrap((err) => {
+  test('wrap deadline finishes first', (done) => {
+    const deadline = Deadline.forMillis(10);
+    const wrapped = deadline.wrap((err) => {
       assert.equal(err.code, 'ERR_DEADLINE_EXCEEDED');
       clock.tick(10);
       done();
@@ -147,10 +127,10 @@ suite('Trace', () => {
     clock.tick(15);
   });
 
-  test('wrap trace already expired', (done) => {
-    const trace = new Trace();
-    trace.expire();
-    const wrapped = trace.wrap((err) => {
+  test('wrap deadline already expired', (done) => {
+    const deadline = Deadline.infinite();
+    deadline.expire();
+    deadline.wrap((err) => {
       assert.strictEqual(err, null);
       done();
     });

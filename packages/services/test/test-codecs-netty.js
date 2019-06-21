@@ -3,13 +3,11 @@
 'use strict';
 
 const {Client, Server} = require('../lib/call');
-const {Trace} = require('../lib/trace');
 const {NettyChannel, NettyGateway} = require('../lib/codecs/netty');
+const {Deadline} = require('../lib/deadline');
 const {Service} = require('../lib/service');
 
-const {Type} = require('@avro/types');
 const assert = require('assert');
-const {DateTime} = require('luxon');
 const net = require('net');
 const sinon = require('sinon');
 
@@ -57,7 +55,7 @@ suite('netty codec', () => {
         .upper((msg, cb) => {
           cb(null, null, msg.toUpperCase());
         });
-      client.emitMessage(new Trace())
+      client.emitMessage()
         .upper('foo', (err1, err2, res) => {
           assert(!err1, err1);
           assert(!err2, err2);
@@ -66,40 +64,39 @@ suite('netty codec', () => {
         });
     });
 
-    test('expire trace', (done) => {
-      const trace = new Trace();
+    test('expire deadline', (done) => {
+      const deadline = Deadline.infinite();
       server.onMessage().upper((msg, cb) => {
-        trace.expire();
+        deadline.expire();
+        cb();
       });
-      client.emitMessage(trace).upper('foo', (err) => {
-        assert.equal(err.code, 'ERR_TRACE_EXPIRED');
+      client.emitMessage(deadline).upper('foo', (err) => {
+        assert.equal(err.code, 'ERR_DEADLINE_EXPIRED');
         done();
       });
     });
 
-    test('trace deadline and label propagation', (done) => {
-      const deadline = DateTime.fromMillis(1234);
+    test('deadline deadline and baggage propagation', (done) => {
+      const deadline = Deadline.forMillis(1234);
       const uuid = 'abc';
       let ok = false;
       server
         .use(function (wreq, wres, next) {
-          assert.equal(+this.trace.deadline, +deadline);
-          assert.deepEqual(this.trace.headers, {uuid});
+          assert.equal(+this.deadlineExpiration, +deadline.expiration);
+          assert.deepEqual(this.baggages, {uuid});
           ok = true;
           next();
         })
         .onMessage().echo((str, cb) => { cb(null, str); });
-      const trace = new Trace(deadline);
-      trace.headers.uuid = uuid;
-      client.emitMessage(trace).echo('foo', (err) => {
-        assert(!err, err);
-        assert(ok);
-        done();
-      });
+      client.emitMessage({deadline, baggages: {uuid}})
+        .echo('foo', function (err) {
+          assert(!err, err);
+          assert(ok);
+          done();
+        });
     });
 
     test('header propagation', (done) => {
-      const type = Type.forSchema('int');
       server
         .use((wreq, wres, next) => {
           wres.headers.chars = wreq.headers.chars + 'b';
@@ -115,7 +112,7 @@ suite('netty codec', () => {
             prev(err);
           });
         })
-        .emitMessage(new Trace()).echo('foo', (err, res) => {
+        .emitMessage().echo('foo', (err, res) => {
           assert.ifError(err);
           assert.equal(res, 'foo');
           assert.equal(chars, 'ab');
@@ -142,7 +139,7 @@ suite('netty codec', () => {
         }
         const {client, server} = obj;
         server.onMessage().echo((str, cb) => { cb(null, str); });
-        client.emitMessage(new Trace()).echo('foo', (err, str) => {
+        client.emitMessage().echo('foo', (err, str) => {
           assert.ifError(err);
           assert.equal(str, 'foo');
           client.channel().close();
@@ -171,7 +168,7 @@ suite('netty codec', () => {
           assert(false);
           cb();
         });
-        client.emitMessage(new Trace()).echo('', (err) => {
+        client.emitMessage().echo('', (err) => {
           assert.equal(err.code, 'ERR_INCOMPATIBLE_PROTOCOL');
           client.channel().close();
           done();
@@ -191,7 +188,7 @@ function routing(clientSvc, serverSvc, cb) {
       const port = tcpServer.address().port;
       const conn = net.createConnection(port).setNoDelay();
       const chan = new NettyChannel(conn).on('close', () => {
-        conn.destroy();
+        conn.end();
         tcpServer.close();
       });
       const client = new Client(clientSvc).channel(chan);

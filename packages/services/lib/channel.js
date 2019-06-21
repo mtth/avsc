@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {SystemError, randomId} = require('./utils');
+const {SystemError, mapOfStringType, randomId} = require('./utils');
 
 const backoff = require('backoff');
 const debug = require('debug');
@@ -16,15 +16,30 @@ const d = debug('@avro/services:channel');
  * Each packet's ID should be unique.
  */
 class Packet {
-  constructor(id, svc, body, headers) {
+  constructor(id, svc, body, headers, baggages) {
     this.id = id;
     this.service = svc;
     this.body = body;
+
+    // String values, propagated from/to request and response headers.
     this.headers = headers || {};
+    if (!mapOfStringType.isValid(this.headers)) {
+      const err = new Error('bad header values');
+      err.data = headers;
+      throw err;
+    }
+
+    // String values, propagated from/to the context only for requests.
+    this.baggages = baggages || {};
+    if (!mapOfStringType.isValid(this.baggages)) {
+      const err = new Error('bad baggage values');
+      err.data = baggages;
+      throw err;
+    }
   }
 
   static ping(svc, headers) {
-    return new Packet(-randomId(), svc, Buffer.from([0, 0]), headers);
+    return new Packet(-randomId(), svc, Buffer.from([0, 0]), {}, headers);
   }
 }
 
@@ -61,11 +76,11 @@ class Channel extends EventEmitter {
     this.emit('close');
   }
 
-  /** If the trace is (or becomes) expired, call will _not_ respond. */
-  call(trace, preq, cb) {
-    if (trace.expired) {
-      d('Dropping packet request %s (expired trace).', preq.id);
-      this.emit('drop', trace, preq.id);
+  /** If the deadline is (or becomes) expired, call will _not_ respond. */
+  call(deadline, preq, cb) {
+    if (deadline.expired) {
+      d('Dropping packet request %s (expired deadline).', preq.id);
+      this.emit('drop', deadline, preq.id);
       return;
     }
     if (this.closed) {
@@ -77,19 +92,19 @@ class Channel extends EventEmitter {
       const onFlush = () => {
         cleanup();
         this.removeListener('_flush', onFlush);
-        if (!trace.expired) {
-          this.call(trace, preq, cb);
+        if (!deadline.expired) {
+          this.call(deadline, preq, cb);
         }
       };
-      const cleanup = trace.whenExpired(onFlush);
+      const cleanup = deadline.whenExpired(onFlush);
       this.on('_flush', onFlush);
       return;
     }
-    this.emit('requestPacket', preq, trace);
-    this._handler.call(this, trace, preq, (err, pres) => {
-      if (trace.expired) {
-        d('Dropping packet response %s (expired trace).', preq.id);
-        this.emit('drop', trace, preq.id);
+    this.emit('requestPacket', preq, deadline);
+    this._handler.call(this, deadline, preq, (err, pres) => {
+      if (deadline.expired) {
+        d('Dropping packet response %s (expired deadline).', preq.id);
+        this.emit('drop', deadline, preq.id);
         return;
       }
       let systemErr;
@@ -99,20 +114,20 @@ class Channel extends EventEmitter {
         systemErr = SystemError.forPacket(pres);
       }
       if (systemErr) {
-        this.emit('systemError', systemErr, trace);
+        this.emit('systemError', systemErr, deadline);
       }
-      this.emit('responsePacket', pres, trace);
+      this.emit('responsePacket', pres, deadline);
       cb(err, pres);
     });
   }
 
-  /** Similar to call, if the trace has expired, ping will _not_ respond. */
-  ping(trace, svc, headers, cb) {
+  /** Similar to call, if the deadline has expired, ping will _not_ respond. */
+  ping(deadline, svc, headers, cb) {
     if (!cb && typeof headers == 'function') {
       cb = headers;
       headers = undefined;
     }
-    this.call(trace, Packet.ping(svc, headers), (err, pres) => {
+    this.call(deadline, Packet.ping(svc, headers), (err, pres) => {
       if (err) {
         cb(err);
         return;
@@ -136,7 +151,7 @@ class RoutingChannel extends Channel {
 
     this._channels = [];
     this._channelCache = new Map(); // By service name.
-    this._handler = (trace, preq, cb) => {
+    this._handler = (deadline, preq, cb) => {
       const clientSvc = preq.service;
       const name = clientSvc.name;
       const cache = this._channelCache;
@@ -149,7 +164,7 @@ class RoutingChannel extends Channel {
       // (w.r.t. array order) which is compatible. Note that we ping all
       // channels since a single channel might be compatible with multiple
       // protocols (e.g. if itself is a routing channel).
-      multiPing(trace, clientSvc, this._channels, (err, chan) => {
+      multiPing(deadline, clientSvc, this._channels, (err, chan) => {
         if (err) {
           cb(err);
           return;
@@ -166,7 +181,7 @@ class RoutingChannel extends Channel {
       });
 
       function routeUsing(chan) {
-        chan.call(trace, preq, (err, pres) => {
+        chan.call(deadline, preq, (err, pres) => {
           if (err && err.code === 'ERR_INCOMPATIBLE_PROTOCOL') {
             d('Channel for %s is not compatible, purging.', name);
             cache.delete(name);
@@ -273,7 +288,7 @@ class SelfRefreshingChannel extends Channel {
             this._refreshChannel();
           }
         });
-      this._handler = (trace, preq, cb) => { chan.call(trace, preq, cb); };
+      this._handler = (deadline, preq, cb) => { chan.call(deadline, preq, cb); };
       d('Set active channel.');
       this.emit('_flush');
       this.emit('up', ...args);
@@ -281,7 +296,7 @@ class SelfRefreshingChannel extends Channel {
   }
 }
 
-function multiPing(trace, svc, chans, cb) {
+function multiPing(deadline, svc, chans, cb) {
   const errs = [];
   let pending = chans.length;
   if (!pending) {
@@ -290,7 +305,7 @@ function multiPing(trace, svc, chans, cb) {
   }
   let match = null;
   for (const [idx, chan] of chans.entries()) {
-    chan.ping(trace, svc, onPing(idx, chan));
+    chan.ping(deadline, svc, onPing(idx, chan));
   }
 
   function onPing(idx, chan) {

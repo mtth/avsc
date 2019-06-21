@@ -7,42 +7,47 @@ const {SystemError, randomId} = require('./utils');
 const debug = require('debug');
 const {DateTime, Duration} = require('luxon');
 
-const d = debug('@avro/services:trace');
+const d = debug('@avro/services:deadline');
 
 /**
  * An RPC context thread.
  *
- * Traces are used to control the timing of RPCs, in particular to set
+ * Deadlines are used to control the timing of RPCs, in particular to set
  * deadlines and cancel them early.
  */
-class Trace {
-  /**
-   * Build a new trace.
-   *
-   * Options:
-   *
-   * + `free`, the trace will not expire with its parent (but will still share
-   *   its headers).
-   * + `headers`, initial header values.
-   * + `unref`, allow node to terminate before the trace's timeout (if any).
-   *   Note that this might cause performance issues if used for too many
-   *   traces (see https://nodejs.org/api/timers.html#timers_timeout_unref).
-   */
-  constructor(timeout, parent, opts) {
-    this.deadline = deadlineFromTimeout(timeout);
-    if (this.deadline === undefined) {
-      opts = parent;
-      parent = timeout;
-      this.deadline = null;
-    }
-    if (!Trace.isTrace(parent)) {
-      opts = parent;
-      parent = undefined;
-    }
-    opts = opts || {};
+class Deadline {
 
-    this.headers = parent ? Object.create(parent.headers) : {};
-    Object.assign(this.headers, opts.headers);
+  /** Returns a deadline with no timed expiration. */
+  static infinite(parent) {
+    return new this(null, parent);
+  }
+
+  /** Returns a deadline which expires at the given time. */
+  static forDateTime(datetime, parent) {
+    return new this(datetime, parent);
+  }
+
+  /** Returns a deadline which expires after the given duration. */
+  static forDuration(duration, parent) {
+    return this.forDateTime(DateTime.local().plus(duration), parent);
+  }
+
+  /** Returns a deadline which expires after a given number of milliseconds. */
+  static forMillis(millis, parent) {
+    return this.forDuration(Duration.fromMillis(millis), parent);
+  }
+
+  /**
+   * Builds a new deadline.
+   *
+   * In general, prefer using the more explicit factory methods.
+   */
+  constructor(expiration, parent) {
+    if (expiration !== null && !DateTime.isDateTime(expiration)) {
+      throw new Error(`invalid expiration: ${expiration}`);
+    }
+
+    this.expiration = expiration;
     this._expiredBy = parent ? parent._expiredBy : undefined;
     this._expiration = null;
     this._children = [];
@@ -50,35 +55,30 @@ class Trace {
     this._timer = null;
 
     if (parent) {
-      if (!opts.free) {
-        parent._children.push(this);
-      }
-      if (parent.deadline) {
-        this.deadline = this.deadline ?
-           DateTime.min(this.deadline, parent.deadline) :
-           parent.deadline;
+      parent._children.push(this);
+      if (parent.expiration) {
+        this.expiration = this.expiration ?
+           DateTime.min(this.expiration, parent.expiration) :
+           parent.expiration;
       }
     }
 
-    if (!this.expired && this.deadline) {
-      const remainingTimeout = +this.deadline.diffNow();
+    if (!this.expired && this.expiration) {
+      const remainingTimeout = +this.expiration.diffNow();
       if (remainingTimeout <= 0) {
         this.expire(deadlineExceededError());
         return;
       }
-      if (!parent || this.deadline < parent.deadline) {
+      if (!parent || this.expiration < parent.expiration) {
         this._timer = setTimeout(() => {
           this.expire(deadlineExceededError());
         }, remainingTimeout);
-        if (opts.unref) {
-          this._timer.unref();
-        }
       }
     }
   }
 
   get remainingDuration() {
-    return this.deadline ? this.deadline.diffNow() : null;
+    return this.expiration ? this.expiration.diffNow() : null;
   }
 
   get expired() {
@@ -90,10 +90,10 @@ class Trace {
   }
 
   /**
-   * Run a callback when the trace expires.
+   * Run a callback when the deadline expires.
    *
-   * Note that the callback might never be run if the trace doesn't have a
-   * deadline and is never manually expired. If the trace has already expired,
+   * Note that the callback might never be run if the deadline doesn't have a
+   * deadline and is never manually expired. If the deadline has already expired,
    * the callback will be run before `whenExpired` returns.
    *
    * `whenExpired` returns a cleanup function which will unregister the
@@ -112,12 +112,12 @@ class Trace {
   }
 
   /**
-   * Manually expire a trace.
+   * Manually expire a deadline.
    *
-   * If the trace has already expired, this method has no effect and will
+   * If the deadline has already expired, this method has no effect and will
    * return `false`. Otherwise `expire` will return `true` and the input
    * error--if any--will be forwarded to all expiration callbacks (added via
-   * `whenExpired`) and available via `trace.expiredBy`.
+   * `whenExpired`) and available via `deadline.expiredBy`.
    */
   expire(err) {
     if (this.expired) {
@@ -139,14 +139,14 @@ class Trace {
   }
 
   /**
-   * Race a callback against the trace's expiration.
+   * Race a callback against the deadline's expiration.
    *
    * Available options:
    *
-   * + `expire`, to expire the trace when the returned function is first
+   * + `expire`, to expire the deadline when the returned function is first
    *   called.
    *
-   * If the trace has already expired, `fn` will be run on the process' next
+   * If the deadline has already expired, `fn` will be run on the process' next
    * tick.
    */
   wrap(opts, fn) {
@@ -169,16 +169,29 @@ class Trace {
         }
         fn.call(this, err, ...args); // jshint ignore:line
       } else if (err) {
-        d('Orphaned error (trace headers: %j).', self.headers, err);
+        d('Orphaned error (deadline headers: %j).', self.headers, err);
       }
     }
   }
 
-  static isTrace(any) {
-    return !!(any && any._isTrace);
+  /**
+   * Unreferences the timer for this deadline, if any.
+   *
+   * This allows the node process to exit even before the timer ticks. For
+   * performance reasons, avoid having too many unrefed deadlines.
+   */
+  unref() {
+    if (this._timer) {
+      this._timer.unref();
+    }
+    return this;
   }
 
-  get _isTrace() {
+  static isDeadline(any) {
+    return !!(any && any._isAvroServicesDeadline);
+  }
+
+  get _isAvroServicesDeadline() {
     return true;
   }
 }
@@ -187,23 +200,6 @@ function deadlineExceededError() {
   return new SystemError('ERR_DEADLINE_EXCEEDED');
 }
 
-/** Parse various timeout formats into a `DateTime` deadline. */
-function deadlineFromTimeout(timeout) {
-  if (timeout === undefined || timeout === null) {
-    return null;
-  }
-  if (DateTime.isDateTime(timeout)) {
-    return timeout;
-  }
-  if (typeof timeout == 'number') {
-    timeout = Duration.fromMillis(timeout);
-  }
-  if (Duration.isDuration(timeout)) {
-    return DateTime.local().plus(timeout);
-  }
-  return undefined;
-}
-
 module.exports = {
-  Trace,
+  Deadline,
 };

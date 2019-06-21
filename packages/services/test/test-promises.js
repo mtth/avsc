@@ -1,29 +1,27 @@
-/* jshint esversion: 6, node: true */
+/* jshint esversion: 8, mocha: true, node: true */
 
 'use strict';
 
-const {PromisifiedServer, PromisifiedTrace} = require('../lib/promises');
+const {PromisifiedServer, PromisifiedDeadline} = require('../lib/promises');
 const {Service} = require('../lib/service');
-const {Trace} = require('../lib/trace');
 
-const {Type} = require('@avro/types');
 const assert = require('assert');
 
 suite('promises', () => {
-  suite('trace', () => {
+  suite('deadline', () => {
     test('expiration with error', async () => {
-      const trace = new PromisifiedTrace();
+      const deadline = PromisifiedDeadline.infinite();
       const cause = new Error('boom');
-      trace.expire(cause);
-      await trace.expiration.catch((err) => {
+      deadline.expire(cause);
+      await deadline.whenExpired().catch((err) => {
         assert.strictEqual(err, cause);
       });
     });
 
     test('manual expiration', async () => {
-      const trace = new PromisifiedTrace();
-      trace.expire();
-      await trace.expiration;
+      const deadline = PromisifiedDeadline.infinite();
+      deadline.expire();
+      await deadline.whenExpired();
     });
   });
 
@@ -56,7 +54,7 @@ suite('promises', () => {
         assert.strictEqual(this.server, server);
         return msg.toUpperCase();
       });
-      return client.emitMessage(new Trace()).upper('foo')
+      return client.emitMessage().upper('foo')
         .then(function (res) {
           assert.strictEqual(this.client, client);
           assert.equal(res, 'FOO');
@@ -65,14 +63,13 @@ suite('promises', () => {
 
     test('application error', async () => {
       const {client, server} = clientServer(echoSvc);
-      const UpperError = echoSvc.types.get('UpperError').recordConstructor;
       server.onMessage().upper(() => {
         const err = new Error('boom');
         err.code = 'ERR_BOOM';
         throw err;
       });
       try {
-        await client.emitMessage(new Trace()).upper('foo');
+        await client.emitMessage().upper('foo');
       } catch (err) {
         assert.equal(err.code, 'ERR_APPLICATION');
         assert.equal(err.cause.message, 'boom');
@@ -84,7 +81,7 @@ suite('promises', () => {
       const {client, server} = clientServer(echoSvc);
       const UpperError = echoSvc.types.get('UpperError').recordConstructor;
       server.onMessage().upper(() => { throw new UpperError(); });
-      return client.emitMessage(new Trace()).upper('foo')
+      return client.emitMessage().upper('foo')
         .catch((err) => {
           assert.strictEqual(err.constructor, UpperError);
         });
@@ -99,14 +96,14 @@ suite('promises', () => {
           await next();
           evts.push('server mw out');
         })
-        .onMessage().upper((msg) => msg)
+        .onMessage().upper((msg) => msg);
       client
         .use(async (wreq, wres, next) => {
           evts.push('client mw in');
           await next();
           evts.push('client mw out');
-        })
-      const res = await client.emitMessage(new Trace()).upper('foo');
+        });
+      const res = await client.emitMessage().upper('foo');
       assert.equal(res, 'foo');
       assert.deepEqual(evts, [
         'client mw in',
@@ -130,8 +127,8 @@ suite('promises', () => {
           }
           assert(false);
         })
-        .onMessage().upper(() => { throw boom; })
-      const res = await client.emitMessage(new Trace()).upper('foo');
+        .onMessage().upper(() => { throw boom; });
+      const res = await client.emitMessage().upper('foo');
       assert.equal(res, 'bar');
     });
 
@@ -149,7 +146,7 @@ suite('promises', () => {
         },
       }));
       server.onMessage().echo((str) => str);
-      const str = await client.emitMessage(new Trace()).echo('abc');
+      const str = await client.emitMessage().echo('abc');
       assert.equal(str, 'abc');
     });
 
@@ -165,7 +162,7 @@ suite('promises', () => {
         },
       }));
       server.onMessage().ping(() => {});
-      const ok = await client.emitMessage(new Trace()).ping();
+      const ok = await client.emitMessage().ping();
       assert.strictEqual(ok, null);
     });
 
@@ -175,9 +172,9 @@ suite('promises', () => {
       const evts = [];
       server
         .use(() => { evts.push('server'); })
-        .onMessage().upper((msg) => msg)
+        .onMessage().upper((msg) => msg);
       client.use(() => { evts.push('client'); });
-      const res = await client.emitMessage(new Trace()).upper('bar');
+      const res = await client.emitMessage().upper('bar');
       assert.equal(res, 'bar');
       assert.deepEqual(evts, ['client', 'server']);
     });

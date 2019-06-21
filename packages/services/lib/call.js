@@ -3,8 +3,8 @@
 'use strict';
 
 const {Channel, Packet} = require('./channel');
+const {Deadline} = require('./deadline');
 const {Decoder} = require('./service');
-const {Trace} = require('./trace');
 const utils = require('./utils');
 
 const debug = require('debug');
@@ -14,11 +14,39 @@ const d = debug('@avro/services:call');
 
 /** The context used for all middleware and handler calls. */
 class CallContext {
-  constructor(trace, msg) {
-    this.trace = trace;
+  constructor(deadline, msg, baggages) {
+    this._deadline = deadline || Deadline.infinite();
     this.message = msg;
+    this.baggages = baggages || {};
     this.client = null; // Populated on clients.
     this.server = null; // Populated on servers.
+  }
+
+  /** Returns the context's deadline's expiration, or `null` if unset. */
+  get deadlineExpiration() {
+    return this._deadline.expiration;
+  }
+
+  /** Returns whether the context's deadline has already expired. */
+  get deadlineExpired() {
+    return this._deadline.expired;
+  }
+
+  /**
+   * Runs the given handler when the context's deadline expires.
+   *
+   * If the deadline is already expired, the handler will run immediately.
+   */
+  whenDeadlineExpired(handler) {
+    return this._deadline.whenExpired(handler);
+  }
+
+  static isCallContext(any) {
+    return !!(any && any._isAvroServicesCallContext);
+  }
+
+  get _isAvroServicesCallContext() {
+    return true;
   }
 }
 
@@ -53,11 +81,13 @@ class Client {
     this._middlewares = [];
   }
 
+  /** Registers a middleware function to run on each call. */
   use(fn) {
     this._middlewares.push(fn);
     return this;
   }
 
+  /** Sets the channel used by the client to emit calls. */
   channel(chan) {
     if (chan === undefined) {
       return this._channel;
@@ -69,37 +99,73 @@ class Client {
     return this;
   }
 
-  call(trace, msgName, req, mws, cb) {
+  /**
+   * Returns a message emitter to make calls.
+   *
+   * Supported options: `deadline`, `baggages`.
+   *
+   * As a convenience, it is possible to pass in a `Deadline` or `CallContext`
+   * directly as first argument. When a context is passed, the new call will
+   * inherit its deadline and baggages.
+   */
+  emitMessage(opts, ...mws) {
+    if (CallContext.isCallContext(opts)) {
+      opts = {
+        baggages: Object.create(opts.baggages),
+        deadline: Deadline.infinite(opts.deadline), // Child deadline.
+      };
+    } else if (Deadline.isDeadline(opts)) {
+      opts = {deadline: opts};
+    } else if (typeof opts == 'function') {
+      mws.unshift(opts);
+      opts = {};
+    } else if (!opts) {
+      opts = {};
+    }
+    return Object.assign(
+      Object.create(this._emitterProto), {_options$: opts, _middlewares$: mws}
+    );
+  }
+
+  /**
+   * Emits a message.
+   *
+   * This method is a lower-level API useful to make calls where the message is
+   * dynamically determined. For typical use-cases, prefer the methods exposed
+   * by `emitMessage`.
+   *
+   * Supported options: `deadline`, `baggages`.
+   */
+  call(msgName, req, mws, opts, cb) {
     const svc = this.service;
     const msg = svc.messages.get(msgName);
     if (!msg) {
       throw new Error(`no such message: ${msgName}`);
     }
-    if (!cb && typeof mws == 'function') {
-      cb = mws;
-      mws = [];
+
+    if (!cb && typeof opts == 'function') {
+      cb = opts;
+      opts = undefined;
     }
     if (typeof cb != 'function') {
       throw new Error(`not a function: ${cb}`);
     }
-    const cc = new CallContext(trace, msg);
+    opts = opts || {};
+
+    const cc = new CallContext(opts.deadline, msg, opts.baggages);
     cc.client = this;
-    if (trace.expired) {
-      d('Not emitting message, trace has already expired.');
+    if (cc.deadlineExpired) {
+      d('Not emitting message, deadline has already expired.');
       process.nextTick(whenExpired);
       return;
     }
-    const cleanup = trace.whenExpired(whenExpired);
+    const cleanup = cc.whenDeadlineExpired(whenExpired);
     const wreq = new WrappedRequest(req);
     const wres = new WrappedResponse();
-    chain(
-      cc,
-      wreq,
-      wres,
-      mws.concat(this._middlewares),
+    chain(cc, wreq, wres, mws.concat(this._middlewares),
       (prev) => {
         const id = utils.randomId();
-        const preq = new Packet(id, svc, null, wreq.headers);
+        const preq = new Packet(id, svc, null, wreq.headers, cc.baggages);
         try {
           msg.request.checkValid(wreq.request);
           preq.body = Buffer.concat([
@@ -117,7 +183,7 @@ class Client {
           prev(new SystemError('ERR_NO_AVAILABLE_CHANNEL'));
           return;
         }
-        this._channel.call(cc.trace, preq, (err, pres) => {
+        this._channel.call(cc._deadline, preq, (err, pres) => {
           if (err) {
             prev(SystemError.orCode('ERR_CHANNEL_FAILURE', err));
             return;
@@ -158,7 +224,7 @@ class Client {
     );
 
     function whenExpired(err) {
-      cb.call(cc, SystemError.orCode('ERR_TRACE_EXPIRED', err).wrap());
+      cb.call(cc, SystemError.orCode('ERR_DEADLINE_EXPIRED', err).wrap());
     }
 
     function onResponse(err) {
@@ -170,16 +236,6 @@ class Client {
       }
       cb.call(cc, wres.error, wres.response);
     }
-  }
-
-  emitMessage(trace, ...mws) {
-    if (!Trace.isTrace(trace)) {
-      throw new Error(`missing or invalid trace: ${trace}`);
-    }
-    return Object.assign(
-      Object.create(this._emitterProto),
-      {_trace$: trace, _middlewares$: mws }
-    );
   }
 
   get _isClient() {
@@ -201,14 +257,14 @@ function messageEmitter(msg) {
       }
       req[field.name] = reqArgs.shift();
     }
-    const trace = this._trace$;
+    const opts = this._options$;
     const client = this._client$;
     const mws = this._middlewares$;
     const cb = reqArgs[0];
     if (!cb) {
-      return client.call(trace, msg.name, req, mws);
+      return client.call(msg.name, req, mws, opts);
     }
-    client.call(trace, msg.name, req, mws, function (err, res) {
+    client.call(msg.name, req, mws, opts, function (err, res) {
       const resArgs = [];
       for (const type of msg.error.types) {
         resArgs.push(err ? err[type.branchName] : null);
@@ -229,9 +285,9 @@ class Server {
     for (const msg of svc.messages.values()) {
       this._listenerProto[msg.name] = messageListener(msg);
     }
-    this._handler = (trace, preq, cb) => {
+    this._handler = (deadline, preq, cb) => {
       const id = preq.id;
-      const cc = new CallContext(trace);
+      const cc = new CallContext(deadline, undefined, preq.baggages);
       cc.server = this;
       d('Received request packet %s.', id);
 
@@ -273,7 +329,7 @@ class Server {
       }
       const msg = cc.message;
       if (!msg) {
-        d('Handling ping message.');
+        d('Handling ping message.'); // TODO: Expose ping response headers.
         cb(null, new Packet(id, svc, Buffer.alloc(1)));
         return;
       }
@@ -324,7 +380,8 @@ class Server {
           bufs = [Buffer.from([1, 0]), utils.systemErrorType.toBuffer(err)];
         }
         d('Sending response packet %s!', id);
-        cb(null, new Packet(id, svc, Buffer.concat(bufs), wres.headers));
+        const body = Buffer.concat(bufs);
+        cb(null, new Packet(id, svc, body, wres.headers));
       }
     };
   }

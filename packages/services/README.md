@@ -28,15 +28,18 @@ const stringService = new Service({
 const stringServer = new Server(stringService)
   .onMessage().upperCase((str, cb) => { cb(null, str.toUpperCase()); });
 
-const stringClient = stringService.client(); // In-process client.
+const stringClient = stringServer.client(); // In-process client.
 
-stringClient.emitMessage(new Trace()).upperCase('hello!', (err, str) => {
+stringClient.emitMessage().upperCase('hello!', (err, str) => {
   if (err) {
     throw err;
   }
   console.log(str); // HELLO!
 });
 ```
++ rename `Trace` to `Deadline`
++ make it available as `ctx.deadline`
++ move `deadline.headers` to `ctx.tags`
 
 ### TCP server hosting two services
 

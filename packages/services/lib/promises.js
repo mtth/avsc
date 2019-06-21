@@ -3,17 +3,20 @@
 'use strict';
 
 const {Client, Server} = require('./call');
-const {Trace} = require('./trace');
+const {Deadline} = require('./deadline');
 
 const Promise = require('bluebird');
 
-class PromisifiedTrace extends Trace {
+class PromisifiedDeadline extends Deadline {
   constructor(...args) {
     super(...args);
     this._expiration = null;
   }
 
-  get expiration() {
+  whenExpired(handler) {
+    if (handler !== undefined) {
+      return super.whenExpired(handler);
+    }
     if (!this._expiration) {
       this._expiration = new Promise((ok, fail) => {
         this.whenExpired((err) => {
@@ -31,13 +34,13 @@ class PromisifiedTrace extends Trace {
 
 /** A client which supports both callback and promise APIs. */
 class PromisifiedClient extends Client {
-  call(trace, msgName, req, mws, cb) {
+  call(deadline, msgName, req, mws, cb) {
     if (!cb && typeof mws == 'function') {
       cb = mws;
     }
     mws = mws || [];
     if (cb) {
-      super.call(trace, msgName, req, mws, cb);
+      super.call(deadline, msgName, req, mws, cb);
       return;
     }
     let reject, resolve, resolveCtx;
@@ -48,7 +51,7 @@ class PromisifiedClient extends Client {
     const ctxPromise = new Promise(function (resolveCtx_) {
       resolveCtx = resolveCtx_; // Never rejected.
     });
-    super.call(trace, msgName, req, mws, function (err, res) {
+    super.call(deadline, msgName, req, mws, function (err, res) {
       resolveCtx(this);
       if (err) {
         reject(typeof err.unwrap == 'function' ? err.unwrap() : err);
@@ -157,5 +160,5 @@ function promisifyMiddleware(fn) {
 module.exports = {
   PromisifiedClient,
   PromisifiedServer,
-  PromisifiedTrace,
+  PromisifiedDeadline,
 };

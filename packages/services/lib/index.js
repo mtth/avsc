@@ -7,22 +7,23 @@ const {NettyChannel, NettyGateway} = require('./codecs/netty');
 const {Service} = require('./service');
 const {SystemError} = require('./utils');
 
-let Client, Server, Trace;
+let Client, Server, Deadline;
 if (process.env.AVRO_SERVICES_NO_PROMISES) {
   const call = require('./call');
   Client = call.Client;
   Server = call.Server;
-  Trace = require('./trace').Trace;
+  Deadline = require('./deadline').Deadline;
 } else {
   const promises = require('./promises');
   Client = promises.PromisifiedClient;
   Server = promises.PromisifiedServer;
-  Trace = promises.PromisifiedTrace;
+  Deadline = promises.PromisifiedDeadline;
 }
 
 module.exports = {
   Channel,
   Client,
+  Deadline,
   NettyChannel,
   NettyGateway,
   RoutingChannel,
@@ -30,5 +31,4 @@ module.exports = {
   Server,
   Service,
   SystemError,
-  Trace,
 };

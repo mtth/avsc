@@ -3,8 +3,8 @@
 'use strict';
 
 const {Channel, Packet} = require('../channel');
+const {Deadline} = require('../deadline');
 const {Service} = require('../service');
-const {Trace} = require('../trace');
 const utils = require('../utils');
 
 const debug = require('debug');
@@ -13,11 +13,10 @@ const stream = require('stream');
 const {SystemError} = utils;
 const d = debug('@avro/services:codecs:netty');
 
-// Keys used for propagating trace information (from the client to the server)
-// in request handshakes' meta field. If the keys are absent in a request, the
-// server's trace will simply not have the corresponding field.
-const DEADLINE_META = 'avro.netty.trace-deadline';
-const LABELS_META = 'avro.netty.trace-headers';
+// Keys used for propagating call information (from the client to the server)
+// in request handshakes' meta field.
+const DEADLINE_META = 'avro.netty.deadline';
+const BAGGAGES_META = 'avro.netty.baggages';
 
 /**
  * Netty-backed channel.
@@ -27,8 +26,8 @@ class NettyChannel extends Channel {
     if (!isStream(writable)) {
       writable = readable;
     }
-    super((trace, preq, cb) => {
-      this._send(preq, this._track(trace, preq, cb), false);
+    super((deadline, preq, cb) => {
+      this._send(preq, this._track(deadline, preq, cb), false);
     });
 
     this.knownServices = new Map(); // Keyed by _remote_ hash.
@@ -144,20 +143,20 @@ class NettyChannel extends Channel {
     this._encoder.write({handshake, id: preq.id, packet});
   }
 
-  _track(trace, preq, cb) {
+  _track(deadline, preq, cb) {
     const id = preq.id;
     d('Tracking packet request %s.', id);
     const meta = {};
     try {
-      meta[LABELS_META] = utils.mapOfStringType.toBuffer(trace.headers);
+      meta[BAGGAGES_META] = utils.mapOfStringType.toBuffer(preq.baggages);
     } catch (err) {
       cb(err);
       return;
     }
-    if (trace.deadline) {
-      meta[DEADLINE_META] = utils.dateTimeType.toBuffer(trace.deadline);
+    if (deadline.expiration) {
+      meta[DEADLINE_META] = utils.dateTimeType.toBuffer(deadline.expiration);
     }
-    const cleanup = trace.whenExpired(() => { this._untrack(id); });
+    const cleanup = deadline.whenExpired(() => { this._untrack(id); });
     this._callbacks.set(id, {
       cb: (...args) => {
         if (cleanup()) {
@@ -227,35 +226,34 @@ class NettyGateway {
           readable.emit('error', new Error('expected handshake'));
           return;
         }
-        let trace;
+        let deadline = Deadline.infinite();
+        let baggages;
         if (hreq) {
           const deadlineBuf = hreq.meta && hreq.meta[DEADLINE_META];
-          let deadline;
           if (deadlineBuf) {
+            let expiration;
             try {
-              deadline = utils.dateTimeType.fromBuffer(deadlineBuf);
+              expiration = utils.dateTimeType.fromBuffer(deadlineBuf);
             } catch (err) {
               d('Bad deadline in packet %s: %s', id, err);
               readable.emit('error', err);
               return;
             }
+            deadline = Deadline.forDateTime(expiration);
           }
-          trace = new Trace(deadline);
-          if (trace.expired) {
+          if (deadline.expired) {
             d('Packet %s is past its deadline, dropping request.', id);
             return;
           }
-          const metaLabels = hreq.meta && hreq.meta[LABELS_META];
-          if (metaLabels) {
-            let headers;
+          const metaBaggages = hreq.meta && hreq.meta[BAGGAGES_META];
+          if (metaBaggages) {
             try {
-              headers = utils.mapOfStringType.fromBuffer(metaLabels);
+              baggages = utils.mapOfStringType.fromBuffer(metaBaggages);
             } catch (err) {
-              d('Bad label in packet %s: %s', id, err);
+              d('Bad baggages in packet %s: %s', id, err);
               readable.emit('error', err);
               return;
             }
-            Object.assign(trace.headers, headers);
           }
           const clientHash = hreq.clientHash.toString('binary');
           clientSvc = this.knownServices.get(clientHash);
@@ -279,8 +277,8 @@ class NettyGateway {
             this.knownServices.set(clientHash, clientSvc);
           }
         }
-        const preq = new Packet(id, clientSvc, packet.body, packet.headers);
-        chan.call(trace, preq, (err, pres) => {
+        const preq = new Packet(id, clientSvc, packet.body, packet.headers, baggages);
+        chan.call(deadline, preq, (err, pres) => {
           if (!writable) {
             if (err) {
               d('Dropping error response %s (writable finished): %s', id, err);
@@ -342,6 +340,7 @@ class NettyGateway {
     function onReadableError(err) {
       d('Gateway readable error: %s', err);
       close();
+      debugger;
       chan.emit('error', err);
     }
 

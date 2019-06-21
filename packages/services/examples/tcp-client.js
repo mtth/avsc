@@ -2,7 +2,7 @@
 
 'use strict';
 
-const {Client, NettyChannel, SelfRefreshingChannel, Service, Trace} = require('../lib');
+const {Client, Deadline, NettyChannel, SelfRefreshingChannel, Service} = require('../lib');
 const net = require('net');
 
 const echoService = new Service({
@@ -15,23 +15,13 @@ const echoService = new Service({
   },
 });
 
-const upperService = new Service({
-  protocol: 'Upper',
-  messages: {
-    upper: {
-      request: [{name: 'message', type: 'string'}],
-      response: 'string',
-    },
-  },
-});
-
 function channelProvider(cb) {
   net.createConnection({port: 8080}).setNoDelay()
     .on('error', cb)
     .once('connect', function () {
       this.removeListener('error', cb);
       cb(null, new NettyChannel(this).once('close', () => { this.end(); }));
-    })
+    });
 }
 
 const chan = new SelfRefreshingChannel(channelProvider)
@@ -47,18 +37,18 @@ const echoClient = new Client(echoService)
     });
   });
 
-const trace = new Trace(2000);
-trace.whenExpired(() => { chan.close(); });
-poll(trace);
+const deadline = Deadline.forMillis(2000);
+deadline.whenExpired(() => { chan.close(); });
+poll(deadline);
 
-function poll(trace) {
+function poll(deadline) {
   let i = 0;
   const timer = setInterval(emit, 500);
 
-  trace.whenExpired(() => { clearInterval(timer); });
+  deadline.whenExpired(() => { clearInterval(timer); });
 
   function emit() {
-    echoClient.emitMessage(trace).echo('poll-' + (i++), (err, str) => {
+    echoClient.emitMessage(deadline).echo('poll-' + (i++), (err) => {
       if (err) {
         console.error(err);
         return;

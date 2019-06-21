@@ -3,10 +3,9 @@
 'use strict';
 
 const {Server} = require('../lib/call');
+const {Deadline} = require('../lib/deadline');
 const {Service} = require('../lib/service');
-const {Trace} = require('../lib/trace');
 
-const {Type} = require('@avro/types');
 const assert = require('assert');
 
 suite('client server', () => {
@@ -38,7 +37,7 @@ suite('client server', () => {
       .upper((msg, cb) => {
         cb(null, null, msg.toUpperCase());
       });
-    client.emitMessage(new Trace())
+    client.emitMessage()
       .upper('foo', (err1, err2, res) => {
         assert(!err1, err1);
         assert(!err2, err2);
@@ -49,12 +48,10 @@ suite('client server', () => {
 
   test('cancel', (done) => {
     const {client, server} = clientServer(echoSvc);
-    const trace = new Trace();
-    server.onMessage().upper((msg, cb) => {
-      trace.expire();
-    });
-    client.emitMessage(trace).upper('foo', (err) => {
-      assert.equal(err.code, 'ERR_TRACE_EXPIRED');
+    const deadline = Deadline.infinite();
+    server.onMessage().upper((str, cb) => { deadline.expire(); cb(); });
+    client.emitMessage(deadline).upper('foo', (err) => {
+      assert.equal(err.code, 'ERR_DEADLINE_EXPIRED');
       done();
     });
   });
@@ -66,7 +63,7 @@ suite('client server', () => {
         assert.equal(beat, 123);
         cb();
       });
-    client.emitMessage(new Trace())
+    client.emitMessage()
       .ping(123, (err) => {
         assert.ifError(err);
         done();
@@ -87,7 +84,7 @@ suite('client server', () => {
       },
     }));
     server.onMessage().echo((str, opt, cb) => { cb(null, str); });
-    client.emitMessage(new Trace()).echo('abc', (err, str) => {
+    client.emitMessage().echo('abc', (err, str) => {
       assert.ifError(err);
       assert.equal(str, 'abc');
       done();
@@ -102,7 +99,7 @@ suite('client server', () => {
         err.code = 'ERR_UNAVAILABLE';
         cb(err);
       });
-    client.emitMessage(new Trace())
+    client.emitMessage()
       .echo('abc', (err) => {
         assert.equal(err.applicationCode, 'ERR_UNAVAILABLE');
         done();
@@ -118,16 +115,16 @@ suite('client server', () => {
         next(err);
       });
     client
-      .emitMessage(new Trace()).echo('foo', (err) => {
+      .emitMessage().echo('foo', (err) => {
         assert.equal(err.applicationCode, 'ERR_BAR');
         done();
       });
   });
 
   test('closed channel', (done) => {
-    const {client, server} = clientServer(echoSvc);
+    const {client} = clientServer(echoSvc);
     client.channel().close();
-    client.emitMessage(new Trace()).upper('foo', (err) => {
+    client.emitMessage().upper('foo', (err) => {
       assert.equal(err.code, 'ERR_CHANNEL_CLOSED');
       done();
     });
@@ -156,7 +153,7 @@ suite('client server', () => {
           prev(err);
         });
       })
-      .emitMessage(new Trace()).echo('foo', (err, res) => {
+      .emitMessage().echo('foo', (err, res) => {
         assert(!err, err);
         assert.equal(res, 'foo');
         assert.deepEqual(evts, [
@@ -172,7 +169,6 @@ suite('client server', () => {
 
   test('retry middleware', (done) => {
     const {client, server} = clientServer(echoSvc);
-    const intType = Type.forSchema('int');
     server
       .use((wreq, wres, next) => {
         if (wreq.headers.attempt === '1') {
@@ -194,7 +190,7 @@ suite('client server', () => {
         }
         next();
       })
-      .emitMessage(new Trace(), retry(1)).echo('foo', (err, res) => {
+      .emitMessage(retry(1)).echo('foo', (err, res) => {
         assert.ifError(err);
         assert.equal(res, 'foo');
         done();
@@ -238,7 +234,7 @@ suite('client server', () => {
           prev(err);
         });
       })
-      .emitMessage(new Trace()).echo('foo', (err, res) => {
+      .emitMessage().echo('foo', (err, res) => {
         assert(!res, res);
         assert.equal(err.code, 'ERR_NOT_IMPLEMENTED');
         assert.deepEqual(evts, [
@@ -260,7 +256,7 @@ suite('client server', () => {
         called = true;
         next();
       });
-    client.emitMessage(new Trace())
+    client.emitMessage()
       .echo('abc', (err, str) => {
         assert.ifError(err);
         assert.equal(str, 'abc');
