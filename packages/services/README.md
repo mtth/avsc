@@ -13,7 +13,7 @@ Avro-powered RPC services.
 ### In-process client and server
 
 ```javascript
-const {Client, Deadline, Server, Service, Trace} = require('@avro/services');
+const {Deadline, Server, Service} = require('@avro/services');
 
 const stringService = new Service({
   protocol: 'StringService',

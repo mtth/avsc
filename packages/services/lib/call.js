@@ -17,7 +17,13 @@ class CallContext {
   constructor(deadline, msg, baggages) {
     this._deadline = deadline || Deadline.infinite();
     this.message = msg;
+
+    // Map of string values, forwarded to child contexts.
     this.baggages = baggages || {};
+
+    // Map of arbitrary values. Convenience to share state within a request.
+    this.tags = {};
+
     this.client = null; // Populated on clients.
     this.server = null; // Populated on servers.
   }
@@ -69,6 +75,7 @@ class WrappedResponse {
   }
 }
 
+/** An RPC client. */
 class Client {
   constructor(svc) {
     this.service = svc;
@@ -238,12 +245,13 @@ class Client {
     }
   }
 
-  get _isClient() {
+  get _isAvroServicesClient() {
     return true;
   }
 
+  /** Checks whether the input is a client. */
   static isClient(any) {
-    return !!(any && any._isClient);
+    return !!(any && any._isAvroServicesClient);
   }
 }
 
@@ -275,6 +283,7 @@ function messageEmitter(msg) {
   };
 }
 
+/** An RPC server. */
 class Server {
   constructor(svc) {
     this.service = svc;
@@ -386,21 +395,34 @@ class Server {
     };
   }
 
+  /** Registers a middleware function, run on each request. */
   use(fn) {
     this._middlewares.push(fn);
     return this;
   }
 
+  /** Creates a new channel attached to this server. */
   channel() {
     return new Channel(this._handler);
   }
 
+  /**
+   * Returns an in-process client for this server.
+   *
+   * The client has its own dedicated channel.
+   */
   client() {
     const client = new Client(this.service);
     client.channel(this.channel());
     return client;
   }
 
+  /**
+   * Registers a handler and middleware for a specific message.
+   *
+   * For non-dynamic use-cases, consider the more friendly API exposed via
+   * `onMessage`.
+   */
   onCall(msgName, mws, fn) {
     const msg = this.service.messages.get(msgName);
     if (!msg) {
@@ -413,6 +435,11 @@ class Server {
     return this;
   }
 
+  /**
+   * Returns a listener via which to attache message handlers.
+   *
+   * To allow chaining, all listener methods return the original server.
+   */
   onMessage(...mws) {
     return Object.assign(
       Object.create(this._listenerProto),
@@ -420,12 +447,13 @@ class Server {
     );
   }
 
-  get _isServer() {
+  get _isAvroServicesServer() {
     return true;
   }
 
+  /** Checks whether the input is a server. */
   static isServer(any) {
-    return !!(any && any._isServer);
+    return !!(any && any._isAvroServicesServer);
   }
 }
 

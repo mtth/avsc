@@ -124,6 +124,18 @@ const handshakeRequestType = Type.forSchema({
   ]
 }, opts);
 
+function handshakeRequest(clientSvc, serverHash, includePtcl, meta) {
+  const handshake = {
+    clientHash: Buffer.from(clientSvc.hash, 'binary'),
+    serverHash: Buffer.from(serverHash, 'binary'),
+    meta: meta || {},
+  };
+  if (includePtcl) {
+    handshake.clientProtocol = JSON.stringify(clientSvc.protocol);
+  }
+  return handshake;
+}
+
 const handshakeResponseType = Type.forSchema({
   name: 'HandshakeResponse',
   type: 'record',
@@ -170,6 +182,7 @@ module.exports = {
   SystemError,
   dateTimeType,
   handshakeRequestType,
+  handshakeRequest,
   handshakeResponseType,
   mapOfBytesType,
   mapOfStringType,

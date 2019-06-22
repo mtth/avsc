@@ -43,7 +43,22 @@ class Packet {
   }
 }
 
-/** A communication mechanism. */
+/**
+ * A communication mechanism.
+ *
+ * A channel's handler will be called with the channel as context and the
+ * following arguments:
+ *
+ * + The call's deadline, guaranteed to not be expired,
+ * + The request packet,
+ * + A callback accepting an error as first argument and a response packet as
+ *   second.
+ *
+ * If the channel doesn't know how to handle a package from a given service
+ * (e.g. no compatible service was found), it should return an error with code
+ * `ERR_INCOMPATIBLE_PROTOCOL` (see `notFound` for a convenient way of
+ * generating such errors).
+ */
 class Channel extends EventEmitter {
   constructor(handler) {
     super();
@@ -51,10 +66,18 @@ class Channel extends EventEmitter {
     this.closed = false;
   }
 
+  /** Checks whether the channel is currently open. */
   get opened() {
     return !!this._handler && !this.closed;
   }
 
+  /**
+   * Opens the channel using the given handler.
+   *
+   * This will emit an `'open'` even on the channel immediately. It is an error
+   * to reopen a channel that was already opened (even if it was closed in
+   * between).
+   */
   open(handler) {
     if (this._handler) {
       throw new Error('channel was already opened');
@@ -67,6 +90,11 @@ class Channel extends EventEmitter {
     this.emit('open');
   }
 
+  /**
+   * Closes the channel.
+   *
+   * This will emit a `'close'` event on the channel immediately.
+   */
   close() {
     if (this.closed) {
       return;
@@ -136,15 +164,16 @@ class Channel extends EventEmitter {
     });
   }
 
-  get _isChannel() {
+  get _isAvroServicesChannel() {
     return true;
   }
 
   static isChannel(any) {
-    return !!(any && any._isChannel);
+    return !!(any && any._isAvroServicesChannel);
   }
 }
 
+/** A multiplexing channel. */
 class RoutingChannel extends Channel {
   constructor(chans) {
     super();
@@ -198,7 +227,18 @@ class RoutingChannel extends Channel {
     }
   }
 
-  /** Add a downstream channel. */
+  /**
+   * Adds a downstream channel.
+   *
+   * If multiple downstream channels are compatible with a given protocol, the
+   * request will be forwarded to the one which was added first. The result of
+   * this resolution is cached until the chosen channel is closed.
+   *
+   * It is an error to add a duplicate or already closed channel.
+   *
+   * Note that closing the routing channel does _not_ close its downstream
+   * channels. This is to allow sharing easier sharing of channels.
+   */
   addDownstream(chan) {
     if (!Channel.isChannel(chan)) {
       throw new Error(`not a channel: ${chan}`);

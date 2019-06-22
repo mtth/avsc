@@ -18,9 +18,7 @@ const d = debug('@avro/services:codecs:netty');
 const DEADLINE_META = 'avro.netty.deadline';
 const BAGGAGES_META = 'avro.netty.baggages';
 
-/**
- * Netty-backed channel.
- */
+/** A Netty-backed channel. */
 class NettyChannel extends Channel {
   constructor(readable, writable) {
     if (!isStream(writable)) {
@@ -127,17 +125,13 @@ class NettyChannel extends Channel {
 
   _send(preq, meta, includePtcl) {
     const clientSvc = preq.service;
-    const serverHash = this._hashes.get(clientSvc.hash) || clientSvc.hash;
-    let handshake = {
-      clientHash: Buffer.from(clientSvc.hash, 'binary'),
-      serverHash: Buffer.from(serverHash, 'binary'),
-      meta,
-    };
-    let suffix = '';
-    if (includePtcl) {
-      handshake.clientProtocol = JSON.stringify(clientSvc.protocol);
-      suffix = ' with client protocol';
-    }
+    const handshake = utils.handshakeRequest(
+      preq.service,
+      this._hashes.get(clientSvc.hash) || clientSvc.hash,
+      includePtcl,
+      meta
+    );
+    const suffix = includePtcl ?  ' with client protocol' : '';
     d('Sending packet %s%s.', preq.id, suffix);
     const packet = new NettyPacket(preq.body, preq.headers);
     this._encoder.write({handshake, id: preq.id, packet});
@@ -194,7 +188,7 @@ class NettyChannel extends Channel {
 }
 
 /**
- * Netty connection to channel bridge.
+ * A Netty connection to channel bridge.
  *
  * Note that when a request packet omits its handshake, the previous packet's
  * service will be used. This will work correctly when only clients from a
@@ -340,7 +334,6 @@ class NettyGateway {
     function onReadableError(err) {
       d('Gateway readable error: %s', err);
       close();
-      debugger;
       chan.emit('error', err);
     }
 
