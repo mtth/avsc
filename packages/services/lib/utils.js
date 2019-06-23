@@ -28,12 +28,12 @@ class SystemError extends Error {
     return stringType.wrap(this);
   }
 
-  get _isSystemError() {
+  get _isAvroServicesSystemError() {
     return true;
   }
 
   static isSystemError(any) {
-    return any && any._isSystemError;
+    return !!(any && any._isAvroServicesSystemError);
   }
 
   static orCode(code, err) {

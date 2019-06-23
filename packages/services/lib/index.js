@@ -3,6 +3,7 @@
 'use strict';
 
 const {Channel, RoutingChannel, SelfRefreshingChannel} = require('./channel');
+const {JsonChannel, JsonGateway} = require('./codecs/json');
 const {NettyChannel, NettyGateway} = require('./codecs/netty');
 const {Service} = require('./service');
 const {SystemError} = require('./utils');
@@ -24,6 +25,8 @@ module.exports = {
   Channel,
   Client,
   Deadline,
+  JsonChannel,
+  JsonGateway,
   NettyChannel,
   NettyGateway,
   RoutingChannel,
