@@ -1,12 +1,12 @@
-# Avro [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc) [![Coverage status](https://coveralls.io/repos/mtth/avsc/badge.svg?branch=master&service=github)](https://coveralls.io/github/mtth/avsc?branch=master)
+# Avro [![Build status](https://travis-ci.org/mtth/avsc.svg?branch=master)](https://travis-ci.org/mtth/avsc)  [![Download count](https://img.shields.io/npm/dm/avsc.svg)](https://www.npmjs.com/package/avsc) [![Coverage status](https://coveralls.io/repos/mtth/avsc/badge.svg?branch=master&service=github)](https://coveralls.io/github/mtth/avsc?branch=master)
 
 Pure JavaScript implementation of the [Avro
 specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Features
 
-+ Blazingly [fast and compact][benchmarks] serialization! Typically faster than
-  JSON with much smaller encodings.
++ Blazingly fast and compact serialization! Typically faster than JSON with
+  much smaller encodings.
 + All the Avro goodness and more: [type inference][type-inference], [schema
   evolution][schema-evolution], and [remote procedure calls][rpc].
 + Support for [serializing arbitrary JavaScript objects][logical-types].
@@ -20,12 +20,12 @@ For the entire distribution:
 $ npm install avsc
 ```
 
-The functionality is also available via individual modules:
+Subsets of functionality are also available via individual modules:
 
-+ Avro types [![NPM version](https://img.shields.io/npm/v/@avro/types.svg)](https://www.npmjs.com/package/@avro/types) [![Download count](https://img.shields.io/npm/dm/@avro/types.svg)](https://www.npmjs.com/package/@avro/types)
-+ Avro services [![NPM version](https://img.shields.io/npm/v/@avro/services.svg)](https://www.npmjs.com/package/@avro/services) [![Download count](https://img.shields.io/npm/dm/@avro/services.svg)](https://www.npmjs.com/package/@avro/services)
-+ Avro streams [![NPM version](https://img.shields.io/npm/v/@avro/streams.svg)](https://www.npmjs.com/package/@avro/streams) [![Download count](https://img.shields.io/npm/dm/@avro/streams.svg)](https://www.npmjs.com/package/@avro/streams)
-+ Avro IDL [![NPM version](https://img.shields.io/npm/v/@avro/idl.svg)](https://www.npmjs.com/package/@avro/idl) [![Download count](https://img.shields.io/npm/dm/@avro/idl.svg)](https://www.npmjs.com/package/@avro/idl)
++ Serialization: `@avro/types` [![NPM version](https://img.shields.io/npm/v/@avro/types.svg)](https://www.npmjs.com/package/@avro/types)
++ RPC services: `@avro/services` [![NPM version](https://img.shields.io/npm/v/@avro/services.svg)](https://www.npmjs.com/package/@avro/services)
++ Streams (e.g. to read and write container files): `@avro/streams` [![NPM version](https://img.shields.io/npm/v/@avro/streams.svg)](https://www.npmjs.com/package/@avro/streams)
++ IDL support: `@avro/idl` [![NPM version](https://img.shields.io/npm/v/@avro/idl.svg)](https://www.npmjs.com/package/@avro/idl)
 
 ## Documentation
 
@@ -35,8 +35,6 @@ The functionality is also available via individual modules:
 + [Advanced usage](https://github.com/mtth/avsc/wiki/Advanced-usage)
 
 ## Examples
-
-Inside a node.js module, or using browserify:
 
 ```javascript
 const avro = require('avsc');
