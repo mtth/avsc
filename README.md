@@ -22,10 +22,10 @@ $ npm install avsc
 
 Subsets of functionality are also available via individual modules:
 
-+ Serialization: `@avro/types` [![NPM version](https://img.shields.io/npm/v/@avro/types.svg)](https://www.npmjs.com/package/@avro/types)
-+ RPC services: `@avro/services` [![NPM version](https://img.shields.io/npm/v/@avro/services.svg)](https://www.npmjs.com/package/@avro/services)
-+ Streams (e.g. to read and write container files): `@avro/streams` [![NPM version](https://img.shields.io/npm/v/@avro/streams.svg)](https://www.npmjs.com/package/@avro/streams)
-+ IDL support: `@avro/idl` [![NPM version](https://img.shields.io/npm/v/@avro/idl.svg)](https://www.npmjs.com/package/@avro/idl)
++ Serialization: [`@avro/types`](https://www.npmjs.com/package/@avro/types)
++ RPC services: [`@avro/services`](https://www.npmjs.com/package/@avro/services)
++ Streams (e.g. to read and write container files): [`@avro/streams`](https://www.npmjs.com/package/@avro/streams)
++ IDL support: [`@avro/idl`](https://www.npmjs.com/package/@avro/idl)
 
 ## Documentation
 
