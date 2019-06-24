@@ -19,20 +19,15 @@
     "type"
   ],
   "files": [
-    "lib",
-    "types"
+    "index.js"
   ],
-  "main": "./lib",
-  "types": "./types",
   "engines": {
     "node": ">=7"
   },
   "scripts": {
-    "clean": "rm -rf coverage dist node_modules",
-    "cover": "nyc mocha",
-    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls ../..",
-    "prepublishOnly": "npm test",
-    "test": "mocha"
+    "clean": "rm -rf node_modules",
+    "coverAndPublish": "true",
+    "test": "true"
   },
   "dependencies": {
     "@avro/idl": "^0.1.1",
