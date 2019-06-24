@@ -10,7 +10,7 @@ const {DateTime, Duration} = require('luxon');
 const d = debug('@avro/services:deadline');
 
 /**
- * An RPC context thread.
+ * An RPC deadline.
  *
  * Deadlines are used to control the timing of RPCs, in particular to set
  * deadlines and cancel them early.

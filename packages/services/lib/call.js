@@ -22,7 +22,7 @@ class CallContext {
     this.baggages = baggages || {};
 
     // Map of arbitrary values. Convenience to share state within a request.
-    this.tags = {};
+    this.state = {};
 
     this.client = null; // Populated on clients.
     this.server = null; // Populated on servers.
