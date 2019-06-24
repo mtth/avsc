@@ -38,7 +38,7 @@
     "bluebird": "^3.5.3"
   },
   "devDependencies": {
-    "@avro/types": "^0.3.11",
+    "@avro/types": "^1.0.0",
     "coveralls": "^3.0.3",
     "nyc": "^14.1.1",
     "mocha": "^6.1.4",
