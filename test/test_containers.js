@@ -480,7 +480,7 @@ suite('containers', function () {
           5,
           Buffer.concat([
             type.toBuffer('hi'),
-            Buffer.from([77]) // Corrupt (negative length).
+            utils.bufferFrom([77]) // Corrupt (negative length).
           ]),
           SYNC
         ).toBuffer());
