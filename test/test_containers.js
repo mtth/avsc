@@ -10,8 +10,9 @@ var containers = require('../lib/containers'),
 
 
 var BLOCK_TYPE = containers.BLOCK_TYPE;
+var Block = BLOCK_TYPE.recordConstructor;
 var HEADER_TYPE = containers.HEADER_TYPE;
-var Header = HEADER_TYPE.getRecordConstructor();
+var Header = HEADER_TYPE.recordConstructor;
 var MAGIC_BYTES = containers.MAGIC_BYTES;
 var SYNC = utils.bufferFrom('atokensyncheader');
 var Type = types.Type;
@@ -461,6 +462,30 @@ suite('containers', function () {
         decoder.end();
       });
 
+      test('corrupt data', function (cb) {
+        var type = Type.forSchema('string');
+        var decoder = new BlockDecoder()
+          .on('data', function () {})
+          .on('error', function () { cb(); });
+        var header = new Header(
+          MAGIC_BYTES,
+          {
+            'avro.schema': utils.bufferFrom('"string"'),
+            'avro.codec': utils.bufferFrom('null')
+          },
+          SYNC
+        );
+        decoder.write(header.toBuffer());
+        decoder.end(new Block(
+          5,
+          Buffer.concat([
+            type.toBuffer('hi'),
+            Buffer.from([77]) // Corrupt (negative length).
+          ]),
+          SYNC
+        ).toBuffer());
+      });
+
     });
 
   });
@@ -660,14 +685,9 @@ suite('containers', function () {
           cb();
         });
       encoder.pipe(decoder);
-      encoder.write({name: 'Ann'})
-      encoder.write({name: 'Jane'})
+      encoder.write({name: 'Ann'});
+      encoder.write({name: 'Jane'});
       encoder.end();
-
-      function parseHook(schema) {
-        assert.deepEqual(schema, t1.getSchema());
-        return t2;
-      }
     });
 
     test('metadata', function (cb) {
