@@ -1934,6 +1934,8 @@ suite('types', function () {
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
+      assert.deepEqual(t.toJSON({}), {name:{string:'Bob'}});
+      assert.deepEqual(t.toJSON({name: 'Bob'}, {omitDefaultValues: true}), {});
       assert.deepEqual(t.schema({exportAttrs: true}), schema);
     });
 

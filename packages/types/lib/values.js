@@ -225,6 +225,8 @@ Cloner.prototype._onRecord = function (any, type, path) {
   for (i = 0, l = type.fields.length; i < l; i++) {
     field = type.fields[i];
     fieldAny = any[field.name];
+    fieldPath = path.slice();
+    fieldPath.push(field.name);
     defaultVal = field.defaultValue();
     fieldVal = undefined;
     if (fieldAny === undefined && defaultVal === undefined) {
@@ -234,15 +236,14 @@ Cloner.prototype._onRecord = function (any, type, path) {
         fieldVal = this.clone(defaultVal, field.type, fieldPath).value;
       }
     } else {
-      fieldPath = path.slice();
-      fieldPath.push(field.name);
       fieldValBuilder = this.clone(fieldAny, field.type, fieldPath);
       builder.copyErrorsFrom(fieldValBuilder);
       fieldVal = fieldValBuilder.value;
       if (
         this._omitDefaultValues &&
+        fieldValBuilder.isOk() &&
         defaultVal !== undefined &&
-        !field.type.compare(fieldVal, defaultVal, {allowMaps: true})
+        !field.type.compare(fieldAny, defaultVal, {allowMaps: true})
       ) {
         fieldVal = undefined;
       }
