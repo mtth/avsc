@@ -197,12 +197,18 @@ Type.forSchema = function (schema, opts, scope) {
   }
 
   if (Array.isArray(schema)) { // Union.
+    // We temporarily clear the logical type since we instantiate the branch's
+    // types before the underlying union's type (necessary to decide whether the
+    // union is ambiguous or not).
+    var logicalType = LOGICAL_TYPE;
+    LOGICAL_TYPE = null;
     var types = schema.map(function (obj, i) {
       return Type.forSchema(obj, opts, scope.child(i));
     });
     if (!UnionType) {
       UnionType = isAmbiguous(types) ? WrappedUnionType : UnwrappedUnionType;
     }
+    LOGICAL_TYPE = logicalType;
     type = new UnionType(types, opts);
   } else { // New type definition.
     type = (function (typeName) {
@@ -2438,6 +2444,11 @@ AbstractLongType.prototype._update = function (resolver, type) {
   var self = this;
   switch (type.typeName) {
     case 'int':
+      resolver._read = function (tap) {
+        return self._fromJSON(type._read(tap));
+      };
+      break;
+    case 'abstract:long':
     case 'long':
       resolver._read = function (tap) { return self._read(tap); };
   }

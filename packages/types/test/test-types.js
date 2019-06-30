@@ -2360,6 +2360,22 @@ suite('types', function () {
       test('clone', function () {
         assert.equal(slowLongType.clone(123), 123);
       });
+
+      test('evolution to/from', function () {
+        var t1 = Type.forSchema({
+          type: 'record',
+          name: 'Foo',
+          fields: [{name: 'foo', type: 'long'}],
+        }, {registry: {long: slowLongType}});
+        var t2 = Type.forSchema({
+          type: 'record',
+          name: 'Foo',
+          fields: [{name: 'bar', aliases: ['foo'], type: 'long'}],
+        }, {registry: {long: slowLongType}});
+        var rsv = t2.createResolver(t1);
+        var buf = t1.toBuffer({foo: 2});
+        assert.deepEqual(t2.fromBuffer(buf, rsv), {bar: 2});
+      });
     });
 
     test('within unwrapped union', function () {
@@ -2767,6 +2783,85 @@ suite('types', function () {
         };
       }
 
+      /**
+      * A generic union type which exposes its values directly.
+      *
+      * This implementation predates the existence of the
+      * `UnwrappedUnionType` currently in the built-in types. It can still be
+      * used as an example to implement custom unwrapped unions (which would
+      * be able to cover ambiguous unions).
+      *
+      */
+      function UnwrappedUnionType(schema, opts) {
+        LogicalType.call(this, schema, opts);
+      }
+      util.inherits(UnwrappedUnionType, LogicalType);
+
+      UnwrappedUnionType.prototype._fromValue = function (val) {
+        return val === null ? null : val[Object.keys(val)[0]];
+      };
+
+      UnwrappedUnionType.prototype._toValue = function (any) {
+        var types = this.underlyingType.types;
+        var i, l, type;
+        for (i = 0, l = types.length; i < l; i++) {
+          type = types[i];
+          if (type.isValid(any)) {
+            return type.wrap(any);
+          }
+        }
+      };
+
+      test('unwrapped', function () {
+
+        var t1 = Type.forSchema(
+          schema,
+          {typeHook: createUnionTypeHook(UnwrappedUnionType), wrapUnions: true}
+        );
+        var obj = {name: 'Ann', age: 23};
+        assert(t1.isValid(obj));
+        var buf = t1.toBuffer(obj);
+        var t2 = Type.forSchema(schema, {wrapUnions: true});
+        assert.deepEqual(
+          t2.fromBuffer(buf),
+          {Person: {name: 'Ann', age: {'int': 23}}}
+        );
+
+      });
+
+      test('unwrapped with nested logical types', function () {
+
+        var schema = [
+          'null',
+          {
+            type: 'record',
+            name: 'Foo',
+            fields: [
+              {
+                name: 'date',
+                type: [
+                  'null',
+                  {type: 'long', logicalType: 'timestamp-millis'}
+                ]
+              }
+            ]
+          }
+        ];
+        var t1 = Type.forSchema(
+          schema,
+          {
+            logicalTypes: {'timestamp-millis': DateType},
+            typeHook: createUnionTypeHook(UnwrappedUnionType),
+            wrapUnions: true,
+          }
+        );
+        var obj = {date: new Date(1234)};
+        assert(t1.isValid(obj)); // TODO
+        var buf = t1.toBuffer(obj);
+        var t2 = Type.forSchema(schema, {wrapUnions: true});
+        assert.deepEqual(t2.fromBuffer(buf), {Foo: {date: {long: 1234}}});
+      });
+
       test('optional', function () {
 
         /**
@@ -2818,6 +2913,7 @@ suite('types', function () {
       });
 
     });
+
   });
 
   suite('Type.forSchema', function  () {
@@ -3133,6 +3229,45 @@ suite('types', function () {
         Type.forSchema('string', {wrapUnions: 123});
       }, /invalid wrap unions option/);
     });
+  });
+
+  suite('fromJSON', function () {
+
+    test('int', function () {
+      var t = Type.forSchema('int');
+      assert.equal(t.fromJSON(2), 2);
+      assert.throws(function () { t.fromJSON('a'); });
+    });
+
+    test('string', function () {
+      var t = Type.forSchema('string');
+      assert.equal(t.fromJSON('2'), '2');
+      assert.throws(function () { t.fromJSON(1); });
+    });
+
+    test('fixed', function () {
+      var t = Type.forSchema({
+        name: 'Ids',
+        type: 'record',
+        fields: [{name: 'id1', type: {name: 'Id1', type: 'fixed', size: 2}}]
+      });
+      var o = {id1: utils.bufferFrom([0, 1])};
+      var s = {id1: '\u0000\u0001'};
+      var c = t.fromJSON(s);
+      assert.deepEqual(c, o);
+      assert(c instanceof t.recordConstructor);
+    });
+
+  });
+
+  suite('toJSON', function () {
+
+    test('int', function () {
+      var t = Type.forSchema('int');
+      assert.equal(t.toJSON(2), 2);
+      assert.throws(function () { t.toJSON('a'); });
+    });
+
   });
 
   suite('resolve', function () {
