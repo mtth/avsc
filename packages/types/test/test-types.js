@@ -27,11 +27,11 @@ suite('types', function () {
 
     test('compare buffers', function () {
       var t = new constructors.BooleanType();
-      var bt = t.toBuffer(true);
-      var bf = t.toBuffer(false);
-      assert.equal(t.compareBuffers(bt, bf), 1);
-      assert.equal(t.compareBuffers(bf, bt), -1);
-      assert.equal(t.compareBuffers(bt, bt), 0);
+      var bt = t.binaryEncode(true);
+      var bf = t.binaryEncode(false);
+      assert.equal(t.binaryCompare(bt, bf), 1);
+      assert.equal(t.binaryCompare(bf, bt), -1);
+      assert.equal(t.binaryCompare(bt, bt), 0);
     });
 
     test('get name', function () {
@@ -51,20 +51,20 @@ suite('types', function () {
 
     testType(constructors.IntType, data);
 
-    test('toBuffer int', function () {
+    test('binary encode int', function () {
 
       var type = Type.forSchema('int');
-      assert.equal(type.fromBuffer(utils.bufferFrom([0x80, 0x01])), 64);
-      assert(utils.bufferFrom([0]).equals(type.toBuffer(0)));
+      assert.equal(type.binaryDecode(utils.bufferFrom([0x80, 0x01])), 64);
+      assert(utils.bufferFrom([0]).equals(type.binaryEncode(0)));
 
     });
 
     test('resolve int > long', function () {
       var intType = Type.forSchema('int');
       var longType = Type.forSchema('long');
-      var buf = intType.toBuffer(123);
+      var buf = intType.binaryEncode(123);
       assert.equal(
-        longType.fromBuffer(buf, longType.createResolver(intType)),
+        longType.binaryDecode(buf, longType.createResolver(intType)),
         123
       );
     });
@@ -72,16 +72,16 @@ suite('types', function () {
     test('resolve int > U[null, int]', function () {
       var wt = Type.forSchema('int');
       var rt = Type.forSchema(['null', 'int']);
-      var buf = wt.toBuffer(123);
-      assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), 123);
+      var buf = wt.binaryEncode(123);
+      assert.deepEqual(rt.binaryDecode(buf, rt.createResolver(wt)), 123);
     });
 
     test('resolve int > W[null, int]', function () {
       var wt = Type.forSchema('int');
       var rt = Type.forSchema(['null', 'int'], {wrapUnions: true});
-      var buf = wt.toBuffer(123);
+      var buf = wt.binaryEncode(123);
       assert.deepEqual(
-        rt.fromBuffer(buf, rt.createResolver(wt)),
+        rt.binaryDecode(buf, rt.createResolver(wt)),
         {'int': 123}
       );
     });
@@ -89,16 +89,16 @@ suite('types', function () {
     test('resolve int > float', function () {
       var wt = Type.forSchema('int');
       var rt = Type.forSchema('float');
-      var buf = wt.toBuffer(123);
-      assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), 123);
+      var buf = wt.binaryEncode(123);
+      assert.deepEqual(rt.binaryDecode(buf, rt.createResolver(wt)), 123);
     });
 
     test('resolve int > double', function () {
       var wt = Type.forSchema('int');
       var rt = Type.forSchema('double');
       var n = Math.pow(2, 30) + 1;
-      var buf = wt.toBuffer(n);
-      assert.deepEqual(rt.fromBuffer(buf, rt.createResolver(wt)), n);
+      var buf = wt.binaryEncode(n);
+      assert.deepEqual(rt.binaryDecode(buf, rt.createResolver(wt)), n);
     });
 
     test('clone', function () {
@@ -131,8 +131,8 @@ suite('types', function () {
       var t1 = Type.forSchema('long');
       var t2 = Type.forSchema('float');
       var n = 9007199254740990; // Number.MAX_SAFE_INTEGER - 1
-      var buf = t1.toBuffer(n);
-      var f = t2.fromBuffer(buf, t2.createResolver(t1));
+      var buf = t1.binaryEncode(n);
+      var f = t2.binaryDecode(buf, t2.createResolver(t1));
       assert(Math.abs(f - n) / n < 1e-7);
       t2.checkValid(f);
     });
@@ -140,7 +140,7 @@ suite('types', function () {
     test('precision loss', function () {
       var type = Type.forSchema('long');
       var buf = utils.bufferFrom([0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]);
-      assert.throws(function () { type.fromBuffer(buf); });
+      assert.throws(function () { type.binaryDecode(buf); });
     });
 
     test('using missing methods', function () {
@@ -167,26 +167,26 @@ suite('types', function () {
 
     testType(constructors.StringType, data);
 
-    test('fromBuffer string', function () {
+    test('binary decode string', function () {
       var type = Type.forSchema('string');
       var buf = utils.bufferFrom([0x06, 0x68, 0x69, 0x21]);
       var s = 'hi!';
-      assert.equal(type.fromBuffer(buf), s);
-      assert(buf.equals(type.toBuffer(s)));
+      assert.equal(type.binaryDecode(buf), s);
+      assert(buf.equals(type.binaryEncode(s)));
     });
 
-    test('toBuffer string', function () {
+    test('binary encode string', function () {
       var type = Type.forSchema('string');
       var buf = utils.bufferFrom([0x06, 0x68, 0x69, 0x21]);
-      assert(buf.equals(type.toBuffer('hi!', 1)));
+      assert(buf.equals(type.binaryEncode('hi!', 1)));
     });
 
     test('resolve string > bytes', function () {
       var stringT = Type.forSchema('string');
       var bytesT = Type.forSchema('bytes');
-      var buf = stringT.toBuffer('\x00\x01');
+      var buf = stringT.binaryEncode('\x00\x01');
       assert.deepEqual(
-        bytesT.fromBuffer(buf, bytesT.createResolver(stringT)),
+        bytesT.binaryDecode(buf, bytesT.createResolver(stringT)),
         utils.bufferFrom([0, 1])
       );
     });
@@ -196,12 +196,12 @@ suite('types', function () {
       var s = 'hello';
       var b, pos;
       b = utils.newBuffer(2);
-      pos = t.encode(s, b);
+      pos = t.binaryEncodeAt(s, b);
       assert(pos < 0);
       b = utils.newBuffer(b.length - pos);
-      pos = t.encode(s, b);
+      pos = t.binaryEncodeAt(s, b);
       assert(pos >= 0);
-      assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
+      assert.equal(s, t.binaryDecode(b)); // Also checks exact length match.
     });
   });
 
@@ -235,12 +235,12 @@ suite('types', function () {
 
     test('compare buffer', function () {
       var t = Type.forSchema('float');
-      var b1 = t.toBuffer(0.5);
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer(-0.75);
-      assert.equal(t.compareBuffers(b1, b2), 1);
-      var b3 = t.toBuffer(175);
-      assert.equal(t.compareBuffers(b1, b3), -1);
+      var b1 = t.binaryEncode(0.5);
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode(-0.75);
+      assert.equal(t.binaryCompare(b1, b2), 1);
+      var b3 = t.binaryEncode(175);
+      assert.equal(t.binaryCompare(b1, b3), -1);
     });
 
     test('resolver float > float', function () {
@@ -277,12 +277,12 @@ suite('types', function () {
 
     test('compare buffer', function () {
       var t = Type.forSchema('double');
-      var b1 = t.toBuffer(0.5);
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer(-0.75);
-      assert.equal(t.compareBuffers(b1, b2), 1);
-      var b3 = t.toBuffer(175);
-      assert.equal(t.compareBuffers(b1, b3), -1);
+      var b1 = t.binaryEncode(0.5);
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode(-0.75);
+      assert.equal(t.binaryCompare(b1, b2), 1);
+      var b3 = t.binaryEncode(175);
+      assert.equal(t.binaryCompare(b1, b3), -1);
     });
   });
 
@@ -301,7 +301,7 @@ suite('types', function () {
       var stringT = Type.forSchema('string');
       var buf = utils.bufferFrom([4, 0, 1]);
       assert.deepEqual(
-        stringT.fromBuffer(buf, stringT.createResolver(bytesT)),
+        stringT.binaryDecode(buf, stringT.createResolver(bytesT)),
         '\x00\x01'
       );
     });
@@ -322,12 +322,12 @@ suite('types', function () {
 
     test('compare', function () {
       var t = Type.forSchema('bytes');
-      var b1 = t.toBuffer(utils.bufferFrom([0, 2]));
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer(utils.bufferFrom([0, 2, 3]));
-      assert.equal(t.compareBuffers(b1, b2), -1);
-      var b3 = t.toBuffer(utils.bufferFrom([1]));
-      assert.equal(t.compareBuffers(b3, b1), 1);
+      var b1 = t.binaryEncode(utils.bufferFrom([0, 2]));
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode(utils.bufferFrom([0, 2, 3]));
+      assert.equal(t.binaryCompare(b1, b2), -1);
+      var b3 = t.binaryEncode(utils.bufferFrom([1]));
+      assert.equal(t.binaryCompare(b3, b1), 1);
     });
   });
 
@@ -398,43 +398,43 @@ suite('types', function () {
 
     test('invalid read', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.throws(function () { type.fromBuffer(utils.bufferFrom([4])); });
+      assert.throws(function () { type.binaryDecode(utils.bufferFrom([4])); });
     });
 
     test('missing bucket write', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.throws(function () { type.toBuffer('hi'); });
+      assert.throws(function () { type.binaryEncode('hi'); });
     });
 
     test('invalid bucket write', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.throws(function () { type.toBuffer(2.5); });
+      assert.throws(function () { type.binaryEncode(2.5); });
     });
 
     test('non wrapped write', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.deepEqual(type.toBuffer(23), utils.bufferFrom([2, 46]));
-      assert.deepEqual(type.toBuffer(null), utils.bufferFrom([0]));
+      assert.deepEqual(type.binaryEncode(23), utils.bufferFrom([2, 46]));
+      assert.deepEqual(type.binaryEncode(null), utils.bufferFrom([0]));
     });
 
     test('wrapped write', function () {
       var type = new constructors.UnwrappedUnionType(['null', 'int']);
-      assert.throws(function () { type.toBuffer({'int': 1}); });
+      assert.throws(function () { type.binaryEncode({'int': 1}); });
     });
 
     test('resolve int to [string, long]', function () {
       var t1 = Type.forSchema('int');
       var t2 = new constructors.UnwrappedUnionType(['string', 'long']);
       var a = t2.createResolver(t1);
-      var buf = t1.toBuffer(23);
-      assert.deepEqual(t2.fromBuffer(buf, a), 23);
+      var buf = t1.binaryEncode(23);
+      assert.deepEqual(t2.binaryDecode(buf, a), 23);
     });
 
     test('resolve null to [null, int]', function () {
       var t1 = Type.forSchema('null');
       var t2 = new constructors.UnwrappedUnionType(['null', 'int']);
       var a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(utils.newBuffer(0), a), null);
+      assert.deepEqual(t2.binaryDecode(utils.newBuffer(0), a), null);
     });
 
     test('resolve [string, int] to unwrapped [float, bytes]', function () {
@@ -442,10 +442,10 @@ suite('types', function () {
       var t2 = new constructors.UnwrappedUnionType(['float', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
-      buf = t1.toBuffer({string: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), utils.bufferFrom('hi'));
-      buf = t1.toBuffer({'int': 1});
-      assert.deepEqual(t2.fromBuffer(buf, a), 1);
+      buf = t1.binaryEncode({string: 'hi'});
+      assert.deepEqual(t2.binaryDecode(buf, a), utils.bufferFrom('hi'));
+      buf = t1.binaryEncode({'int': 1});
+      assert.deepEqual(t2.binaryDecode(buf, a), 1);
     });
 
     test('clone', function () {
@@ -482,13 +482,13 @@ suite('types', function () {
 
     test('compare buffers', function () {
       var t = new constructors.UnwrappedUnionType(['null', 'double']);
-      var b1 = t.toBuffer(null);
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer(4);
-      assert.equal(t.compareBuffers(b2, b1), 1);
-      assert.equal(t.compareBuffers(b1, b2), -1);
-      var b3 = t.toBuffer(6);
-      assert.equal(t.compareBuffers(b3, b2), 1);
+      var b1 = t.binaryEncode(null);
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode(4);
+      assert.equal(t.binaryCompare(b2, b1), 1);
+      assert.equal(t.binaryCompare(b1, b2), -1);
+      var b3 = t.binaryEncode(6);
+      assert.equal(t.binaryCompare(b3, b2), 1);
     });
 
     test('compare', function () {
@@ -573,28 +573,28 @@ suite('types', function () {
 
     test('get branch type', function () {
       var type = new constructors.WrappedUnionType(['null', 'int']);
-      var buf = type.toBuffer({'int': 48});
-      var branchType = type.fromBuffer(buf).constructor.type;
+      var buf = type.binaryEncode({'int': 48});
+      var branchType = type.binaryDecode(buf).constructor.type;
       assert(branchType instanceof constructors.IntType);
     });
 
     test('missing name write', function () {
       var type = new constructors.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.toBuffer({b: 'a'});
+        type.binaryEncode({b: 'a'});
       });
     });
 
     test('read invalid index', function () {
       var type = new constructors.WrappedUnionType(['null', 'int']);
       var buf = utils.bufferFrom([1, 0]);
-      assert.throws(function () { type.fromBuffer(buf); });
+      assert.throws(function () { type.binaryDecode(buf); });
     });
 
     test('non wrapped write', function () {
       var type = new constructors.WrappedUnionType(['null', 'int']);
       assert.throws(function () {
-        type.toBuffer(1, true);
+        type.binaryEncode(1, true);
       }, Error);
     });
 
@@ -602,15 +602,15 @@ suite('types', function () {
       var t1 = Type.forSchema('int');
       var t2 = new constructors.WrappedUnionType(['long', 'int']);
       var a = t2.createResolver(t1);
-      var buf = t1.toBuffer(23);
-      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 23});
+      var buf = t1.binaryEncode(23);
+      assert.deepEqual(t2.binaryDecode(buf, a), {'long': 23});
     });
 
     test('resolve null to [null, int]', function () {
       var t1 = Type.forSchema('null');
       var t2 = new constructors.WrappedUnionType(['null', 'int']);
       var a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(utils.newBuffer(0), a), null);
+      assert.deepEqual(t2.binaryDecode(utils.newBuffer(0), a), null);
     });
 
     test('resolve [string, int] to [long, bytes]', function () {
@@ -618,10 +618,10 @@ suite('types', function () {
       var t2 = new constructors.WrappedUnionType(['long', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
-      buf = t1.toBuffer({string: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': utils.bufferFrom('hi')});
-      buf = t1.toBuffer({'int': 1});
-      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
+      buf = t1.binaryEncode({string: 'hi'});
+      assert.deepEqual(t2.binaryDecode(buf, a), {'bytes': utils.bufferFrom('hi')});
+      buf = t1.binaryEncode({'int': 1});
+      assert.deepEqual(t2.binaryDecode(buf, a), {'long': 1});
     });
 
     test('resolve unwrapped [string, int] to [long, bytes]', function () {
@@ -629,10 +629,10 @@ suite('types', function () {
       var t2 = new constructors.WrappedUnionType(['long', 'bytes']);
       var a = t2.createResolver(t1);
       var buf;
-      buf = t1.toBuffer('hi');
-      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': utils.bufferFrom('hi')});
-      buf = t1.toBuffer(1);
-      assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
+      buf = t1.binaryEncode('hi');
+      assert.deepEqual(t2.binaryDecode(buf, a), {'bytes': utils.bufferFrom('hi')});
+      buf = t1.binaryEncode(1);
+      assert.deepEqual(t2.binaryDecode(buf, a), {'long': 1});
     });
 
     test('clone', function () {
@@ -689,13 +689,13 @@ suite('types', function () {
 
     test('compare buffers', function () {
       var t = new constructors.WrappedUnionType(['null', 'double']);
-      var b1 = t.toBuffer(null);
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer({'double': 4});
-      assert.equal(t.compareBuffers(b2, b1), 1);
-      assert.equal(t.compareBuffers(b1, b2), -1);
-      var b3 = t.toBuffer({'double': 6});
-      assert.equal(t.compareBuffers(b3, b2), 1);
+      var b1 = t.binaryEncode(null);
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode({'double': 4});
+      assert.equal(t.binaryCompare(b2, b1), 1);
+      assert.equal(t.binaryCompare(b1, b2), -1);
+      var b3 = t.binaryEncode({'double': 6});
+      assert.equal(t.binaryCompare(b3, b2), 1);
     });
 
     test('compare', function () {
@@ -722,7 +722,7 @@ suite('types', function () {
 
     test('toString', function () {
       var t = new constructors.WrappedUnionType(['null', 'int', 'long']);
-      var v = t.fromJSON({long: 4});
+      var v = t.jsonDecode({long: 4});
       assert.equal(v.toString(), '<Branch$ long>');
     });
 
@@ -819,7 +819,7 @@ suite('types', function () {
     test('write invalid', function () {
       var type = Type.forSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
-        type.toBuffer('B');
+        type.binaryEncode('B');
       });
     });
 
@@ -828,7 +828,7 @@ suite('types', function () {
         type: 'enum', symbols: ['A'], name: 'a'
       });
       var buf = utils.bufferFrom([2]);
-      assert.throws(function () { type.fromBuffer(buf); });
+      assert.throws(function () { type.binaryDecode(buf); });
     });
 
     test('resolve', function () {
@@ -836,16 +836,16 @@ suite('types', function () {
       t1 = newEnum('Foo', ['bar', 'baz']);
       t2 = newEnum('Foo', ['bar', 'baz']);
       resolver = t1.createResolver(t2);
-      buf = t2.toBuffer('bar');
-      assert.equal(t1.fromBuffer(buf, resolver), 'bar');
+      buf = t2.binaryEncode('bar');
+      assert.equal(t1.binaryDecode(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['baz', 'bar']);
-      buf = t2.toBuffer('bar');
+      buf = t2.binaryEncode('bar');
       resolver = t1.createResolver(t2);
-      assert.notEqual(t1.fromBuffer(buf), 'bar');
-      assert.equal(t1.fromBuffer(buf, resolver), 'bar');
+      assert.notEqual(t1.binaryDecode(buf), 'bar');
+      assert.equal(t1.binaryDecode(buf, resolver), 'bar');
       t1 = newEnum('Foo2', ['foo', 'baz', 'bar'], ['Foo']);
       resolver = t1.createResolver(t2);
-      assert.equal(t1.fromBuffer(buf, resolver), 'bar');
+      assert.equal(t1.binaryDecode(buf, resolver), 'bar');
       t2 = newEnum('Foo', ['bar', 'bax']);
       assert.throws(function () { t1.createResolver(t2); });
       assert.throws(function () {
@@ -873,10 +873,10 @@ suite('types', function () {
 
     test('compare buffers', function () {
       var t = Type.forSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
-      var b1 = t.toBuffer('bar');
-      var b2 = t.toBuffer('baz');
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      assert.equal(t.compareBuffers(b2, b1), 1);
+      var b1 = t.binaryEncode('bar');
+      var b2 = t.binaryEncode('baz');
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      assert.equal(t.binaryCompare(b2, b1), 1);
     });
 
     test('compare', function () {
@@ -965,9 +965,9 @@ suite('types', function () {
     test('compare buffers', function () {
       var t = Type.forSchema({type: 'fixed', name: 'Id', size: 2});
       var b1 = utils.bufferFrom([1, 2]);
-      assert.equal(t.compareBuffers(b1, b1), 0);
+      assert.equal(t.binaryCompare(b1, b1), 0);
       var b2 = utils.bufferFrom([2, 2]);
-      assert.equal(t.compareBuffers(b1, b2), -1);
+      assert.equal(t.binaryCompare(b1, b2), -1);
     });
   });
 
@@ -1011,20 +1011,20 @@ suite('types', function () {
 
     test('write int', function () {
       var t = new constructors.MapType({type: 'map', values: 'int'});
-      var buf = t.toBuffer({'\x01': 3, '\x02': 4});
+      var buf = t.binaryEncode({'\x01': 3, '\x02': 4});
       assert.deepEqual(buf, utils.bufferFrom([4, 2, 1, 6, 2, 2, 8, 0]));
     });
 
     test('read long', function () {
       var t = new constructors.MapType({type: 'map', values: 'long'});
       var buf = utils.bufferFrom([4, 2, 1, 6, 2, 2, 8, 0]);
-      assert.deepEqual(t.fromBuffer(buf), {'\x01': 3, '\x02': 4});
+      assert.deepEqual(t.binaryDecode(buf), {'\x01': 3, '\x02': 4});
     });
 
     test('read with sizes', function () {
       var t = new constructors.MapType({type: 'map', values: 'int'});
       var buf = utils.bufferFrom([1,6,2,97,2,0]);
-      assert.deepEqual(t.fromBuffer(buf), {a: 1});
+      assert.deepEqual(t.binaryDecode(buf), {a: 1});
     });
 
     test('skip', function () {
@@ -1044,8 +1044,8 @@ suite('types', function () {
       var b1 = utils.bufferFrom([2,2,97,2,0,6]); // Without sizes.
       var b2 = utils.bufferFrom([1,6,2,97,2,0,6]); // With sizes.
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.fromBuffer(b1, resolver), {val: 3});
-      assert.deepEqual(v2.fromBuffer(b2, resolver), {val: 3});
+      assert.deepEqual(v2.binaryDecode(b1, resolver), {val: 3});
+      assert.deepEqual(v2.binaryDecode(b2, resolver), {val: 3});
     });
 
     test('resolve int > long', function () {
@@ -1053,16 +1053,16 @@ suite('types', function () {
       var t2 = new constructors.MapType({type: 'map', values: 'long'});
       var resolver = t2.createResolver(t1);
       var obj = {one: 1, two: 2};
-      var buf = t1.toBuffer(obj);
-      assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
+      var buf = t1.binaryEncode(obj);
+      assert.deepEqual(t2.binaryDecode(buf, resolver), obj);
     });
 
     test('resolve double > double', function () {
       var t = new constructors.MapType({type: 'map', values: 'double'});
       var resolver = t.createResolver(t);
       var obj = {one: 1, two: 2};
-      var buf = t.toBuffer(obj);
-      assert.deepEqual(t.fromBuffer(buf, resolver), obj);
+      var buf = t.binaryEncode(obj);
+      assert.deepEqual(t.binaryDecode(buf, resolver), obj);
     });
 
     test('resolve invalid', function () {
@@ -1084,8 +1084,8 @@ suite('types', function () {
       });
       var resolver = t2.createResolver(t1);
       var obj = {one: utils.bufferFrom([1, 2])};
-      var buf = t1.toBuffer(obj);
-      assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
+      var buf = t1.binaryEncode(obj);
+      assert.deepEqual(t2.binaryDecode(buf, resolver), obj);
     });
 
     test('clone', function () {
@@ -1104,8 +1104,8 @@ suite('types', function () {
 
     test('compare buffers', function () {
       var t = new constructors.MapType({type: 'map', values: 'bytes'});
-      var b1 = t.toBuffer({});
-      assert.throws(function () { t.compareBuffers(b1, b1); });
+      var b1 = t.binaryEncode({});
+      assert.throws(function () { t.binaryCompare(b1, b1); });
     });
 
     test('compare default', function () {
@@ -1170,7 +1170,7 @@ suite('types', function () {
     test('read with sizes', function () {
       var t = new constructors.ArrayType({type: 'array', items: 'int'});
       var buf = utils.bufferFrom([1,2,2,0]);
-      assert.deepEqual(t.fromBuffer(buf), [1]);
+      assert.deepEqual(t.binaryDecode(buf), [1]);
     });
 
     test('skip', function () {
@@ -1190,8 +1190,8 @@ suite('types', function () {
       var b1 = utils.bufferFrom([2,2,0,6]); // Without sizes.
       var b2 = utils.bufferFrom([1,2,2,0,6]); // With sizes.
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.fromBuffer(b1, resolver), {val: 3});
-      assert.deepEqual(v2.fromBuffer(b2, resolver), {val: 3});
+      assert.deepEqual(v2.binaryDecode(b1, resolver), {val: 3});
+      assert.deepEqual(v2.binaryDecode(b2, resolver), {val: 3});
     });
 
     test('resolve string items to bytes items', function () {
@@ -1199,8 +1199,8 @@ suite('types', function () {
       var t2 = new constructors.ArrayType({type: 'array', items: 'bytes'});
       var resolver = t2.createResolver(t1);
       var obj = ['\x01\x02'];
-      var buf = t1.toBuffer(obj);
-      assert.deepEqual(t2.fromBuffer(buf, resolver), [utils.bufferFrom([1, 2])]);
+      var buf = t1.binaryEncode(obj);
+      assert.deepEqual(t2.binaryDecode(buf, resolver), [utils.bufferFrom([1, 2])]);
     });
 
     test('resolve invalid', function () {
@@ -1237,11 +1237,11 @@ suite('types', function () {
 
     test('compare buffers', function () {
       var t = Type.forSchema({type: 'array', items: 'int'});
-      assert.equal(t.compareBuffers(t.toBuffer([]), t.toBuffer([])), 0);
-      assert.equal(t.compareBuffers(t.toBuffer([1, 2]), t.toBuffer([])), 1);
-      assert.equal(t.compareBuffers(t.toBuffer([1]), t.toBuffer([1, -1])), -1);
-      assert.equal(t.compareBuffers(t.toBuffer([1]), t.toBuffer([2])), -1);
-      assert.equal(t.compareBuffers(t.toBuffer([1, 2]), t.toBuffer([1])), 1);
+      assert.equal(t.binaryCompare(t.binaryEncode([]), t.binaryEncode([])), 0);
+      assert.equal(t.binaryCompare(t.binaryEncode([1, 2]), t.binaryEncode([])), 1);
+      assert.equal(t.binaryCompare(t.binaryEncode([1]), t.binaryEncode([1, -1])), -1);
+      assert.equal(t.binaryCompare(t.binaryEncode([1]), t.binaryEncode([2])), -1);
+      assert.equal(t.binaryCompare(t.binaryEncode([1, 2]), t.binaryEncode([1])), 1);
     });
 
     test('compare', function () {
@@ -1305,7 +1305,7 @@ suite('types', function () {
       tap.writeInt(0);
       var t = new constructors.ArrayType({items: 'string'});
       assert.deepEqual(
-        t.fromBuffer(tap.buf.slice(0, tap.pos)),
+        t.binaryDecode(tap.buf.slice(0, tap.pos)),
         ['hi', 'hey', 'hello']
       );
     });
@@ -1384,7 +1384,7 @@ suite('types', function () {
           {name: 'name', type: 'string', 'default': '\x01'}
         ]
       });
-      assert.deepEqual(type.toBuffer({}), utils.bufferFrom([50, 2, 1]));
+      assert.deepEqual(type.binaryEncode({}), utils.bufferFrom([50, 2, 1]));
     });
 
     test('fixed string default', function () {
@@ -1404,7 +1404,7 @@ suite('types', function () {
       var obj = new (type.recordConstructor)();
       assert.deepEqual(obj.id, utils.bufferFrom([1, 4]));
       assert.deepEqual(obj.id, utils.bufferFrom([1, 4]));
-      assert.deepEqual(type.toBuffer({}), b);
+      assert.deepEqual(type.binaryEncode({}), b);
     });
 
     test('fixed buffer invalid default', function () {
@@ -1549,7 +1549,7 @@ suite('types', function () {
         fields: [{name: 'name', type: 'string'}]
       });
       var p = {name: 'ann'};
-      var buf = v1.toBuffer(p);
+      var buf = v1.binaryEncode(p);
       var v2 = Type.forSchema({
         type: 'record',
         name: 'Human',
@@ -1557,7 +1557,7 @@ suite('types', function () {
         fields: [{name: 'name', type: 'string'}]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.fromBuffer(buf, resolver), p);
+      assert.deepEqual(v2.binaryDecode(buf, resolver), p);
       var v3 = Type.forSchema({
         type: 'record',
         name: 'Human',
@@ -1599,14 +1599,14 @@ suite('types', function () {
         ]
       });
       var p = {age: 25, name: 'Ann'};
-      var buf = v1.toBuffer(p);
+      var buf = v1.binaryEncode(p);
       var v2 = Type.forSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'name', type: 'string'}]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann'});
+      assert.deepEqual(v2.binaryDecode(buf, resolver), {name: 'Ann'});
     });
 
     test('resolve new field', function () {
@@ -1616,7 +1616,7 @@ suite('types', function () {
         fields: [{name: 'name', type: 'string'}]
       });
       var p = {name: 'Ann'};
-      var buf = v1.toBuffer(p);
+      var buf = v1.binaryEncode(p);
       var v2 = Type.forSchema({
         type: 'record',
         name: 'Person',
@@ -1626,7 +1626,7 @@ suite('types', function () {
         ]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.fromBuffer(buf, resolver), {name: 'Ann', age: 25});
+      assert.deepEqual(v2.binaryDecode(buf, resolver), {name: 'Ann', age: 25});
     });
 
     test('resolve field with javascript keyword as name', function () {
@@ -1636,7 +1636,7 @@ suite('types', function () {
         fields: [{name: 'void', type: 'string'}]
       });
       var p = {void: 'Ann'};
-      var buf = v1.toBuffer(p);
+      var buf = v1.binaryEncode(p);
       var v2 = Type.forSchema({
         type: 'record',
         name: 'Person',
@@ -1645,7 +1645,7 @@ suite('types', function () {
         ]
       });
       var resolver = v2.createResolver(v1);
-      assert.deepEqual(v2.fromBuffer(buf, resolver), {void: 'Ann'});
+      assert.deepEqual(v2.binaryDecode(buf, resolver), {void: 'Ann'});
     });
 
     test('resolve new field no default', function () {
@@ -1678,7 +1678,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       var p1 = {friends: [{friends: []}]};
-      var p2 = v2.fromBuffer(v1.toBuffer(p1), resolver);
+      var p2 = v2.binaryDecode(v1.binaryEncode(p1), resolver);
       assert.deepEqual(p2, {age: -1});
     });
 
@@ -1701,7 +1701,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       var p1 = {age: 25};
-      var p2 = v2.fromBuffer(v1.toBuffer(p1), resolver);
+      var p2 = v2.binaryDecode(v1.binaryEncode(p1), resolver);
       assert.deepEqual(p2, {friends: []});
     });
 
@@ -1721,7 +1721,7 @@ suite('types', function () {
       });
       var resolver = v2.createResolver(v1);
       var p1 = {friends: [{age: 1, friends: []}], age: 10};
-      var p2 = v2.fromBuffer(v1.toBuffer(p1), resolver);
+      var p2 = v2.binaryDecode(v1.binaryEncode(p1), resolver);
       assert.deepEqual(p2, {friends: [{friends: []}]});
     });
 
@@ -1760,9 +1760,9 @@ suite('types', function () {
         ]
       });
       var rsv = t2.createResolver(t1);
-      var buf = t1.toBuffer({phone: 123});
+      var buf = t1.binaryEncode({phone: 123});
       assert.deepEqual(
-        t2.fromBuffer(buf, rsv),
+        t2.binaryDecode(buf, rsv),
         {number1: 123, number2: 123, phone: 123}
       );
     });
@@ -1785,9 +1785,9 @@ suite('types', function () {
         ]
       });
       var rsv = t2.createResolver(t1);
-      var buf = t1.toBuffer({phone: 123});
+      var buf = t1.binaryEncode({phone: 123});
       assert.deepEqual(
-        t2.fromBuffer(buf, rsv),
+        t2.binaryDecode(buf, rsv),
         {phoneLong: 123, phoneDouble: 123, phone: 123}
       );
     });
@@ -1934,8 +1934,11 @@ suite('types', function () {
       var o = {name: 'Ann'};
       assert.deepEqual(t.clone(o), o);
       assert.deepEqual(t.clone({}), {name: 'Bob'});
-      assert.deepEqual(t.toJSON({}), {name:{string:'Bob'}});
-      assert.deepEqual(t.toJSON({name: 'Bob'}, {omitDefaultValues: true}), {});
+      assert.deepEqual(t.jsonEncode({}), {name:{string:'Bob'}});
+      assert.deepEqual(
+        t.jsonEncode({name: 'Bob'}, {omitDefaultValues: true}),
+        {}
+      );
       assert.deepEqual(t.schema({exportAttrs: true}), schema);
     });
 
@@ -2013,12 +2016,12 @@ suite('types', function () {
           {name: 'weight', type: 'float'},
         ]
       });
-      var b1 = t.toBuffer({age: 20, name: 'Ann', weight: 0.5});
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer({age: 20, name: 'Bob', weight: 0});
-      assert.equal(t.compareBuffers(b1, b2), -1);
-      var b3 = t.toBuffer({age: 19, name: 'Carrie', weight: 0});
-      assert.equal(t.compareBuffers(b1, b3), 1);
+      var b1 = t.binaryEncode({age: 20, name: 'Ann', weight: 0.5});
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode({age: 20, name: 'Bob', weight: 0});
+      assert.equal(t.binaryCompare(b1, b2), -1);
+      var b3 = t.binaryEncode({age: 19, name: 'Carrie', weight: 0});
+      assert.equal(t.binaryCompare(b1, b3), 1);
     });
 
     test('compare buffers custom order', function () {
@@ -2030,12 +2033,12 @@ suite('types', function () {
           {name: 'name', type: 'string', order: 'descending'}
         ]
       });
-      var b1 = t.toBuffer({meta: {}, name: 'Ann'});
-      assert.equal(t.compareBuffers(b1, b1), 0);
-      var b2 = t.toBuffer({meta: {foo: 1}, name: 'Bob'});
-      assert.equal(t.compareBuffers(b1, b2), 1);
-      var b3 = t.toBuffer({meta: {foo: 0}, name: 'Alex'});
-      assert.equal(t.compareBuffers(b1, b3), -1);
+      var b1 = t.binaryEncode({meta: {}, name: 'Ann'});
+      assert.equal(t.binaryCompare(b1, b1), 0);
+      var b2 = t.binaryEncode({meta: {foo: 1}, name: 'Bob'});
+      assert.equal(t.binaryCompare(b1, b2), 1);
+      var b3 = t.binaryEncode({meta: {foo: 0}, name: 'Alex'});
+      assert.equal(t.binaryCompare(b1, b3), -1);
     });
 
     test('compare buffers invalid order', function () {
@@ -2149,7 +2152,7 @@ suite('types', function () {
       });
       var res = t2.createResolver(t1);
       var err1 = {name: 'foo'};
-      var err2 = t2.fromBuffer(t1.toBuffer(err1), res);
+      var err2 = t2.binaryDecode(t1.binaryEncode(err1), res);
       assert.deepEqual(err2, {code: -1});
     });
 
@@ -2265,14 +2268,14 @@ suite('types', function () {
 
       test('encode', function () {
         [123, -1, 321414, 900719925474090].forEach(function (n) {
-          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+          assert.deepEqual(slowLongType.binaryEncode(n), fastLongType.binaryEncode(n));
         });
       });
 
       test('decode', function () {
         [123, -1, 321414, 900719925474090].forEach(function (n) {
-          var buf = fastLongType.toBuffer(n);
-          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+          var buf = fastLongType.binaryEncode(n);
+          assert.deepEqual(slowLongType.binaryDecode(buf), n);
         });
       });
 
@@ -2286,7 +2289,7 @@ suite('types', function () {
         var errs = [];
         assert(!slowLongType.isValid(s, {errorHook: hook}));
         assert.deepEqual(errs, [s]);
-        assert.throws(function () { slowLongType.toBuffer(s); });
+        assert.throws(function () { slowLongType.binaryEncode(s); });
 
         function hook(path, obj, type) {
           assert.strictEqual(type, slowLongType);
@@ -2296,30 +2299,30 @@ suite('types', function () {
       });
 
       test('resolve between long', function () {
-        var b = fastLongType.toBuffer(123);
+        var b = fastLongType.binaryEncode(123);
         var fastToSlow = slowLongType.createResolver(fastLongType);
-        assert.equal(slowLongType.fromBuffer(b, fastToSlow), 123);
+        assert.equal(slowLongType.binaryDecode(b, fastToSlow), 123);
         var slowToFast = fastLongType.createResolver(slowLongType);
-        assert.equal(fastLongType.fromBuffer(b, slowToFast), 123);
+        assert.equal(fastLongType.binaryDecode(b, slowToFast), 123);
       });
 
       test('resolve from int', function () {
         var intType = Type.forSchema('int');
-        var b = intType.toBuffer(123);
+        var b = intType.binaryEncode(123);
         var r = slowLongType.createResolver(intType);
-        assert.equal(slowLongType.fromBuffer(b, r), 123);
+        assert.equal(slowLongType.binaryDecode(b, r), 123);
       });
 
       test('resolve to double and float', function () {
-        var b = slowLongType.toBuffer(123);
+        var b = slowLongType.binaryEncode(123);
         var floatType = Type.forSchema('float');
         var doubleType = Type.forSchema('double');
         assert.equal(
-          floatType.fromBuffer(b, floatType.createResolver(slowLongType)),
+          floatType.binaryDecode(b, floatType.createResolver(slowLongType)),
           123
         );
         assert.equal(
-          doubleType.fromBuffer(b, doubleType.createResolver(slowLongType)),
+          doubleType.binaryDecode(b, doubleType.createResolver(slowLongType)),
           123
         );
       });
@@ -2348,14 +2351,14 @@ suite('types', function () {
 
       test('encode', function () {
         [123, -1, 321414, 900719925474090].forEach(function (n) {
-          assert.deepEqual(slowLongType.toBuffer(n), fastLongType.toBuffer(n));
+          assert.deepEqual(slowLongType.binaryEncode(n), fastLongType.binaryEncode(n));
         });
       });
 
       test('decode', function () {
         [123, -1, 321414, 900719925474090].forEach(function (n) {
-          var buf = fastLongType.toBuffer(n);
-          assert.deepEqual(slowLongType.fromBuffer(buf), n);
+          var buf = fastLongType.binaryEncode(n);
+          assert.deepEqual(slowLongType.binaryDecode(buf), n);
         });
       });
 
@@ -2375,8 +2378,8 @@ suite('types', function () {
           fields: [{name: 'bar', aliases: ['foo'], type: 'long'}],
         }, {registry: {long: slowLongType}});
         var rsv = t2.createResolver(t1);
-        var buf = t1.toBuffer({foo: 2});
-        assert.deepEqual(t2.fromBuffer(buf, rsv), {bar: 2});
+        var buf = t1.binaryEncode({foo: 2});
+        assert.deepEqual(t2.binaryDecode(buf, rsv), {bar: 2});
       });
     });
 
@@ -2394,7 +2397,7 @@ suite('types', function () {
 
       assert(t.isValid(null));
       assert(t.isValid(v));
-      assert.deepEqual(t.fromBuffer(t.toBuffer(v)), v);
+      assert.deepEqual(t.binaryDecode(t.binaryEncode(v)), v);
     });
 
     test('incomplete buffer', function () {
@@ -2407,9 +2410,9 @@ suite('types', function () {
         isValid: null,
         compare: null
       });
-      var buf = fastLongType.toBuffer(12314);
+      var buf = fastLongType.binaryEncode(12314);
       assert.deepEqual(
-        slowLongType.decode(buf.slice(0, 1)),
+        slowLongType.binaryDecodeAt(buf.slice(0, 1)),
         {value: undefined, offset: -1}
       );
     });
@@ -2526,13 +2529,13 @@ suite('types', function () {
       assert(ageType instanceof AgeType);
       assert(fields[1].type instanceof DateType);
       var date = new Date(Date.now());
-      var buf = base.toBuffer({age: 12, time: +date});
-      var person = derived.fromBuffer(buf);
+      var buf = base.binaryEncode({age: 12, time: +date});
+      var person = derived.binaryDecode(buf);
       assert.deepEqual(person.age, 12);
       assert.deepEqual(person.time, date);
 
       var invalid = {age: -1, time: date};
-      assert.throws(function () { derived.toBuffer(invalid); });
+      assert.throws(function () { derived.binaryEncode(invalid); });
       var hasError = false;
       derived.isValid(invalid, {errorHook: function (path, any, type) {
         hasError = true;
@@ -2568,8 +2571,8 @@ suite('types', function () {
       var t = Type.forSchema(schema, {logicalTypes: {'person': PersonType}});
 
       var p1 = new Person([new Person()]);
-      var buf = t.toBuffer(p1);
-      var p2 = t.fromBuffer(buf);
+      var buf = t.binaryEncode(p1);
+      var p2 = t.binaryDecode(buf);
       assert(p2 instanceof Person);
       assert(p2.friends[0] instanceof Person);
       assert.deepEqual(p2, p1);
@@ -2601,7 +2604,7 @@ suite('types', function () {
       var v = {foo: 'hi', bar: {baz: {}}};
       assert(t.isValid({}));
       assert(t.isValid(v));
-      assert.deepEqual(t.fromBuffer(t.toBuffer(v)), v);
+      assert.deepEqual(t.binaryDecode(t.binaryEncode(v)), v);
     });
 
     test('resolve underlying > logical', function () {
@@ -2612,10 +2615,10 @@ suite('types', function () {
       }, {logicalTypes: logicalTypes});
 
       var d1 = new Date(Date.now());
-      var buf = t1.toBuffer('' + d1);
+      var buf = t1.binaryEncode('' + d1);
       var res = t2.createResolver(t1);
       assert.throws(function () { t2.createResolver(Type.forSchema('float')); });
-      var d2 = t2.fromBuffer(buf, res);
+      var d2 = t2.binaryDecode(buf, res);
       assert.deepEqual('' + d2, '' + d1); // Rounding error on date objects.
     });
 
@@ -2627,10 +2630,10 @@ suite('types', function () {
       var t2 = Type.forSchema({type: 'double'}); // Note long > double too.
 
       var d = new Date(Date.now());
-      var buf = t1.toBuffer(d);
+      var buf = t1.binaryEncode(d);
       var res = t2.createResolver(t1);
       assert.throws(function () { Type.forSchema('int').createResolver(t1); });
-      assert.equal(t2.fromBuffer(buf, res), +d);
+      assert.equal(t2.binaryDecode(buf, res), +d);
     });
 
     test('resolve logical type into a schema without the field', function () {
@@ -2650,10 +2653,10 @@ suite('types', function () {
         ]
       }, {logicalTypes: logicalTypes});
 
-      var buf = t1.toBuffer({age: 12, time: new Date()});
+      var buf = t1.binaryEncode({age: 12, time: new Date()});
 
       var res = t2.createResolver(t1);
-      var decoded = t2.fromBuffer(buf, res);
+      var decoded = t2.binaryDecode(buf, res);
       assert.equal(decoded.age, 12);
       assert.equal(decoded.time, undefined);
     });
@@ -2665,7 +2668,7 @@ suite('types', function () {
       );
       var resolver = t.createResolver(t);
       var v = {'int': 34};
-      assert.deepEqual(t.fromBuffer(t.toBuffer(v), resolver), v);
+      assert.deepEqual(t.binaryDecode(t.binaryEncode(v), resolver), v);
     });
 
     test('even integer', function () {
@@ -2686,7 +2689,7 @@ suite('types', function () {
       assert(t.isValid(2));
       assert(!t.isValid(3));
       assert(!t.isValid('abc'));
-      assert.equal(t.fromBuffer(utils.bufferFrom([4])), 2);
+      assert.equal(t.binaryDecode(utils.bufferFrom([4])), 2);
       assert.equal(t.clone(4), 4);
       assert.equal(t.schema(), 'long');
       assert.deepEqual(
@@ -2697,8 +2700,8 @@ suite('types', function () {
       assert(!Type.isType(t, 'int'));
       assert(Type.isType(t, 'logical'));
       assert.throws(function () { t.clone(3); });
-      assert.throws(function () { t.toBuffer(3); });
-      assert.throws(function () { t.fromBuffer(utils.bufferFrom([2])); });
+      assert.throws(function () { t.binaryEncode(3); });
+      assert.throws(function () { t.binaryDecode(utils.bufferFrom([2])); });
     });
 
     test('inside unwrapped union', function () {
@@ -2822,10 +2825,10 @@ suite('types', function () {
         );
         var obj = {name: 'Ann', age: 23};
         assert(t1.isValid(obj));
-        var buf = t1.toBuffer(obj);
+        var buf = t1.binaryEncode(obj);
         var t2 = Type.forSchema(schema, {wrapUnions: true});
         assert.deepEqual(
-          t2.fromBuffer(buf),
+          t2.binaryDecode(buf),
           {Person: {name: 'Ann', age: {'int': 23}}}
         );
 
@@ -2859,9 +2862,9 @@ suite('types', function () {
         );
         var obj = {date: new Date(1234)};
         assert(t1.isValid(obj)); // TODO
-        var buf = t1.toBuffer(obj);
+        var buf = t1.binaryEncode(obj);
         var t2 = Type.forSchema(schema, {wrapUnions: true});
-        assert.deepEqual(t2.fromBuffer(buf), {Foo: {date: {long: 1234}}});
+        assert.deepEqual(t2.binaryDecode(buf), {Foo: {date: {long: 1234}}});
       });
 
       test('optional', function () {
@@ -2905,10 +2908,10 @@ suite('types', function () {
         );
         var obj = {name: 'Ann', age: 23};
         assert(t1.isValid(obj));
-        var buf = t1.toBuffer(obj);
+        var buf = t1.binaryEncode(obj);
         var t2 = Type.forSchema(schema, {wrapUnions: true});
         assert.deepEqual(
-          t2.fromBuffer(buf),
+          t2.binaryDecode(buf),
           {Person: {name: 'Ann', age: {'int': 23}}}
         );
 
@@ -3037,42 +3040,42 @@ suite('types', function () {
       assert.strictEqual(type.fields[0].type.constructor, constructors.NullType);
     });
 
-    test('fromBuffer truncated', function () {
+    test('binary decode truncated', function () {
       var type = Type.forSchema('int');
       assert.throws(function () {
-        type.fromBuffer(utils.bufferFrom([128]));
+        type.binaryDecode(utils.bufferFrom([128]));
       });
     });
 
-    test('fromBuffer bad resolver', function () {
+    test('binary decode bad resolver', function () {
       var type = Type.forSchema('int');
       assert.throws(function () {
-        type.fromBuffer(utils.bufferFrom([0]), 123, {});
+        type.binaryDecode(utils.bufferFrom([0]), 123, {});
       });
     });
 
-    test('fromBuffer trailing', function () {
+    test('binary decode trailing', function () {
       var type = Type.forSchema('int');
       assert.throws(function () {
-        type.fromBuffer(utils.bufferFrom([0, 2]));
+        type.binaryDecode(utils.bufferFrom([0, 2]));
       });
     });
 
-    test('fromBuffer trailing with resolver', function () {
+    test('binary decode trailing with resolver', function () {
       var type = Type.forSchema('int');
       var resolver = type.createResolver(Type.forSchema(['int']));
-      assert.equal(type.fromBuffer(utils.bufferFrom([0, 2]), resolver), 1);
+      assert.equal(type.binaryDecode(utils.bufferFrom([0, 2]), resolver), 1);
     });
 
-    test('toBuffer', function () {
+    test('binary encode', function () {
       var type = Type.forSchema('int');
-      assert.throws(function () { type.toBuffer('abc'); });
-      assert.doesNotThrow(function () { type.toBuffer(123); });
+      assert.throws(function () { type.binaryEncode('abc'); });
+      assert.doesNotThrow(function () { type.binaryEncode(123); });
     });
 
-    test('toBuffer and resize', function () {
+    test('binary encode and resize', function () {
       var type = Type.forSchema('string');
-      assert.deepEqual(type.toBuffer('\x01', 1), utils.bufferFrom([2, 1]));
+      assert.deepEqual(type.binaryEncode('\x01', 1), utils.bufferFrom([2, 1]));
     });
 
     test('type hook', function () {
@@ -3237,14 +3240,14 @@ suite('types', function () {
 
     test('int', function () {
       var t = Type.forSchema('int');
-      assert.equal(t.fromJSON(2), 2);
-      assert.throws(function () { t.fromJSON('a'); });
+      assert.equal(t.jsonDecode(2), 2);
+      assert.throws(function () { t.jsonDecode('a'); });
     });
 
     test('string', function () {
       var t = Type.forSchema('string');
-      assert.equal(t.fromJSON('2'), '2');
-      assert.throws(function () { t.fromJSON(1); });
+      assert.equal(t.jsonDecode('2'), '2');
+      assert.throws(function () { t.jsonDecode(1); });
     });
 
     test('fixed', function () {
@@ -3255,7 +3258,7 @@ suite('types', function () {
       });
       var o = {id1: utils.bufferFrom([0, 1])};
       var s = {id1: '\u0000\u0001'};
-      var c = t.fromJSON(s);
+      var c = t.jsonDecode(s);
       assert.deepEqual(c, o);
       assert(c instanceof t.recordConstructor);
     });
@@ -3266,7 +3269,7 @@ suite('types', function () {
 
     test('int', function () {
       var t = Type.forSchema('int');
-      assert.equal(t.toJSON(2), 2);
+      assert.equal(t.jsonEncode(2), 2);
       assert.throws(function () { t.toJSON('a'); });
     });
 
@@ -3283,8 +3286,8 @@ suite('types', function () {
       var t1 = Type.forSchema(['int', 'string']);
       var t2 = Type.forSchema(['null', 'string', 'long'], {wrapUnions: true});
       var resolver = t2.createResolver(t1);
-      var buf = t1.toBuffer(12);
-      assert.deepEqual(t2.fromBuffer(buf, resolver), {'long': 12});
+      var buf = t1.binaryEncode(12);
+      assert.deepEqual(t2.binaryDecode(buf, resolver), {'long': 12});
     });
 
     test('union to invalid union', function () {
@@ -3297,26 +3300,26 @@ suite('types', function () {
       var t1 = Type.forSchema(['int', 'long'], {wrapUnions: true});
       var t2 = Type.forSchema('long');
       var resolver = t2.createResolver(t1);
-      var buf = t1.toBuffer({'int': 12});
-      assert.equal(t2.fromBuffer(buf, resolver), 12);
+      var buf = t1.binaryEncode({'int': 12});
+      assert.equal(t2.binaryDecode(buf, resolver), 12);
       buf = utils.bufferFrom([4, 0]);
-      assert.throws(function () { t2.fromBuffer(buf, resolver); });
+      assert.throws(function () { t2.binaryDecode(buf, resolver); });
     });
 
     test('union to non union', function () {
       var t1 = Type.forSchema(['bytes', 'string']);
       var t2 = Type.forSchema('bytes');
       var resolver = t2.createResolver(t1);
-      var buf = t1.toBuffer('\x01\x02');
-      assert.deepEqual(t2.fromBuffer(buf, resolver), utils.bufferFrom([1, 2]));
+      var buf = t1.binaryEncode('\x01\x02');
+      assert.deepEqual(t2.binaryDecode(buf, resolver), utils.bufferFrom([1, 2]));
     });
 
     test('non union to unwrapped union as JSON', function () {
       var t1 = Type.forSchema('string');
       var t2 = Type.forSchema(['null', 'string']);
       var resolver = t2.createResolver(t1);
-      assert.equal(t2.fromJSON({string: 'bar'}), 'bar');
-      assert.equal(t2.fromJSON('foo', resolver), 'foo');
+      assert.equal(t2.jsonDecode({string: 'bar'}), 'bar');
+      assert.equal(t2.jsonDecode('foo', resolver), 'foo');
     });
 
     test('union to invalid non union', function () {
@@ -3490,18 +3493,18 @@ suite('types', function () {
     });
   });
 
-  suite('decode', function () {
+  suite('decode at', function () {
     test('long valid', function () {
       var t = Type.forSchema('long');
       var buf = utils.bufferFrom([0, 128, 2, 0]);
-      var res = t.decode(buf, 1);
+      var res = t.binaryDecodeAt(buf, 1);
       assert.deepEqual(res, {value: 128, offset: 3});
     });
 
     test('bytes invalid', function () {
       var t = Type.forSchema('bytes');
       var buf = utils.bufferFrom([4, 1]);
-      var res = t.decode(buf, 0);
+      var res = t.binaryDecodeAt(buf, 0);
       assert.deepEqual(res, {value: undefined, offset: -1});
     });
   });
@@ -3511,7 +3514,7 @@ suite('types', function () {
       var t = Type.forSchema('int');
       var buf = utils.newBuffer(2);
       buf.fill(0);
-      var n = t.encode(5, buf, 1);
+      var n = t.binaryEncodeAt(5, buf, 1);
       assert.equal(n, 2);
       assert.deepEqual(buf, utils.bufferFrom([0, 10]));
     });
@@ -3519,20 +3522,20 @@ suite('types', function () {
     test('too short', function () {
       var t = Type.forSchema('string');
       var buf = utils.newBuffer(1);
-      var n = t.encode('\x01\x02', buf, 0);
+      var n = t.binaryEncodeAt('\x01\x02', buf, 0);
       assert.equal(n, -2);
     });
 
     test('invalid', function () {
       var t = Type.forSchema('float');
       var buf = utils.newBuffer(2);
-      assert.throws(function () { t.encode('hi', buf, 0); });
+      assert.throws(function () { t.binaryEncodeAt('hi', buf, 0); });
     });
 
     test('invalid offset', function () {
       var t = Type.forSchema('string');
       var buf = utils.newBuffer(2);
-      assert.throws(function () { t.encode('hi', buf, -1); });
+      assert.throws(function () { t.binaryEncodeAt('hi', buf, -1); });
     });
   });
 
@@ -3572,7 +3575,7 @@ suite('types', function () {
   test('reset', function () {
     Type.__reset(0);
     var t = Type.forSchema('string');
-    var buf = t.toBuffer('\x01');
+    var buf = t.binaryEncode('\x01');
     assert.deepEqual(buf, utils.bufferFrom([2, 1]));
   });
 
@@ -3896,12 +3899,12 @@ function testType(Type, data, invalidSchemas) {
       elem.valid.forEach(function (v) {
         assert(type.isValid(v), '' + v);
         var fn = elem.check || assert.deepEqual;
-        fn(type.fromBuffer(type.toBuffer(v)), v);
+        fn(type.binaryDecode(type.binaryEncode(v)), v);
       });
       elem.invalid.forEach(function (v) {
         assert(!type.isValid(v), '' + v);
         assert.throws(function () { type.isValid(v, {errorHook: hook}); });
-        assert.throws(function () { type.toBuffer(v); });
+        assert.throws(function () { type.binaryEncode(v); });
 
         function hook() { throw new Error(); }
       });

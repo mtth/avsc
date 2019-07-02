@@ -438,7 +438,7 @@ Object.defineProperty(Type.prototype, 'branchName', {
 
 Type.prototype.compare = utils.abstractFunction;
 
-Type.prototype.compareBuffers = function (buf1, buf2) {
+Type.prototype.binaryCompare = function (buf1, buf2) {
   return this._match(new Tap(buf1), new Tap(buf2));
 };
 
@@ -499,31 +499,7 @@ Type.prototype.createResolver = function (type, opts) {
   return Object.freeze(resolver);
 };
 
-Type.prototype.decode = function (buf, pos, resolver) {
-  var tap = new Tap(buf, pos);
-  var val = readValue(this, tap, resolver);
-  if (!tap.isValid()) {
-    return {value: undefined, offset: -1};
-  }
-  return {value: val, offset: tap.pos};
-};
-
-Type.prototype.encode = function (val, buf, pos) {
-  var tap = new Tap(buf, pos);
-  this._write(tap, val);
-  if (!tap.isValid()) {
-    // Don't throw as there is no way to predict this. We also return the
-    // number of missing bytes to ease resizing.
-    return buf.length - tap.pos;
-  }
-  return tap.pos;
-};
-
-Type.prototype.equals = function (type) {
-  return utils.isType(type) && utils.jsonEquals(this.schema(), type.schema());
-};
-
-Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
+Type.prototype.binaryDecode = function (buf, resolver, noCheck) {
   var tap = new Tap(buf);
   var val = readValue(this, tap, resolver, noCheck);
   if (!tap.isValid()) {
@@ -535,7 +511,7 @@ Type.prototype.fromBuffer = function (buf, resolver, noCheck) {
   return val;
 };
 
-Type.prototype.toBuffer = function (val) {
+Type.prototype.binaryEncode = function (val) {
   TAP.pos = 0;
   this._write(TAP, val);
   var buf = utils.newBuffer(TAP.pos);
@@ -545,6 +521,50 @@ Type.prototype.toBuffer = function (val) {
     this._write(new Tap(buf), val);
   }
   return buf;
+};
+
+Type.prototype.binaryDecodeAt = function (buf, pos, resolver) {
+  var tap = new Tap(buf, pos);
+  var val = readValue(this, tap, resolver);
+  if (!tap.isValid()) {
+    return {value: undefined, offset: -1};
+  }
+  return {value: val, offset: tap.pos};
+};
+
+Type.prototype.binaryEncodeAt = function (val, buf, pos) {
+  var tap = new Tap(buf, pos);
+  this._write(tap, val);
+  if (!tap.isValid()) {
+    // Don't throw as there is no way to predict this. We also return the
+    // number of missing bytes to ease resizing.
+    return buf.length - tap.pos;
+  }
+  return tap.pos;
+};
+
+Type.prototype.jsonDecode = function (any, resolver, allowUndeclaredFields) {
+  var opts = {allowUndeclaredFields: allowUndeclaredFields};
+  if (!resolver) {
+    return values.fromJSON(any, this, opts);
+  }
+  var type = resolver._writerType;
+  var val = values.fromJSON(any, type, opts);
+  return this.binaryDecode(type.binaryEncode(val), resolver);
+};
+
+Type.prototype.jsonEncode = function (val, opts) {
+  return values.toJSON(val, this, opts);
+};
+
+Type.prototype.clone = function (val) {
+  // A serialization round trip is usually the fastest.
+  return this.binaryDecode(this.binaryEncode(val));
+};
+
+Type.prototype.wrap = function (val) {
+  var Branch = this._branchConstructor;
+  return Branch === null ? null : new Branch(val);
 };
 
 Type.prototype.checkValid = function (val, opts) {
@@ -570,6 +590,10 @@ Type.prototype.isValid = function (val, opts) {
   return this._check(val, flags, hook, path);
 };
 
+Type.prototype.equals = function (type) {
+  return utils.isType(type) && utils.jsonEquals(this.schema(), type.schema());
+};
+
 Type.prototype.schema = function (opts) {
   // Copy the options to avoid mutating the original options object when we add
   // the registry of dereferenced types.
@@ -579,32 +603,8 @@ Type.prototype.schema = function (opts) {
   });
 };
 
-Type.prototype.fromJSON = function (any, resolver, allowUndeclaredFields) {
-  var opts = {allowUndeclaredFields: allowUndeclaredFields};
-  if (!resolver) {
-    return values.fromJSON(any, this, opts);
-  }
-  var type = resolver._writerType;
-  var val = values.fromJSON(any, type, opts);
-  return this.fromBuffer(type.toBuffer(val), resolver);
-};
-
-Type.prototype.toJSON = function (val, opts) {
-  return values.toJSON(val, this, opts);
-};
-
 Type.prototype.toString = function () {
   return f('<%s>', getClassName(this.typeName));
-};
-
-Type.prototype.clone = function (val) {
-  // A serialization round trip is usually the fastest.
-  return this.fromBuffer(this.toBuffer(val));
-};
-
-Type.prototype.wrap = function (val) {
-  var Branch = this._branchConstructor;
-  return Branch === null ? null : new Branch(val);
 };
 
 Type.prototype._attrs = function (opts) {
@@ -681,6 +681,13 @@ Type.prototype._read = utils.abstractFunction;
 Type.prototype._skip = utils.abstractFunction;
 Type.prototype._update = utils.abstractFunction;
 Type.prototype._write = utils.abstractFunction;
+
+// Legacy aliases.
+Type.prototype.decode = Type.prototype.binaryDecodeAt;
+Type.prototype.encode = Type.prototype.binaryEncodeAt;
+Type.prototype.fromBuffer = Type.prototype.binaryDecode;
+Type.prototype.toBuffer = Type.prototype.binaryEncode;
+Type.prototype.compareBuffers = Type.prototype.binaryCompare;
 
 // Implementations.
 
@@ -1910,7 +1917,9 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
     Record.prototype.name = self.name;
   }
 
-  Record.fromBuffer = function () { return self.fromBuffer.apply(arguments); };
+  Record.fromBuffer = function () {
+    return self.binaryDecode.apply(arguments);
+  };
   Record.fromJSON = function (obj) { return values.fromJSON(obj, self); };
   Record.fromObject = function (obj, opts) {
     return values.copy(obj, self, opts);
@@ -1944,8 +1953,8 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   function clone() { return self.clone(this); }
   function compare(val, opts) { return self.compare(this, val, opts); }
   function isValid(opts) { return self.isValid(this, opts); }
-  function toBuffer() { return self.toBuffer(this); }
-  function toJSON(opts) { return self.toJSON(this, opts); }
+  function toBuffer() { return self.binaryEncode(this); }
+  function toJSON(opts) { return self.jsonEncode(this, opts); }
   function toString() {
     var str;
     if (self._isError) {
@@ -2071,7 +2080,7 @@ RecordType.prototype._createWriter = function () {
     if (field.defaultValue() === undefined) {
       body += 't' + i + '._write(t, v.' + field.name + ');\n';
     } else {
-      value = field.type.toBuffer(field.defaultValue()).toString('binary');
+      value = field.type.binaryEncode(field.defaultValue()).toString('binary');
       // Convert the default value to a binary string ahead of time. We aren't
       // converting it to a buffer to avoid retaining too much memory. If we
       // had our own buffer pool, this could be an idea in the future.
