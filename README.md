@@ -14,7 +14,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Installation
 
-For the entire distribution:
+The full implementation is available via:
 
 ```bash
 $ npm install avsc
@@ -23,9 +23,10 @@ $ npm install avsc
 Subsets of functionality are also available via individual modules:
 
 + Serialization: [`@avro/types`](https://www.npmjs.com/package/@avro/types)
-+ RPC services: [`@avro/services`](https://www.npmjs.com/package/@avro/services)
-+ Streams (e.g. to read and write container files): [`@avro/streams`](https://www.npmjs.com/package/@avro/streams)
++ Streams (e.g. to read and write container files):
+  [`@avro/streams`](https://www.npmjs.com/package/@avro/streams)
 + IDL support: [`@avro/idl`](https://www.npmjs.com/package/@avro/idl)
++ RPC services: [`@avro/services`](https://www.npmjs.com/package/@avro/services)
 
 ## Documentation
 
@@ -36,14 +37,12 @@ Subsets of functionality are also available via individual modules:
 
 ## Examples
 
-```javascript
-const avro = require('avsc');
-```
-
 + Encode and decode values from a known schema:
 
   ```javascript
-  const type = avro.Type.forSchema({
+  const {Type} = require('@avro/types');
+
+  const type = Type.forSchema({
     type: 'record',
     fields: [
       {name: 'kind', type: {type: 'enum', symbols: ['CAT', 'DOG']}},
@@ -51,14 +50,16 @@ const avro = require('avsc');
     ]
   });
 
-  const buf = type.toBuffer({kind: 'CAT', name: 'Albert'}); // Encoded buffer.
-  const val = type.fromBuffer(buf); // = {kind: 'CAT', name: 'Albert'}
+  const buf = type.binaryEncode({kind: 'CAT', name: 'Albert'}); // Buffer.
+  const val = type.binaryDecode(buf); // = {kind: 'CAT', name: 'Albert'}
   ```
 
 + Infer a value's schema and encode similar values:
 
   ```javascript
-  const type = avro.Type.forValue({
+  const {Type} = require('@avro/types');
+
+  const type = Type.forValue({
     city: 'Cambridge',
     zipCodes: ['02138', '02139'],
     visits: 2
@@ -66,8 +67,8 @@ const avro = require('avsc');
 
   // We can use `type` to encode any values with the same structure:
   const bufs = [
-    type.toBuffer({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
-    type.toBuffer({city: 'NYC', zipCodes: [], visits: 0})
+    type.binaryEncode({city: 'Seattle', zipCodes: ['98101'], visits: 3}),
+    type.binaryEncode({city: 'NYC', zipCodes: [], visits: 0})
   ];
   ```
 
@@ -76,7 +77,9 @@ const avro = require('avsc');
   API][decoder-api] for an example including checksum validation):
 
   ```javascript
+  const {createFileDecoder} = require('@avro/streams');
   const snappy = require('snappy'); // Or your favorite Snappy library.
+
   const codecs = {
     snappy: function (buf, cb) {
       // Avro appends checksums to compressed blocks, which we skip here.
@@ -84,14 +87,16 @@ const avro = require('avsc');
     }
   };
 
-  avro.createFileDecoder('./values.avro', {codecs})
+  createFileDecoder('./values.avro', {codecs})
     .on('metadata', function (type) { /* `type` is the writer's type. */ })
     .on('data', function (val) { /* Do something with the decoded value. */ });
   ```
 
-+ Implement a TCP server for an [IDL-defined][idl] protocol:
++ Implement a TCP server for a protocol:
 
   ```javascript
+  const {NettyGateway, Server, Service} = require('@avro/services');
+
   // We first define a service.
   const service = new avro.Service({
     protocol: 'LengthService',
@@ -104,11 +109,11 @@ const avro = require('avsc');
   });
 
   // We then create a corresponding server, implementing our endpoint.
-  const server = new avro.Server(service)
+  const server = new Server(service)
     .onMessage().stringLength((str) => str.length);
 
   // Finally, we use our server to respond to incoming TCP connections!
-  const gateway = new avro.NettyGateway(server.channel());
+  const gateway = new NettyGateway(server.channel());
   require('net').createServer()
     .on('connection', (con) => { gateway.accept(con); })
     .listen(24950);

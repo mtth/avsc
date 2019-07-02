@@ -1,0 +1,42 @@
+# 6.0
+
+## General
+
++ Removed TypeScript typings (please help bring them back!).
++ Removed Browserify-specific shims. Serialization functionality is natively
+  compatible with `@avro/types`.
++ Removed IDL support from `parse`.
+
+## Types (@avro/types)
+
++ Renamed a few methods (the previous names are still available and will be
+  deprecated in `6.1`):
+  + `decode` to `binaryDecodeAt`
+  + `encode` to `binaryEncodeAt`
+  + `fromBuffer` to `binaryDecode`
+  + `toBuffer` to `binaryEncode`
+  + `compareBuffers` to `binaryCompare`
++ Added a `checkValid` method to check whether a value matches the type,
+  producing actionable error messages.
++ Replaced `name()` method with `name` and `branchName` properties.
++ Removed `fingerprint`, `inspect`, and `random` methods.
++ Removed deprecated getters (`getValuesType`, `getSchema`, ...).
++ Replaced `fromString` (resp. `toString`) with `fromJSON` (resp. `toJSON`).
++ Removed `clone` options.
++ Updated `isValid` to reject unknown fields by default and renamed the
+  `noUndeclaredFields` option to `allowUndeclaredFields`.
+
+## Containers & streams (@avro/streams)
+
+No changes.
+
+## RPC services (@avro/services)
+
+Overhauled the API: services are now more composable, RPCs are easier to
+instrument, natively support promises, and much more. This functionality
+requires `node>=7`.
+
+## IDL parsing (@avro/idl)
+
++ Added a synchronous version of `assembleProtocol`: `assembleProtocolSync`.
++ Removed `readSchema`, and `readProtocol`.
