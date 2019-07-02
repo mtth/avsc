@@ -2,13 +2,12 @@
 
 'use strict';
 
-var idl = require('@avro/idl');
-var types = require('@avro/types');
+var types = require('./types');
 var streams = require('@avro/streams');
-var fs = require('fs');
 var path = require('path');
+var fs = require('fs');
 
-function parse(s, opts) {
+function parse() {
   var schema;
   if (typeof s == 'string' && ~s.indexOf(path.sep) && fs.existsSync(s)) {
     // Try interpreting `s` as path to a file contain a JSON schema or an IDL
@@ -27,23 +26,18 @@ function parse(s, opts) {
     // This last predicate is to allow `read('null')` to work similarly to
     // `read('int')` and other primitives (null needs to be handled separately
     // since it is also a valid JSON identifier).
-    try {
-      schema = JSON.parse(schema);
-    } catch (err) {}
+    schema = JSON.parse(schema);
   }
   return types.Type.forSchema(schema);
 }
 
-module.exports = Object.assign(
-  {
-    parse: parse,
-    Type: types.Type,
-    types: types,
-    createFileDecoder: streams.createFileDecoder,
-    createFileEncoder: streams.createFileEncoder,
-    extractFileHeader: streams.extractFileHeader,
-    streams: streams
-  },
-  require('@avro/services'),
-  idl
-);
+module.exports = {
+  Type: types.Type,
+  assembleProtocol: idl.assembleProtocol,
+  createFileDecoder: streams.createFileDecoder,
+  createFileEncoder: streams.createFileEncoder,
+  extractFileHeader: streams.extractFileHeader,
+  parse,
+  streams,
+  types: types.builtins
+};

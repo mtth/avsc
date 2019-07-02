@@ -1,5 +1,6 @@
 {
   "name": "avsc",
+  "private": true,
   "version": "6.0.0",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
@@ -27,13 +28,17 @@
   "scripts": {
     "clean": "rm -rf node_modules",
     "coverAndPublish": "true",
-    "test": "true"
+    "test": "mocha"
   },
   "dependencies": {
-    "@avro/idl": "^0.1.1",
-    "@avro/services": "^0.10.0",
-    "@avro/streams": "^0.2.0",
-    "@avro/types": "^1.0.2"
+    "@avro/idl": "^1.0.0",
+    "@avro/services": "^1.0.1",
+    "@avro/streams": "^1.0.1",
+    "@avro/types": "^1.0.5"
+  },
+  "devDependencies": {
+    "mocha": "^5.2.0",
+    "tmp": "^0.0.33"
   },
   "author": {
     "name": "Matthieu Monsch",
