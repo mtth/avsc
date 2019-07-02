@@ -1,6 +1,6 @@
 {
   "name": "@avro/services",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Avro RPC services",
   "homepage": "https://github.com/mtth/avsc",
   "files": [
