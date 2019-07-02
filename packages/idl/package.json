@@ -1,6 +1,6 @@
 {
   "name": "@avro/idl",
-  "version": "0.1.1",
+  "version": "1.0.0",
   "description": "Avro IDL parsing",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -34,7 +34,7 @@
   "devDependencies": {
     "coveralls": "^3.0.2",
     "mocha": "^5.2.0",
-    "nyc": "~13.3.0",
+    "nyc": "^14.1.1",
     "tmp": "^0.0.33"
   },
   "author": {
