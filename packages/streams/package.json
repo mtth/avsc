@@ -1,7 +1,7 @@
 {
   "name": "@avro/streams",
-  "version": "0.2.0",
-  "description": "Avro serialization streams",
+  "version": "1.0.1",
+  "description": "Avro data streams",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
     "avro",
@@ -11,8 +11,6 @@
     "data",
     "decoding",
     "encoding",
-    "interface",
-    "json",
     "marshalling",
     "schema",
     "serialization",
@@ -44,12 +42,12 @@
     "@avro/types": "^1.0.0",
     "coveralls": "^3.0.2",
     "mocha": "^5.2.0",
-    "nyc": "~13.3.0",
+    "nyc": "^14.1.1",
     "tmp": "^0.0.33"
   },
   "author": {
     "name": "Matthieu Monsch",
-    "email": "monsch@alum.mit.edu"
+    "email": "mtth@apache.org"
   },
   "license": "MIT",
   "repository": {

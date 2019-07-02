@@ -28,12 +28,11 @@ function extractFileHeader(path, opts) {
     do {
       header = containers.HEADER_TYPE._read(tap);
     } while (!isValid());
-    header = header.toJSON();
     if (decode !== false) {
       var meta = header.meta;
-      meta['avro.schema'] = JSON.parse(meta['avro.schema']);
+      meta['avro.schema'] = JSON.parse(meta['avro.schema'].toString());
       if (meta['avro.codec'] !== undefined) {
-        meta['avro.codec'] = meta['avro.codec'];
+        meta['avro.codec'] = meta['avro.codec'].toString();
       }
     }
   }
