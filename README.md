@@ -14,19 +14,21 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Installation
 
-The full implementation is available via:
-
-```bash
-$ npm install avsc
-```
-
-Subsets of functionality are also available via individual modules:
+The functionality is available via individual modules, to help minimize client
+bundle size:
 
 + Serialization: [`@avro/types`](https://www.npmjs.com/package/@avro/types)
 + Streams (e.g. to read and write container files):
   [`@avro/streams`](https://www.npmjs.com/package/@avro/streams)
 + IDL support: [`@avro/idl`](https://www.npmjs.com/package/@avro/idl)
 + RPC services: [`@avro/services`](https://www.npmjs.com/package/@avro/services)
+
+For convenience and compatibility with previous versions, all non-RPC
+functionality is also available via:
+
+```bash
+$ npm install avsc
+```
 
 ## Documentation
 

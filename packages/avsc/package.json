@@ -28,7 +28,7 @@
   "scripts": {
     "clean": "rm -rf node_modules",
     "coverAndPublish": "true",
-    "test": "mocha"
+    "test": "true"
   },
   "dependencies": {
     "@avro/idl": "^1.0.0",
