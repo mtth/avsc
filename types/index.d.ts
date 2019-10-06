@@ -238,7 +238,10 @@ export namespace Service {
     objectMode: boolean;
   }
 
-  type TransportFunction = () => void; // TODO
+  
+
+  type TransportFunctionCallback = (err: Error|null|undefined, res?: stream.Stream) => void;
+  type TransportFunction = (cb: TransportFunctionCallback) => stream.Stream; // TODO
 
   type Transport = stream.Duplex | TransportFunction;
 
