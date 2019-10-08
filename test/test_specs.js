@@ -41,7 +41,8 @@ suite('specs', function () {
               doc: 'An enum.',
               type: 'enum',
               name: 'Kind',
-              symbols: ['FOO', 'BAR', 'BAZ']
+              symbols: ['FOO', 'BAR', 'BAZ'],
+              default: 'BAZ'
             },
             {type: 'fixed', doc: 'A fixed.', name: 'MD5', size: 16},
             {

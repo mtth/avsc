@@ -16,7 +16,7 @@ protocol Simple {
     FOO,
     BAR, // the bar enum value
     BAZ
-  }
+  } = BAZ
 
   /** A fixed. */
   fixed MD5(16);
