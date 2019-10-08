@@ -16,7 +16,14 @@ protocol Simple {
     FOO,
     BAR, // the bar enum value
     BAZ
-  } = BAZ
+  }
+
+/** An enum with a default value. */
+  enum Letters {
+    A,
+    B,
+    C
+  } = A;
 
   /** A fixed. */
   fixed MD5(16);
