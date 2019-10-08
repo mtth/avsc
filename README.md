@@ -3,6 +3,7 @@
 Pure JavaScript implementation of the [Avro
 specification](https://avro.apache.org/docs/current/spec.html).
 
+**NOTE:** This project is similar to [avro-js](https://github.com/apache/avro/tree/master/lang/js), but is actively maintained.
 
 ## Features
 
