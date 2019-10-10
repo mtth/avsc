@@ -901,6 +901,12 @@ suite('types', function () {
       });
     });
 
+    test('writes default value', function () {
+      var type = Type.forSchema({type: 'enum', symbols: ['A', 'B'], name: 'a', default: 'A'});
+      const buffer = type.toBuffer();
+      assert.equal(type.fromBuffer(buffer), 'A');
+    });
+
     test('write invalid', function () {
       var type = Type.forSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
