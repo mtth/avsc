@@ -18,6 +18,13 @@ protocol Simple {
     BAZ
   }
 
+/** An enum with a default value. */
+  enum Letters {
+    A,
+    B,
+    C
+  } = A;
+
   /** A fixed. */
   fixed MD5(16);
 

@@ -43,6 +43,13 @@ suite('specs', function () {
               name: 'Kind',
               symbols: ['FOO', 'BAR', 'BAZ']
             },
+            {
+              doc: 'An enum with a default value.',
+              type: 'enum',
+              name: 'Letters',
+              symbols: ['A', 'B', 'C'],
+              default: 'A'
+            },
             {type: 'fixed', doc: 'A fixed.', name: 'MD5', size: 16},
             {
               type: 'record',
@@ -148,8 +155,25 @@ suite('specs', function () {
               response: 'null',
               request: [],
               'one-way': true
+            },
+          },
+          types: [
+            {
+              type: 'record',
+              name: 'Person',
+              fields: [
+                {
+                  type: {
+                    type: 'enum',
+                    name: 'Name',
+                    symbols: ['ANN', 'BOB']
+                  },
+                  name: 'name',
+                  'default': 'ANN'
+                }
+              ]
             }
-          }
+          ]
         });
         done();
       });
