@@ -13,4 +13,10 @@ protocol { // Anonymous.
 
   // Reserved name.
   void import();
+
+  record Person {
+
+    // An inline enum, the default is the field's.
+    enum Name { ANN, BOB } name = "ANN";
+  }
 }

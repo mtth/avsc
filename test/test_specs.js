@@ -155,8 +155,25 @@ suite('specs', function () {
               response: 'null',
               request: [],
               'one-way': true
+            },
+          },
+          types: [
+            {
+              type: 'record',
+              name: 'Person',
+              fields: [
+                {
+                  type: {
+                    type: 'enum',
+                    name: 'Name',
+                    symbols: ['ANN', 'BOB']
+                  },
+                  name: 'name',
+                  'default': 'ANN'
+                }
+              ]
             }
-          }
+          ]
         });
         done();
       });
