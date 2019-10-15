@@ -901,12 +901,6 @@ suite('types', function () {
       });
     });
 
-    test('writes default value', function () {
-      var type = Type.forSchema({type: 'enum', symbols: ['A', 'B'], name: 'a', default: 'A'});
-      var buffer = type.toBuffer();
-      assert.equal(type.fromBuffer(buffer), 'A');
-    });
-
     test('write invalid', function () {
       var type = Type.forSchema({type: 'enum', symbols: ['A'], name: 'a'});
       assert.throws(function () {
@@ -924,6 +918,11 @@ suite('types', function () {
 
     test('resolve', function () {
       var t1, t2, buf, resolver;
+      t1 = newEnum('Foo', ['bar', 'baz', 'test']);
+      t2 = newEnum('Foo', ['bar', 'baz', 'fizz'], undefined, undefined, 'fizz');
+      resolver = t2.createResolver(t1);
+      buf = t1.toBuffer('test');
+      assert.equal(t2.fromBuffer(buf, resolver), 'fizz');
       t1 = newEnum('Foo', ['bar', 'baz']);
       t2 = newEnum('Foo', ['bar', 'baz']);
       resolver = t1.createResolver(t2);
@@ -942,13 +941,17 @@ suite('types', function () {
       assert.throws(function () {
         t1.createResolver(Type.forSchema('int'));
       });
-      function newEnum(name, symbols, aliases, namespace) {
+      function newEnum(name, symbols, aliases, namespace, defaultSymbol) {
         var obj = {type: 'enum', name: name, symbols: symbols};
         if (aliases !== undefined) {
           obj.aliases = aliases;
         }
         if (namespace !== undefined) {
           obj.namespace = namespace;
+        }
+
+        if (defaultSymbol !== undefined) {
+          obj.default = defaultSymbol;
         }
         return new builtins.EnumType(obj);
       }
