@@ -916,10 +916,16 @@ suite('types', function () {
       assert.throws(function () { type.fromBuffer(buf); });
     });
 
+    test('read invalid default symbol', function () {
+      assert.throws(function () { new builtins.EnumType({
+        type: 'enum', symbols: ['A'], name: 'a', default: 'B'
+      }); });
+    });
+
     test('resolve', function () {
       var t1, t2, buf, resolver;
-      t1 = newEnum('Foo', ['bar', 'baz', 'test']);
-      t2 = newEnum('Foo', ['bar', 'baz', 'fizz'], undefined, undefined, 'fizz');
+      t1 = newEnum('OldEnum', ['bar', 'baz', 'test']);
+      t2 = newEnum('NewEnum', ['bar', 'baz', 'fizz'], undefined, undefined, 'fizz');
       resolver = t2.createResolver(t1);
       buf = t1.toBuffer('test');
       assert.equal(t2.fromBuffer(buf, resolver), 'fizz');
