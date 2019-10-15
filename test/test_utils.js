@@ -145,6 +145,23 @@ suite('utils', function () {
 
   suite('Tap', function () {
 
+    var BufferPool = utils.BufferPool;
+
+    test('alloc negative length', function () {
+      var pool = new BufferPool(16);
+      assert.throws(function () { pool.alloc(-1); });
+    });
+
+    test('alloc beyond pool size', function () {
+      var pool = new BufferPool(4);
+      assert.equal(pool.alloc(3).length, 3);
+      assert.equal(pool.alloc(2).length, 2);
+    });
+
+  });
+
+  suite('Tap', function () {
+
     var Tap = utils.Tap;
 
     suite('int & long', function () {
