@@ -18,6 +18,7 @@ suite('utils', function () {
     assert(utils.hasDuplicates([1, 3, 1]));
     assert(!utils.hasDuplicates([]));
     assert(!utils.hasDuplicates(['ab', 'cb']));
+    assert(!utils.hasDuplicates(['toString']));
     assert(utils.hasDuplicates(['ab', 'cb'], function (s) { return s[1]; }));
   });
 
