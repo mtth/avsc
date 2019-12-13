@@ -711,6 +711,27 @@ suite('containers', function () {
       encoder.end();
     });
 
+    test('custom type error handler', function (cb) {
+      var okVals = [];
+      var badVals = [];
+      var encoder = new streams.BlockEncoder('int')
+        .removeAllListeners('typeError')
+        .on('typeError', function (err, val) { badVals.push(val); });
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (val) { okVals.push(val); })
+        .on('end', function () {
+          assert.deepEqual(okVals, [1, 2]);
+          assert.deepEqual(badVals, ['foo', 5.4]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write('foo');
+      encoder.write(1);
+      encoder.write(2);
+      encoder.write(5.4);
+      encoder.end();
+    });
+
     test('metadata', function (cb) {
       var t = Type.forSchema('string');
       var buf = t.toBuffer('hello');
