@@ -690,6 +690,27 @@ suite('containers', function () {
       encoder.end();
     });
 
+    test('ignore serialization error', function (cb) {
+      var data = [];
+      var numErrs = 0;
+      var encoder = new streams.BlockEncoder('int')
+        .on('error', function () { numErrs++; });
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (val) { data.push(val); })
+        .on('end', function () {
+          assert.equal(numErrs, 2);
+          assert.deepEqual(data, [1, 2, 3]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write(1);
+      encoder.write('foo');
+      encoder.write(2);
+      encoder.write(3);
+      encoder.write(4.5);
+      encoder.end();
+    });
+
     test('metadata', function (cb) {
       var t = Type.forSchema('string');
       var buf = t.toBuffer('hello');
