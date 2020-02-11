@@ -238,8 +238,8 @@ suite('specs', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'First',
-          messages: {two: {request: [], response: 'int'}},
-          types: [{name: 'Foo', type: 'fixed', size: 1, namespace: ''}]
+          messages: { two: { request: [], response: 'int' } },
+          types: [{ name: 'Foo', type: 'fixed', size: 1 }]
         });
         done();
       });
@@ -256,7 +256,7 @@ suite('specs', function () {
       assembleProtocol('3.avdl', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.strictEqual(schema.types.find(type => type.name === "Baz").namespace, "com.example.different")
-        assert.strictEqual(schema.types.find(type => type.name === "Foo").namespace, null)
+        assert.strictEqual(schema.types.find(type => type.name === "Foo").namespace, undefined)
         done();
       })
     })
@@ -284,8 +284,8 @@ suite('specs', function () {
         assert.deepEqual(schema, {
           protocol: 'A',
           types: [
-            {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''},
-            {name: 'Number', type: 'enum', symbols: ['ONE'], namespace: ''}
+            { name: 'Letter', type: 'enum', symbols: ['A'] },
+            { name: 'Number', type: 'enum', symbols: ['ONE'] }
           ]
         });
         done();
@@ -308,9 +308,9 @@ suite('specs', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
-          messages: {ping: {request: [], response: 'boolean'}},
+          messages: { ping: { request: [], response: 'boolean' } },
           types: [
-            {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''}
+            { name: 'Letter', type: 'enum', symbols: ['A'] }
           ]
         });
         done();
@@ -392,7 +392,7 @@ suite('specs', function () {
         assert.deepEqual(schema, {
           protocol: 'A',
           types: [
-            {name: 'Number', type: 'enum', symbols: ['1'], namespace: ''}
+            { name: 'Number', type: 'enum', symbols: ['1'] }
           ]
         });
         done();
