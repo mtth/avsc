@@ -245,6 +245,22 @@ suite('specs', function () {
       });
     });
 
+    test('imported types get namespace only when not equal to enclosing namespace', function (done) {
+      var opts = {
+        importHook: createImportHook({
+          '1.avdl': '@namespace("com.example.test")\nprotocol First { record Foo { string foo; } }',
+          '2.avdl': '@namespace("com.example.different")\nprotocol Different { record Baz { string baz; } }',
+          '3.avdl': '@namespace("com.example.test")\nprotocol Second { import idl "1.avdl";\nimport idl "2.avdl";\nrecord Bar { string bar; com.example.test.Foo foo; com.example.different.Baz baz; } }'
+        })
+      }
+      assembleProtocol('3.avdl', opts, function (err, schema) {
+        assert.strictEqual(err, null);
+        assert.strictEqual(schema.types.find(type => type.name === "Baz").namespace, "com.example.different")
+        assert.strictEqual(schema.types.find(type => type.name === "Foo").namespace, null)
+        done();
+      })
+    })
+
     test('duplicate message from import', function (done) {
       var hook = createImportHook({
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
