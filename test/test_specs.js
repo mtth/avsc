@@ -214,14 +214,32 @@ suite('specs', function () {
       var opts = {
         importHook: createImportHook({
           '1.avdl': 'import idl "2.avdl"; protocol First {}',
-          '2.avdl': 'protocol Second { int one(); }'
+          '2.avdl': 'protocol Second { fixed One(1); int one(); }'
         })
       };
       assembleProtocol('1.avdl', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'First',
-          messages: {one: {request: [], response: 'int'}}
+          messages: {one: {request: [], response: 'int'}},
+          types: [{name: 'One', type: 'fixed', size: 1}]
+        });
+        done();
+      });
+    });
+
+    test('import idl from namespaced protocol name', function (done) {
+      var opts = {
+        importHook: createImportHook({
+          '1.avdl': 'import idl "2.avdl"; protocol first.First {}',
+          '2.avdl': 'protocol Second { fixed One(1); }'
+        })
+      };
+      assembleProtocol('1.avdl', opts, function (err, schema) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(schema, {
+          protocol: 'first.First',
+          types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}]
         });
         done();
       });
@@ -239,11 +257,33 @@ suite('specs', function () {
         assert.deepEqual(schema, {
           protocol: 'First',
           messages: {two: {request: [], response: 'int'}},
-          types: [{name: 'Foo', type: 'fixed', size: 1, namespace: ''}]
+          types: [{name: 'Foo', type: 'fixed', size: 1}]
         });
         done();
       });
     });
+
+    test('import idl strip redundant namespaces', function (done) {
+      var opts = {
+        importHook: createImportHook({
+          '1.avdl': 'protocol test.First { import idl "2.avdl"; fixed One(1); }',
+          '2.avdl': 'protocol other.Second { import idl "3.avdl"; fixed Two(2); }',
+          '3.avdl': 'protocol test.Third { fixed Three(3); }',
+        })
+      }
+      assembleProtocol('1.avdl', opts, function (err, schema) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(schema, {
+          protocol: 'test.First',
+          types: [
+            {name: 'Three', type: 'fixed', size: 3},
+            {name: 'Two', type: 'fixed', size: 2, namespace: 'other'},
+            {name: 'One', type: 'fixed', size: 1}
+          ]
+        });
+        done();
+      })
+    })
 
     test('duplicate message from import', function (done) {
       var hook = createImportHook({
@@ -268,8 +308,8 @@ suite('specs', function () {
         assert.deepEqual(schema, {
           protocol: 'A',
           types: [
-            {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''},
-            {name: 'Number', type: 'enum', symbols: ['ONE'], namespace: ''}
+            {name: 'Letter', type: 'enum', symbols: ['A']},
+            {name: 'Number', type: 'enum', symbols: ['ONE']}
           ]
         });
         done();
@@ -294,7 +334,7 @@ suite('specs', function () {
           protocol: 'A',
           messages: {ping: {request: [], response: 'boolean'}},
           types: [
-            {name: 'Letter', type: 'enum', symbols: ['A'], namespace: ''}
+            {name: 'Letter', type: 'enum', symbols: ['A']}
           ]
         });
         done();
@@ -376,7 +416,7 @@ suite('specs', function () {
         assert.deepEqual(schema, {
           protocol: 'A',
           types: [
-            {name: 'Number', type: 'enum', symbols: ['1'], namespace: ''}
+            {name: 'Number', type: 'enum', symbols: ['1']}
           ]
         });
         done();
@@ -535,7 +575,7 @@ suite('specs', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
-          types: [{name: 'One', type: 'fixed', size: 1, namespace: ''}]
+          types: [{name: 'One', type: 'fixed', size: 1}]
         });
         done();
       });
@@ -551,7 +591,7 @@ suite('specs', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
           protocol: 'A',
-          types: [{name: 'Two', type: 'fixed', size: 1, namespace: ''}]
+          types: [{name: 'Two', type: 'fixed', size: 1}]
         });
         done();
       });
