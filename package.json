@@ -48,8 +48,7 @@
     "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "dist": "./etc/scripts/dist",
     "perf": "./etc/scripts/perf etc/schemas/*",
-    "test": "mocha",
-    "zuul": "zuul --no-coverage -- test/*.js"
+    "test": "mocha"
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
