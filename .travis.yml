@@ -17,8 +17,8 @@ node_js:
   - '0.12'
   - '0.11'
 before_script:
-  # Older versions of node require older dependencies.
-  - node -e 'const a = b => 1;' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
+  # Versions of node <8 require older dependencies.
+  - node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
 stages:
   - coverage
   - test
