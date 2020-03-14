@@ -52,10 +52,10 @@
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
-    "coveralls": "^3.0.4",
-    "mocha": "^5.2.0",
-    "nyc": "~14.1.1",
-    "tmp": "^0.0.33"
+    "coveralls": "^3.0.9",
+    "mocha": "^7.1.0",
+    "nyc": "~15.0.0",
+    "tmp": "^0.1.0"
   },
   "author": {
     "name": "Matthieu Monsch",
