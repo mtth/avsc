@@ -359,7 +359,7 @@ export namespace types {
   class LongType extends Type {
     constructor();
     random(): LongType;
-    static __with(methods: object, noUnpack?: boolean): void;
+    static __with(methods: object, noUnpack?: boolean): LongType;
   }
 
   class MapType extends Type {
