@@ -1449,6 +1449,18 @@ suite('types', function () {
       });
     });
 
+    test('reserved name', function () {
+      var d = {street: null, zip: 123};
+      var schema = {
+        name: 'case',
+        type: 'record',
+        fields: [{name: 'id', type: 'int'}]
+      };
+      var Case = Type.forSchema(schema).recordConstructor;
+      var c = new Case(123);
+      assert.equal(c.id, 123);
+    });
+
     test('default constructor', function () {
       var type = Type.forSchema({
         type: 'record',
