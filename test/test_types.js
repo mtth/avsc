@@ -1450,7 +1450,6 @@ suite('types', function () {
     });
 
     test('reserved name', function () {
-      var d = {street: null, zip: 123};
       var schema = {
         name: 'case',
         type: 'record',
