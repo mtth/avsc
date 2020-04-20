@@ -2952,6 +2952,36 @@ suite('types', function () {
       assert(!t.isValid({int: 3}));
     });
 
+    test('of records inside wrapped union', function () {
+      function PassThroughType(schema, opts) {
+        LogicalType.call(this, schema, opts);
+      }
+      util.inherits(PassThroughType, LogicalType);
+      PassThroughType.prototype._fromValue = function (val) { return val; };
+      PassThroughType.prototype._toValue = PassThroughType.prototype._fromValue;
+
+      var t = types.Type.forSchema(
+        [
+          {
+            type: 'record',
+            logicalType: 'pt',
+            name: 'A',
+            fields: [{name: 'a', type: 'int'}],
+          },
+          {
+            type: 'record',
+            logicalType: 'pt',
+            name: 'B',
+            fields: [{name: 'b', type: 'int'}],
+          },
+        ],
+        {logicalTypes: {pt: PassThroughType}, wrapUnions: true},
+      );
+      assert(t.isValid({A: {a: 123}}));
+      assert(t.isValid({B: {b: 456}}));
+      assert(!t.isValid({B: {a: 456}}));
+    });
+
     // Unions are slightly tricky to override with logical types since their
     // schemas aren't represented as objects.
     suite('union logical types', function () {
