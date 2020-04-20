@@ -2966,16 +2966,16 @@ suite('types', function () {
             type: 'record',
             logicalType: 'pt',
             name: 'A',
-            fields: [{name: 'a', type: 'int'}],
+            fields: [{name: 'a', type: 'int'}]
           },
           {
             type: 'record',
             logicalType: 'pt',
             name: 'B',
-            fields: [{name: 'b', type: 'int'}],
-          },
+            fields: [{name: 'b', type: 'int'}]
+          }
         ],
-        {logicalTypes: {pt: PassThroughType}, wrapUnions: true},
+        {logicalTypes: {pt: PassThroughType}, wrapUnions: true}
       );
       assert(t.isValid({A: {a: 123}}));
       assert(t.isValid({B: {b: 456}}));
