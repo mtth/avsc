@@ -773,7 +773,7 @@ suite('services', function () {
       // end the underlying writable stream.
       var transports = createPassthroughTransports(true);
       svc.createClient()
-        .createChannel(transports[0], {objectMode: true})
+        .createChannel(transports[0], {noPing: true, objectMode: true})
         .on('eot', function () { done(); });
       transports[0].writable.end();
     });
