@@ -48,7 +48,7 @@
     "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "dist": "./etc/scripts/dist",
     "perf": "./etc/scripts/perf etc/schemas/*",
-    "test": "mocha"
+    "test": "mocha --ui tdd --reporter dot"
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
