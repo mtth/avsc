@@ -169,6 +169,7 @@ export class Type {
   inspect(): string;
   isValid(val: any, opts?: Partial<IsValidOptions>): boolean;
   random(): Type;
+  sample(): Type;
   schema(opts?: Partial<SchemaOptions>): Schema;
   toBuffer(value: any): Buffer;
   toJSON(): object;
@@ -307,43 +308,51 @@ export namespace types {
     constructor(schema: Schema, opts: any);
     readonly itemsType: Type;
     random(): ArrayType;
+    sample(): ArrayType;
   }
 
   class BooleanType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): BooleanType;
+    sample(): BooleanType;
   }
 
   class BytesType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): BytesType;
+    sample(): BytesType;
   }
 
   class DoubleType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): DoubleType;
+    sample(): DoubleType;
   }
 
   class EnumType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly symbols: string[];
     random(): EnumType;
+    sample(): EnumType;
   }
 
   class FixedType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly size: number;
     random(): FixedType;
+    sample(): FixedType;
   }
 
   class FloatType extends Type {
     constructor();
     random(): FloatType;
+    sample(): FloatType;
   }
 
   class IntType extends Type {
     constructor();
     random(): IntType;
+    sample(): IntType;
   }
 
   class LogicalType extends Type {
@@ -354,11 +363,13 @@ export namespace types {
     protected _resolve(type: Type): any;
     protected _toValue(any: any): any;
     random(): LogicalType;
+    sample(): LogicalType;
   }
 
   class LongType extends Type {
     constructor();
     random(): LongType;
+    sample(): LongType;
     static __with(methods: object, noUnpack?: boolean): LongType;
   }
 
@@ -366,11 +377,13 @@ export namespace types {
     constructor(schema: Schema, opts?: any);
     readonly valuesType: any;
     random(): MapType;
+    sample(): MapType;
   }
 
   class NullType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): NullType;
+    sample(): NullType;
   }
 
   class RecordType extends Type {
@@ -379,6 +392,7 @@ export namespace types {
     readonly recordConstructor: any;  // TODO: typeof Record once Record interface/class exists
     field(name: string): Field;
     random(): RecordType;
+    sample(): RecordType;
   }
 
   class Field {
@@ -392,17 +406,20 @@ export namespace types {
   class StringType extends Type {  // TODO: Document this on the wiki
     constructor();
     random(): StringType;
+    sample(): StringType;
   }
 
   class UnwrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
     random(): UnwrappedUnionType;
+    sample(): UnwrappedUnionType;
     readonly types: Type[];
   }
 
   class WrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
     random(): WrappedUnionType;
+    sample(): WrappedUnionType;
     readonly types: Type[];
   }
 }

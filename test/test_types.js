@@ -2457,6 +2457,10 @@ suite('types', function () {
         assert(slowLongType.isValid(slowLongType.random()));
       });
 
+      test('sample', function () {
+        assert(slowLongType.isValid(slowLongType.sample()));
+      });
+
       test('isValid hook', function () {
         var s = 'hi';
         var errs = [];
@@ -2543,6 +2547,10 @@ suite('types', function () {
 
       test('random', function () {
         assert(slowLongType.isValid(slowLongType.random()));
+      });
+
+      test('sample', function () {
+        assert(slowLongType.isValid(slowLongType.sample()));
       });
 
       test('evolution to/from', function () {
@@ -4117,6 +4125,7 @@ function testType(Type, data, invalidSchemas) {
         // Run a few times to make sure we cover any branches.
         assert(type.isValid(type.random()));
       }
+      assert(type.isValid(type.sample()));
     });
   });
 
