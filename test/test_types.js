@@ -2676,6 +2676,7 @@ suite('types', function () {
       assert.deepEqual(t.clone(d), d);
       assert.equal(t.compare(d, d), 0);
       assert.equal(t.getSchema(), 'long');
+      assert(t.isValid(t.sample()));
     });
 
     test('invalid type', function () {

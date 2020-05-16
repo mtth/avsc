@@ -426,4 +426,37 @@ suite('utils', function () {
     }
   });
 
+  suite('tryTofindANotNullTypeIndex', function () {
+
+    var tryTofindANotNullTypeIndex = utils.tryTofindANotNullTypeIndex
+
+    test('no null types', function() {
+      var result = tryTofindANotNullTypeIndex([
+        { typeName: "boolean" },
+        { typeName: "string" }
+      ]);
+      assert.equal(result, 0)
+    })
+
+    test('skip null types', function() {
+      var result = tryTofindANotNullTypeIndex([
+        { typeName: "null" },
+        { typeName: "string" }
+      ]);
+      assert.equal(result, 1)
+    })
+
+    test('only null type', function() {
+      var result = tryTofindANotNullTypeIndex([
+        { typeName: "null" }
+      ]);
+      assert.equal(result, 0)
+    })
+
+    test('empty array', function() {
+      var result = tryTofindANotNullTypeIndex([]);
+      assert.equal(result, 0)
+    })
+  })
+
 });
