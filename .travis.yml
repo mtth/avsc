@@ -8,7 +8,7 @@ node_js:
   - '8'
   - '7'
   - '6'
-  - '5'
+  # - '5' Disabled due to bug in that version of npm.
   - '4'
   - '3'
   - '2'
