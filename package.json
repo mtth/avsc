@@ -28,8 +28,8 @@
     "type"
   ],
   "files": [
-    "lib",
     "etc/browser",
+    "lib",
     "types"
   ],
   "main": "./lib",

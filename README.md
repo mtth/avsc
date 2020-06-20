@@ -16,7 +16,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 
 ## Installation
 
-```bash
+```sh
 $ npm install avsc
 ```
 
