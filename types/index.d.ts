@@ -101,7 +101,7 @@ interface ForSchemaOptions {
   namespace: string;
   noAnonymousTypes: boolean;
   registry: { [name: string]: Type };
-  typeHook: (schema: Schema, opts: ForSchemaOptions) => Type;
+  typeHook: (schema: Schema, opts: ForSchemaOptions) => Type | undefined;
   wrapUnions: boolean | 'auto' | 'always' | 'never';
 }
 
