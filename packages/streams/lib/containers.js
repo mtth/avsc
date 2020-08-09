@@ -331,10 +331,12 @@ function RawEncoder(schema, opts) {
     try {
       this._type._write(tap, val);
     } catch (err) {
-      this.emit('error', err);
+      this.emit('typeError', err, val, this._type);
     }
   };
   this._tap = new Tap(utils.newBuffer(opts.batchSize || 65536));
+
+  this.on('typeError', function (err) { this.emit('error', err); });
 }
 util.inherits(RawEncoder, stream.Transform);
 
@@ -404,12 +406,18 @@ function BlockEncoder(schema, opts) {
 
   this._schema = schema;
   this._type = type;
+  this._noCheck = !!opts.noCheck;
   this._writeValue = function (tap, val) {
     try {
+      if (!this._noCheck) {
+        this._type.checkValid(val); // More informative error message.
+      }
       this._type._write(tap, val);
     } catch (err) {
-      this.emit('error', err);
+      this.emit('typeError', err, val, this._type);
+      return false;
     }
+    return true;
   };
   this._blockSize = opts.blockSize || 65536;
   this._tap = new Tap(utils.newBuffer(this._blockSize));
@@ -459,6 +467,8 @@ function BlockEncoder(schema, opts) {
       this.push(null);
     }
   });
+
+  this.on('typeError', function (err) { this.emit('error', err); });
 }
 util.inherits(BlockEncoder, stream.Duplex);
 
@@ -495,22 +505,25 @@ BlockEncoder.prototype._write = function (val, encoding, cb) {
   var pos = tap.pos;
   var flushing = false;
 
-  this._writeValue(tap, val);
-  if (!tap.isValid()) {
-    if (pos) {
-      this._flushChunk(pos, cb);
-      flushing = true;
+  if (this._writeValue(tap, val)) {
+    if (!tap.isValid()) {
+      if (pos) {
+        this._flushChunk(pos, cb);
+        flushing = true;
+      }
+      var len = tap.pos - pos;
+      if (len > this._blockSize) {
+        // Not enough space for last written object, need to resize.
+        this._blockSize = len * 2;
+      }
+      tap.buf = utils.newBuffer(this._blockSize);
+      tap.pos = 0;
+      this._writeValue(tap, val); // Rewrite last failed write.
     }
-    var len = tap.pos - pos;
-    if (len > this._blockSize) {
-      // Not enough space for last written object, need to resize.
-      this._blockSize = len * 2;
-    }
-    tap.buf = utils.newBuffer(this._blockSize);
-    tap.pos = 0;
-    this._writeValue(tap, val); // Rewrite last failed write.
+    this._blockCount++;
+  } else {
+    tap.pos = pos;
   }
-  this._blockCount++;
 
   if (!flushing) {
     cb();

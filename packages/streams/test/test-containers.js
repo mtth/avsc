@@ -652,6 +652,49 @@ suite('containers', function () {
       encoder.end();
     });
 
+
+    test('ignore serialization error', function (cb) {
+      var data = [];
+      var numErrs = 0;
+      var encoder = new streams.BlockEncoder('int', {noCheck: true})
+        .on('error', function () { numErrs++; });
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (val) { data.push(val); })
+        .on('end', function () {
+          assert.equal(numErrs, 2);
+          assert.deepEqual(data, [1, 2, 3]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write(1);
+      encoder.write('foo');
+      encoder.write(2);
+      encoder.write(3);
+      encoder.write(4.5);
+      encoder.end();
+    });
+
+    test('custom type error handler', function (cb) {
+      var okVals = [];
+      var badVals = [];
+      var encoder = new streams.BlockEncoder('int')
+        .removeAllListeners('typeError')
+        .on('typeError', function (err, val) { badVals.push(val); });
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (val) { okVals.push(val); })
+        .on('end', function () {
+          assert.deepEqual(okVals, [1, 2]);
+          assert.deepEqual(badVals, ['foo', 5.4]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write('foo');
+      encoder.write(1);
+      encoder.write(2);
+      encoder.write(5.4);
+      encoder.end();
+    });
+
     test('metadata', function (cb) {
       var t = Type.forSchema('string');
       var buf = t.toBuffer('hello');
