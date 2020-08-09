@@ -1,6 +1,6 @@
 {
   "name": "@avro/types",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Avro serialization",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -36,8 +36,8 @@
   },
   "devDependencies": {
     "coveralls": "^3.0.3",
-    "mocha": "^5.2.0",
-    "nyc": "~13.3.0",
+    "mocha": "^8.1.1",
+    "nyc": "^15.1.0",
     "tmp": "^0.0.33"
   },
   "author": {
@@ -48,5 +48,9 @@
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
+  },
+  "mocha": {
+    "colors": false,
+    "ui": "tdd"
   }
 }
