@@ -1,3 +1,4 @@
+/** Supported primitive type names. */
 type PrimTypeName =
   | 'null'
   | 'boolean'
@@ -5,17 +6,20 @@ type PrimTypeName =
   | 'string'
   | 'bytes';
 
+/** Attributes present in all schemas. */
 interface BaseSchema {
   doc?: string;
   logicalType?: string;
 }
 
+/** Attributes present in all named schemas. */
 interface NamedSchema extends BaseSchema {
   name: string;
   aliases?: string[];
   namespace?: string;
 }
 
+/** Record field schema. */
 interface FieldSchema<E = {}> {
   name: string;
   type: Schema<E>;
@@ -25,6 +29,7 @@ interface FieldSchema<E = {}> {
   default?: any;
 }
 
+/** Avro schema. */
 type Schema<E = {}> =
   | {type: PrimTypeName} & BaseSchema & E
   | {type: 'array', items: Schema<E>} & BaseSchema & E
@@ -32,120 +37,150 @@ type Schema<E = {}> =
   | {type: 'fixed', size: number} & NamedSchema & E
   | {type: 'map', values: Schema<E>} & BaseSchema & E
   | {type: 'record', fields: FieldSchema<E>[]} & NamedSchema & E
-  | Schema<E>[]
-  | Type
-  | string;
+  | Schema<E>[] // Union.
+  | Type // Already "instantiated" schema.
+  | string; // References.
 
-interface TypeJsonEncodeOpts {
-  readonly omitDefaultValues?: boolean;
-}
-
-interface TypeCheckValidOpts {
-  readonly allowUndeclaredFields?: boolean;
-}
-
-type ErrorHook = (path: ReadonlyArray<string>, val: any, type: Type) => void;
-
-interface TypeIsValidOpts {
-  readonly allowUndeclaredFields?: boolean;
-  readonly errorHook?: ErrorHook;
-}
-
-interface TypeSchemaOpts {
-  readonly exportAttrs?: boolean;
-  readonly noDeref?: boolean;
-}
-
-type TypeHook = (schema: Schema, opts: TypeForSchemaOpts) => Type | undefined;
-
-interface  LogicalTypeConstructor {
-  new(schema: Schema, opts: TypeForSchemaOpts);
-}
-
-interface TypeForSchemaOpts {
-  readonly assertLogicalTypes?: boolean;
-  readonly errorStackTraces?: boolean;
-  readonly logicalTypes?: {[name: string]: LogicalTypeConstructor};
-  readonly registry?: {[name: string]: Type};
-  readonly typeHook?: TypeHook;
-  readonly wrapUnions?: 'always' | 'never' | 'auto' | boolean;
-}
-
-type ValueHook = (val: any, opts: TypeForValueOpts) => Type | undefined;
-
-interface TypeForValueOpts extends TypeForSchemaOpts {
-  readonly valueHook: ValueHook;
-  readonly emptyArrayType?: ArrayType;
-}
-
-type Resolver<V> = {__type: 'avroTypesResolver'}; // TODO: Find a better way.
-
+/** Base Avro type. */
 export class Type<V = any> {
+  protected constructor(schema: Schema, opts: Type.ForSchemaOpts);
+
   readonly name: string | undefined;
+  readonly aliases: string[] | undefined;
   readonly branchName: string | undefined;
   readonly doc: string | undefined;
-  binaryDecode(buf: Buffer, resolver?: Resolver<V>, noCheck?: boolean): V;
+
+  binaryDecode(buf: Buffer, resolver?: Type.Resolver<V>, noCheck?: boolean): V;
+
+  binaryDecodeAt(
+    buf: Buffer,
+    pos: number,
+    resolver?: Type.Resolver<V>
+  ): {readonly value: V; readonly offset: number};
+
   binaryEncode(val: V): Buffer;
-  binaryDecodeAt(buf: Buffer, pos: number, resolver?: Resolver<V>): {value: V; offset: number};
+
   binaryEncodeAt(val: V, buf: Buffer, pos: number): number;
-  jsonDecode(data: any, resolver?: Resolver<V>, allowUndeclaredFields?: boolean): V;
-  jsonEncode(val: V, opts?: TypeJsonEncodeOpts): any;
+
+  jsonDecode(
+    data: any,
+    resolver?: Type.Resolver<V>,
+    allowUndeclaredFields?: boolean
+  ): V;
+
+  jsonEncode(val: V, opts?: Type.JsonEncodeOpts): any;
+
+  createResolver(writer: Type): Type.Resolver<V>;
+
+  checkValid(val: V, opts?: Type.CheckValidOpts): void;
+
+  isValid(val: V, opts?: Type.IsValidOpts): boolean;
+
   clone(val: V): V;
-  wrap(val: V): any; // TODO: Per subclass overrides.
-  checkValid(val: V, opts?: TypeCheckValidOpts): void;
-  isValid(val: V, opts?: TypeIsValidOpts): boolean;
-  equals(other: Type): boolean;
-  schema(opts?: TypeSchemaOpts): Schema;
+
+  wrap(val: V): any;
+
   compare(val1: V, val2: V): -1 | 0 | 1;
+
   binaryCompare(buf1: Buffer, buf2: Buffer): -1 | 0 | 1;
-  createResolver(writer: Type): Resolver<V>;
+
+  equals(other: Type): boolean;
+
+  schema(opts?: Type.SchemaOpts): Schema;
+
   static isType(val: any, ...prefixes: string[]): boolean;
-  static forSchema<T extends Type = Type>(schema: Schema, opts?: TypeForSchemaOpts): T;
-  static forTypes(types: [], opts?: TypeForValueOpts): never;
-  static forTypes<T extends Type = Type>(types: [T], opts?: TypeForValueOpts): T;
-  static forTypes<T extends UnionType = UnionType>(types: ReadonlyArray<Type>, opts?: TypeForValueOpts): T;
-  static forValue<T extends Type = Type>(val: any, opts?: TypeForValueOpts): T;
+
+  static forSchema<V = Type>(
+    schema: Schema,
+    opts?: Type.ForSchemaOpts
+  ): V extends Type ? V : Type<V>;
+
+  static forTypes(types: [], opts?: Type.ForValueOpts): never;
+  static forTypes<T extends Type>(types: [T], opts?: Type.ForValueOpts): T;
+  static forTypes<T>(
+    types: ReadonlyArray<Type>,
+    opts?: Type.ForValueOpts
+  ): T extends Type ? T : Type<T>;
+
+  static forValue<V>(
+    val: any,
+    opts?: Type.ForValueOpts
+  ): V extends Type ? V : Type<V>;
+
   static __reset(size: number): void;
 }
 
-export class NullType extends Type<null> {
-  readonly branchName: 'null';
-  readonly typeName: 'null';
+export namespace Type {
+  interface JsonEncodeOpts {
+    readonly omitDefaultValues?: boolean;
+  }
+
+  interface CheckValidOpts {
+    readonly allowUndeclaredFields?: boolean;
+  }
+
+  type ErrorHook = (path: ReadonlyArray<string>, val: any, type: Type) => void;
+
+  interface IsValidOpts {
+    readonly allowUndeclaredFields?: boolean;
+    readonly errorHook?: ErrorHook;
+  }
+
+  interface SchemaOpts {
+    readonly exportAttrs?: boolean;
+    readonly noDeref?: boolean;
+  }
+
+  type TypeHook = (schema: Schema, opts: Type.ForSchemaOpts) => Type | undefined;
+
+  interface ForSchemaOpts {
+    readonly assertLogicalTypes?: boolean;
+    readonly errorStackTraces?: boolean;
+    readonly logicalTypes?: {[name: string]: typeof LogicalType.constructor};
+    readonly registry?: {[name: string]: Type};
+    readonly typeHook?: TypeHook;
+    readonly wrapUnions?: 'auto' | 'always' | 'never' | boolean;
+  }
+
+  type ValueHook = (val: any, opts: Type.ForValueOpts) => Type | undefined;
+
+  interface ForValueOpts extends Type.ForSchemaOpts {
+    readonly emptyArrayType?: ArrayType;
+    readonly valueHook?: ValueHook;
+  }
+
+  type Resolver<V> = {__type: 'avroTypesResolver'}; // TODO: Find a better way.
 }
 
-export class BooleanType extends Type<boolean> {
-  readonly branchName: 'boolean';
-  readonly typeName: 'boolean';
+type PrimType<V, N extends string> = Type<V> & {
+  readonly name: undefined;
+  readonly aliases: undefined;
+  readonly branchName: N;
+  readonly typeName: N;
+
+  wrap(val: V): Record<N, V>;
 }
 
-export class IntType extends Type<number> {
-  readonly branchName: 'int';
-  readonly typeName: 'int';
-}
+export type NullType = PrimType<null, 'null'>;
+export type BooleanType = PrimType<boolean, 'boolean'>;
+export type IntType = PrimType<number, 'int'>;
+export type FloatType = PrimType<number, 'float'>;
+export type DoubleType = PrimType<number, 'double'>;
+export type StringType = PrimType<string, 'string'>;
+export type BytesType = PrimType<Buffer, 'bytes'>;
 
-export class FloatType extends Type<number> {
-  readonly branchName: 'float';
-  readonly typeName: 'float';
-}
-
-export class StringType extends Type<number> {
-  readonly branchName: 'string';
-  readonly typeName: 'string';
-}
-
-export class DoubleType extends Type<number> {
-  readonly branchName: 'double';
-  readonly typeName: 'double';
-}
-
-export class LongType extends Type<number> {
+export class LongType<V = number, N extends 'long' | 'abstract:long' = 'long'> extends Type<V> {
+  readonly name: undefined;
+  readonly aliases: undefined;
   readonly branchName: 'long';
-  readonly typeName: 'long' | 'abstract:long';
-  static __with(): LongType;
+  readonly typeName: N;
+
+  static __with<V = any>(): LongType<V, 'abstract:long'>;
 }
 
 export class FixedType extends Type<number> {
   readonly name: string;
+  readonly aliases: string[];
   readonly branchName: string;
   readonly typeName: 'fixed';
   readonly size: number;
@@ -153,18 +188,23 @@ export class FixedType extends Type<number> {
 
 export class EnumType extends Type<string> {
   readonly name: string;
+  readonly aliases: string[];
   readonly branchName: string;
   readonly typeName: 'enum';
   readonly symbols: ReadonlyArray<string>;
 }
 
 export class ArrayType<V = any> extends Type<V[]> {
+  readonly name: undefined;
+  readonly aliases: undefined;
   readonly branchName: 'array';
   readonly typeName: 'array';
   readonly itemsType: Type<V>;
 }
 
 export class MapType<V = any> extends Type<{[key: string]: V}> {
+  readonly name: undefined;
+  readonly aliases: undefined;
   readonly branchName: 'map';
   readonly typeName: 'map';
   readonly valuesType: Type<V>;
@@ -188,19 +228,20 @@ interface RecordConstructor<V> {
 interface GeneratedRecord<V> {
   clone(): V;
   compare(other: V): -1 | 0 | 1;
-  isValid(opts?: TypeIsValidOpts): boolean;
-  toBuffer(): Buffer;
-  toJSON(opts?: TypeJsonEncodeOpts): any;
-  toString(): string;
+  isValid(opts?: Type.IsValidOpts): boolean;
+  binaryEncode(): Buffer;
+  jsonEncode(opts?: Type.JsonEncodeOpts): any;
   wrap(): any;
 }
 
 export class RecordType<V = any> extends Type<V & GeneratedRecord<V>> {
   readonly name: string;
+  readonly aliases: string[];
   readonly branchName: string;
   readonly typeName: 'record' | 'error';
   readonly recordConstructor: RecordConstructor<V & GeneratedRecord<V>>;
   readonly fields: ReadonlyArray<Field>;
+
   field(name: string): Field | undefined;
 }
 
@@ -208,6 +249,7 @@ export class LogicalType<V = any> extends Type<V> {
   readonly branchName: string;
   readonly typeName: string;
   readonly underlyingType: Type;
+
   protected _toValue(data: any): V;
   protected _fromValue(val: V): any;
   protected _resolve<W = any>(otherType: Type<W>): (otherVal: W) => V;
@@ -215,5 +257,7 @@ export class LogicalType<V = any> extends Type<V> {
 }
 
 export class UnionType<V = any> extends Type<V> {
+  readonly name: undefined;
+  readonly branchName: undefined;
   readonly types: ReadonlyArray<Type>;
 }

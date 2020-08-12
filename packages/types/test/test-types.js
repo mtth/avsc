@@ -1486,15 +1486,15 @@ suite('types', function () {
       assert(!(new Person('a')).isValid());
     });
 
-    test('record toBuffer', function () {
+    test('record binaryEncode', function () {
       var type = Type.forSchema({
         type: 'record',
         name: 'Person',
         fields: [{name: 'age', type: 'int'}]
       });
       var Person = type.recordConstructor;
-      assert.deepEqual((new Person(48)).toBuffer(), utils.bufferFrom([96]));
-      assert.throws(function () { (new Person()).toBuffer(); });
+      assert.deepEqual((new Person(48)).binaryEncode(), utils.bufferFrom([96]));
+      assert.throws(function () { (new Person()).binaryEncode(); });
     });
 
     test('record compare', function () {

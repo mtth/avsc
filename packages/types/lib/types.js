@@ -90,7 +90,7 @@ function Type(schema, opts, scope) {
       schema.namespace;
     if (name !== undefined) {
       // This isn't an anonymous type.
-      name = qualifyName(name, namespace);
+      name = maybeQualify(name, namespace);
       if (isPrimitive(name)) {
         // Avro doesn't allow redefining primitive names.
         throw new Error(f('cannot rename primitive type: %j', name));
@@ -107,7 +107,7 @@ function Type(schema, opts, scope) {
     }
     this.name = name;
     this.aliases = schema.aliases ?
-      schema.aliases.map(function (s) { return qualifyName(s, namespace); }) :
+      schema.aliases.map(function (s) { return maybeQualify(s, namespace); }) :
       [];
   }
 }
@@ -157,7 +157,7 @@ Type.forSchema = function (schema, opts, scope) {
   }
 
   if (typeof schema == 'string') { // Type reference.
-    schema = qualifyName(schema, scope.namespace);
+    schema = maybeQualify(schema, scope.namespace);
     type = opts.registry[schema];
     if (type) {
       // Type was already defined, return it.
@@ -425,10 +425,10 @@ Type.__reset = function (size) {
 Object.defineProperty(Type.prototype, 'branchName', {
   enumerable: true,
   get: function () {
-    if (this.name) {
-      return this.name;
+    var type = Type.isType(this, 'logical') ? this.underlyingType : this;
+    if (type.name) {
+      return type.name;
     }
-    var type = utils.isType(this, 'logical') ? this.underlyingType : this;
     if (utils.isType(type, 'abstract')) {
       return type._concreteTypeName;
     }
@@ -1857,7 +1857,7 @@ util.inherits(RecordType, Type);
 
 RecordType.prototype._getConstructorName = function () {
   return this.name ?
-    utils.unqualifyName(this.name) :
+    utils.capitalize(utils.unqualifyName(this.name)) :
     this._isError ? 'Error$' : 'Record$';
 };
 
@@ -1936,11 +1936,11 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   Object.defineProperty(Record.prototype, 'isValid', {
     get: function () { return isValid; }
   });
-  Object.defineProperty(Record.prototype, 'toBuffer', {
-    get: function () { return toBuffer; }
+  Object.defineProperty(Record.prototype, 'binaryEncode', {
+    get: function () { return binaryEncode; }
   });
-  Object.defineProperty(Record.prototype, 'toJSON', {
-    get: function () { return toJSON; }
+  Object.defineProperty(Record.prototype, 'jsonEncode', {
+    get: function () { return jsonEncode; }
   });
   Object.defineProperty(Record.prototype, 'toString', {
     get: function () { return toString; }
@@ -1953,8 +1953,8 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   function clone() { return self.clone(this); }
   function compare(val, opts) { return self.compare(this, val, opts); }
   function isValid(opts) { return self.isValid(this, opts); }
-  function toBuffer() { return self.binaryEncode(this); }
-  function toJSON(opts) { return self.jsonEncode(this, opts); }
+  function binaryEncode() { return self.binaryEncode(this); }
+  function jsonEncode(opts) { return self.jsonEncode(this, opts); }
   function toString() {
     var str;
     if (self._isError) {
@@ -2171,10 +2171,11 @@ RecordType.prototype._update = function (resolver, type, opts) {
     } else {
       j = resolvers[name].length;
       while (j--) {
+        body += (~lazyIndex && i >= lazyIndex) ? '    ' : '  ';
         args.push('r' + i + 'f' + j);
         fieldResolver = resolvers[name][j];
         values.push(fieldResolver.resolver);
-        body += '  var ' + fieldResolver.name + ' = ';
+        body += 'var ' + fieldResolver.name + ' = ';
         body += 'r' + i + 'f' + j + '._' + (j ? 'peek' : 'read') + '(t);\n';
       }
     }
@@ -2716,6 +2717,12 @@ function isValidName(str) { return NAME_PATTERN.test(str); }
  */
 function throwInvalidError(val, type) {
   throw new Error(f('invalid %j: %j', type.schema(), val));
+}
+
+function maybeQualify(name, ns) {
+  var unqualified = utils.unqualifyName(name);
+  // Primitives are always in the global namespace.
+  return isPrimitive(unqualified) ? unqualified : qualifyName(name, ns);
 }
 
 /**
