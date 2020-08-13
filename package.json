@@ -1,0 +1,11 @@
+{
+  "name": "@avro/*",
+  "private": true,
+  "scripts": {
+    "uploadCoverage": "./scripts/merge-lcov packages/.coverage/* | coveralls"
+  },
+  "devDependencies": {
+    "coveralls": "^3.1.0",
+    "nyc": "^15.1.0"
+  }
+}

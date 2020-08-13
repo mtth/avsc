@@ -1,0 +1,52 @@
+#!/usr/bin/env node
+
+/** Helper script to merge text-lcov outputs. */
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const readline = require('readline');
+const stream = require('stream');
+
+function combine(files, writable, cb) {
+  const entries = [...files];
+  writable.write('TN:\n');
+  readEntry();
+
+  function readEntry() {
+    const entry = entries.pop();
+    if (!entry) {
+      writable.write('end_of_record\n');
+      cb();
+      return;
+    }
+    readline.createInterface({
+      input: fs.createReadStream(entry[1], 'utf8'),
+    }).on('line', (oldLine) => {
+      if (/^(TN:|end_of_record)\s*/.test(oldLine)) {
+        return;
+      }
+      const match = /^SF:(.*)/.exec(oldLine);
+      const newLine = match ? `SF:${entry[0]}/${match[1]}` : oldLine;
+      writable.write(newLine + '\n');
+    }).on('close', readEntry);
+  }
+}
+
+function main(cb) {
+  const files = new Map();
+  for (const fpath of process.argv.slice(2)) {
+    const parsed = path.parse(fpath);
+    files.set(parsed.name, fpath);
+  }
+  if (!files.size) {
+    cb();
+    return;
+  }
+  combine(files, process.stdout, cb);
+}
+
+if (module == require.main) {
+  main((err) => { if (err) { console.error(err); }});
+}

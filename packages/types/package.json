@@ -29,12 +29,11 @@
   "scripts": {
     "clean": "rm -rf coverage dist node_modules",
     "cover": "nyc mocha",
-    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls ../..",
+    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
   "devDependencies": {
-    "coveralls": "^3.0.3",
     "mocha": "^8.1.1",
     "nyc": "^15.1.0",
     "tmp": "^0.0.33"

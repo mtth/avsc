@@ -13,7 +13,7 @@
   "scripts": {
     "clean": "rm -rf node_modules",
     "cover": "nyc mocha",
-    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls ../..",
+    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
@@ -39,7 +39,6 @@
   },
   "devDependencies": {
     "@avro/types": "^1.0.5",
-    "coveralls": "^3.0.3",
     "nyc": "^14.1.1",
     "mocha": "^6.1.4",
     "sinon": "^7.2.7"

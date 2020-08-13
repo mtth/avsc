@@ -41,7 +41,7 @@ run_install() {
       (
         echo "Installing $dname."
         cd "$dname"
-        npm install
+        npm ci
         # Versions of node <10 don't support the latest mocha.
         node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
         # Versions of node <8 require even older dependencies.
@@ -54,30 +54,50 @@ run_install() {
   echo 'Done installing packages.'
 }
 
+npm_test() {
+  npm test
+}
+
+npm_cover() {
+  local nyc="$__dirname/../node_modules/.bin/nyc"
+  "$nyc" npm test
+  "$nyc" report --reporter=text-lcov >"../.coverage/$1.lcov"
+}
+
 run_test() {
   echo 'Testing all packages...'
-  cd "$__dirname/../packages"
+  local test_cmd
+  if (( "${AVRO_COVERAGE:-0}" )); then
+    cd "$__dirname/.."
+    npm ci
+    cd packages
+    mkdir -p .coverage
+    test_cmd=npm_cover
+  else
+    cd "$__dirname/../packages"
+    test_cmd=npm_test
+  fi
   local failed=false
   set +o errexit
   for dname in *; do
-    cd "$dname"
-    if [[ ! -d node_modules ]]; then
-      echo "Skipping $dname, it was not installed."
-    else
-      if (( "${AVRO_COVERAGE:-0}" )); then
-        npm run coverAndPublish
+    (
+      cd "$dname"
+      if [[ ! -d node_modules ]]; then
+        echo "Skipping $dname, it was not installed."
       else
-        npm test
+        "$test_cmd" "$dname"
+        if (($?)); then
+          echo "Tests for $dname failed."
+          failed=true
+        else
+          echo "Tests for $dname OK."
+        fi
       fi
-      if (($?)); then
-        echo "Tests for ${dname} failed."
-        failed=true
-      else
-        echo "Tests for ${dname} OK."
-      fi
-    fi
-    cd ..
+    )
   done
+  if (( "${AVRO_COVERAGE:-0}" )); then
+    npm run uploadCoverage
+  fi
   set -o errexit
   if "$failed"; then
     fail 'At least one test failed.'
