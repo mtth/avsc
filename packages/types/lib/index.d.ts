@@ -134,6 +134,7 @@ export namespace Type {
   type TypeHook = (schema: Schema, opts: Type.ForSchemaOpts) => Type | undefined;
 
   interface ForSchemaOpts {
+    readonly allowAnonymousTypes?: boolean;
     readonly assertLogicalTypes?: boolean;
     readonly errorStackTraces?: boolean;
     readonly logicalTypes?: {[name: string]: typeof LogicalType.constructor};

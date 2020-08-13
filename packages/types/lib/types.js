@@ -1918,11 +1918,10 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   }
 
   Record.fromBuffer = function () {
-    return self.binaryDecode.apply(arguments);
+    return self.binaryDecode.apply(self, arguments);
   };
-  Record.fromJSON = function (obj) { return values.fromJSON(obj, self); };
-  Record.fromObject = function (obj, opts) {
-    return values.copy(obj, self, opts);
+  Record.fromObject = function () {
+    return self.jsonDecode.apply(self, arguments);
   };
 
   // We don't add these directly on the prototype such that they are not
@@ -1933,14 +1932,17 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   Object.defineProperty(Record.prototype, 'compare', {
     get: function () { return compare; }
   });
+  Object.defineProperty(Record.prototype, 'checkValid', {
+    get: function () { return checkValid; }
+  });
   Object.defineProperty(Record.prototype, 'isValid', {
     get: function () { return isValid; }
   });
-  Object.defineProperty(Record.prototype, 'binaryEncode', {
-    get: function () { return binaryEncode; }
+  Object.defineProperty(Record.prototype, 'toBuffer', {
+    get: function () { return toBuffer; }
   });
-  Object.defineProperty(Record.prototype, 'jsonEncode', {
-    get: function () { return jsonEncode; }
+  Object.defineProperty(Record.prototype, 'toObject', {
+    get: function () { return toObject; }
   });
   Object.defineProperty(Record.prototype, 'toString', {
     get: function () { return toString; }
@@ -1952,9 +1954,10 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
 
   function clone() { return self.clone(this); }
   function compare(val, opts) { return self.compare(this, val, opts); }
+  function checkValid(opts) { return self.checkValid(this, opts); }
   function isValid(opts) { return self.isValid(this, opts); }
-  function binaryEncode() { return self.binaryEncode(this); }
-  function jsonEncode(opts) { return self.jsonEncode(this, opts); }
+  function toBuffer() { return self.binaryEncode(this); }
+  function toObject(opts) { return self.jsonEncode(this, opts); }
   function toString() {
     var str;
     if (self._isError) {

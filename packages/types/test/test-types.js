@@ -1486,15 +1486,39 @@ suite('types', function () {
       assert(!(new Person('a')).isValid());
     });
 
-    test('record binaryEncode', function () {
+    test('record toBuffer & fromBuffer', function () {
       var type = Type.forSchema({
         type: 'record',
         name: 'Person',
-        fields: [{name: 'age', type: 'int'}]
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: ['null', 'string'], default: null},
+        ]
       });
       var Person = type.recordConstructor;
-      assert.deepEqual((new Person(48)).binaryEncode(), utils.bufferFrom([96]));
-      assert.throws(function () { (new Person()).binaryEncode(); });
+      const person = new Person(48);
+      const buf = utils.bufferFrom([96, 0]);
+      assert.deepEqual(person.toBuffer(), buf);
+      assert.deepEqual(Person.fromBuffer(buf), person);
+      assert.throws(function () { (new Person()).toBuffer(); });
+    });
+
+    test('record toObject & fromObject', function () {
+      var type = Type.forSchema({
+        type: 'record',
+        name: 'Person',
+        fields: [
+          {name: 'age', type: 'int'},
+          {name: 'name', type: ['null', 'string'], default: null},
+        ]
+      });
+      var Person = type.recordConstructor;
+      assert.deepEqual((new Person(48)).toObject(), {age: 48, name: null});
+      assert.deepEqual(
+        (new Person(20, 'bob')).toObject(),
+        {age: 20, name: {string: 'bob'}}
+      );
+      assert.deepEqual(Person.fromObject({age: 50}), new Person(50));
     });
 
     test('record compare', function () {
