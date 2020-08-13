@@ -42,8 +42,10 @@ run_install() {
         echo "Installing $dname."
         cd "$dname"
         npm install
-        # Mocha 4+ requires node>=4.
-        node -e 'const a = b => 1;' 2>/dev/null || npm i mocha@~3.0.0
+        # Versions of node <10 don't support the latest mocha.
+        node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
+        # Versions of node <8 require even older dependencies.
+        node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
       )
     else
       echo "Skipping $dname, it requires a different engine."

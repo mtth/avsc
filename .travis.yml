@@ -27,9 +27,5 @@ matrix:
         - AVRO_COVERAGE=1
 before_script:
   - ./scripts/travis install
-  # Versions of node <10 don't support the latest mocha.
-  - node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
-  # Versions of node <8 require even older dependencies.
-  - node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
 script:
   - ./scripts/travis test

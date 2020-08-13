@@ -33,7 +33,7 @@
   },
   "devDependencies": {
     "coveralls": "^3.0.2",
-    "mocha": "^5.2.0",
+    "mocha": "^8.1.1",
     "nyc": "^14.1.1",
     "tmp": "^0.0.33"
   },
@@ -45,5 +45,9 @@
   "repository": {
     "type": "git",
     "url": "git://github.com/mtth/avsc.git"
+  },
+  "mocha": {
+    "colors": false,
+    "ui": "tdd"
   }
 }
