@@ -15,16 +15,12 @@ function combine(files, writable, cb) {
   function readEntry() {
     const entry = entries.pop();
     if (!entry) {
-      writable.write('end_of_record\n');
       cb();
       return;
     }
     readline.createInterface({
       input: fs.createReadStream(entry[1], 'utf8'),
     }).on('line', (oldLine) => {
-      if (oldLine.startsWith('end_of_record')) {
-        return;
-      }
       const match = /^SF:(.*)/.exec(oldLine);
       const newLine = match ? `SF:packages/${entry[0]}/${match[1]}` : oldLine;
       writable.write(newLine + '\n');

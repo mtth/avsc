@@ -60,8 +60,7 @@ test_package() {
 
 test_and_cover_package() {
   local nyc="$__dirname/../node_modules/.bin/nyc"
-  "$nyc" npm test
-  "$nyc" report --reporter=text-lcov >"../.coverage/$1.lcov"
+  "$nyc" npm test && "$nyc" report --reporter=text-lcov >"../.coverage/$1.lcov"
 }
 
 run_test() {

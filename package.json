@@ -2,6 +2,7 @@
   "name": "@avro/__root__",
   "private": true,
   "scripts": {
+    "clean": "rm -rf .nyc_output node_modules",
     "uploadCoverage": "./scripts/merge-lcov packages/.coverage/* | coveralls ."
   },
   "devDependencies": {
