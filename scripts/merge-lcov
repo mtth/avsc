@@ -28,7 +28,7 @@ function combine(files, writable, cb) {
         return;
       }
       const match = /^SF:(.*)/.exec(oldLine);
-      const newLine = match ? `SF:${entry[0]}/${match[1]}` : oldLine;
+      const newLine = match ? `SF:packages/${entry[0]}/${match[1]}` : oldLine;
       writable.write(newLine + '\n');
     }).on('close', readEntry);
   }

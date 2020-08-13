@@ -41,7 +41,7 @@ run_install() {
       (
         echo "Installing $dname."
         cd "$dname"
-        npm ci
+        npm install
         # Versions of node <10 don't support the latest mocha.
         node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
         # Versions of node <8 require even older dependencies.
@@ -54,11 +54,11 @@ run_install() {
   echo 'Done installing packages.'
 }
 
-npm_test() {
+test_package() {
   npm test
 }
 
-npm_cover() {
+test_and_cover_package() {
   local nyc="$__dirname/../node_modules/.bin/nyc"
   "$nyc" npm test
   "$nyc" report --reporter=text-lcov >"../.coverage/$1.lcov"
@@ -69,13 +69,13 @@ run_test() {
   local test_cmd
   if (( "${AVRO_COVERAGE:-0}" )); then
     cd "$__dirname/.."
-    npm ci
+    npm install
     cd packages
     mkdir -p .coverage
-    test_cmd=npm_cover
+    test_cmd=test_and_cover_package
   else
     cd "$__dirname/../packages"
-    test_cmd=npm_test
+    test_cmd=test_package
   fi
   local failed=false
   set +o errexit
