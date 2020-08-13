@@ -1,6 +1,6 @@
 {
   "name": "@avro/streams",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "Avro data streams",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -36,7 +36,7 @@
     "test": "mocha"
   },
   "dependencies": {
-    "@avro/types": "^1.0.7"
+    "@avro/types": "^1.0.9"
   },
   "devDependencies": {
     "coveralls": "^3.0.2",

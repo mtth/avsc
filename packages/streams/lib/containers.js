@@ -549,8 +549,8 @@ BlockEncoder.prototype._read = function () {
     return;
   }
 
-  this.push(LONG_TYPE.toBuffer(data.count, true));
-  this.push(LONG_TYPE.toBuffer(data.buf.length, true));
+  this.push(LONG_TYPE.binaryEncode(data.count, true));
+  this.push(LONG_TYPE.binaryEncode(data.buf.length, true));
   this.push(data.buf);
   this.push(this._syncMarker);
 

@@ -27,7 +27,7 @@ interface BlockEncoderOpts {
 }
 
 export class BlockEncoder extends Duplex {
-  new(opts?: BlockEncoderOpts);
+  constructor(schema: Schema, opts?: BlockEncoderOpts);
 
   static defaultCodecs(): DefaultCodecs;
 }
@@ -38,9 +38,9 @@ interface ExtractFileHeaderOpts {
 }
 
 interface BlockStreamHeader {
-  magic: Buffer;
-  meta: {[key: string]: Buffer | string};
-  sync: Buffer;
+  readonly magic: Buffer;
+  readonly meta: {[key: string]: Buffer | string};
+  readonly sync: Buffer;
 }
 
 export function extractFileHeader(
