@@ -1,6 +1,6 @@
 {
   "name": "@avro/idl",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Avro IDL parsing",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
