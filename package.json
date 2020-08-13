@@ -53,7 +53,7 @@
   "devDependencies": {
     "benchmark": "~2.1.4",
     "coveralls": "^3.0.9",
-    "mocha": "^8.0.1",
+    "mocha": "^8.1.1",
     "nyc": "~15.0.0",
     "tmp": "^0.1.0"
   },
