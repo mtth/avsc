@@ -1496,8 +1496,8 @@ suite('types', function () {
         ]
       });
       var Person = type.recordConstructor;
-      const person = new Person(48);
-      const buf = utils.bufferFrom([96, 0]);
+      var person = new Person(48);
+      var buf = utils.bufferFrom([96, 0]);
       assert.deepEqual(person.toBuffer(), buf);
       assert.deepEqual(Person.fromBuffer(buf), person);
       assert.throws(function () { (new Person()).toBuffer(); });
