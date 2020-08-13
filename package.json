@@ -2,8 +2,8 @@
   "name": "@avro/__root__",
   "private": true,
   "scripts": {
-    "clean": "rm -rf .nyc_output node_modules",
-    "uploadCoverage": "./scripts/merge-lcov packages/.coverage/* | coveralls ."
+    "clean": "rm -rf .nyc_output node_modules packages/.coverage",
+    "uploadCoverage": "./scripts/merge-coverage-reports packages/.coverage/* | coveralls ."
   },
   "devDependencies": {
     "coveralls": "^3.1.0",

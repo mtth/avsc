@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+
+# Testing utility script
+#
+# Usage:
+#   test-packages
+
+set -o nounset
+set -o errexit
+set -o pipefail
+shopt -s nullglob
+
+__dirname="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+fail() {
+  echo "$1" >&2 && exit 2
+}
+
+test_package() {
+  npm test
+}
+
+test_and_cover_package() {
+  local nyc="$__dirname/../node_modules/.bin/nyc"
+  "$nyc" npm test && "$nyc" report --reporter=text-lcov >"../.coverage/$1.lcov"
+}
+
+main() {
+  echo 'Testing all packages...'
+  local test_cmd
+  if (( "${AVRO_COVERAGE:-0}" )); then
+    cd "$__dirname/.."
+    npm install
+    cd packages
+    mkdir -p .coverage
+    test_cmd=test_and_cover_package
+  else
+    cd "$__dirname/../packages"
+    test_cmd=test_package
+  fi
+  local failed=false
+  set +o errexit
+  for dname in *; do
+    (
+      cd "$dname"
+      if [[ ! -d node_modules ]]; then
+        echo "Skipping $dname, it was not installed."
+      else
+        "$test_cmd" "$dname"
+        if (($?)); then
+          echo "Tests for $dname failed."
+          failed=true
+        else
+          echo "Tests for $dname OK."
+        fi
+      fi
+    )
+  done
+  if (( "${AVRO_COVERAGE:-0}" )); then
+    npm run uploadCoverage
+  fi
+  set -o errexit
+  if "$failed"; then
+    fail 'At least one test failed.'
+  else
+    echo 'All tests succeeded!'
+  fi
+}
+
+main "$@"

@@ -26,6 +26,6 @@ matrix:
       env:
         - AVRO_COVERAGE=1
 before_script:
-  - ./scripts/travis install
+  - ./scripts/install-packages
 script:
-  - ./scripts/travis test
+  - ./scripts/test-packages

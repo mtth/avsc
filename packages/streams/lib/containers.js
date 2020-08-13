@@ -57,7 +57,6 @@ var f = util.format;
 // `Type.decode` and `Type.encode`.
 var Tap = require('@avro/types/lib/utils').Tap;
 
-
 /** Duplex stream for decoding fragments. */
 function RawDecoder(schema, opts) {
   opts = opts || {};
@@ -247,7 +246,7 @@ BlockDecoder.prototype._writeChunk = function (chunk, encoding, cb) {
     nBlocks++;
     this._decompress(
       block.data,
-      this._createBlockCallback(block.count, chunkCb)
+      this._createBlockCallback(block.data.length, block.count, chunkCb)
     );
   }
   chunkCb();
@@ -259,7 +258,7 @@ BlockDecoder.prototype._writeChunk = function (chunk, encoding, cb) {
   }
 };
 
-BlockDecoder.prototype._createBlockCallback = function (count, cb) {
+BlockDecoder.prototype._createBlockCallback = function (size, count, cb) {
   var self = this;
   var index = this._index++;
 
@@ -270,6 +269,7 @@ BlockDecoder.prototype._createBlockCallback = function (count, cb) {
       self.emit('error', err);
       cb();
     } else {
+      self.emit('block', new BlockInfo(count, data.length, size));
       self._queue.push(new BlockData(index, data, cb, count));
       if (self._needPush) {
         self._read();
@@ -533,7 +533,7 @@ BlockEncoder.prototype._write = function (val, encoding, cb) {
 BlockEncoder.prototype._flushChunk = function (pos, cb) {
   var tap = this._tap;
   pos = pos || tap.pos;
-  this._compress(tap.buf.slice(0, pos), this._createBlockCallback(cb));
+  this._compress(tap.buf.slice(0, pos), this._createBlockCallback(pos, cb));
   this._blockCount = 0;
 };
 
@@ -549,8 +549,8 @@ BlockEncoder.prototype._read = function () {
     return;
   }
 
-  this.push(LONG_TYPE.binaryEncode(data.count, true));
-  this.push(LONG_TYPE.binaryEncode(data.buf.length, true));
+  this.push(LONG_TYPE.binaryEncode(data.count));
+  this.push(LONG_TYPE.binaryEncode(data.buf.length));
   this.push(data.buf);
   this.push(this._syncMarker);
 
@@ -559,7 +559,7 @@ BlockEncoder.prototype._read = function () {
   }
 };
 
-BlockEncoder.prototype._createBlockCallback = function (cb) {
+BlockEncoder.prototype._createBlockCallback = function (size, cb) {
   var self = this;
   var index = this._index++;
   var count = this._blockCount;
@@ -573,6 +573,7 @@ BlockEncoder.prototype._createBlockCallback = function (cb) {
       return;
     }
     self._pending--;
+    self.emit('block', new BlockInfo(count, size, data.length));
     self._queue.push(new BlockData(index, data, cb, count));
     if (self._needPush) {
       self._needPush = false;
@@ -583,6 +584,13 @@ BlockEncoder.prototype._createBlockCallback = function (cb) {
 
 
 // Helpers.
+
+/** Summary information about a block. */
+function BlockInfo(count, raw, compressed) {
+  this.valueCount = count;
+  this.rawDataLength = raw;
+  this.compressedDataLength = compressed;
+}
 
 /**
  * An indexed block.

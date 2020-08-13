@@ -1,6 +1,11 @@
 #!/usr/bin/env node
 
-/** Helper script to merge text-lcov outputs. */
+/**
+ * Helper script to merge text-lcov outputs.
+ *
+ * Usage:
+ *  merge-coverage-reports foo.lcov bar.lcov
+ */
 
 'use strict';
 
@@ -35,9 +40,11 @@ function main(cb) {
     files.set(parsed.name, fpath);
   }
   if (!files.size) {
+    console.error('No coverage reports to combine.');
     cb();
     return;
   }
+  console.error('Combining reports: ' + [...files.keys()].sort().join(', '));
   combine(files, process.stdout, cb);
 }
 

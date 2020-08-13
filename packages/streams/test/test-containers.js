@@ -457,11 +457,20 @@ suite('containers', function () {
     test('uncompressed int', function (cb) {
       var t = Type.forSchema('int');
       var objs = [];
-      var encoder = new streams.BlockEncoder(t);
+      var encoderInfos = [];
+      var decoderInfos = [];
+      var encoder = new streams.BlockEncoder(t)
+        .on('block', function (info) { encoderInfos.push(info); });
       var decoder = new streams.BlockDecoder()
+        .on('block', function (info) { decoderInfos.push(info); })
         .on('data', function (obj) { objs.push(obj); })
         .on('end', function () {
           assert.deepEqual(objs, [12, 23, 48]);
+          var infos = [
+            {valueCount: 3, rawDataLength: 3, compressedDataLength: 3}
+          ];
+          assert.deepEqual(encoderInfos, infos);
+          assert.deepEqual(decoderInfos, infos);
           cb();
         });
       encoder.pipe(decoder);

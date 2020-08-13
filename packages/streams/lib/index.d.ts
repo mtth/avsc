@@ -1,11 +1,17 @@
 import {Schema} from '@avro/types';
 import {Duplex} from 'stream';
 
-type Codec = (buf1: Buffer, cb: (err: Error | null, buf2: Buffer) => void) => void;
+export type Codec = (buf1: Buffer, cb: (err: Error | null, buf2: Buffer) => void) => void;
 
-type DefaultCodecs = Record<'null' | 'deflate', Codec>;
+export type DefaultCodecs = Record<'null' | 'deflate', Codec>;
 
-interface BlockDecoderOpts {
+export interface BlockInfo {
+  readonly valueCount: number;
+  readonly rawDataLength: number;
+  readonly compressedDataLength: number;
+}
+
+export interface BlockDecoderOpts {
   readonly codecs?: {[key: string]: Codec};
   readonly parseHook?: (str: string) => Schema;
   readonly readerSchema?: Schema;
@@ -17,7 +23,7 @@ export class BlockDecoder extends Duplex {
   static defaultCodecs(): DefaultCodecs;
 }
 
-interface BlockEncoderOpts {
+export interface BlockEncoderOpts {
   readonly blockSize?: number;
   readonly codec?: string;
   readonly codecs?: {[key: string]: Codec};
@@ -32,12 +38,12 @@ export class BlockEncoder extends Duplex {
   static defaultCodecs(): DefaultCodecs;
 }
 
-interface ExtractFileHeaderOpts {
+export interface ExtractFileHeaderOpts {
   readonly decode?: boolean;
   readonly size?: number;
 }
 
-interface BlockStreamHeader {
+export interface BlockStreamHeader {
   readonly magic: Buffer;
   readonly meta: {[key: string]: Buffer | string};
   readonly sync: Buffer;
