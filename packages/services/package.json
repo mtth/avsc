@@ -39,5 +39,9 @@
     "@avro/types": "^1.0.5",
     "mocha": "^8.1.1",
     "sinon": "^7.2.7"
+  },
+  "mocha": {
+    "colors": false,
+    "ui": "tdd"
   }
 }
