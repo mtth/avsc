@@ -29,9 +29,7 @@
     "node": ">=0.11"
   },
   "scripts": {
-    "clean": "rm -rf coverage dist node_modules",
-    "cover": "nyc mocha",
-    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov",
+    "clean": "rm -rf dist node_modules",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
@@ -40,7 +38,6 @@
   },
   "devDependencies": {
     "mocha": "^8.1.1",
-    "nyc": "^14.1.1",
     "tmp": "^0.0.33"
   },
   "author": {

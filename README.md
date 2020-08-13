@@ -23,13 +23,6 @@ bundle size:
 + IDL support: [`@avro/idl`](https://www.npmjs.com/package/@avro/idl)
 + RPC services: [`@avro/services`](https://www.npmjs.com/package/@avro/services)
 
-For convenience and compatibility with previous versions, all non-RPC
-functionality is also available via:
-
-```bash
-$ npm install avsc
-```
-
 ## Documentation
 
 + [Home][home]

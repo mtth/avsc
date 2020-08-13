@@ -1,6 +1,6 @@
 {
   "name": "@avro/services",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Avro RPC services",
   "homepage": "https://github.com/mtth/avsc",
   "files": [
@@ -12,8 +12,6 @@
   },
   "scripts": {
     "clean": "rm -rf node_modules",
-    "cover": "nyc mocha",
-    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov",
     "prepublishOnly": "npm test",
     "test": "mocha"
   },
@@ -39,8 +37,7 @@
   },
   "devDependencies": {
     "@avro/types": "^1.0.5",
-    "nyc": "^14.1.1",
-    "mocha": "^6.1.4",
+    "mocha": "^8.1.1",
     "sinon": "^7.2.7"
   }
 }

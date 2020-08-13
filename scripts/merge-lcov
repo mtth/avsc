@@ -7,11 +7,9 @@
 const fs = require('fs');
 const path = require('path');
 const readline = require('readline');
-const stream = require('stream');
 
 function combine(files, writable, cb) {
   const entries = [...files];
-  writable.write('TN:\n');
   readEntry();
 
   function readEntry() {
@@ -24,7 +22,7 @@ function combine(files, writable, cb) {
     readline.createInterface({
       input: fs.createReadStream(entry[1], 'utf8'),
     }).on('line', (oldLine) => {
-      if (/^(TN:|end_of_record)\s*/.test(oldLine)) {
+      if (oldLine.startsWith('end_of_record')) {
         return;
       }
       const match = /^SF:(.*)/.exec(oldLine);
