@@ -45,9 +45,27 @@ type Schema<E = {}> =
 export class Type<V = any> {
   protected constructor(schema: Schema, opts: Type.ForSchemaOpts);
 
-  readonly name: string | undefined;
-  readonly aliases: string[] | undefined;
+  /**
+   * Type-specific name, present for all types. It matches the `type` field
+   * except in the following cases:
+   *
+   * + Unions (which don't have a type field). It is then equal to
+   *   `union:unwrapped` or `union:wrapped` depending on the union.
+   * + Logical types, where it is equal to `logical:<logicalType>`.
+   * + Abstract longs, where it is `long:abstract`.
+   */
+  readonly typeName: string;
+
+  /** Name of the branch when this type is nested inside a wrapped union. */
   readonly branchName: string | undefined;
+
+  /** User-defined name, if the type supports it. */
+  readonly name: string | undefined;
+
+  /** Name aliases for schema evolution. Undefined for unnamed types. */
+  readonly aliases: string[] | undefined;
+
+  /** Optional description. */
   readonly doc: string | undefined;
 
   binaryDecode(buf: Buffer, resolver?: Type.Resolver<V>, noCheck?: boolean): V;
