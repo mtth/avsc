@@ -279,4 +279,6 @@ export class UnionType<V = any> extends Type<V> {
   readonly name: undefined;
   readonly branchName: undefined;
   readonly types: ReadonlyArray<Type>;
+
+  type(branchName: string): Type | undefined;
 }
