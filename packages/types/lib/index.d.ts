@@ -275,10 +275,15 @@ export class LogicalType<V = any> extends Type<V> {
   protected _export(schema: Schema): void;
 }
 
+export interface Branch<V = any> {
+  readonly type: Type<V>;
+  unwrap(): V;
+}
+
 export class UnionType<V = any> extends Type<V> {
   readonly name: undefined;
   readonly branchName: undefined;
   readonly types: ReadonlyArray<Type>;
 
-  type(branchName: string): Type | undefined;
+  type<T>(branchName: string): (T extends Type ? T : Type<T>) | undefined;
 }

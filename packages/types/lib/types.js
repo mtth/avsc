@@ -655,10 +655,14 @@ Type.prototype._createBranchConstructor = function () {
   var attr = ~name.indexOf('.') ? 'this[\'' + name + '\']' : 'this.' + name;
   var body = 'return function Branch$(val) { ' + attr + ' = val; };';
   var Branch = (new Function(body))();
-  Branch.type = this;
   var toString = new Function('return \'<Branch$ ' + name + '>\'');
   Object.defineProperty(Branch.prototype, 'toString', {
     get: function () { return toString; }
+  });
+  var self = this;
+  Branch.type = self;
+  Object.defineProperty(Branch.prototype, 'type', {
+    get: function () { return self; }
   });
   var unwrap = new Function('return ' + attr + ';');
   Object.defineProperty(Branch.prototype, 'unwrap', {
