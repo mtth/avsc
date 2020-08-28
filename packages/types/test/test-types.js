@@ -897,14 +897,15 @@ suite('types', function () {
       }
     ];
 
-    var schemas = [
-      {name: 'Foo', size: 0},
+    var invalidSchemas = [
+      {name: 'Foo', size: NaN},
+      {name: 'Foo', size: 0.5},
       {name: 'Foo', size: -2},
       {name: 'Foo'},
       {}
     ];
 
-    testType(constructors.FixedType, data, schemas);
+    testType(constructors.FixedType, data, invalidSchemas);
 
     test('get full name', function () {
       var t = Type.forSchema({

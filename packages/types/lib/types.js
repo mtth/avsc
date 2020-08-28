@@ -1482,7 +1482,7 @@ EnumType.prototype.typeName = 'enum';
 /** Avro fixed type. Represented simply as a `Buffer`. */
 function FixedType(schema, opts, scope) {
   Type.call(this, schema, opts, scope);
-  if (schema.size !== (schema.size | 0) || schema.size < 1) {
+  if (schema.size !== (schema.size | 0) || schema.size < 0) {
     throw new Error(f('invalid %s size', this.branchName));
   }
   this.size = schema.size | 0;
