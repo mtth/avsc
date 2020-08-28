@@ -984,14 +984,14 @@ suite('types', function () {
       }
     ];
 
-    var schemas = [
-      {name: 'Foo', size: 0},
+    var invalidSchemas = [
+      {name: 'Foo', size: NaN},
       {name: 'Foo', size: -2},
       {name: 'Foo'},
       {}
     ];
 
-    testType(builtins.FixedType, data, schemas);
+    testType(builtins.FixedType, data, invalidSchemas);
 
     test('get full name', function () {
       var t = Type.forSchema({
@@ -1019,6 +1019,11 @@ suite('types', function () {
     test('get size', function () {
       var t = Type.forSchema({type: 'fixed', size: 5, name: 'Id'});
       assert.equal(t.getSize(), 5);
+    });
+
+    test('get zero size', function () {
+      var t = Type.forSchema({type: 'fixed', size: 0, name: 'Id'});
+      assert.equal(t.getSize(), 0);
     });
 
     test('resolve', function () {
