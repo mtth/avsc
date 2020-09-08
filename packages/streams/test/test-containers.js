@@ -661,11 +661,10 @@ suite('containers', function () {
       encoder.end();
     });
 
-
     test('ignore serialization error', function (cb) {
       var data = [];
       var numErrs = 0;
-      var encoder = new streams.BlockEncoder('int', {noCheck: true})
+      var encoder = new streams.BlockEncoder('int', {check: false})
         .on('error', function () { numErrs++; });
       var decoder = new streams.BlockDecoder()
         .on('data', function (val) { data.push(val); })
@@ -680,6 +679,31 @@ suite('containers', function () {
       encoder.write(2);
       encoder.write(3);
       encoder.write(4.5);
+      encoder.end();
+    });
+
+    test('ignore extra fields', function (cb) {
+      var data = [];
+      var numErrs = 0;
+      var type = {
+        type: 'record',
+        name: 'Foo',
+        fields: [{name: 'id', type: 'int'}],
+      };
+      var encoder = new streams.BlockEncoder(type, {
+          check: {allowUndeclaredFields: true},
+        })
+        .on('error', function () { numErrs++; });
+      var decoder = new streams.BlockDecoder()
+        .on('data', function (val) { data.push(val); })
+        .on('end', function () {
+          assert.equal(numErrs, 0);
+          assert.deepEqual(data, [{id: 123}, {id: 456}]);
+          cb();
+        });
+      encoder.pipe(decoder);
+      encoder.write({id: 123, name: 'abc'});
+      encoder.write({id: 456});
       encoder.end();
     });
 

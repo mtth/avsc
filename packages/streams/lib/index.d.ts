@@ -28,7 +28,7 @@ export interface BlockEncoderOpts {
   readonly codec?: string;
   readonly codecs?: {[key: string]: Codec};
   readonly metadata?: {[key: string]: Buffer};
-  readonly noCheck?: boolean;
+  readonly check?: boolean | Type.CheckOpts;
   readonly omitHeader?: boolean;
 }
 

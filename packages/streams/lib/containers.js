@@ -381,10 +381,10 @@ RawEncoder.prototype._flush = function (cb) {
  * @param opts {Object}
  *
  *  + `blockSize`, uncompressed.
+ *  + `check`
  *  + `codec`
  *  + `codecs`
  *  + `metadata``
- *  + `noCheck`
  *  + `omitHeader`, useful to append to an existing block file.
  */
 function BlockEncoder(schema, opts) {
@@ -406,11 +406,11 @@ function BlockEncoder(schema, opts) {
 
   this._schema = schema;
   this._type = type;
-  this._noCheck = !!opts.noCheck;
+  this._checkOpts = opts.check === true ? {} : opts.check;
   this._writeValue = function (tap, val) {
     try {
-      if (!this._noCheck) {
-        this._type.checkValid(val); // More informative error message.
+      if (this._checkOpts) {
+        this._type.checkValid(val, this._checkOpts); // More informative error.
       }
       this._type._write(tap, val);
     } catch (err) {
