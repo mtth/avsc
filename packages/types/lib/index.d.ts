@@ -42,7 +42,7 @@ type Schema<E = {}> =
   | string; // References.
 
 /** Base Avro type. */
-export class Type<V = any> {
+export class Type<V = any, E = {}> {
   protected constructor(schema: Schema, opts: Type.ForSchemaOpts);
 
   /**
@@ -68,13 +68,17 @@ export class Type<V = any> {
   /** Optional description. */
   readonly doc: string | undefined;
 
-  binaryDecode(buf: Buffer, resolver?: Type.Resolver<V>, noCheck?: boolean): V;
+  binaryDecode(
+    buf: Buffer,
+    resolver?: Type.Resolver<V>,
+    noCheck?: boolean
+  ): V & E;
 
   binaryDecodeAt(
     buf: Buffer,
     pos: number,
     resolver?: Type.Resolver<V>
-  ): {readonly value: V; readonly offset: number};
+  ): {readonly value: V & E; readonly offset: number};
 
   binaryEncode(val: V): Buffer;
 
@@ -84,17 +88,17 @@ export class Type<V = any> {
     data: any,
     resolver?: Type.Resolver<V>,
     allowUndeclaredFields?: boolean
-  ): V;
+  ): V & E;
 
   jsonEncode(val: V, opts?: Type.JsonEncodeOpts): any;
 
-  createResolver(writer: Type): Type.Resolver<V>;
+  createResolver(writer: Type): Type.Resolver<V & E>;
 
   checkValid(val: V, opts?: Type.CheckValidOpts): void;
 
   isValid(val: V, opts?: Type.IsValidOpts): boolean;
 
-  clone(val: V): V;
+  clone(val: V): V & E;
 
   wrap(val: V): any;
 
@@ -253,7 +257,7 @@ interface GeneratedRecord<V> {
   wrap(): any;
 }
 
-export class RecordType<V = any> extends Type<V & GeneratedRecord<V>> {
+export class RecordType<V = any> extends Type<V, GeneratedRecord<V>> {
   readonly name: string;
   readonly aliases: string[];
   readonly branchName: string;
@@ -264,13 +268,13 @@ export class RecordType<V = any> extends Type<V & GeneratedRecord<V>> {
   field(name: string): Field | undefined;
 }
 
-export class LogicalType<V = any> extends Type<V> {
+export class LogicalType<V = any, U = any, T = Type<U>> extends Type<V> {
   readonly branchName: string;
   readonly typeName: string;
-  readonly underlyingType: Type;
+  readonly underlyingType: T;
 
-  protected _toValue(data: any): V;
-  protected _fromValue(val: V): any;
+  protected _toValue(data: V): U;
+  protected _fromValue(val: U): V;
   protected _resolve<W = any>(otherType: Type<W>): (otherVal: W) => V;
   protected _export(schema: Schema): void;
 }
