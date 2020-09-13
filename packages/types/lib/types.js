@@ -2359,9 +2359,17 @@ LogicalType.prototype._check = function (any, flags, hook, path) {
 };
 
 LogicalType.prototype._update = function (resolver, type, opts) {
-  var _fromValue = this._resolve(type, opts);
-  if (_fromValue) {
-    resolver._read = function (tap) { return _fromValue(type._read(tap)); };
+  var ret = this._resolve(type, opts);
+  var map, rsv;
+  if (Array.isArray(ret)) {
+    map = ret[0];
+    rsv = ret[1];
+  } else {
+    map = ret;
+    rsv = type;
+  }
+  if (map) {
+    resolver._read = function (tap) { return map(rsv._read(tap)); };
   }
 };
 

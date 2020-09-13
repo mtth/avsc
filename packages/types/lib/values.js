@@ -76,12 +76,16 @@ Builder.prototype.build = function (type) {
     '%s error(s) when expecting %s:\n%s',
     this.errors.length, typeInfo(type), details.join('\n')
   );
-  throw new Error(msg);
+  var err = new Error(msg);
+  err.code = 'ERR_AVRO_INCOMPATIBLE_VALUE';
+  err.type = type;
+  err.errors = this.errors;
+  throw err;
 };
 
 Builder.prototype.addError = function (desc, val, type, path) {
   var info = typeInfo(type);
-  var msg = f('$%s has %s but %s: %s', joinPath(path), info, desc, val);
+  var msg = f('$%s has %s but %s: %j', joinPath(path), info, desc, val);
   var err = new Error(msg);
   err.value = val;
   err.expectedType = type;

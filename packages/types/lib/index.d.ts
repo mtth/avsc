@@ -92,7 +92,7 @@ export class Type<V = any, E = {}> {
 
   jsonEncode(val: V, opts?: Type.JsonEncodeOpts): any;
 
-  createResolver(writer: Type): Type.Resolver<V & E>;
+  createResolver<W>(writer: Type<W>): Type.Resolver<V, W>;
 
   checkValid(val: V, opts?: Type.CheckValidOpts): void;
 
@@ -172,7 +172,7 @@ export namespace Type {
     readonly valueHook?: ValueHook;
   }
 
-  type Resolver<V> = {__type: 'avroTypesResolver'}; // TODO: Find a better way.
+  type Resolver<V, W = any> = {__type: 'avroTypesResolver'}; // TODO: Find a better way.
 }
 
 type PrimType<V, N extends string> = Type<V> & {
@@ -241,28 +241,28 @@ interface Field {
   readonly defaultValue: any;
 }
 
-interface RecordConstructor<V> {
-  new(...args: any[]): V;
-  fromBuffer(buf: Buffer): V;
-  fromJSON(data: any): V;
-  fromObject(obj: any): V;
+interface RecordConstructor<V = {[key: string]: any}> {
+  new(...args: any[]): GeneratedRecord<V>;
+  fromBuffer(buf: Buffer): GeneratedRecord<V>;
+  fromObject(obj: any): GeneratedRecord<V>;
 }
 
-interface GeneratedRecord<V> {
+type GeneratedRecord<V = {[key: string]: any}> = {
   clone(): V;
   compare(other: V): -1 | 0 | 1;
+  checkValid(opts?: Type.CheckValidOpts): void;
   isValid(opts?: Type.IsValidOpts): boolean;
-  binaryEncode(): Buffer;
-  jsonEncode(opts?: Type.JsonEncodeOpts): any;
+  toBuffer(): Buffer;
+  toObject(opts?: Type.JsonEncodeOpts): any;
   wrap(): any;
-}
+} & V;
 
 export class RecordType<V = any> extends Type<V, GeneratedRecord<V>> {
   readonly name: string;
   readonly aliases: string[];
   readonly branchName: string;
   readonly typeName: 'record' | 'error';
-  readonly recordConstructor: RecordConstructor<V & GeneratedRecord<V>>;
+  readonly recordConstructor: RecordConstructor<V>;
   readonly fields: ReadonlyArray<Field>;
 
   field(name: string): Field | undefined;
@@ -274,8 +274,13 @@ export class LogicalType<V = any, U = any, T = Type<U>> extends Type<V> {
   readonly underlyingType: T;
 
   protected _toValue(data: V): U;
+
   protected _fromValue(val: U): V;
-  protected _resolve<W = any>(otherType: Type<W>): (otherVal: W) => V;
+
+  protected _resolve<W1, W2>(
+    writer: Type<W1>
+  ): ((val: W1) => V) | [(val: W2) => V, Type.Resolver<W2, W1>] | undefined;
+
   protected _export(schema: Schema): void;
 }
 
