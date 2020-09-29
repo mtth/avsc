@@ -198,7 +198,21 @@ export class LongType<V = number, N extends 'long' | 'abstract:long' = 'long'> e
   readonly branchName: 'long';
   readonly typeName: N;
 
-  static __with<V = any>(): LongType<V, 'abstract:long'>;
+  static __with<V = any>(
+    methods: LongType.WithMethods<V>,
+    noUnpack?: boolean
+  ): LongType<V, 'abstract:long'>;
+}
+
+export namespace LongType {
+  export interface WithMethods<V> {
+    compare(v1: V, v2: V): -1 | 0 | 1;
+    isValid(val: any, opts: Type.IsValidOpts): boolean;
+    toBuffer(val: V): Buffer;
+    fromBuffer(buf: Buffer): V;
+    toJSON(val: V): number;
+    fromJSON(num: number): V;
+  }
 }
 
 export class FixedType extends Type<number> {
