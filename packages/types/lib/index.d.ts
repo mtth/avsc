@@ -30,7 +30,7 @@ interface FieldSchema<E = {}> {
 }
 
 /** Avro schema. */
-type Schema<E = {}> =
+type Schema<E = {[key: string]: any}> =
   | {type: PrimTypeName} & BaseSchema & E
   | {type: 'array', items: Schema<E>} & BaseSchema & E
   | {type: 'enum', symbols: string[]} & NamedSchema & E
@@ -287,7 +287,7 @@ export class LogicalType<V = any, U = any, T = Type<U>> extends Type<V> {
   readonly typeName: string;
   readonly underlyingType: T;
 
-  protected _toValue(data: V): U;
+  protected _toValue(data: unknown): U | undefined;
 
   protected _fromValue(val: U): V;
 
