@@ -1,5 +1,4 @@
 import {Type} from '@avro/types';
-import moment from 'moment';
 
 import * as sut from '../src';
 
@@ -32,8 +31,39 @@ describe('bigint type', () => {
   });
 });
 
-describe('moment type', () => {
-  const logicalTypes = {'timestamp-millis': sut.MomentType};
+describe('decimal type', () => {
+  const logicalTypes = {'decimal': sut.DecimalType};
+
+  test('ok with bytes', () => {
+    const t = Type.forSchema(
+      {type: 'bytes', logicalType: 'decimal', scale: 2, precision: 4},
+      {logicalTypes}
+    );
+    const d = sut.Decimal.forConfig({precision: 4, scale: 2, unscaled: 5});
+    const buf = t.binaryEncode(d);
+    expect(t.binaryDecode(buf)).toEqual(d);
+  });
+
+  test('ok with fixed', () => {
+    const t = Type.forSchema(
+      {
+        type: 'fixed',
+        name: 'F5',
+        logicalType: 'decimal',
+        size: 5,
+        scale: 2,
+        precision: 4,
+      },
+      {logicalTypes}
+    );
+    const d = sut.Decimal.forConfig({precision: 4, scale: 2, unscaled: 10});
+    const buf = t.binaryEncode(d);
+    expect(t.binaryDecode(buf)).toEqual(d);
+  });
+});
+
+describe('date type', () => {
+  const logicalTypes = {'timestamp-millis': sut.DateType};
 
   test('ok with standard long', () => {
     const t = Type.forSchema(
@@ -42,8 +72,8 @@ describe('moment type', () => {
     );
     const v = t.jsonDecode(1234);
     const buf = t.binaryEncode(v);
-    expect(v).toEqual(moment(1234));
-    expect(buf).toEqual(t.binaryEncode(moment(1234)));
+    expect(v).toEqual(new Date(1234));
+    expect(buf).toEqual(t.binaryEncode(new Date(1234)));
   });
 
   test('ok with bigint long', () => {
@@ -51,7 +81,7 @@ describe('moment type', () => {
       {type: 'long', logicalType: 'timestamp-millis'},
       {logicalTypes, registry: {long: sut.bigIntLongType}}
     );
-    const m = moment(12345);
+    const m = new Date(12345);
     const v = t.jsonDecode(+m);
     const buf = t.binaryEncode(v);
     expect(v).toEqual(m);

@@ -1,6 +1,6 @@
 {
   "name": "@avro/common-types",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Common Avro types",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -8,7 +8,8 @@
     "type"
   ],
   "files": [
-    "lib"
+    "lib/**/*.js",
+    "lib/**/*.d.ts"
   ],
   "main": "./lib",
   "engines": {
@@ -34,8 +35,7 @@
     "url": "git://github.com/mtth/avsc.git"
   },
   "dependencies": {
-    "@avro/types": "^1.0.16",
-    "moment": "^2.29.0",
+    "@avro/types": "^1.0.18",
     "verror": "^1.10.0"
   },
   "devDependencies": {
