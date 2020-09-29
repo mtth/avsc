@@ -1,0 +1,90 @@
+{
+  "name": "@avro/common-types",
+  "version": "0.1.0",
+  "description": "Common Avro types",
+  "homepage": "https://github.com/mtth/avsc",
+  "keywords": [
+    "avro",
+    "type"
+  ],
+  "files": [
+    "lib"
+  ],
+  "main": "./lib",
+  "engines": {
+    "node": ">=14.5"
+  },
+  "scripts": {
+    "build": "tsc -p src",
+    "clean": "rm -rf lib node_modules out",
+    "fix": "prettier --write 'src/**/*.ts' 'test/**/*.ts' && npm run lint -- --fix",
+    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts'",
+    "prepare": "npm run build",
+    "test": "jest",
+    "test-debug": "node inspect node_modules/.bin/jest --runInBand --testTimeout=1000000",
+    "watch": "tsc -b -w src test"
+  },
+  "author": {
+    "name": "Matthieu Monsch",
+    "email": "mtth@apache.org"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mtth/avsc.git"
+  },
+  "dependencies": {
+    "@avro/types": "^1.0.16",
+    "moment": "^2.29.0",
+    "verror": "^1.10.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^26.0.14",
+    "@types/verror": "^1.10.4",
+    "@typescript-eslint/eslint-plugin": "^4.3.0",
+    "@typescript-eslint/parser": "^4.3.0",
+    "eslint": "^7.10.0",
+    "eslint-plugin-simple-import-sort": "^5.0.3",
+    "jest": "^26.4.2",
+    "lint-staged": "^10.4.0",
+    "prettier": "^2.1.2",
+    "ts-jest": "^26.4.0",
+    "typescript": "^4.0.3"
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged"
+    }
+  },
+  "jest": {
+    "coverageDirectory": "out/coverage",
+    "coveragePathIgnorePatterns": [
+      "<rootDir>/node_modules/",
+      "<rootDir>/test/"
+    ],
+    "globals": {
+      "ts-jest": {
+        "tsConfig": "test/tsconfig.json"
+      }
+    },
+    "preset": "ts-jest",
+    "testEnvironment": "node",
+    "testPathIgnorePatterns": [
+      ".d.ts",
+      ".js"
+    ],
+    "testTimeout": 5000
+  },
+  "lint-staged": {
+    "**/*.ts": [
+      "prettier --write",
+      "eslint --fix"
+    ]
+  },
+  "prettier": {
+    "bracketSpacing": false,
+    "parser": "typescript",
+    "trailingComma": "es5",
+    "singleQuote": true
+  }
+}
