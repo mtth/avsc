@@ -13,7 +13,7 @@ export interface BlockInfo {
 
 export interface BlockDecoderOpts {
   readonly codecs?: {[key: string]: Codec};
-  readonly parseHook?: (str: string) => Schema;
+  readonly parseHook?: (schema: Schema) => Schema;
   readonly readerSchema?: Schema;
 }
 
@@ -59,7 +59,7 @@ export function createFileDecoder(
   opts?: BlockDecoderOpts
 ): BlockDecoder;
 
-export function createFileDecoder(
+export function createFileEncoder(
   path: string,
   schema: Schema,
   opts?: BlockEncoderOpts
