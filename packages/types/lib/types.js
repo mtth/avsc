@@ -2483,7 +2483,7 @@ AbstractLongType.prototype._update = function (resolver, type) {
 AbstractLongType.prototype._fromBuffer = utils.abstractFunction;
 AbstractLongType.prototype._toBuffer = utils.abstractFunction;
 AbstractLongType.prototype._fromJSON = utils.abstractFunction;
-AbstractLongType.prototype._tojSON = utils.abstractFunction;
+AbstractLongType.prototype._toJSON = utils.abstractFunction;
 AbstractLongType.prototype._isValid = utils.abstractFunction;
 AbstractLongType.prototype.compare = utils.abstractFunction;
 

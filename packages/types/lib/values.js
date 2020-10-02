@@ -178,6 +178,7 @@ Cloner.prototype._onLogical = function (any, type, path) {
 Cloner.prototype._onPrimitive = function (any, type, path) {
   var builder = new Builder();
   var isBufferType = utils.isType(type, 'bytes', 'fixed');
+  var isAbstractLong = utils.isType(type, 'abstract:long');
   var val = any;
   if (isBufferType && this._mode !== 'TO_JSON') {
     if (typeof any != 'string') {
@@ -186,8 +187,20 @@ Cloner.prototype._onPrimitive = function (any, type, path) {
     }
     val = utils.bufferFrom(any, 'binary');
   }
-  if (type.isValid(val)) {
-    builder.value = isBufferType ? utils.bufferFrom(val) : val;
+  if (isAbstractLong && this._mode === 'TO_JSON' && type.isValid(val)) {
+    builder.value = type._toJSON(val);
+  } else if (isAbstractLong && typeof val == 'number') {
+    builder.value = type._fromJSON(val);
+  } else if (type.isValid(val)) {
+    if (utils.isType(type, 'abstract:long')) {
+      if (this._mode === 'TO_JSON') {
+        builder.value = type._toJSON(val);
+      } else {
+        builder.value = type._fromJSON(val);
+      }
+    } else {
+      builder.value = isBufferType ? utils.bufferFrom(val) : val;
+    }
   } else {
     builder.addError('invalid value', any, type, path);
   }

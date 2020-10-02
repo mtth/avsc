@@ -74,6 +74,18 @@ suite('values', function () {
       assert.throws(function () { fromJSON({}, t); }, /missing 1 field/);
     });
 
+    test('abstract long', function () {
+      var t = types.constructors.LongType.__with({
+        fromBuffer: function () { throw new Error('boom'); },
+        toBuffer: function () { throw new Error('boom'); },
+        compare: function () { throw new Error('boom'); },
+        isValid: function (n) { return typeof n == 'string'; },
+        fromJSON: function (n) { return '' + n; },
+        toJSON: function (n) { return +n; },
+      });
+      assert.equal(fromJSON(123, t), '123');
+    });
+
   });
 
   suite('fromDefaultJSON', function () {
@@ -188,6 +200,18 @@ suite('values', function () {
       var d = new Date(1234);
       assert.equal(toJSON(d, t), 1234);
       assert.throws(function () { toJSON(123, t); }, /encoding failed/);
+    });
+
+    test('abstract long', function () {
+      var t = types.constructors.LongType.__with({
+        fromBuffer: function () { throw new Error('boom'); },
+        toBuffer: function () { throw new Error('boom'); },
+        compare: function () { throw new Error('boom'); },
+        isValid: function (n) { return typeof n == 'string'; },
+        fromJSON: function (n) { return '' + n; },
+        toJSON: function (n) { return +n; },
+      });
+      assert.equal(toJSON('1234', t), 1234);
     });
   });
 });
