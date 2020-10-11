@@ -2388,6 +2388,18 @@ suite('types', function () {
       assert.equal(t.getField('id').getType().getName(), 'Bar');
     });
 
+    test('omit record methods', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [{name: 'id', type: 'string'}]
+      }, {omitRecordMethods: true});
+      var Foo = t.recordConstructor;
+      assert.strictEqual(Foo.type, undefined);
+      var v = t.clone({id: 'abc'});
+      assert.strictEqual(v.toBuffer, undefined);
+    });
+
   });
 
   suite('AbstractLongType', function () {
