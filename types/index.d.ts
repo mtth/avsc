@@ -100,6 +100,7 @@ interface ForSchemaOptions {
   logicalTypes: { [type: string]: new (schema: Schema, opts?: any) => types.LogicalType; };
   namespace: string;
   noAnonymousTypes: boolean;
+  omitRecordMethods: boolean;
   registry: { [name: string]: Type };
   typeHook: (schema: Schema, opts: ForSchemaOptions) => Type | undefined;
   wrapUnions: boolean | 'auto' | 'always' | 'never';
