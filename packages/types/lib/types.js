@@ -1849,7 +1849,10 @@ function RecordType(schema, opts, scope) {
   }, this));
   this._branchConstructor = this._createBranchConstructor();
   this._isError = schema.type === 'error';
-  this.recordConstructor = this._createConstructor(opts.errorStackTraces);
+  this.recordConstructor = this._createConstructor(
+    opts.errorStackTraces,
+    opts.omitRecordMethods
+  );
   this._read = this._createReader();
   this._skip = this._createSkipper();
   this._write = this._createWriter();
@@ -1865,7 +1868,7 @@ RecordType.prototype._getConstructorName = function () {
     this._isError ? 'Error$' : 'Record$';
 };
 
-RecordType.prototype._createConstructor = function (errorStackTraces) {
+RecordType.prototype._createConstructor = function (errorStack, plainRecord) {
   // jshint -W040,-W054
   var outerArgs = [];
   var innerArgs = [];
@@ -1878,7 +1881,7 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
     hasDefault = defaultValue() !== undefined;
     name = field.name;
     if (
-      errorStackTraces && this._isError && name === 'stack' &&
+      errorStack && this._isError && name === 'stack' &&
       utils.isType(field.type, 'string') && !hasDefault
     ) {
       // We keep track of whether we've encountered a valid stack field (in
@@ -1913,20 +1916,22 @@ RecordType.prototype._createConstructor = function (errorStackTraces) {
   var outerBody = 'return function ' + this._getConstructorName() + '(';
   outerBody += innerArgs.join() + ') {\n' + innerBody + '};';
   var Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
+  if (plainRecord) {
+    return Record;
+  }
 
   var self = this;
   Record.type = self;
-  if (this._isError) {
-    util.inherits(Record, Error);
-    Record.prototype.name = self.name;
-  }
-
   Record.fromBuffer = function () {
     return self.binaryDecode.apply(self, arguments);
   };
   Record.fromObject = function () {
     return self.jsonDecode.apply(self, arguments);
   };
+  if (this._isError) {
+    util.inherits(Record, Error);
+    Record.prototype.name = self.name;
+  }
 
   // We don't add these directly on the prototype such that they are not
   // enumerable.
