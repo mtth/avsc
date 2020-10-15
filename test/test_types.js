@@ -1454,6 +1454,17 @@ suite('types', function () {
       });
     });
 
+    test('invalid name', function () {
+      var schema = {
+        name: 'foo-bar.Bar',
+        type: 'record',
+        fields: [{name: 'id', type: 'int'}]
+      };
+      assert.throws(function () {
+        Type.forSchema(schema);
+      }, /invalid name/);
+    });
+
     test('reserved name', function () {
       var schema = {
         name: 'case',
