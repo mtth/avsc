@@ -32,8 +32,8 @@ declare namespace schema {
       doc?: string;
       type: Schema;
       default?: any;
+      order?: "ascending" | "descending" | "ignore";
     }[];
-    order?: "ascending" | "descending" | "ignore";
   }
 
   interface EnumType {
