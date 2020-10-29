@@ -454,6 +454,7 @@ suite('services', function () {
       var messages = [];
       createReadableStream(frames)
         .pipe(new FrameDecoder())
+        .pipe(createWritableStream(messages))
         .on('finish', function () {
           assert.deepEqual(
             messages,
@@ -463,8 +464,7 @@ suite('services', function () {
             ]
           );
           done();
-        })
-        .pipe(createWritableStream(messages));
+        });
     });
 
     test('decode with trailing data', function (done) {
@@ -490,10 +490,10 @@ suite('services', function () {
     test('decode empty', function (done) {
       createReadableStream([])
         .pipe(new FrameDecoder())
-        .on('end', function () {
+        .pipe(createWritableStream([]))
+        .on('finish', function () {
           done();
-        })
-        .pipe(createWritableStream([]));
+        });
     });
 
     test('encode empty', function (done) {
@@ -3250,8 +3250,7 @@ function createReadableStream(bufs) {
   Stream.prototype._read = function () {
     this.push(bufs[n++] || null);
   };
-  var readable = new Stream();
-  return readable;
+  return new Stream();
 }
 
 function createWritableStream(bufs) {
