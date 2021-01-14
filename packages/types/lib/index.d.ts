@@ -161,6 +161,7 @@ export namespace Type {
     readonly errorStackTraces?: boolean;
     readonly logicalTypes?: {[name: string]: typeof LogicalType.constructor};
     readonly omitRecordMethods?: boolean;
+    readonly recordSizeProperty?: string | symbol;
     readonly registry?: {[name: string]: Type};
     readonly typeHook?: TypeHook;
     readonly wrapUnions?: 'auto' | 'always' | 'never' | boolean;

@@ -1853,7 +1853,7 @@ function RecordType(schema, opts, scope) {
     opts.errorStackTraces,
     opts.omitRecordMethods
   );
-  this._read = this._createReader();
+  this._read = this._createReader(opts.recordSizeProperty);
   this._skip = this._createSkipper();
   this._write = this._createWriter();
   this._check = this._createChecker();
@@ -2041,7 +2041,7 @@ RecordType.prototype._createChecker = function () {
   return new Function(names.join(), body).apply(undefined, values);
 };
 
-RecordType.prototype._createReader = function () {
+RecordType.prototype._createReader = function (sizeProp) {
   // jshint -W054
   var names = [];
   var values = [this.recordConstructor];
@@ -2051,10 +2051,20 @@ RecordType.prototype._createReader = function () {
     values.push(this.fields[i].type);
   }
   var name = this._getConstructorName();
-  var body = 'return function read' + name + '(t) {\n';
-  body += '  return new ' + name + '(\n    ';
-  body += names.map(function (s) { return s + '._read(t)'; }).join(',\n    ');
-  body += '\n  );\n};';
+  var body = 'return function read' + name + '(t) {\n  ';
+  if (sizeProp) {
+    body += 'var p = t.pos;\n  var r = new ' + name + '(';
+    body += names.map(function (s) { return s + '._read(t)'; }).join(', ');
+    body += ');\n  ';
+    body += 'Object.defineProperty(r, s, {value: t.pos-p, writable: true});\n';
+    body += '  return r;\n};';
+    names.push('s');
+    values.push(sizeProp);
+  } else {
+    body += 'return new ' + name + '(';
+    body += names.map(function (s) { return s + '._read(t)'; }).join(', ');
+    body += ');\n};';
+  }
   names.unshift(name);
   // We can do this since the JS spec guarantees that function arguments are
   // evaluated from left to right.

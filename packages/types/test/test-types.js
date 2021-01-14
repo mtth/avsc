@@ -2254,6 +2254,17 @@ suite('types', function () {
       var v = t.clone({id: 'abc'});
       assert.strictEqual(v.toBuffer, undefined);
     });
+
+    test('size property present', function () {
+      var t = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [{name: 'id', type: 'string'}]
+      }, {recordSizeProperty: '__size'});
+      var b = t.binaryEncode({id: 'foobar'});
+      var v = t.binaryDecode(b);
+      assert.equal(v.__size, b.length);
+    });
   });
 
   suite('AbstractLongType', function () {
