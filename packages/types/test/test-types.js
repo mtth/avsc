@@ -2255,7 +2255,7 @@ suite('types', function () {
       assert.strictEqual(v.toBuffer, undefined);
     });
 
-    test('size property present', function () {
+    test('size property added when reading directly', function () {
       var t = Type.forSchema({
         type: 'record',
         name: 'Foo',
@@ -2264,6 +2264,26 @@ suite('types', function () {
       var b = t.binaryEncode({id: 'foobar'});
       var v = t.binaryDecode(b);
       assert.equal(v.__size, b.length);
+    });
+
+    test('size property added when resolving', function () {
+      var t1 = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [{name: 'id', type: 'string'}, {name: 'foo', type: 'int'}],
+      });
+      var t2 = Type.forSchema({
+        type: 'record',
+        name: 'Foo',
+        fields: [
+          {name: 'id1', type: 'string', aliases: ['id']},
+          {name: 'id2', type: 'string', aliases: ['id']},
+        ]
+      }, {recordSizeProperty: '__size'});
+      var r = t2.createResolver(t1);
+      var b = t1.binaryEncode({id: 'foobar', foo: 12345});
+      var v = t2.binaryDecode(b, r);
+      assert.equal(v.__size, 7);
     });
   });
 

@@ -1847,13 +1847,14 @@ function RecordType(schema, opts, scope) {
     this._fieldsByName[field.name] = field;
     return field;
   }, this));
-  this._branchConstructor = this._createBranchConstructor();
+  this._sizeProp = opts.recordSizeProperty;
   this._isError = schema.type === 'error';
+  this._branchConstructor = this._createBranchConstructor();
   this.recordConstructor = this._createConstructor(
     opts.errorStackTraces,
     opts.omitRecordMethods
   );
-  this._read = this._createReader(opts.recordSizeProperty);
+  this._read = this._createReader();
   this._skip = this._createSkipper();
   this._write = this._createWriter();
   this._check = this._createChecker();
@@ -2041,7 +2042,7 @@ RecordType.prototype._createChecker = function () {
   return new Function(names.join(), body).apply(undefined, values);
 };
 
-RecordType.prototype._createReader = function (sizeProp) {
+RecordType.prototype._createReader = function () {
   // jshint -W054
   var names = [];
   var values = [this.recordConstructor];
@@ -2052,14 +2053,14 @@ RecordType.prototype._createReader = function (sizeProp) {
   }
   var name = this._getConstructorName();
   var body = 'return function read' + name + '(t) {\n  ';
-  if (sizeProp) {
-    body += 'var p = t.pos;\n  var r = new ' + name + '(';
+  if (this._sizeProp) {
+    body += 'var p = t.pos;\n  var v = new ' + name + '(';
     body += names.map(function (s) { return s + '._read(t)'; }).join(', ');
     body += ');\n  ';
-    body += 'Object.defineProperty(r, s, {value: t.pos-p, writable: true});\n';
-    body += '  return r;\n};';
+    body += 'Object.defineProperty(v, s, {value: t.pos-p, writable: true});\n';
+    body += '  return v;\n};';
     names.push('s');
-    values.push(sizeProp);
+    values.push(this._sizeProp);
   } else {
     body += 'return new ' + name + '(';
     body += names.map(function (s) { return s + '._read(t)'; }).join(', ');
@@ -2179,34 +2180,48 @@ RecordType.prototype._update = function (resolver, type, opts) {
   var args = [uname];
   var values = [this.recordConstructor];
   var body = '  return function read' + uname + '(t, b) {\n';
+  var indent;
+  if (this._sizeProp) {
+    body += '  var c = 0;\n  var p;\n';
+  }
   for (i = 0; i < wFields.length; i++) {
     if (i === lazyIndex) {
       body += '  if (!b) {\n';
     }
+    indent = (~lazyIndex && i >= lazyIndex) ? '    ' : '  ';
     field = type.fields[i];
     name = field.name;
     if (resolvers[name] === undefined) {
-      body += (~lazyIndex && i >= lazyIndex) ? '    ' : '  ';
       args.push('r' + i);
       values.push(field.type);
-      body += 'r' + i + '._skip(t);\n';
+      body += indent + 'r' + i + '._skip(t);\n';
     } else {
       j = resolvers[name].length;
+      if (this._sizeProp) {
+        body += indent + 'p = t.pos;\n';
+      }
       while (j--) {
-        body += (~lazyIndex && i >= lazyIndex) ? '    ' : '  ';
         args.push('r' + i + 'f' + j);
         fieldResolver = resolvers[name][j];
         values.push(fieldResolver.resolver);
-        body += 'var ' + fieldResolver.name + ' = ';
+        body += indent + 'var ' + fieldResolver.name + ' = ';
         body += 'r' + i + 'f' + j + '._' + (j ? 'peek' : 'read') + '(t);\n';
+      }
+      if (this._sizeProp) {
+        body += indent + 'c += t.pos-p;\n';
       }
     }
   }
   if (~lazyIndex) {
     body += '  }\n';
   }
-  body += '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
-
+  body += '  var v = new ' + uname + '(' + innerArgs.join() + ');\n';
+  if (this._sizeProp) {
+    body += '  Object.defineProperty(v, s, {value: c, writable: true});\n';
+    values.push(this._sizeProp);
+    args.push('s');
+  }
+  body += '  return v;\n};';
   resolver._read = new Function(args.join(), body).apply(undefined, values);
 };
 
