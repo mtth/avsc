@@ -1,4 +1,4 @@
-import {Schema} from '@avro/types';
+import {Schema, Type} from '@avro/types';
 import {Duplex} from 'stream';
 
 export type Codec = (buf1: Buffer, cb: (err: Error | null, buf2: Buffer) => void) => void;
@@ -28,7 +28,7 @@ export interface BlockEncoderOpts {
   readonly codec?: string;
   readonly codecs?: {[key: string]: Codec};
   readonly metadata?: {[key: string]: Buffer};
-  readonly check?: boolean | Type.CheckOpts;
+  readonly check?: boolean | Type.CheckValidOpts;
   readonly omitHeader?: boolean;
 }
 
