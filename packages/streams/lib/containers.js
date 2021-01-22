@@ -126,6 +126,7 @@ function BlockDecoder(opts) {
   var noDecode = !!opts.noDecode;
   stream.Duplex.call(this, {
     allowHalfOpen: true, // For async decompressors.
+    autoDestroy: opts.autoDestroy,
     readableObjectMode: !noDecode
   });
 
@@ -392,6 +393,7 @@ function BlockEncoder(schema, opts) {
 
   stream.Duplex.call(this, {
     allowHalfOpen: true, // To support async compressors.
+    autoDestroy: opts.autoDestroy,
     writableObjectMode: true
   });
 

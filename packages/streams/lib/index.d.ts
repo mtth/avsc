@@ -12,7 +12,8 @@ export interface BlockInfo {
 }
 
 export interface BlockDecoderOpts {
-  readonly codecs?: {[key: string]: Codec};
+  readonly autoDestroy?: boolean;
+  readonly codecs?: {readonly [key: string]: Codec};
   readonly parseHook?: (schema: Schema) => Schema;
   readonly readerSchema?: Schema;
 }
@@ -24,12 +25,13 @@ export class BlockDecoder extends Duplex {
 }
 
 export interface BlockEncoderOpts {
+  readonly autoDestroy?: boolean;
   readonly blockSize?: number;
-  readonly codec?: string;
-  readonly codecs?: {[key: string]: Codec};
-  readonly metadata?: {[key: string]: Buffer};
   readonly check?: boolean | Type.CheckValidOpts;
-  readonly omitHeader?: boolean;
+  readonly codec?: string;
+  readonly codecs?: {readonly [key: string]: Codec};
+  readonly metadata?: {readonly [key: string]: Buffer};
+  readonly writeHeader?: boolean | 'never' | 'auto' | 'always';
 }
 
 export class BlockEncoder extends Duplex {

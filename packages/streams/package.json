@@ -1,6 +1,6 @@
 {
   "name": "@avro/streams",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "description": "Avro data streams",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
