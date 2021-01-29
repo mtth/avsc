@@ -1875,6 +1875,27 @@ suite('types', function () {
       assert.equal(t.schema({noDeref: true}), 'earth.Person');
     });
 
+    test('toJSON', function () {
+      var s = {
+        type: 'record',
+        name: 'earth.Person',
+        doc: 'Hi!',
+        aliases: ['earth.Human'],
+        fields: [
+          {name: 'friends', type: {type: 'array', items: 'string'}},
+          {
+            name: 'age',
+            aliases: ['years'],
+            type: 'int',
+            'default': 0,
+            order: 'descending'
+          }
+        ]
+      };
+      var t = Type.forSchema(s)
+      assert.deepEqual(JSON.parse(JSON.stringify(t)), s);
+    });
+
     test('schema recursive schema', function () {
       var t = Type.forSchema({
         type: 'record',
@@ -3304,7 +3325,7 @@ suite('types', function () {
     });
   });
 
-  suite('fromJSON', function () {
+  suite('JSON decode', function () {
 
     test('int', function () {
       var t = Type.forSchema('int');
@@ -3333,12 +3354,11 @@ suite('types', function () {
 
   });
 
-  suite('toJSON', function () {
+  suite('JSON encode', function () {
 
     test('int', function () {
       var t = Type.forSchema('int');
       assert.equal(t.jsonEncode(2), 2);
-      assert.throws(function () { t.toJSON('a'); });
     });
 
   });

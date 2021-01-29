@@ -603,6 +603,10 @@ Type.prototype.schema = function (opts) {
   });
 };
 
+Type.prototype.toJSON = function () {
+  return this.schema({exportAttrs: true});
+};
+
 Type.prototype.toString = function () {
   return f('<%s>', getClassName(this.typeName));
 };
