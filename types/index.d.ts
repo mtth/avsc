@@ -22,7 +22,7 @@ declare namespace schema {
   }
 
   interface RecordType {
-    type: "record";
+    type: "record" | "error";
     name: string;
     namespace?: string;
     doc?: string;
