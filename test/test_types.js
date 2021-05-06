@@ -931,8 +931,12 @@ suite('types', function () {
       t1 = newEnum('Foo2', ['foo', 'baz', 'bar'], ['Foo']);
       resolver = t1.createResolver(t2);
       assert.equal(t1.fromBuffer(buf, resolver), 'bar');
-      t2 = newEnum('Foo', ['bar', 'bax']);
-      assert.throws(function () { t1.createResolver(t2); });
+      assert.throws(function () {
+        t1.createResolver(newEnum('Foo2', ['bar', 'baz', 'bax']));
+      });
+      assert.throws(function () {
+        t1.createResolver(newEnum('Foo3', ['foo', 'bar']));
+      });
       assert.throws(function () {
         t1.createResolver(Type.forSchema('int'));
       });
@@ -946,6 +950,28 @@ suite('types', function () {
         }
         return new builtins.EnumType(obj);
       }
+    });
+
+    test('resolve with default', function () {
+      var wt = new builtins.EnumType({name: 'W', symbols: ['A', 'B']});
+      var rt = new builtins.EnumType({
+        name: 'W',
+        symbols: ['D', 'A', 'C'],
+        default: 'D',
+      });
+      var resolver = rt.createResolver(wt);
+      assert.equal(rt.fromBuffer(wt.toBuffer('A'), resolver), 'A');
+      assert.equal(rt.fromBuffer(wt.toBuffer('B'), resolver), 'D');
+    });
+
+    test('invalid default', function () {
+      assert.throws(function () {
+        var wt = new builtins.EnumType({
+          name: 'W',
+          symbols: ['A', 'B'],
+          default: 'D',
+        });
+      });
     });
 
     test('clone', function () {
