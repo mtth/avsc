@@ -285,6 +285,28 @@ suite('specs', function () {
       })
     })
 
+    test('import idl from nested paths', function (done) {
+      var opts = {
+        importHook: createImportHook({
+          'a/1.avdl': 'import idl "2.avdl"; protocol A1 { fixed One(1); }',
+          'a/2.avdl': 'import idl "../b/3.avdl"; protocol A2 { fixed Two(2); }',
+          'b/3.avdl': 'protocol B3 { fixed Three(3); }'
+        })
+      };
+      assembleProtocol('a/1.avdl', opts, function (err, schema) {
+        assert.strictEqual(err, null);
+        assert.deepEqual(schema, {
+          protocol: 'A1',
+          types: [
+            {name: 'Three', type: 'fixed', size: 3},
+            {name: 'Two', type: 'fixed', size: 2},
+            {name: 'One', type: 'fixed', size: 1}
+          ]
+        });
+        done();
+      });
+    });
+
     test('duplicate message from import', function (done) {
       var hook = createImportHook({
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
@@ -600,9 +622,9 @@ suite('specs', function () {
     // Import hook from strings.
     function createImportHook(imports) {
       return function (fpath, kind, cb) {
-        var fname = path.basename(fpath);
-        var str = imports[fname];
-        delete imports[fname];
+        var key = path.normalize(fpath);
+        var str = imports[key];
+        delete imports[key];
         process.nextTick(function () { cb(null, str); });
       };
     }
