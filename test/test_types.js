@@ -3798,6 +3798,21 @@ suite('types', function () {
     assert(!t1.equals(null));
   });
 
+  test('equals strict', function () {
+    var t1 = Type.forSchema({
+      type: 'record',
+      name: 'Foo',
+      fields: [{name: 'foo', type: 'int', default: 0}],
+    });
+    var t2 = Type.forSchema({
+      type: 'record',
+      name: 'Foo',
+      fields: [{name: 'foo', type: 'int', default: 1}],
+    });
+    assert(t1.equals(t2));
+    assert(!t1.equals(t2, {strict: true}));
+  });
+
   test('documentation', function () {
     assert.strictEqual(Type.forSchema('int').doc, undefined);
     var t1 = Type.forSchema({
