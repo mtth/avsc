@@ -3583,6 +3583,22 @@ suite('types', function () {
       assert.doesNotThrow(function () { t3.createResolver(t1); });
     });
 
+    test('ignore namespaces', function () {
+      var t1 = Type.forSchema({type: 'fixed', name: 'foo.Two', size: 2});
+      var t2 = Type.forSchema(
+        {type: 'fixed', size: 2, name: 'bar.Deux', aliases: ['bar.Two']}
+      );
+      assert.throws(function () { t1.createResolver(t2); });
+      assert.doesNotThrow(function () {
+        t2.createResolver(t1, {ignoreNamespaces: true});
+      });
+      var t3 = Type.forSchema({type: 'fixed', size: 2, name: 'Two'});
+      assert.throws(function () { t3.createResolver(t1); });
+      assert.doesNotThrow(function () {
+        t3.createResolver(t1, {ignoreNamespaces: true});
+      });
+    });
+
   });
 
   suite('type references', function () {
