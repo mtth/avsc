@@ -47,6 +47,7 @@ const avro = require('avsc');
   ```javascript
   const type = avro.Type.forSchema({
     type: 'record',
+    name: 'Pet',
     fields: [
       {name: 'kind', type: {type: 'enum', symbols: ['CAT', 'DOG']}},
       {name: 'name', type: 'string'}
