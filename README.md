@@ -49,7 +49,10 @@ const avro = require('avsc');
     type: 'record',
     name: 'Pet',
     fields: [
-      {name: 'kind', type: {type: 'enum', symbols: ['CAT', 'DOG']}},
+      {
+        name: 'kind',
+        type: {type: 'enum', name: 'PetKind', symbols: ['CAT', 'DOG']}
+      },
       {name: 'name', type: 'string'}
     ]
   });
