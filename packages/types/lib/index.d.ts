@@ -8,36 +8,36 @@ type PrimTypeName =
 
 /** Attributes present in all schemas. */
 interface BaseSchema {
-  doc?: string;
-  logicalType?: string;
+  readonly doc?: string;
+  readonly logicalType?: string;
 }
 
 /** Attributes present in all named schemas. */
 interface NamedSchema extends BaseSchema {
-  name: string;
-  aliases?: string[];
-  namespace?: string;
+  readonly name: string;
+  readonly aliases?: ReadonlyArray<string>;
+  readonly namespace?: string;
 }
 
 /** Record field schema. */
 interface FieldSchema<E = {}> {
-  name: string;
-  type: Schema<E>;
-  aliases?: string[];
-  doc?: string;
-  order?: 'ascending' | 'descending' | 'ignore';
-  default?: any;
+  readonly name: string;
+  readonly type: Schema<E>;
+  readonly aliases?: ReadonlyArray<string>;
+  readonly doc?: string;
+  readonly order?: 'ascending' | 'descending' | 'ignore';
+  readonly default?: any;
 }
 
 /** Avro schema. */
-type Schema<E = {[key: string]: any}> =
+type Schema<E = {readonly [key: string]: any}> =
   | {type: PrimTypeName} & BaseSchema & E
   | {type: 'array', items: Schema<E>} & BaseSchema & E
-  | {type: 'enum', symbols: string[]} & NamedSchema & E
+  | {type: 'enum', symbols: ReadonlyArray<string>} & NamedSchema & E
   | {type: 'fixed', size: number} & NamedSchema & E
   | {type: 'map', values: Schema<E>} & BaseSchema & E
-  | {type: 'record', fields: FieldSchema<E>[]} & NamedSchema & E
-  | Schema<E>[] // Union.
+  | {type: 'record', fields: ReadonlyArray<FieldSchema<E>>} & NamedSchema & E
+  | ReadonlyArray<Schema<E>> // Union.
   | Type // Already "instantiated" schema.
   | string; // References.
 
@@ -110,7 +110,7 @@ export class Type<V = any, E = {}> {
 
   schema(opts?: Type.SchemaOpts): Schema;
 
-  static isType(val: any, ...prefixes: string[]): boolean;
+  static isType(val: any, ...prefixes: string[]): val is Type;
 
   static forSchema<V = Type>(
     schema: Schema,
