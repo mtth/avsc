@@ -300,8 +300,8 @@ export class LogicalType<V = any, U = any, T = Type<U>> extends Type<V> {
   protected _export(schema: Schema): void;
 }
 
-export interface Branch<V = any> {
-  readonly type: Type<V>;
+export interface Branch<V = any, T = Type<V>> {
+  readonly type: T;
   unwrap(): V;
 }
 
