@@ -1,0 +1,48 @@
+name: CI
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    strategy:
+      matrix:
+        node:
+          - '12'
+          - '11'
+          - '10'
+          - '9'
+          - '8'
+          - '7'
+          - '6'
+          # - '5' Disabled due to bug in that version of npm.
+          - '4'
+          - '3'
+          - '2'
+          - '1.8'
+          - '1.0'
+          - '0.12'
+          - '0.11'
+    name: Test using node ${{ matrix.node }}
+    steps:
+      - uses: actions/checkout@v2
+      - name: Setup node
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install
+        run: |
+          npm install
+          node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
+          node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
+      - name: Test
+        run: npm test
