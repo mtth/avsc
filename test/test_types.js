@@ -4091,7 +4091,8 @@ suite('types', function () {
     test('numbers', function () {
       assert.equal(infer(1).typeName, 'int');
       assert.equal(infer(1.2).typeName, 'float');
-      assert.equal(infer(9007199254740991).typeName, 'double');
+      assert.equal(infer(9007199254740991).typeName, 'long');
+      assert.equal(infer(2 ** 24 + 0.5).typeName, 'double');
     });
 
     test('function', function () {
