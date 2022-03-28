@@ -43,6 +43,9 @@ protocol Simple {
     array<@logicalType("date") long> arrayOfDates;
 
     map<boolean> someMap = {"true": true};
+
+    /** */
+    string fieldWithEmptyDoc;
   }
 
   @doc("An error.")
