@@ -80,7 +80,12 @@ suite('specs', function () {
                   type: {type: 'map', values: 'boolean'},
                   name: 'someMap',
                   'default': {'true': true}
-                }
+                },
+                {
+                  doc: '',
+                  type: 'string',
+                  name: 'fieldWithEmptyDoc',
+                },
               ]
             },
             {
