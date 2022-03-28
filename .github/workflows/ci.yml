@@ -2,12 +2,12 @@ name: CI
 on:
   push:
     branches:
-      - main
+      - master
     paths-ignore:
       - '**.md'
   pull_request:
     branches:
-      - main
+      - master
     paths-ignore:
       - '**.md'
 jobs:
@@ -17,6 +17,9 @@ jobs:
     strategy:
       matrix:
         node:
+          - '17'
+          - '16'
+          - '14'
           - '12'
           - '11'
           - '10'
@@ -35,14 +38,18 @@ jobs:
     name: Test using node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v2
-      - name: Setup node
-        uses: actions/setup-node@v2
-        with:
-          node-version: ${{ matrix.node }}
+      - name: Install Node ${{ matrix.node }}
+        shell: bash -eo pipefail -l {0}
+        run: |
+          nvm install --default ${{ matrix.node }}
+          if [[ "${{ matrix.node }}" == 0.* ]]; then
+            npm config set strict-ssl false
+          fi
+          dirname "$(nvm which ${{ matrix.node }})" >> "$GITHUB_PATH"
       - name: Install
         run: |
-          npm install
+          npm i
           node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
           node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
       - name: Test
-        run: npm test
+        run: npm t
