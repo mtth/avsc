@@ -39,9 +39,10 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: ${{ matrix.node }}
-      - run: |
+      - name: Install
+        run: |
           npm install
           node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
-          # Versions of node <8 require even older dependencies.
           node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
-      - run: npm test
+      - name: Test
+        run: npm test
