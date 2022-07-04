@@ -20,9 +20,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 $ npm install avsc
 ```
 
-`avsc` is compatible with all versions of [node.js][] since `0.11` and major
-browsers via [browserify][]. For convenience, you can also find compiled
-distributions with the [releases][] (but please host your own copy).
+`avsc` is compatible with all versions of [node.js][] since `0.11`.
 
 
 ## Documentation
@@ -120,7 +118,6 @@ const avro = require('avsc');
 
 [benchmarks]: https://github.com/mtth/avsc/wiki/Benchmarks
 [browser-support]: https://github.com/mtth/avsc/wiki#browser-support
-[browserify]: http://browserify.org/
 [custom-long]: https://github.com/mtth/avsc/wiki/Advanced-usage#custom-long-types
 [decoder-api]: https://github.com/mtth/avsc/wiki/API#class-blockdecoderopts
 [home]: https://github.com/mtth/avsc/wiki
@@ -128,7 +125,6 @@ const avro = require('avsc');
 [logical-types]: https://github.com/mtth/avsc/wiki/Advanced-usage#logical-types
 [node.js]: https://nodejs.org/en/
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
-[releases]: https://github.com/mtth/avsc/releases
 [rpc]: https://github.com/mtth/avsc/wiki/Quickstart#services
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
 [snappy]: https://avro.apache.org/docs/current/spec.html#snappy
