@@ -6,7 +6,7 @@
 // automatically. Either finish documenting the type signature or document why
 // `any` is appropriate.
 
-import * as stream from 'stream'; 
+import * as stream from 'stream';
 import { EventEmitter } from 'events';
 
 //"virtual" namespace (no JS, just types) for Avro Schema
@@ -43,6 +43,7 @@ declare namespace schema {
     aliases?: string[];
     doc?: string;
     symbols: string[];
+    default?: string;
   }
 
   interface ArrayType {
@@ -239,7 +240,7 @@ export namespace Service {
     objectMode: boolean;
   }
 
-  
+
 
   type TransportFunctionCallback = (err: Error|null|undefined, res?: stream.Stream) => void;
   type TransportFunction = (cb: TransportFunctionCallback) => stream.Stream; // TODO
