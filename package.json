@@ -32,7 +32,7 @@
     "lib",
     "types"
   ],
-  "main": "./lib",
+  "main": "./lib/index.js",
   "types": "./types",
   "browser": {
     "./lib": "./etc/browser/avsc.js",
