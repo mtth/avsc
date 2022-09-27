@@ -6,9 +6,11 @@ var containers = require('../lib/containers'),
     types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
+    buffer = require('buffer'),
     stream = require('stream');
 
 
+var Buffer = buffer.Buffer;
 var BLOCK_TYPE = containers.BLOCK_TYPE;
 var Block = BLOCK_TYPE.recordConstructor;
 var HEADER_TYPE = containers.HEADER_TYPE;

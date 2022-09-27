@@ -10,9 +10,11 @@ var index = require('../lib'),
     services = require('../lib/services'),
     types = require('../lib/types'),
     assert = require('assert'),
+    buffer = require('buffer'),
     path = require('path'),
     tmp = require('tmp');
 
+var Buffer = buffer.Buffer;
 
 var DPATH = path.join(__dirname, 'dat');
 
