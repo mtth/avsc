@@ -12,6 +12,9 @@
  *
  */
 
+var buffer = require('buffer');
+var Buffer = buffer.Buffer;
+
 function createHash(algorithm) {
   if (algorithm !== 'md5') {
     throw new Error('only md5 is supported in the browser');

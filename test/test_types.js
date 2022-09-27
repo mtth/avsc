@@ -5,8 +5,11 @@
 var types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
+    buffer = require('buffer'),
     util = require('util');
 
+
+var Buffer = buffer.Buffer;
 
 var LogicalType = types.builtins.LogicalType;
 var Tap = utils.Tap;
