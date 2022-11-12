@@ -1585,7 +1585,7 @@ suite('types', function () {
           name: 'Person',
           fields: [{name: 'name', type: ['null', 'string'], 'default': ''}]
         });
-      });
+      }, /incompatible.*first branch/);
     });
 
     test('record default', function () {
