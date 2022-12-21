@@ -99,7 +99,7 @@ function createBlobEncoder(schema, opts) {
     write: function (val, encoding, cb) {
       return encoder.write(val, encoding, cb);
     }
-  }).on('finish', function () { encoder.end(); });
+  }).on('finish', () => { encoder.end(); });
 }
 
 

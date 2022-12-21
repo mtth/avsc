@@ -14,8 +14,8 @@ let loops = 3;
 let records = [];
 
 avsc.createFileDecoder(dataPath)
-  .on('data', function (record) { records.push(record); })
-  .on('end', function () {
+  .on('data', (record) => { records.push(record); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     let time = process.hrtime();

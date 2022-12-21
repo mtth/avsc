@@ -33,7 +33,9 @@ module.exports = {
           ignoreStrings: true
         }],
 
-        'no-var': ['error']
+        'no-var': ['error'],
+        'prefer-arrow-callback': ['error'],
+        'arrow-parens': ['error', 'always']
       },
     },
     {

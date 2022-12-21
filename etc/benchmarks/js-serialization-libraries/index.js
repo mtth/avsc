@@ -29,15 +29,15 @@ function generateStats(schema, opts) {
   opts = opts || {};
 
   let type = avro.parse(schema, {wrapUnions: opts.wrapUnions});
-  return [DecodeSuite, EncodeSuite].map(function (Suite) {
+  return [DecodeSuite, EncodeSuite].map((Suite) => {
     let stats = [];
     let suite = new Suite(type, opts)
-      .on('start', function () { console.error(Suite.key_ + ' ' + type); })
-      .on('cycle', function (evt) { console.error('' + evt.target); })
+      .on('start', () => { console.error(Suite.key_ + ' ' + type); })
+      .on('cycle', (evt) => { console.error('' + evt.target); })
       .run();
     stats.push({
       value: suite.getValue(),
-      stats: suite.map(function (benchmark) {
+      stats: suite.map((benchmark) => {
         let stats = benchmark.stats;
         return {
           name: benchmark.name,
@@ -157,7 +157,7 @@ DecodeSuite.prototype.__jsonString = function () {
 DecodeSuite.prototype.__jsonBinary = function () {
   let str = JSON.stringify(this.getValue());
   return function () {
-    let obj = JSON.parse(str, function (key, value) {
+    let obj = JSON.parse(str, (key, value) => {
       return (value && value.type === 'Buffer') ? new Buffer(value) : value;
     });
     if (obj.$) {
@@ -283,7 +283,7 @@ EncodeSuite.prototype.__json = function () {
 EncodeSuite.prototype.__jsonBinary = function () {
   let val = this.getValue();
   return function () {
-    let str = JSON.stringify(val, function (key, value) {
+    let str = JSON.stringify(val, (key, value) => {
       if (Buffer.isBuffer(value)) {
         return value.toString('binary');
       }

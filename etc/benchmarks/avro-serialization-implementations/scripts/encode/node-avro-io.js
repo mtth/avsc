@@ -11,12 +11,12 @@ let records = [];
 let writer;
 
 avsc.createFileDecoder(process.argv[2])
-  .on('metadata', function (type) {
+  .on('metadata', (type) => {
     let schema = new io.Schema.Schema(JSON.parse(type.toString()));
     writer = new io.IO.DatumWriter(schema);
   })
-  .on('data', function (record) { records.push(record); })
-  .on('end', function () {
+  .on('data', (record) => { records.push(record); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     let time = process.hrtime();

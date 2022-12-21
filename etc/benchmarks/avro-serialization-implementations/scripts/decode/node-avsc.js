@@ -14,9 +14,9 @@ let bufs = [];
 let type = null;
 
 avsc.createFileDecoder(dataPath)
-  .on('metadata', function (writerType) { type = writerType; })
-  .on('data', function (record) { bufs.push(record.toBuffer()); })
-  .on('end', function () {
+  .on('metadata', (writerType) => { type = writerType; })
+  .on('data', (record) => { bufs.push(record.toBuffer()); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     let time = process.hrtime();

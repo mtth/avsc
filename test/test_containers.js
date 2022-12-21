@@ -20,23 +20,23 @@ let streams = containers.streams;
 let builtins = types.builtins;
 
 
-suite('containers', function () {
+suite('containers', () => {
 
-  suite('streams', function () {
+  suite('streams', () => {
 
-    suite('RawEncoder', function () {
+    suite('RawEncoder', () => {
 
       let RawEncoder = streams.RawEncoder;
 
-      test('flush once', function (cb) {
+      test('flush once', (cb) => {
         let t = Type.forSchema('int');
         let buf;
         let encoder = new RawEncoder(t)
-          .on('data', function (chunk) {
+          .on('data', (chunk) => {
             assert.strictEqual(buf, undefined);
             buf = chunk;
           })
-          .on('end', function () {
+          .on('end', () => {
             assert.deepEqual(buf, utils.bufferFrom([2, 0, 3]));
             cb();
           });
@@ -45,14 +45,14 @@ suite('containers', function () {
         encoder.end(-2);
       });
 
-      test('write multiple', function (cb) {
+      test('write multiple', (cb) => {
         let t = Type.forSchema('int');
         let bufs = [];
         let encoder = new RawEncoder(t, {batchSize: 1})
-          .on('data', function (chunk) {
+          .on('data', (chunk) => {
             bufs.push(chunk);
           })
-          .on('end', function () {
+          .on('end', () => {
             assert.deepEqual(bufs, [
               utils.bufferFrom([1]),
               utils.bufferFrom([2])
@@ -63,16 +63,16 @@ suite('containers', function () {
         encoder.end(1);
       });
 
-      test('resize', function (cb) {
+      test('resize', (cb) => {
         let t = Type.forSchema({type: 'fixed', name: 'A', size: 2});
         let data = utils.bufferFrom([48, 18]);
         let buf;
         let encoder = new RawEncoder(t, {batchSize: 1})
-          .on('data', function (chunk) {
+          .on('data', (chunk) => {
             assert.strictEqual(buf, undefined);
             buf = chunk;
           })
-          .on('end', function () {
+          .on('end', () => {
             assert.deepEqual(buf, data);
             cb();
           });
@@ -80,13 +80,13 @@ suite('containers', function () {
         encoder.end();
       });
 
-      test('flush when full', function (cb) {
+      test('flush when full', (cb) => {
         let t = Type.forSchema({type: 'fixed', name: 'A', size: 2});
         let data = utils.bufferFrom([48, 18]);
         let chunks = [];
         let encoder = new RawEncoder(t, {batchSize: 2})
-          .on('data', function (chunk) { chunks.push(chunk); })
-          .on('end', function () {
+          .on('data', (chunk) => { chunks.push(chunk); })
+          .on('end', () => {
             assert.deepEqual(chunks, [data, data]);
             cb();
           });
@@ -95,62 +95,62 @@ suite('containers', function () {
         encoder.end();
       });
 
-      test('empty', function (cb) {
+      test('empty', (cb) => {
         let t = Type.forSchema('int');
         let chunks = [];
         let encoder = new RawEncoder(t, {batchSize: 2})
-          .on('data', function (chunk) { chunks.push(chunk); })
-          .on('end', function () {
+          .on('data', (chunk) => { chunks.push(chunk); })
+          .on('end', () => {
             assert.deepEqual(chunks, []);
             cb();
           });
         encoder.end();
       });
 
-      test('missing writer type', function () {
-        assert.throws(function () { new RawEncoder(); });
+      test('missing writer type', () => {
+        assert.throws(() => { new RawEncoder(); });
       });
 
-      test('writer type from schema', function () {
+      test('writer type from schema', () => {
         let encoder = new RawEncoder('int');
         assert(encoder._type instanceof builtins.IntType);
       });
 
-      test('invalid object', function (cb) {
+      test('invalid object', (cb) => {
         let t = Type.forSchema('int');
         let encoder = new RawEncoder(t)
-          .on('error', function () { cb(); });
+          .on('error', () => { cb(); });
         encoder.write('hi');
       });
 
     });
 
-    suite('RawDecoder', function () {
+    suite('RawDecoder', () => {
 
       let RawDecoder = streams.RawDecoder;
 
-      test('single item', function (cb) {
+      test('single item', (cb) => {
         let t = Type.forSchema('int');
         let objs = [];
         let decoder = new RawDecoder(t)
-          .on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
+          .on('data', (obj) => { objs.push(obj); })
+          .on('end', () => {
             assert.deepEqual(objs, [0]);
             cb();
           });
         decoder.end(utils.bufferFrom([0]));
       });
 
-      test('no writer type', function () {
-        assert.throws(function () { new RawDecoder(); });
+      test('no writer type', () => {
+        assert.throws(() => { new RawDecoder(); });
       });
 
-      test('decoding', function (cb) {
+      test('decoding', (cb) => {
         let t = Type.forSchema('int');
         let objs = [];
         let decoder = new RawDecoder(t)
-          .on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
+          .on('data', (obj) => { objs.push(obj); })
+          .on('end', () => {
             assert.deepEqual(objs, [1, 2]);
             cb();
           });
@@ -158,13 +158,13 @@ suite('containers', function () {
         decoder.end(utils.bufferFrom([4]));
       });
 
-      test('no decoding', function (cb) {
+      test('no decoding', (cb) => {
         let t = Type.forSchema('int');
         let bufs = [utils.bufferFrom([3]), utils.bufferFrom([124])];
         let objs = [];
         let decoder = new RawDecoder(t, {noDecode: true})
-          .on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
+          .on('data', (obj) => { objs.push(obj); })
+          .on('end', () => {
             assert.deepEqual(objs, bufs);
             cb();
           });
@@ -172,103 +172,103 @@ suite('containers', function () {
         decoder.end(bufs[1]);
       });
 
-      test('write partial', function (cb) {
+      test('write partial', (cb) => {
         let t = Type.forSchema('bytes');
         let objs = [];
         let decoder = new RawDecoder(t)
-          .on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
+          .on('data', (obj) => { objs.push(obj); })
+          .on('end', () => {
             assert.deepEqual(objs, [utils.bufferFrom([6])]);
             cb();
           });
         decoder.write(utils.bufferFrom([2]));
         // Let the first read go through (and return null).
-        process.nextTick(function () { decoder.end(utils.bufferFrom([6])); });
+        process.nextTick(() => { decoder.end(utils.bufferFrom([6])); });
       });
 
-      test('read before write', function (cb) {
+      test('read before write', (cb) => {
         let t = Type.forSchema('int');
         let objs = [];
         let decoder = new RawDecoder(t)
-          .on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
+          .on('data', (obj) => { objs.push(obj); })
+          .on('end', () => {
             assert.deepEqual(objs, [1]);
             cb();
           });
-        setTimeout(function () {
+        setTimeout(() => {
           decoder.end(utils.bufferFrom([2]));
         }, 50);
       });
 
     });
 
-    suite('BlockEncoder', function () {
+    suite('BlockEncoder', () => {
 
       let BlockEncoder = streams.BlockEncoder;
 
-      test('invalid type', function () {
-        assert.throws(function () { new BlockEncoder(); });
+      test('invalid type', () => {
+        assert.throws(() => { new BlockEncoder(); });
       });
 
-      test('invalid codec', function () {
+      test('invalid codec', () => {
         let t = Type.forSchema('int');
-        assert.throws(function () { new BlockEncoder(t, {codec: 'foo'}); });
+        assert.throws(() => { new BlockEncoder(t, {codec: 'foo'}); });
       });
 
-      test('invalid metadata', function () {
+      test('invalid metadata', () => {
         let t = Type.forSchema('int');
-        assert.throws(function () {
+        assert.throws(() => {
           new BlockEncoder(t, {metadata: {bar: 'foo'}});
         }, /invalid metadata/);
       });
 
-      test('invalid object', function (cb) {
+      test('invalid object', (cb) => {
         let t = Type.forSchema('int');
         let encoder = new BlockEncoder(t)
-          .on('error', function () { cb(); });
+          .on('error', () => { cb(); });
         encoder.write('hi');
       });
 
-      test('empty eager header', function (cb) {
+      test('empty eager header', (cb) => {
         let t = Type.forSchema('int');
         let chunks = [];
         let encoder = new BlockEncoder(t, {writeHeader: true})
-          .on('data', function (chunk) { chunks.push(chunk); })
-          .on('end', function () {
+          .on('data', (chunk) => { chunks.push(chunk); })
+          .on('end', () => {
             assert.equal(chunks.length, 1);
             cb();
           });
         encoder.end();
       });
 
-      test('empty lazy header', function (cb) {
+      test('empty lazy header', (cb) => {
         let t = Type.forSchema('int');
         let pushed = false;
         let encoder = new BlockEncoder(t, {omitHeader: false})
-          .on('data', function () { pushed = true; })
-          .on('end', function () {
+          .on('data', () => { pushed = true; })
+          .on('end', () => {
             assert(!pushed);
             cb();
           });
         encoder.end();
       });
 
-      test('empty pipe', function (cb) {
+      test('empty pipe', (cb) => {
         let t = Type.forSchema('int');
         let rs = new stream.Readable();
         rs._read = function () { this.push(null); };
-        let ws = new stream.Writable().on('finish', function () { cb(); });
+        let ws = new stream.Writable().on('finish', () => { cb(); });
         rs.pipe(new BlockEncoder(t)).pipe(ws);
       });
 
-      test('flush on finish', function (cb) {
+      test('flush on finish', (cb) => {
         let t = Type.forSchema('int');
         let chunks = [];
         let encoder = new BlockEncoder(t, {
           omitHeader: true,
           syncMarker: SYNC
-        }).on('data', function (chunk) { chunks.push(chunk); })
-          .on('end', function () {
+        }).on('data', (chunk) => { chunks.push(chunk); })
+          .on('end', () => {
             assert.deepEqual(chunks, [
               utils.bufferFrom([6]),
               utils.bufferFrom([6]),
@@ -282,7 +282,7 @@ suite('containers', function () {
         encoder.end(4);
       });
 
-      test('flush on finish slow codec', function (cb) {
+      test('flush on finish slow codec', (cb) => {
         let t = Type.forSchema('int');
         let pushed = false;
         let encoder = new BlockEncoder(t, {
@@ -290,8 +290,8 @@ suite('containers', function () {
           codec: 'slow',
           codecs: {slow: slowCodec},
           writeHeader: false
-        }).on('data', function () { pushed = true; })
-          .on('end', function () {
+        }).on('data', () => { pushed = true; })
+          .on('end', () => {
             assert(pushed);
             cb();
           });
@@ -299,18 +299,18 @@ suite('containers', function () {
         encoder.end();
 
         function slowCodec(buf, cb) {
-          setTimeout(function () { cb(null, buf); }, 50);
+          setTimeout(() => { cb(null, buf); }, 50);
         }
       });
 
-      test('flush when full', function (cb) {
+      test('flush when full', (cb) => {
         let chunks = [];
         let encoder = new BlockEncoder(Type.forSchema('int'), {
           writeHeader: false,
           syncMarker: SYNC,
           blockSize: 2
-        }).on('data', function (chunk) { chunks.push(chunk); })
-          .on('end', function () {
+        }).on('data', (chunk) => { chunks.push(chunk); })
+          .on('end', () => {
             assert.deepEqual(
               chunks,
               [
@@ -331,7 +331,7 @@ suite('containers', function () {
         encoder.end(64);
       });
 
-      test('resize', function (cb) {
+      test('resize', (cb) => {
         let t = Type.forSchema({type: 'fixed', size: 8, name: 'Eight'});
         let buf = utils.bufferFrom('abcdefgh');
         let chunks = [];
@@ -339,8 +339,8 @@ suite('containers', function () {
           omitHeader: true,
           syncMarker: SYNC,
           blockSize: 4
-        }).on('data', function (chunk) { chunks.push(chunk); })
-          .on('end', function () {
+        }).on('data', (chunk) => { chunks.push(chunk); })
+          .on('end', () => {
             let b1 = utils.bufferFrom([4]);
             let b2 = utils.bufferFrom([32]);
             assert.deepEqual(chunks, [b1, b2, Buffer.concat([buf, buf]), SYNC]);
@@ -350,28 +350,28 @@ suite('containers', function () {
         encoder.end(buf);
       });
 
-      test('compression error', function (cb) {
+      test('compression error', (cb) => {
         let t = Type.forSchema('int');
         let codecs = {
           invalid: function (data, cb) { cb(new Error('ouch')); }
         };
         let encoder = new BlockEncoder(t, {codec: 'invalid', codecs: codecs})
-          .on('error', function () { cb(); });
+          .on('error', () => { cb(); });
         encoder.end(12);
       });
 
-      test('write non-canonical schema', function (cb) {
+      test('write non-canonical schema', (cb) => {
         let obj = {type: 'fixed', size: 2, name: 'Id', doc: 'An id.'};
         let id = utils.bufferFrom([1, 2]);
         let ids = [];
         let encoder = new BlockEncoder(obj);
         let decoder = new streams.BlockDecoder()
-          .on('metadata', function (type, codec, header) {
+          .on('metadata', (type, codec, header) => {
             let schema = JSON.parse(header.meta['avro.schema'].toString());
             assert.deepEqual(schema, obj); // Check that doc field not stripped.
           })
-          .on('data', function (id) { ids.push(id); })
-          .on('end', function () {
+          .on('data', (id) => { ids.push(id); })
+          .on('end', () => {
             assert.deepEqual(ids, [id]);
             cb();
           });
@@ -381,22 +381,22 @@ suite('containers', function () {
 
     });
 
-    suite('BlockDecoder', function () {
+    suite('BlockDecoder', () => {
 
       let BlockDecoder = streams.BlockDecoder;
 
-      test('invalid magic bytes', function (cb) {
+      test('invalid magic bytes', (cb) => {
         let decoder = new BlockDecoder()
-          .on('data', function () {})
-          .on('error', function () { cb(); });
+          .on('data', () => {})
+          .on('error', () => { cb(); });
         decoder.write(utils.bufferFrom([0, 3, 2]));
         decoder.write(utils.bufferFrom([1]));
       });
 
-      test('invalid sync marker', function (cb) {
+      test('invalid sync marker', (cb) => {
         let decoder = new BlockDecoder()
-          .on('data', function () {})
-          .on('error', function () { cb(); });
+          .on('data', () => {})
+          .on('error', () => { cb(); });
         let header = new Header(
           MAGIC_BYTES,
           {
@@ -410,10 +410,10 @@ suite('containers', function () {
         decoder.end(utils.bufferFrom('alongerstringthansixteenbytes'));
       });
 
-      test('missing codec', function (cb) {
+      test('missing codec', (cb) => {
         let decoder = new BlockDecoder()
-          .on('data', function () {})
-          .on('end', function () { cb(); });
+          .on('data', () => {})
+          .on('end', () => { cb(); });
         let header = new Header(
           MAGIC_BYTES,
           {'avro.schema': utils.bufferFrom('"int"')},
@@ -422,10 +422,10 @@ suite('containers', function () {
         decoder.end(header.toBuffer());
       });
 
-      test('unknown codec', function (cb) {
+      test('unknown codec', (cb) => {
         let decoder = new BlockDecoder()
-          .on('data', function () {})
-          .on('error', function () { cb(); });
+          .on('data', () => {})
+          .on('error', () => { cb(); });
         let header = new Header(
           MAGIC_BYTES,
           {
@@ -437,10 +437,10 @@ suite('containers', function () {
         decoder.end(header.toBuffer());
       });
 
-      test('invalid schema', function (cb) {
+      test('invalid schema', (cb) => {
         let decoder = new BlockDecoder()
-          .on('data', function () {})
-          .on('error', function () { cb(); });
+          .on('data', () => {})
+          .on('error', () => { cb(); });
         let header = new Header(
           MAGIC_BYTES,
           {
@@ -452,11 +452,11 @@ suite('containers', function () {
         decoder.end(header.toBuffer());
       });
 
-      test('short header', function (cb) {
+      test('short header', (cb) => {
         let vals = [];
         let decoder = new BlockDecoder()
-          .on('data', function (val) { vals.push(val); })
-          .on('end', function () {
+          .on('data', (val) => { vals.push(val); })
+          .on('end', () => {
             assert.deepEqual(vals, [2]);
             cb();
           });
@@ -472,11 +472,11 @@ suite('containers', function () {
         decoder.end();
       });
 
-      test('corrupt data', function (cb) {
+      test('corrupt data', (cb) => {
         let type = Type.forSchema('string');
         let decoder = new BlockDecoder()
-          .on('data', function () {})
-          .on('error', function () { cb(); });
+          .on('data', () => {})
+          .on('error', () => { cb(); });
         let header = new Header(
           MAGIC_BYTES,
           {
@@ -500,19 +500,19 @@ suite('containers', function () {
 
   });
 
-  suite('encode & decode', function () {
+  suite('encode & decode', () => {
 
-    test('uncompressed int', function (cb) {
+    test('uncompressed int', (cb) => {
       let t = Type.forSchema('int');
       let objs = [];
       let encoderInfos = [];
       let decoderInfos = [];
       let encoder = new streams.BlockEncoder(t)
-        .on('block', function (info) { encoderInfos.push(info); });
+        .on('block', (info) => { encoderInfos.push(info); });
       let decoder = new streams.BlockDecoder()
-        .on('block', function (info) { decoderInfos.push(info); })
-        .on('data', function (obj) { objs.push(obj); })
-        .on('end', function () {
+        .on('block', (info) => { decoderInfos.push(info); })
+        .on('data', (obj) => { objs.push(obj); })
+        .on('end', () => {
           assert.deepEqual(objs, [12, 23, 48]);
           let infos = [
             {valueCount: 3, rawDataLength: 3, compressedDataLength: 3}
@@ -527,13 +527,13 @@ suite('containers', function () {
       encoder.end(48);
     });
 
-    test('uncompressed int non decoded', function (cb) {
+    test('uncompressed int non decoded', (cb) => {
       let t = Type.forSchema('int');
       let objs = [];
       let encoder = new streams.BlockEncoder(t);
       let decoder = new streams.BlockDecoder({noDecode: true})
-        .on('data', function (obj) { objs.push(obj); })
-        .on('end', function () {
+        .on('data', (obj) => { objs.push(obj); })
+        .on('end', () => {
           assert.deepEqual(objs, [utils.bufferFrom([96])]);
           cb();
         });
@@ -541,7 +541,7 @@ suite('containers', function () {
       encoder.end(48);
     });
 
-    test('uncompressed int after delay', function (cb) {
+    test('uncompressed int after delay', (cb) => {
       let t = Type.forSchema('int');
       let objs = [];
       let encoder = new streams.BlockEncoder(t);
@@ -551,23 +551,23 @@ suite('containers', function () {
       encoder.write(23);
       encoder.end(48);
 
-      setTimeout(function () {
+      setTimeout(() => {
         decoder
-          .on('data', function (obj) { objs.push(obj); })
-          .on('end', function () {
+          .on('data', (obj) => { objs.push(obj); })
+          .on('end', () => {
             assert.deepEqual(objs, [12, 23, 48]);
             cb();
           });
       }, 100);
     });
 
-    test('uncompressed empty record', function (cb) {
+    test('uncompressed empty record', (cb) => {
       let t = Type.forSchema({type: 'record', name: 'A', fields: []});
       let objs = [];
       let encoder = new streams.BlockEncoder(t);
       let decoder = new streams.BlockDecoder()
-        .on('data', function (obj) { objs.push(obj); })
-        .on('end', function () {
+        .on('data', (obj) => { objs.push(obj); })
+        .on('end', () => {
           assert.deepEqual(objs, [{}, {}]);
           cb();
         });
@@ -576,7 +576,7 @@ suite('containers', function () {
       encoder.end({});
     });
 
-    test('deflated records', function (cb) {
+    test('deflated records', (cb) => {
       let t = Type.forSchema({
         type: 'record',
         name: 'Person',
@@ -593,8 +593,8 @@ suite('containers', function () {
       let p2 = [];
       let encoder = new streams.BlockEncoder(t, {codec: 'deflate'});
       let decoder = new streams.BlockDecoder()
-        .on('data', function (obj) { p2.push(obj); })
-        .on('end', function () {
+        .on('data', (obj) => { p2.push(obj); })
+        .on('end', () => {
           assert.deepEqual(p2, p1);
           cb();
         });
@@ -606,32 +606,32 @@ suite('containers', function () {
       encoder.end();
     });
 
-    test('decompression error', function (cb) {
+    test('decompression error', (cb) => {
       let t = Type.forSchema('int');
       let codecs = {
         'null': function (data, cb) { cb(new Error('ouch')); }
       };
       let encoder = new streams.BlockEncoder(t, {codec: 'null'});
       let decoder = new streams.BlockDecoder({codecs: codecs})
-        .on('error', function () { cb(); });
+        .on('error', () => { cb(); });
       encoder.pipe(decoder);
       encoder.end(1);
     });
 
-    test('decompression late read', function (cb) {
+    test('decompression late read', (cb) => {
       let chunks = [];
       let encoder = new streams.BlockEncoder(Type.forSchema('int'));
       let decoder = new streams.BlockDecoder();
       encoder.pipe(decoder);
       encoder.end(1);
-      decoder.on('data', function (chunk) { chunks.push(chunk); })
-        .on('end', function () {
+      decoder.on('data', (chunk) => { chunks.push(chunk); })
+        .on('end', () => {
           assert.deepEqual(chunks, [1]);
           cb();
         });
     });
 
-    test('parse hook', function (cb) {
+    test('parse hook', (cb) => {
       let t1 = Type.forSchema({type: 'map', values: 'int'});
       let t2 = Type.forSchema({
         type: 'array',
@@ -648,8 +648,8 @@ suite('containers', function () {
       let persons = [];
       let encoder = new streams.BlockEncoder(t1);
       let decoder = new streams.BlockDecoder({parseHook: parseHook})
-        .on('data', function (val) { persons.push(val); })
-        .on('end', function () {
+        .on('data', (val) => { persons.push(val); })
+        .on('end', () => {
           assert.deepEqual(
             persons,
             [
@@ -672,7 +672,7 @@ suite('containers', function () {
       }
     });
 
-    test('reader type', function (cb) {
+    test('reader type', (cb) => {
       let t1 = Type.forSchema({
         name: 'Person',
         type: 'record',
@@ -692,8 +692,8 @@ suite('containers', function () {
       let persons = [];
       let encoder = new streams.BlockEncoder(t1);
       let decoder = new streams.BlockDecoder({readerSchema: t2})
-        .on('data', function (val) { persons.push(val); })
-        .on('end', function () {
+        .on('data', (val) => { persons.push(val); })
+        .on('end', () => {
           assert.deepEqual(
             persons,
             [
@@ -709,14 +709,14 @@ suite('containers', function () {
       encoder.end();
     });
 
-    test('ignore serialization error', function (cb) {
+    test('ignore serialization error', (cb) => {
       let data = [];
       let numErrs = 0;
       let encoder = new streams.BlockEncoder('int')
-        .on('error', function () { numErrs++; });
+        .on('error', () => { numErrs++; });
       let decoder = new streams.BlockDecoder()
-        .on('data', function (val) { data.push(val); })
-        .on('end', function () {
+        .on('data', (val) => { data.push(val); })
+        .on('end', () => {
           assert.equal(numErrs, 2);
           assert.deepEqual(data, [1, 2, 3]);
           cb();
@@ -730,15 +730,15 @@ suite('containers', function () {
       encoder.end();
     });
 
-    test('custom type error handler', function (cb) {
+    test('custom type error handler', (cb) => {
       let okVals = [];
       let badVals = [];
       let encoder = new streams.BlockEncoder('int')
         .removeAllListeners('typeError')
-        .on('typeError', function (err, val) { badVals.push(val); });
+        .on('typeError', (err, val) => { badVals.push(val); });
       let decoder = new streams.BlockDecoder()
-        .on('data', function (val) { okVals.push(val); })
-        .on('end', function () {
+        .on('data', (val) => { okVals.push(val); })
+        .on('end', () => {
           assert.deepEqual(okVals, [1, 2]);
           assert.deepEqual(badVals, ['foo', 5.4]);
           cb();
@@ -751,19 +751,19 @@ suite('containers', function () {
       encoder.end();
     });
 
-    test('metadata', function (cb) {
+    test('metadata', (cb) => {
       let t = Type.forSchema('string');
       let buf = t.toBuffer('hello');
       let sawBuf = false;
       let objs = [];
       let encoder = new streams.BlockEncoder(t, {metadata: {foo: buf}});
       let decoder = new streams.BlockDecoder()
-        .on('metadata', function (type, codec, header) {
+        .on('metadata', (type, codec, header) => {
           assert.deepEqual(header.meta.foo, buf);
           sawBuf = true;
         })
-        .on('data', function (obj) { objs.push(obj); })
-        .on('end', function () {
+        .on('data', (obj) => { objs.push(obj); })
+        .on('end', () => {
           assert.deepEqual(objs, ['hi']);
           assert(sawBuf);
           cb();
@@ -772,12 +772,12 @@ suite('containers', function () {
       encoder.end('hi');
     });
 
-    test('empty block', function (cb) {
+    test('empty block', (cb) => {
       let t = Type.forSchema('int');
       let vals = [];
       let decoder = new streams.BlockDecoder()
-        .on('data', function (val) { vals.push(val); })
-        .on('end', function () {
+        .on('data', (val) => { vals.push(val); })
+        .on('end', () => {
           assert.deepEqual(vals, [1, 2]);
           cb();
         });

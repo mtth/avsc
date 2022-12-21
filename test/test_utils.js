@@ -4,34 +4,34 @@ let utils = require('../lib/utils'),
     assert = require('assert');
 
 
-suite('utils', function () {
+suite('utils', () => {
 
-  test('capitalize', function () {
+  test('capitalize', () => {
     assert.equal(utils.capitalize('abc'), 'Abc');
     assert.equal(utils.capitalize(''), '');
     assert.equal(utils.capitalize('aBc'), 'ABc');
   });
 
-  test('hasDuplicates', function () {
+  test('hasDuplicates', () => {
     assert(utils.hasDuplicates([1, 3, 1]));
     assert(!utils.hasDuplicates([]));
     assert(!utils.hasDuplicates(['ab', 'cb']));
     assert(!utils.hasDuplicates(['toString']));
-    assert(utils.hasDuplicates(['ab', 'cb'], function (s) { return s[1]; }));
+    assert(utils.hasDuplicates(['ab', 'cb'], (s) => { return s[1]; }));
   });
 
-  test('single index of', function () {
+  test('single index of', () => {
     assert.equal(utils.singleIndexOf(null, 1), -1);
     assert.equal(utils.singleIndexOf([2], 2), 0);
     assert.equal(utils.singleIndexOf([3, 3], 3), -2);
     assert.equal(utils.singleIndexOf([2, 4], 4), 1);
   });
 
-  test('abstract function', function () {
+  test('abstract function', () => {
     assert.throws(utils.abstractFunction, utils.Error);
   });
 
-  test('copy own properties', function () {
+  test('copy own properties', () => {
     function Obj() { this.a = 1; this.b = 2; }
     Obj.prototype.c = 2;
     let obj1 = new Obj();
@@ -45,7 +45,7 @@ suite('utils', function () {
     assert.deepEqual(obj3, {a: 1, b: 2});
   });
 
-  test('jsonEnd', function () {
+  test('jsonEnd', () => {
     assert.equal(utils.jsonEnd(''), -1);
     assert.equal(utils.jsonEnd('{}a'), 2);
     assert.equal(utils.jsonEnd('{a'), -1);
@@ -57,7 +57,7 @@ suite('utils', function () {
     assert.equal(utils.jsonEnd('"false"'), 7);
   });
 
-  test('OrderedQueue', function () {
+  test('OrderedQueue', () => {
 
     let seqs = [
       [0],
@@ -89,15 +89,15 @@ suite('utils', function () {
 
   });
 
-  suite('Lcg', function () {
+  suite('Lcg', () => {
 
-    test('seed', function () {
+    test('seed', () => {
       let r1 = new utils.Lcg(48);
       let r2 = new utils.Lcg(48);
       assert.equal(r1.nextInt(), r2.nextInt());
     });
 
-    test('integer', function () {
+    test('integer', () => {
       let r = new utils.Lcg(48);
       let i;
       i = r.nextInt();
@@ -108,7 +108,7 @@ suite('utils', function () {
       assert.equal(i, 1);
     });
 
-    test('float', function () {
+    test('float', () => {
       let r = new utils.Lcg(48);
       let f;
       f = r.nextFloat();
@@ -119,19 +119,19 @@ suite('utils', function () {
       assert.equal(f, 1);
     });
 
-    test('boolean', function () {
+    test('boolean', () => {
       let r = new utils.Lcg(48);
       assert(typeof r.nextBoolean() == 'boolean');
     });
 
-    test('choice', function () {
+    test('choice', () => {
       let r = new utils.Lcg(48);
       let arr = ['a'];
       assert(r.choice(arr), 'a');
-      assert.throws(function () { r.choice([]); });
+      assert.throws(() => { r.choice([]); });
     });
 
-    test('string', function () {
+    test('string', () => {
       let r = new utils.Lcg(48);
       let s;
       s = r.nextString(10, 'aA#!');
@@ -142,16 +142,16 @@ suite('utils', function () {
 
   });
 
-  suite('Tap', function () {
+  suite('Tap', () => {
 
     let BufferPool = utils.BufferPool;
 
-    test('alloc negative length', function () {
+    test('alloc negative length', () => {
       let pool = new BufferPool(16);
-      assert.throws(function () { pool.alloc(-1); });
+      assert.throws(() => { pool.alloc(-1); });
     });
 
-    test('alloc beyond pool size', function () {
+    test('alloc beyond pool size', () => {
       let pool = new BufferPool(4);
       assert.equal(pool.alloc(3).length, 3);
       assert.equal(pool.alloc(2).length, 2);
@@ -159,11 +159,11 @@ suite('utils', function () {
 
   });
 
-  suite('Tap', function () {
+  suite('Tap', () => {
 
     let Tap = utils.Tap;
 
-    suite('int & long', function () {
+    suite('int & long', () => {
 
       testWriterReader({
         elems: [0, -1, 109213, -1211, -1312411211, 900719925474090],
@@ -172,7 +172,7 @@ suite('utils', function () {
         writer: function (n) { this.writeLong(n); }
       });
 
-      test('write', function () {
+      test('write', () => {
 
         let tap = newTap(6);
         tap.writeLong(1440756011948);
@@ -182,7 +182,7 @@ suite('utils', function () {
 
       });
 
-      test('read', function () {
+      test('read', () => {
 
         let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert.equal((new Tap(buf)).readLong(), 1440756011948);
@@ -191,7 +191,7 @@ suite('utils', function () {
 
     });
 
-    suite('boolean', function () {
+    suite('boolean', () => {
 
       testWriterReader({
         elems: [true, false],
@@ -202,7 +202,7 @@ suite('utils', function () {
 
     });
 
-    suite('float', function () {
+    suite('float', () => {
 
       testWriterReader({
         elems: [1, 3,1, -5, 1e9],
@@ -213,7 +213,7 @@ suite('utils', function () {
 
     });
 
-    suite('double', function () {
+    suite('double', () => {
 
       testWriterReader({
         elems: [1, 3,1, -5, 1e12],
@@ -224,7 +224,7 @@ suite('utils', function () {
 
     });
 
-    suite('string', function () {
+    suite('string', () => {
 
       testWriterReader({
         elems: ['ahierw', '', 'alh hewlii! rew'],
@@ -235,7 +235,7 @@ suite('utils', function () {
 
     });
 
-    suite('bytes', function () {
+    suite('bytes', () => {
 
       testWriterReader({
         elems: [utils.bufferFrom('abc'), utils.newBuffer(0), utils.bufferFrom([1, 5, 255])],
@@ -246,7 +246,7 @@ suite('utils', function () {
 
     });
 
-    suite('fixed', function () {
+    suite('fixed', () => {
 
       testWriterReader({
         elems: [utils.bufferFrom([1, 5, 255])],
@@ -257,16 +257,16 @@ suite('utils', function () {
 
     });
 
-    suite('binary', function () {
+    suite('binary', () => {
 
-      test('write valid', function () {
+      test('write valid', () => {
         let tap = newTap(3);
         let s = '\x01\x02';
         tap.writeBinary(s, 2);
         assert.deepEqual(tap.buf, utils.bufferFrom([1,2,0]));
       });
 
-      test('write invalid', function () {
+      test('write invalid', () => {
         let tap = newTap(1);
         let s = '\x01\x02';
         tap.writeBinary(s, 2);
@@ -275,9 +275,9 @@ suite('utils', function () {
 
     });
 
-    suite('pack & unpack longs', function () {
+    suite('pack & unpack longs', () => {
 
-      test('unpack single byte', function () {
+      test('unpack single byte', () => {
         let t = newTap(10);
         t.writeLong(5);
         t.pos = 0;
@@ -295,7 +295,7 @@ suite('utils', function () {
         t.pos = 0;
       });
 
-      test('unpack multiple bytes', function () {
+      test('unpack multiple bytes', () => {
         let t = newTap(10);
         let l;
         l = 18932;
@@ -309,7 +309,7 @@ suite('utils', function () {
         assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
       });
 
-      test('pack single byte', function () {
+      test('pack single byte', () => {
         let t = newTap(10);
         let b = utils.newBuffer(8);
         b.fill(0);
@@ -334,7 +334,7 @@ suite('utils', function () {
         assert.deepEqual(t.readLong(), -1);
       });
 
-      test('roundtrip', function () {
+      test('roundtrip', () => {
         roundtrip(1231514);
         roundtrip(-123);
         roundtrip(124124);
@@ -354,7 +354,7 @@ suite('utils', function () {
         }
       });
 
-      test('roundtrip bytes', function () {
+      test('roundtrip bytes', () => {
         roundtrip(utils.bufferFrom([0, 0, 0, 0, 0, 0, 0, 0]));
         roundtrip(utils.bufferFrom('9007199254740995', 'hex'));
 
@@ -382,7 +382,7 @@ suite('utils', function () {
       let skipFn = opts.skipper;
       let name = opts.name || '';
 
-      test('write read ' + name, function () {
+      test('write read ' + name, () => {
         let tap = newTap(size || 1024);
         let i, l, elem;
         for (i = 0, l = elems.length; i < l; i++) {
@@ -395,19 +395,19 @@ suite('utils', function () {
         }
       });
 
-      test('read over ' + name, function () {
+      test('read over ' + name, () => {
         let tap = new Tap(utils.newBuffer(0));
         readFn.call(tap); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
-      test('write over ' + name, function () {
+      test('write over ' + name, () => {
         let tap = new Tap(utils.newBuffer(0));
         writeFn.call(tap, elems[0]); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
-      test('skip ' + name, function () {
+      test('skip ' + name, () => {
         let tap = newTap(size || 1024);
         let i, l, elem, pos;
         for (i = 0, l = elems.length; i < l; i++) {

@@ -16,12 +16,12 @@ let pPair = new pson.ProgressivePair([]);
 let sPair;
 
 avsc.createFileDecoder(dataPath)
-  .on('data', function (record) {
+  .on('data', (record) => {
     // Learn data upfront.
     pPair.include(record);
     records.push(record);
   })
-  .on('end', function () {
+  .on('end', () => {
     let i = 0;
     let n = 0;
     sPair = new pson.StaticPair(pPair.decoder.dict);

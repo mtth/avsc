@@ -11,9 +11,9 @@ let bufs = [];
 let reader, schema;
 
 avsc.createFileDecoder(process.argv[2])
-  .on('metadata', function (type) { schema = JSON.parse(type.toString()); })
-  .on('data', function (record) { bufs.push(record.$toBuffer()); })
-  .on('end', function () {
+  .on('metadata', (type) => { schema = JSON.parse(type.toString()); })
+  .on('data', (record) => { bufs.push(record.$toBuffer()); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     let time = process.hrtime();

@@ -11,12 +11,12 @@ let bufs = [];
 let reader;
 
 avsc.createFileDecoder(process.argv[2])
-  .on('metadata', function (type) {
+  .on('metadata', (type) => {
     let schema = new io.Schema.Schema(JSON.parse(type.toString()));
     reader = new io.IO.DatumReader(schema, schema);
   })
-  .on('data', function (record) { bufs.push(record.$toBuffer()); })
-  .on('end', function () {
+  .on('data', (record) => { bufs.push(record.$toBuffer()); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     let time = process.hrtime();

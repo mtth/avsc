@@ -16,8 +16,8 @@ let pPair = new pson.ProgressivePair([]);
 let sPair;
 
 avsc.createFileDecoder(dataPath)
-  .on('data', function (record) { bufs.push(pPair.toBuffer(record)); })
-  .on('end', function () {
+  .on('data', (record) => { bufs.push(pPair.toBuffer(record)); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     sPair = new pson.StaticPair(pPair.decoder.dict);

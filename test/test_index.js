@@ -17,13 +17,13 @@ let Buffer = buffer.Buffer;
 let DPATH = path.join(__dirname, 'dat');
 
 
-suite('index', function () {
+suite('index', () => {
 
-  suite('parse', function () {
+  suite('parse', () => {
 
     let parse = index.parse;
 
-    test('type object', function () {
+    test('type object', () => {
       let obj = {
         type: 'record',
         name: 'Person',
@@ -32,12 +32,12 @@ suite('index', function () {
       assert(parse(obj) instanceof types.builtins.RecordType);
     });
 
-    test('protocol object', function () {
+    test('protocol object', () => {
       let obj = {protocol: 'Foo'};
       assert(parse(obj) instanceof services.Service);
     });
 
-    test('type instance', function () {
+    test('type instance', () => {
       let type = parse({
         type: 'record',
         name: 'Person',
@@ -46,15 +46,15 @@ suite('index', function () {
       assert.strictEqual(parse(type), type);
     });
 
-    test('stringified type schema', function () {
+    test('stringified type schema', () => {
       assert(parse('"int"') instanceof types.builtins.IntType);
     });
 
-    test('type name', function () {
+    test('type name', () => {
       assert(parse('double') instanceof types.builtins.DoubleType);
     });
 
-    test('type schema file', function () {
+    test('type schema file', () => {
       let t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
       let t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
       assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
@@ -62,24 +62,24 @@ suite('index', function () {
 
   });
 
-  test('createFileDecoder', function (cb) {
+  test('createFileDecoder', (cb) => {
     let n = 0;
     let type = index.parse(path.join(DPATH, 'Person.avsc'));
     index.createFileDecoder(path.join(DPATH, 'person-10.avro'))
-      .on('metadata', function (writerType) {
+      .on('metadata', (writerType) => {
         assert.equal(writerType.toString(), type.toString());
       })
-      .on('data', function (obj) {
+      .on('data', (obj) => {
         n++;
         assert(type.isValid(obj));
       })
-      .on('end', function () {
+      .on('end', () => {
         assert.equal(n, 10);
         cb();
       });
   });
 
-  test('createFileEncoder', function (cb) {
+  test('createFileEncoder', (cb) => {
     let type = types.Type.forSchema({
       type: 'record',
       name: 'Person',
@@ -93,14 +93,14 @@ suite('index', function () {
     encoder.write({name: 'Ann', age: 32});
     encoder.end({name: 'Bob', age: 33});
     let n = 0;
-    encoder.on('finish', function () {
-      setTimeout(function () { // Hack to wait until the file is flushed.
+    encoder.on('finish', () => {
+      setTimeout(() => { // Hack to wait until the file is flushed.
         index.createFileDecoder(path)
-          .on('data', function (obj) {
+          .on('data', (obj) => {
             n++;
             assert(type.isValid(obj));
           })
-          .on('end', function () {
+          .on('end', () => {
             assert.equal(n, 2);
             cb();
           });
@@ -108,7 +108,7 @@ suite('index', function () {
     });
   });
 
-  test('extractFileHeader', function () {
+  test('extractFileHeader', () => {
     let header;
     let fpath = path.join(DPATH, 'person-10.avro');
     header = index.extractFileHeader(fpath);

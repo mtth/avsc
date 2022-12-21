@@ -11,9 +11,9 @@ let records = [];
 let cache, schema, writer;
 
 avsc.createFileDecoder(process.argv[2])
-  .on('metadata', function (type) { schema = JSON.parse(type.toString()); })
-  .on('data', function (record) { records.push(record); })
-  .on('end', function () {
+  .on('metadata', (type) => { schema = JSON.parse(type.toString()); })
+  .on('data', (record) => { records.push(record); })
+  .on('end', () => {
     let i = 0;
     let n = 0;
     let time = process.hrtime();
