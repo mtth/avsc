@@ -160,5 +160,5 @@ function add32(a, b) {
 }
 
 module.exports = {
-  md5: md5
+  md5
 };

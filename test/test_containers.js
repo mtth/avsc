@@ -356,7 +356,7 @@ suite('containers', () => {
         let codecs = {
           invalid: function (data, cb) { cb(new Error('ouch')); }
         };
-        let encoder = new BlockEncoder(t, {codec: 'invalid', codecs: codecs})
+        let encoder = new BlockEncoder(t, {codec: 'invalid', codecs})
           .on('error', () => { cb(); });
         encoder.end(12);
       });
@@ -612,7 +612,7 @@ suite('containers', () => {
         'null': function (data, cb) { cb(new Error('ouch')); }
       };
       let encoder = new streams.BlockEncoder(t, {codec: 'null'});
-      let decoder = new streams.BlockDecoder({codecs: codecs})
+      let decoder = new streams.BlockDecoder({codecs})
         .on('error', () => { cb(); });
       encoder.pipe(decoder);
       encoder.end(1);
@@ -647,7 +647,7 @@ suite('containers', () => {
       let Person = t2.getItemsType().getRecordConstructor();
       let persons = [];
       let encoder = new streams.BlockEncoder(t1);
-      let decoder = new streams.BlockDecoder({parseHook: parseHook})
+      let decoder = new streams.BlockDecoder({parseHook})
         .on('data', (val) => { persons.push(val); })
         .on('end', () => {
           assert.deepEqual(

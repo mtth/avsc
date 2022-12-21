@@ -284,7 +284,7 @@ suite('services', () => {
       function newService(name, namespace, opts) {
         return new services.Service({
           protocol: name,
-          namespace: namespace,
+          namespace,
           types: [
             {type: 'record', name: 'Bar', fields: []},
             {type: 'record', name: '.Baz', fields: []}
@@ -1152,8 +1152,8 @@ suite('services', () => {
           assert.deepEqual(objs.length, 2);
           done();
         });
-      readable.write({id: 0, payload: payload});
-      readable.end({id: 1, payload: payload});
+      readable.write({id: 0, payload});
+      readable.end({id: 1, payload});
     });
   });
 
@@ -2189,7 +2189,7 @@ suite('services', () => {
           this.channel.destroy(true);
           cb(null, 1); // Still call the callback to make sure it is ignored.
         });
-      svc.createClient({server: server})
+      svc.createClient({server})
         .once('channel', function () {
           this.ping({timeout: 10}, (err) => {
             assert(/interrupted/.test(err), err);
@@ -2210,7 +2210,7 @@ suite('services', () => {
       });
       let server = svc.createServer()
         .onEcho((n, cb) => { cb(null, n); });
-      svc.createClient({buffering: true, server: server})
+      svc.createClient({buffering: true, server})
         .echo(123, (err, n) => {
           assert(!err, err);
           assert.equal(n, 123);
@@ -2228,7 +2228,7 @@ suite('services', () => {
       let server = svc.createServer()
         .onNeg((n, cb) => { cb(null, -n); });
       let opts = {id: 123};
-      let client = svc.createClient({server: server})
+      let client = svc.createClient({server})
         .once('channel', (channel) => {
           channel.on('outgoingCall', (ctx, opts) => {
             ctx.locals.id = opts.id;
@@ -2268,7 +2268,7 @@ suite('services', () => {
           assert.equal(numCalls++, 1);
           cb(null, -n);
         });
-      svc.createClient({buffering: true, server: server})
+      svc.createClient({buffering: true, server})
         .neg(1, (err, n) => {
           assert(!err, err);
           assert.equal(n, -1);
@@ -2299,7 +2299,7 @@ suite('services', () => {
           assert.deepEqual(this.locals, locals);
           cb(null, -n);
         });
-      svc.createClient({server: server})
+      svc.createClient({server})
         .once('channel', function () {
           this.neg(1, (err, n) => {
             assert(!err, err);
@@ -2317,10 +2317,10 @@ suite('services', () => {
           abs: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      let server = svc.createServer({defaultHandler: defaultHandler})
+      let server = svc.createServer({defaultHandler})
         .onNeg((n, cb) => { cb(null, -n); });
 
-      svc.createClient({server: server})
+      svc.createClient({server})
         .once('channel', function () {
           this.neg(1, function (err, n) {
             assert(!err, err);
@@ -2350,7 +2350,7 @@ suite('services', () => {
       let server = svc.createServer()
         .onNeg((n, cb) => { cb(null, -n); });
       let isCalled = false;
-      svc.createClient({server: server})
+      svc.createClient({server})
         .use((wreq, wres, next) => {
           wres.response = -3;
           next();
@@ -2378,7 +2378,7 @@ suite('services', () => {
       });
       let server = svc.createServer()
         .onNeg((n, cb) => { cb(null, -n); });
-      svc.createClient({buffering: true, server: server})
+      svc.createClient({buffering: true, server})
         .use((wreq, wres, next) => {
           next(null, (err, prev) => {
             assert(/bar/.test(err), err);
@@ -2420,7 +2420,7 @@ suite('services', () => {
           handlerCalled = true;
           cb(null, -n);
         });
-      svc.createClient({server: server})
+      svc.createClient({server})
         .once('channel', function () {
           this.neg(1, (err) => {
             assert(/foobar/.test(err), err);
@@ -2456,7 +2456,7 @@ suite('services', () => {
           assert.equal(this.locals.foo, 'bar');
           cb(null, -n);
         });
-      svc.createClient({buffering: true, server: server})
+      svc.createClient({buffering: true, server})
         .use((client) => {
           client.on('channel', (channel) => {
             channel.on('outgoingCall', (ctx, opts) => {
@@ -2488,7 +2488,7 @@ suite('services', () => {
         .onNeg((n, cb) => {
           cb(null, -n);
         });
-      svc.createClient({server: server})
+      svc.createClient({server})
         .once('channel', function () {
           this.neg(1, (err, n) => {
             assert(!err, err);
@@ -2520,7 +2520,7 @@ suite('services', () => {
         .use((wreq, wres, next) => {
           next(new Error('foobar'));
         });
-      svc.createClient({server: server})
+      svc.createClient({server})
         .once('channel', function () { this.push(1); });
     });
 
@@ -2704,7 +2704,7 @@ suite('services', () => {
             })
             .use((wreq, wres, next) => {
               // Callback here.
-              assert.deepEqual(wreq.headers, {buf: buf});
+              assert.deepEqual(wreq.headers, {buf});
               wreq.request.n = 3;
               next(null, function (err, prev) {
                 assert(!err, err);
@@ -2811,7 +2811,7 @@ suite('services', () => {
           client
             .use((wreq, wres, next) => {
               next(null, (err, prev) => {
-                assert.deepEqual(wres.headers, {buf: buf});
+                assert.deepEqual(wres.headers, {buf});
                 isDone = true;
                 prev();
               });
@@ -3220,12 +3220,12 @@ suite('services', () => {
       let scope = 'bar';
       let transports = createPassthroughTransports();
       svc.createServer({silent: true})
-        .createChannel(transports[1], {scope: scope});
+        .createChannel(transports[1], {scope});
       discoverProtocol(transports[0], {timeout: 5}, (err) => {
         assert(/timeout/.test(err), err);
         // Check that the transport is still usable.
         let client = svc.createClient();
-        let chn = client.createChannel(transports[0], {scope: scope})
+        let chn = client.createChannel(transports[0], {scope})
           .on('eot', () => { done(); });
         client.upper('foo', (err) => {
           assert(/not implemented/.test(err), err);
@@ -3247,8 +3247,8 @@ function frame(buf) {
 }
 
 function createPassthroughTransports(objectMode) {
-  let pt1 = stream.PassThrough({objectMode: objectMode});
-  let pt2 = stream.PassThrough({objectMode: objectMode});
+  let pt1 = stream.PassThrough({objectMode});
+  let pt2 = stream.PassThrough({objectMode});
   return [{readable: pt1, writable: pt2}, {readable: pt2, writable: pt1}];
 }
 

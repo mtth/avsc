@@ -708,7 +708,7 @@ suite('specs', () => {
     test('custom type ref', () => {
       let typeRefs = {foo: {logicalType: 'foo', type: 'long'}};
       assert.deepEqual(
-        readSchema('record { foo bar; }', {typeRefs: typeRefs}),
+        readSchema('record { foo bar; }', {typeRefs}),
         {
           type: 'record',
           fields: [
@@ -724,7 +724,7 @@ suite('specs', () => {
     test('type ref overwrite attributes', () => {
       let typeRefs = {ip: {logicalType: 'ip', type: 'fixed', size: 4}};
       assert.deepEqual(
-        readSchema('record { @size(16) ip ipV6; }', {typeRefs: typeRefs}),
+        readSchema('record { @size(16) ip ipV6; }', {typeRefs}),
         {
           type: 'record',
           fields: [
@@ -877,7 +877,7 @@ suite('specs', () => {
 
     function getToken(str, id, val) {
       let tokenizer = new Tokenizer(str);
-      return tokenizer.next({id: id, val: val});
+      return tokenizer.next({id, val});
     }
 
     function getTokens(str) {

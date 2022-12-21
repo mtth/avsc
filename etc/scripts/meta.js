@@ -182,7 +182,7 @@ function derived(name, fields) {
     name: 'type',
     type: {type: 'enum', name: typeName + 'Name', symbols: [name]}
   });
-  return {name: typeName, type: 'record', fields: fields};
+  return {name: typeName, type: 'record', fields};
 }
 
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }

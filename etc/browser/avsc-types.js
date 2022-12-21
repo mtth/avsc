@@ -27,7 +27,7 @@ function parse(any, opts) {
 
 module.exports = {
   Type: types.Type,
-  parse: parse,
+  parse,
   types: types.builtins,
   // Deprecated exports (not using `util.deprecate` since it causes stack
   // overflow errors in the browser).

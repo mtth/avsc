@@ -105,8 +105,8 @@ function createBlobEncoder(schema, opts) {
 
 
 module.exports = {
-  createBlobDecoder: createBlobDecoder,
-  createBlobEncoder: createBlobEncoder,
+  createBlobDecoder,
+  createBlobEncoder,
   streams: containers.streams
 };
 

@@ -949,7 +949,7 @@ suite('types', () => {
         t1.createResolver(Type.forSchema('int'));
       });
       function newEnum(name, symbols, aliases, namespace) {
-        let obj = {type: 'enum', name: name, symbols: symbols};
+        let obj = {type: 'enum', name, symbols};
         if (aliases !== undefined) {
           obj.aliases = aliases;
         }
@@ -2732,7 +2732,7 @@ suite('types', () => {
       let t = Type.forSchema({
         type: 'long',
         logicalType: 'date'
-      }, {logicalTypes: logicalTypes});
+      }, {logicalTypes});
       assert(t instanceof DateType);
       assert(/<(Date|Logical)Type {.+}>/.test(t.inspect())); // IE.
       assert(t.getUnderlyingType() instanceof builtins.LongType);
@@ -2757,11 +2757,11 @@ suite('types', () => {
       let t;
       t = Type.forSchema(schema); // Missing.
       assert(t instanceof builtins.IntType);
-      t = Type.forSchema(schema, {logicalTypes: logicalTypes}); // Invalid.
+      t = Type.forSchema(schema, {logicalTypes}); // Invalid.
       assert(t instanceof builtins.IntType);
       assert.throws(() => {
         Type.forSchema(schema, {
-          logicalTypes: logicalTypes,
+          logicalTypes,
           assertLogicalTypes: true
         });
       });
@@ -2785,7 +2785,7 @@ suite('types', () => {
         ]
       };
       let base = Type.forSchema(schema);
-      let derived = Type.forSchema(schema, {logicalTypes: logicalTypes});
+      let derived = Type.forSchema(schema, {logicalTypes});
       let fields = derived.getFields();
       let ageType = fields[0].getType();
       ageType.constructor = undefined; // Mimic missing constructor name.
@@ -2873,7 +2873,7 @@ suite('types', () => {
       let t2 = Type.forSchema({
         type: 'long',
         logicalType: 'date'
-      }, {logicalTypes: logicalTypes});
+      }, {logicalTypes});
 
       let d1 = new Date(Date.now());
       let buf = t1.toBuffer('' + d1);
@@ -2887,7 +2887,7 @@ suite('types', () => {
       let t1 = Type.forSchema({
         type: 'long',
         logicalType: 'date'
-      }, {logicalTypes: logicalTypes});
+      }, {logicalTypes});
       let t2 = Type.forSchema({type: 'double'}); // Note long > double too.
 
       let d = new Date(Date.now());
@@ -2905,14 +2905,14 @@ suite('types', () => {
           {name: 'age', type: {type: 'int', logicalType: 'age'}},
           {name: 'time', type: {type: 'long', logicalType: 'date'}}
         ]
-      }, {logicalTypes: logicalTypes});
+      }, {logicalTypes});
       let t2 = Type.forSchema({
         name: 'Person',
         type: 'record',
         fields: [
           {name: 'age', type: {type: 'int', logicalType: 'age'}}
         ]
-      }, {logicalTypes: logicalTypes});
+      }, {logicalTypes});
 
       let buf = t1.toBuffer({age: 12, time: new Date()});
 
@@ -2925,7 +2925,7 @@ suite('types', () => {
     test('resolve union of logical > union of logical', () => {
       let t = types.Type.forSchema(
         ['null', {type: 'int', logicalType: 'age'}],
-        {logicalTypes: logicalTypes, wrapUnions: true}
+        {logicalTypes, wrapUnions: true}
       );
       let resolver = t.createResolver(t);
       let v = {'int': 34};
@@ -2975,7 +2975,7 @@ suite('types', () => {
           {type: 'long', logicalType: 'age'},
           {type: 'string', logicalType: 'date'}
         ],
-        {logicalTypes: logicalTypes}
+        {logicalTypes}
       );
       assert(t.isValid(new Date()));
       assert(t.isValid(34));
@@ -2986,7 +2986,7 @@ suite('types', () => {
     test('inside unwrapped union ambiguous conversion', () => {
       let t = types.Type.forSchema(
         ['long', {type: 'int', logicalType: 'age'}],
-        {logicalTypes: logicalTypes}
+        {logicalTypes}
       );
       assert(t.isValid(-34));
       assert.throws(() => { t.isValid(32); }, /ambiguous/);

@@ -35,6 +35,6 @@ function debuglog () {
 
 module.exports = {
   getHash,
-  deprecate: deprecate,
-  debuglog: debuglog
+  deprecate,
+  debuglog
 };

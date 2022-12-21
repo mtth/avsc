@@ -45,7 +45,7 @@ function generateStats(schema, opts) {
         };
       })
     });
-    return {name: Suite.key_, stats: stats};
+    return {name: Suite.key_, stats};
   });
 }
 
@@ -61,7 +61,7 @@ class Suite extends Benchmark.Suite {
     opts = opts || {};
     this._type = type;
     this._compatibleType = avro.parse(type.getSchema(), {
-      typeHook: typeHook,
+      typeHook,
       wrapUnions: opts.wrapUnions
     });
     this._value = opts.value ? type.fromString(opts.value) : type.random();

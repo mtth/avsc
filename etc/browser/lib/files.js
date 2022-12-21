@@ -17,9 +17,9 @@ function createRelativeResolveHook() {
 }
 
 module.exports = {
-  createImportHook: createImportHook,
-  createSyncImportHook: createSyncImportHook,
-  createRelativeResolveHook: createRelativeResolveHook,
+  createImportHook,
+  createSyncImportHook,
+  createRelativeResolveHook,
   treatStringAsPath: () => false,
   // Proxy a few methods to better shim them for browserify.
   readFileSync: function () { throw createError(); }

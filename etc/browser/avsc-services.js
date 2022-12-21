@@ -25,7 +25,7 @@ module.exports = {
   Service: services.Service,
   assembleProtocol: specs.assembleProtocol,
   discoverProtocol: services.discoverProtocol,
-  parse: parse,
+  parse,
   readProtocol: specs.readProtocol,
   readSchema: specs.readSchema,
 };
