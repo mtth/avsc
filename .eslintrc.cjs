@@ -27,7 +27,11 @@ module.exports = {
         'no-constant-condition': ['error', {checkLoops: false}],
         'no-eval': ['error'],
         'no-new-func': ['error'],
-        'no-loop-func': ['error']
+        'no-loop-func': ['error'],
+        'max-len': ['warn', 80, {
+          ignoreUrls: true,
+          ignoreStrings: true
+        }]
       },
     },
     {

@@ -457,7 +457,10 @@ suite('services', function () {
           assert.deepEqual(
             messages,
             [
-              {id: null, payload: [utils.bufferFrom([0, 1]), utils.bufferFrom([2])]},
+              {id: null, payload: [
+                utils.bufferFrom([0, 1]),
+                utils.bufferFrom([2])
+              ]},
               {id: null, payload: [utils.bufferFrom([3, 4])]}
             ]
           );
@@ -478,7 +481,10 @@ suite('services', function () {
         .on('error', function () {
           assert.deepEqual(
             messages,
-            [{id: null, payload: [utils.bufferFrom([0, 1]), utils.bufferFrom([2])]}]
+            [{id: null, payload: [
+              utils.bufferFrom([0, 1]),
+              utils.bufferFrom([2])
+            ]}]
           );
           done();
         })
@@ -507,7 +513,10 @@ suite('services', function () {
 
     test('encode', function (done) {
       var messages = [
-        {id: 1, payload: [utils.bufferFrom([1, 3, 5]), utils.bufferFrom([6, 8])]},
+        {id: 1, payload: [
+          utils.bufferFrom([1, 3, 5]),
+          utils.bufferFrom([6, 8])
+        ]},
         {id: 4, payload: [utils.bufferFrom([123, 23])]}
       ];
       var frames = [];
@@ -635,7 +644,11 @@ suite('services', function () {
         a._decodeRequest(utils.bufferFrom([24]));
       }, /truncated/);
       assert.throws(function () {
-        a._decodeResponse(utils.bufferFrom([48]), {headers: {}}, s.message('echo'));
+        a._decodeResponse(
+          utils.bufferFrom([48]),
+          {headers: {}},
+          s.message('echo')
+        );
       }, /truncated/);
     });
   });
@@ -929,8 +942,10 @@ suite('services', function () {
       var readable = new stream.PassThrough({objectMode: true});
       var writable = new stream.PassThrough({objectMode: true})
         .on('data', function (data) {
-          var hres = utils.bufferFrom([0, 0, 0, 0]); // Encoded handshake response.
-          var res = utils.bufferFrom([0, 0]); // Encoded response (flag and meta).
+          // Encoded handshake response.
+          var hres = utils.bufferFrom([0, 0, 0, 0]);
+          // Encoded response (flag and meta).
+          var res = utils.bufferFrom([0, 0]);
           readable.write({id: data.id, payload: [hres, res]});
         });
       var client = svc.createClient();

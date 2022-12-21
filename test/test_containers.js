@@ -53,7 +53,10 @@ suite('containers', function () {
             bufs.push(chunk);
           })
           .on('end', function () {
-            assert.deepEqual(bufs, [utils.bufferFrom([1]), utils.bufferFrom([2])]);
+            assert.deepEqual(bufs, [
+              utils.bufferFrom([1]),
+              utils.bufferFrom([2])
+            ]);
             cb();
           });
         encoder.write(-1);
@@ -311,8 +314,15 @@ suite('containers', function () {
             assert.deepEqual(
               chunks,
               [
-                utils.bufferFrom([2]), utils.bufferFrom([2]), utils.bufferFrom([2]), SYNC,
-                utils.bufferFrom([2]), utils.bufferFrom([4]), utils.bufferFrom([128, 1]), SYNC
+                utils.bufferFrom([2]),
+                utils.bufferFrom([2]),
+                utils.bufferFrom([2]),
+                SYNC,
+
+                utils.bufferFrom([2]),
+                utils.bufferFrom([4]),
+                utils.bufferFrom([128, 1]),
+                SYNC
               ]
             );
             cb();

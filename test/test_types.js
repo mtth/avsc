@@ -155,7 +155,9 @@ suite('types', function () {
 
     test('precision loss', function () {
       var type = Type.forSchema('long');
-      var buf = utils.bufferFrom([0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]);
+      var buf = utils.bufferFrom(
+        [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]
+      );
       assert.throws(function () { type.fromBuffer(buf); });
     });
 
@@ -697,7 +699,10 @@ suite('types', function () {
       var a = t2.createResolver(t1);
       var buf;
       buf = t1.toBuffer({string: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': utils.bufferFrom('hi')});
+      assert.deepEqual(
+        t2.fromBuffer(buf, a),
+        {'bytes': utils.bufferFrom('hi')}
+      );
       buf = t1.toBuffer({'int': 1});
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
     });
@@ -708,7 +713,10 @@ suite('types', function () {
       var a = t2.createResolver(t1);
       var buf;
       buf = t1.toBuffer('hi');
-      assert.deepEqual(t2.fromBuffer(buf, a), {'bytes': utils.bufferFrom('hi')});
+      assert.deepEqual(
+        t2.fromBuffer(buf, a),
+        {'bytes': utils.bufferFrom('hi')}
+      );
       buf = t1.toBuffer(1);
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
     });
@@ -976,7 +984,11 @@ suite('types', function () {
     });
 
     test('clone', function () {
-      var t = Type.forSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
+      var t = Type.forSchema({
+        type: 'enum',
+        name: 'Foo',
+        symbols: ['bar', 'baz']
+      });
       assert.equal(t.clone('bar'), 'bar');
       assert.equal(t.clone('bar', {}), 'bar');
       assert.throws(function () { t.clone('BAR'); });
@@ -984,7 +996,11 @@ suite('types', function () {
     });
 
     test('compare buffers', function () {
-      var t = Type.forSchema({type: 'enum', name: 'Foo', symbols: ['bar', 'baz']});
+      var t = Type.forSchema({
+        type: 'enum',
+        name: 'Foo',
+        symbols: ['bar', 'baz']
+      });
       var b1 = t.toBuffer('bar');
       var b2 = t.toBuffer('baz');
       assert.equal(t.compareBuffers(b1, b1), 0);
@@ -1006,7 +1022,14 @@ suite('types', function () {
         name: 'size 1',
         schema: {name: 'Foo', size: 2},
         valid: [utils.bufferFrom([1, 2]), utils.bufferFrom([2, 3])],
-        invalid: ['HEY', null, undefined, 0, utils.newBuffer(1), utils.newBuffer(3)],
+        invalid: [
+          'HEY',
+          null,
+          undefined,
+          0,
+          utils.newBuffer(1),
+          utils.newBuffer(3)
+        ],
         check: function (a, b) { assert(a.equals(b)); }
       }
     ];
@@ -1328,7 +1351,10 @@ suite('types', function () {
       var resolver = t2.createResolver(t1);
       var obj = ['\x01\x02'];
       var buf = t1.toBuffer(obj);
-      assert.deepEqual(t2.fromBuffer(buf, resolver), [utils.bufferFrom([1, 2])]);
+      assert.deepEqual(
+        t2.fromBuffer(buf, resolver),
+        [utils.bufferFrom([1, 2])]
+      );
     });
 
     test('resolve invalid', function () {
@@ -1608,7 +1634,8 @@ suite('types', function () {
       };
       var Person, person;
       // Wrapped
-      Person = Type.forSchema(schema, {wrapUnions: true}).getRecordConstructor();
+      Person = Type.forSchema(schema, {wrapUnions: true})
+        .getRecordConstructor();
       person = new Person();
       assert.deepEqual(person.address, {street: null, zip: {'int': 123}});
       // Unwrapped.
