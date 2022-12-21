@@ -3,7 +3,7 @@
 'use strict';
 
 const avro = require('../../lib');
-const streams = require('streams')
+const streams = require('streams');
 
 class FilteringStream extends streams.Transform {
   constructor(type) {

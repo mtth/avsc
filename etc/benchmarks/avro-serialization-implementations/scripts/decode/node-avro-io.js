@@ -41,17 +41,17 @@ function deserialize(buffer) {
     _i: 0,
     read: function(len) {
       if (this._i + len > buffer.length) {
-        throw "reading after buffer exhausted"
+        throw "reading after buffer exhausted";
       }
       var i = this._i;
       this._i += len;
-      return len == 1
-        ? buffer[i]
-        : buffer.slice(i, this._i);
+      return len == 1 ?
+        buffer[i] :
+        buffer.slice(i, this._i);
     },
     skip: function(len) {
       if (this._i + len > buffer.length) {
-        throw "reading after buffer exhausted"
+        throw "reading after buffer exhausted";
       }
       this._i += len;
     }

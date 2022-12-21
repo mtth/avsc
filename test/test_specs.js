@@ -275,7 +275,7 @@ suite('specs', function () {
           '2.avdl': 'protocol other.Second { import idl "3.avdl"; fixed Two(2); }',
           '3.avdl': 'protocol test.Third { fixed Three(3); }',
         })
-      }
+      };
       assembleProtocol('1.avdl', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
@@ -287,8 +287,8 @@ suite('specs', function () {
           ]
         });
         done();
-      })
-    })
+      });
+    });
 
     test('import idl from nested paths', function (done) {
       var opts = {

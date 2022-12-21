@@ -161,4 +161,5 @@ avro.Type.forSchema([
 }
 ], {registry});
 
-const type = registry['GroupRe
+// TODO: this was cut off originally. Finish writing?
+// const type = registry['GroupRe

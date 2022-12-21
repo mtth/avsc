@@ -30,11 +30,11 @@ const schema = {
     { "name": 'sessionId', "type": { "type": 'string', "logicalType": 'validated-string', "pattern": '^\\d{3}-\\d{4}-\\d{5}$' } },
     { "name": "amountSpendShoppingWithFloat", "type": ['double', 'null'] }
   ]
-}
+};
 
-const eventObj = { time: Date.now(), age: 15, timeSpentOnlineMs: 100000000, amountSpendShopping: 20.56, sessionId: '123-1234-12345', amountSpendShoppingWithFloat: 20.56 }
+const eventObj = { time: Date.now(), age: 15, timeSpentOnlineMs: 100000000, amountSpendShopping: 20.56, sessionId: '123-1234-12345', amountSpendShoppingWithFloat: 20.56 };
 const newType = avro.Type.forSchema( schema, { logicalTypes: {'timestamp-millis': DateType}, assertLogicalTypes: true} );
 console.log(newType.fields);
-const buf = newType.toBuffer(eventObj)
+const buf = newType.toBuffer(eventObj);
 const date = newType.fromBuffer(buf);
-console.log('****', date, '****')
+console.log('****', date, '****');
