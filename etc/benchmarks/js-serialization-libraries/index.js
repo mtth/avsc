@@ -157,7 +157,7 @@ class DecodeSuite extends Suite {
     let str = JSON.stringify(this.getValue());
     return function () {
       let obj = JSON.parse(str, (key, value) => {
-        return (value && value.type === 'Buffer') ? new Buffer(value) : value;
+        return (value && value.type === 'Buffer') ? Buffer.from(value) : value;
       });
       if (obj.$) {
         throw new Error();

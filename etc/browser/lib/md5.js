@@ -148,7 +148,7 @@ function md5blk(s) {
 
 function md5(s) {
   let arr = md51(s);
-  let buf = Buffer.alloc ? Buffer.alloc(16) : new Buffer(16);
+  let buf = Buffer.alloc(16);
   let i;
   for (i = 0; i < 4; i++) {
     buf.writeIntLE(arr[i], i * 4, 4);
