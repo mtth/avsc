@@ -20,9 +20,11 @@ function createHash(algorithm) {
   return new Hash();
 }
 
-function Hash() { this.data = undefined; }
-Hash.prototype.end = function (data) { this.data = data; };
-Hash.prototype.read = function () { return md5(this.data); };
+class Hash {
+  constructor () { this.data = undefined; }
+  end (data) { this.data = data; }
+  read () { return md5(this.data); }
+}
 
 function md5cycle(x, k) {
   let a = x[0], b = x[1], c = x[2], d = x[3];

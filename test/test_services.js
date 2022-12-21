@@ -4,8 +4,7 @@ let types = require('../lib/types'),
     services = require('../lib/services'),
     utils = require('../lib/utils'),
     assert = require('assert'),
-    stream = require('stream'),
-    util = require('util');
+    stream = require('stream');
 
 
 let Service = services.Service;
@@ -3254,23 +3253,32 @@ function createPassthroughTransports(objectMode) {
 }
 
 // Simplified stream constructor API isn't available in earlier node versions.
+// TODO: can these be removed now?
 
 function createReadableStream(bufs) {
   let n = 0;
-  function Stream() { stream.Readable.call(this, {objectMode: true}); }
-  util.inherits(Stream, stream.Readable);
-  Stream.prototype._read = function () {
-    this.push(bufs[n++] || null);
-  };
+  class Stream extends stream.Readable {
+    constructor () {
+      super({objectMode: true});
+    }
+
+    _read () {
+      this.push(bufs[n++] || null);
+    }
+  }
   return new Stream();
 }
 
 function createWritableStream(bufs) {
-  function Stream() { stream.Writable.call(this, {objectMode: true}); }
-  util.inherits(Stream, stream.Writable);
-  Stream.prototype._write = function (buf, encoding, cb) {
-    bufs.push(buf);
-    cb();
-  };
+  class Stream extends stream.Writable {
+    constructor () {
+      super({objectMode: true});
+    }
+
+    _write (buf, encoding, cb) {
+      bufs.push(buf);
+      cb();
+    }
+  }
   return new Stream();
 }

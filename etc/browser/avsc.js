@@ -10,59 +10,60 @@
 let avroServices = require('./avsc-services'),
     containers = require('../../lib/containers'),
     utils = require('../../lib/utils'),
-    stream = require('stream'),
-    util = require('util');
+    stream = require('stream');
 
 
 /** Transform stream which lazily reads a blob's contents. */
-function BlobReader(blob, opts) {
-  stream.Readable.call(this);
-  opts = opts || {};
+class BlobReader extends stream.Readable {
+  constructor (blob, opts) {
+    super();
+    opts = opts || {};
 
-  this._batchSize = opts.batchSize || 65536;
-  this._blob = blob;
-  this._pos = 0;
-}
-util.inherits(BlobReader, stream.Readable);
-
-BlobReader.prototype._read = function () {
-  let pos = this._pos;
-  if (pos >= this._blob.size) {
-    this.push(null);
-    return;
+    this._batchSize = opts.batchSize || 65536;
+    this._blob = blob;
+    this._pos = 0;
   }
 
-  this._pos += this._batchSize;
-  let blob = this._blob.slice(pos, this._pos, this._blob.type);
-  let reader = new FileReader();
-  let self = this;
-  reader.addEventListener('loadend', function cb(evt) {
-    reader.removeEventListener('loadend', cb, false);
-    if (evt.error) {
-      self.emit('error', evt.error);
-    } else {
-      self.push(utils.bufferFrom(reader.result));
+  _read () {
+    let pos = this._pos;
+    if (pos >= this._blob.size) {
+      this.push(null);
+      return;
     }
-  }, false);
-  reader.readAsArrayBuffer(blob);
-};
+
+    this._pos += this._batchSize;
+    let blob = this._blob.slice(pos, this._pos, this._blob.type);
+    let reader = new FileReader();
+    let self = this;
+    reader.addEventListener('loadend', function cb(evt) {
+      reader.removeEventListener('loadend', cb, false);
+      if (evt.error) {
+        self.emit('error', evt.error);
+      } else {
+        self.push(utils.bufferFrom(reader.result));
+      }
+    }, false);
+    reader.readAsArrayBuffer(blob);
+  }
+}
 
 /** Transform stream which builds a blob from all data written to it. */
-function BlobWriter() {
-  stream.Transform.call(this, {readableObjectMode: true});
-  this._bufs = [];
+class BlobWriter extends stream.Transform {
+  constructor () {
+    super({readableObjectMode: true});
+    this._bufs = [];
+  }
+
+  _transform (buf, encoding, cb) {
+    this._bufs.push(buf);
+    cb();
+  }
+
+  _flush (cb) {
+    this.push(new Blob(this._bufs, {type: 'application/octet-binary'}));
+    cb();
+  }
 }
-util.inherits(BlobWriter, stream.Transform);
-
-BlobWriter.prototype._transform = function (buf, encoding, cb) {
-  this._bufs.push(buf);
-  cb();
-};
-
-BlobWriter.prototype._flush = function (cb) {
-  this.push(new Blob(this._bufs, {type: 'application/octet-binary'}));
-  cb();
-};
 
 /** Read an Avro-container stored as a blob. */
 function createBlobDecoder(blob, opts) {
