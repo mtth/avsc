@@ -2,21 +2,21 @@
 
 'use strict';
 
-var avro = require('etp-avro'),
+let avro = require('etp-avro'),
     avsc = require('../../../../lib');
 
 
-var loops = 2;
-var bufs = [];
-var reader, schema;
+let loops = 2;
+let bufs = [];
+let reader, schema;
 
 avsc.createFileDecoder(process.argv[2])
   .on('metadata', function (type) { schema = JSON.parse(type.toString()); })
   .on('data', function (record) { bufs.push(record.$toBuffer()); })
   .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
+    let i = 0;
+    let n = 0;
+    let time = process.hrtime();
     reader = new avro.BinaryReader();
     for (i = 0; i < loops; i++) {
       n += loop();
@@ -29,8 +29,8 @@ avsc.createFileDecoder(process.argv[2])
   });
 
 function loop() {
-  var n = 0;
-  var i, l, record;
+  let n = 0;
+  let i, l, record;
   for (i = 0, l = bufs.length; i < l; i++) {
     record = reader.decode(schema, bufs[i]);
     if (record.$ !== null) {

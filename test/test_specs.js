@@ -4,19 +4,19 @@ if (process.browser) {
   return;
 }
 
-var specs = require('../lib/specs'),
+let specs = require('../lib/specs'),
     assert = require('assert'),
     path = require('path');
 
 
-var DPATH = path.join(__dirname, 'dat');
+let DPATH = path.join(__dirname, 'dat');
 
 
 suite('specs', function () {
 
   suite('assembleProtocol', function () {
 
-    var assembleProtocol = specs.assembleProtocol;
+    let assembleProtocol = specs.assembleProtocol;
 
     test('missing file', function (done) {
       assembleProtocol('./dat/foo', function (err) {
@@ -26,7 +26,7 @@ suite('specs', function () {
     });
 
     test('single file', function (done) {
-      var fpath = path.join(DPATH, 'Hello.avdl');
+      let fpath = path.join(DPATH, 'Hello.avdl');
       assembleProtocol(fpath, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
@@ -132,7 +132,7 @@ suite('specs', function () {
     });
 
     test('custom file', function (done) {
-      var fpath = path.join(DPATH, 'Custom.avdl');
+      let fpath = path.join(DPATH, 'Custom.avdl');
       assembleProtocol(fpath, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
@@ -183,7 +183,7 @@ suite('specs', function () {
     });
 
     test('custom import hook', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({'foo.avdl': 'protocol Foo {}'})
       };
       assembleProtocol('foo.avdl', opts, function (err, schema) {
@@ -194,7 +194,7 @@ suite('specs', function () {
     });
 
     test('empty file', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({'foo.avdl': ''})
       };
       assembleProtocol('foo.avdl', opts, function (err) {
@@ -204,7 +204,7 @@ suite('specs', function () {
     });
 
     test('duplicate message', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1.avdl': 'protocol First { double one(); int one(); }'
       });
       assembleProtocol('1.avdl', {importHook: hook}, function (err) {
@@ -214,7 +214,7 @@ suite('specs', function () {
     });
 
     test('import idl', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           '1.avdl': 'import idl "2.avdl"; protocol First {}',
           '2.avdl': 'protocol Second { fixed One(1); int one(); }'
@@ -232,7 +232,7 @@ suite('specs', function () {
     });
 
     test('import idl from namespaced protocol name', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           '1.avdl': 'import idl "2.avdl"; protocol first.First {}',
           '2.avdl': 'protocol Second { fixed One(1); }'
@@ -249,7 +249,7 @@ suite('specs', function () {
     });
 
     test('import idl inside protocol', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           '1.avdl': 'protocol First {int two(); import idl "2.avdl";}',
           '2.avdl': 'protocol Second { fixed Foo(1); }'
@@ -267,7 +267,7 @@ suite('specs', function () {
     });
 
     test('import idl strip redundant namespaces', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           '1.avdl': 'protocol test.First { import idl "2.avdl"; fixed One(1); }',
           '2.avdl': 'protocol other.Second { import idl "3.avdl"; fixed Two(2); }',
@@ -289,7 +289,7 @@ suite('specs', function () {
     });
 
     test('import idl from nested paths', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           'a/1.avdl': 'import idl "2.avdl"; protocol A1 { fixed One(1); }',
           'a/2.avdl': 'import idl "../b/3.avdl"; protocol A2 { fixed Two(2); }',
@@ -311,7 +311,7 @@ suite('specs', function () {
     });
 
     test('duplicate message from import', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1.avdl': 'import idl "2.avdl";\nprotocol First { double one(); }',
         '2.avdl': 'protocol Second { int one(); }'
       });
@@ -322,7 +322,7 @@ suite('specs', function () {
     });
 
     test('repeated import', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           '1.avdl': 'import idl "2.avdl";import idl "3.avdl";protocol A {}',
           '2.avdl': 'import idl "3.avdl";protocol B { enum Number { ONE } }',
@@ -342,7 +342,7 @@ suite('specs', function () {
     });
 
     test('import protocol', function (done) {
-      var opts = {
+      let opts = {
         importHook: createImportHook({
           '1': 'import protocol "2";import protocol "3.avpr"; protocol A {}',
           '2': JSON.stringify({
@@ -367,7 +367,7 @@ suite('specs', function () {
     });
 
     test('import protocol with namespace', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
           protocol: 'bb.B',
@@ -394,7 +394,7 @@ suite('specs', function () {
     });
 
     test('import protocol with namespaced name', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         'A': 'import protocol "B";protocol A {}',
         'B': JSON.stringify({
           protocol: 'b.B',
@@ -414,7 +414,7 @@ suite('specs', function () {
     });
 
     test('import protocol with duplicate message', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         'A': 'import protocol "B";import protocol "C";protocol A {}',
         'B': JSON.stringify({
           protocol: 'B',
@@ -432,7 +432,7 @@ suite('specs', function () {
     });
 
     test('import schema', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'import schema "2"; protocol A {}',
         '2': JSON.stringify({name: 'Number', type: 'enum', symbols: ['1']})
       });
@@ -449,7 +449,7 @@ suite('specs', function () {
     });
 
     test('import hook error', function (done) {
-      var hook = function (fpath, kind, cb) {
+      let hook = function (fpath, kind, cb) {
         if (path.basename(fpath) === 'A.avdl') {
           cb(null, 'import schema "hi"; protocol A {}');
         } else {
@@ -463,7 +463,7 @@ suite('specs', function () {
     });
 
     test('import hook idl error', function (done) {
-      var hook = function (fpath, kind, cb) {
+      let hook = function (fpath, kind, cb) {
         if (path.basename(fpath) === 'A.avdl') {
           cb(null, 'import idl "hi"; protocol A {}');
         } else {
@@ -477,7 +477,7 @@ suite('specs', function () {
     });
 
     test('import invalid kind', function (done) {
-      var hook = createImportHook({'A.avdl': 'import foo "2";protocol A {}'});
+      let hook = createImportHook({'A.avdl': 'import foo "2";protocol A {}'});
       assembleProtocol('A.avdl', {importHook: hook}, function (err) {
         assert(/invalid import/.test(err.message));
         done();
@@ -485,7 +485,7 @@ suite('specs', function () {
     });
 
     test('import invalid JSON', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'import schema "2"; protocol A {}',
         '2': '{'
       });
@@ -497,7 +497,7 @@ suite('specs', function () {
     });
 
     test('annotated union', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A { /** 1 */ @bar(true) union { null, int } foo(); }'
       });
       assembleProtocol('1', {importHook: hook}, function (err) {
@@ -507,7 +507,7 @@ suite('specs', function () {
     });
 
     test('commented import', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': '/* import idl "2"; */ // import idl "3"\nprotocol A {}',
         '2': 'foo', // Invalid IDL.
         '3': 'bar'  // Same.
@@ -519,7 +519,7 @@ suite('specs', function () {
     });
 
     test('qualified name', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A { fixed one.One(1); }',
       });
       assembleProtocol('1', {importHook: hook}, function (err, schema) {
@@ -533,7 +533,7 @@ suite('specs', function () {
     });
 
     test('inline fixed', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A { record Two { fixed One(1) one; } }',
       });
       assembleProtocol('1', {importHook: hook}, function (err, schema) {
@@ -553,10 +553,10 @@ suite('specs', function () {
     });
 
     test('one way void', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A { void ping(); @foo(true) void pong(); }',
       });
-      var opts = {importHook: hook, oneWayVoid: true};
+      let opts = {importHook: hook, oneWayVoid: true};
       assembleProtocol('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
@@ -575,10 +575,10 @@ suite('specs', function () {
     });
 
     test('javadoc precedence', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A {/**1*/ @doc(2) fixed One(1);}',
       });
-      var opts = {importHook: hook, reassignJavadoc: true};
+      let opts = {importHook: hook, reassignJavadoc: true};
       assembleProtocol('1', opts, function (err, schema) {
         assert.strictEqual(err, null);
         assert.deepEqual(schema, {
@@ -592,7 +592,7 @@ suite('specs', function () {
     });
 
     test('reset namespace', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A { import idl "2"; }',
         '2': '@namespace("b") protocol B { @namespace("") fixed One(1); }'
       });
@@ -607,7 +607,7 @@ suite('specs', function () {
     });
 
     test('reset nested namespace', function (done) {
-      var hook = createImportHook({
+      let hook = createImportHook({
         '1': 'protocol A { import idl "2"; }',
         '2': 'import idl "3"; @namespace("b") protocol B {}',
         '3': 'protocol C { fixed Two(1); }'
@@ -625,8 +625,8 @@ suite('specs', function () {
     // Import hook from strings.
     function createImportHook(imports) {
       return function (fpath, kind, cb) {
-        var key = path.normalize(fpath);
-        var str = imports[key];
+        let key = path.normalize(fpath);
+        let str = imports[key];
         delete imports[key];
         process.nextTick(function () { cb(null, str); });
       };
@@ -637,7 +637,7 @@ suite('specs', function () {
 
   suite('readSchema', function () {
 
-    var readSchema = specs.readSchema;
+    let readSchema = specs.readSchema;
 
     test('anonymous record', function () {
       assert.deepEqual(
@@ -706,7 +706,7 @@ suite('specs', function () {
     });
 
     test('custom type ref', function () {
-      var typeRefs = {foo: {logicalType: 'foo', type: 'long'}};
+      let typeRefs = {foo: {logicalType: 'foo', type: 'long'}};
       assert.deepEqual(
         readSchema('record { foo bar; }', {typeRefs: typeRefs}),
         {
@@ -722,7 +722,7 @@ suite('specs', function () {
     });
 
     test('type ref overwrite attributes', function () {
-      var typeRefs = {ip: {logicalType: 'ip', type: 'fixed', size: 4}};
+      let typeRefs = {ip: {logicalType: 'ip', type: 'fixed', size: 4}};
       assert.deepEqual(
         readSchema('record { @size(16) ip ipV6; }', {typeRefs: typeRefs}),
         {
@@ -741,7 +741,7 @@ suite('specs', function () {
 
   suite('readProtocol', function () {
 
-    var readProtocol = specs.readProtocol;
+    let readProtocol = specs.readProtocol;
 
     test('anonymous protocol with javadoced type', function () {
       assert.deepEqual(
@@ -765,7 +765,7 @@ suite('specs', function () {
 
   suite('read', function () {
 
-    var read = specs.read;
+    let read = specs.read;
 
     test('inline protocol', function () {
       assert.deepEqual(
@@ -800,7 +800,7 @@ suite('specs', function () {
     });
 
     test('invalid string', function () {
-      var str = 'protocol { void foo() repeated; }';
+      let str = 'protocol { void foo() repeated; }';
       assert.equal(read(str), str);
     });
 
@@ -808,7 +808,7 @@ suite('specs', function () {
 
   suite('Tokenizer', function () {
 
-    var Tokenizer = specs.Tokenizer;
+    let Tokenizer = specs.Tokenizer;
 
     test('next', function () {
       assert.deepEqual(
@@ -822,7 +822,7 @@ suite('specs', function () {
     });
 
     test('next silent', function () {
-      var t = new Tokenizer('fee 1');
+      let t = new Tokenizer('fee 1');
       assert.equal(t.next().val, 'fee');
       assert.strictEqual(t.next({val: '2', silent: true}), undefined);
       assert.equal(t.next().val, '1');
@@ -876,14 +876,14 @@ suite('specs', function () {
     });
 
     function getToken(str, id, val) {
-      var tokenizer = new Tokenizer(str);
+      let tokenizer = new Tokenizer(str);
       return tokenizer.next({id: id, val: val});
     }
 
     function getTokens(str) {
-      var tokenizer = new Tokenizer(str);
-      var tokens = [];
-      var token;
+      let tokenizer = new Tokenizer(str);
+      let tokens = [];
+      let token;
       while ((token = tokenizer.next()).id !== '(eof)') {
         tokens.push(token);
       }

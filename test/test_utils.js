@@ -1,6 +1,6 @@
 'use strict';
 
-var utils = require('../lib/utils'),
+let utils = require('../lib/utils'),
     assert = require('assert');
 
 
@@ -34,13 +34,13 @@ suite('utils', function () {
   test('copy own properties', function () {
     function Obj() { this.a = 1; this.b = 2; }
     Obj.prototype.c = 2;
-    var obj1 = new Obj();
+    let obj1 = new Obj();
 
-    var obj2 = {b: 3};
+    let obj2 = {b: 3};
     utils.copyOwnProperties(obj1, obj2);
     assert.deepEqual(obj2, {a: 1, b: 3});
 
-    var obj3 = {b: 3};
+    let obj3 = {b: 3};
     utils.copyOwnProperties(obj1, obj3, true);
     assert.deepEqual(obj3, {a: 1, b: 2});
   });
@@ -59,7 +59,7 @@ suite('utils', function () {
 
   test('OrderedQueue', function () {
 
-    var seqs = [
+    let seqs = [
       [0],
       [0,1],
       [0,1,2],
@@ -69,20 +69,20 @@ suite('utils', function () {
       [0,1,2,3]
     ];
 
-    var i;
+    let i;
     for (i = 0; i < seqs.length; i++) {
       check(seqs[i]);
     }
 
     function check(seq) {
-      var q = new utils.OrderedQueue();
-      var i;
+      let q = new utils.OrderedQueue();
+      let i;
       assert.strictEqual(q.pop(), null);
       for (i = 0; i < seq.length; i++) {
         q.push({index: seq[i]});
       }
       for (i = 0; i < seq.length; i++) {
-        var j = q.pop();
+        let j = q.pop();
         assert.equal(j !== null && j.index, i, seq.join());
       }
     }
@@ -92,14 +92,14 @@ suite('utils', function () {
   suite('Lcg', function () {
 
     test('seed', function () {
-      var r1 = new utils.Lcg(48);
-      var r2 = new utils.Lcg(48);
+      let r1 = new utils.Lcg(48);
+      let r2 = new utils.Lcg(48);
       assert.equal(r1.nextInt(), r2.nextInt());
     });
 
     test('integer', function () {
-      var r = new utils.Lcg(48);
-      var i;
+      let r = new utils.Lcg(48);
+      let i;
       i = r.nextInt();
       assert(i >= 0 && i === (i | 0));
       i = r.nextInt(1);
@@ -109,8 +109,8 @@ suite('utils', function () {
     });
 
     test('float', function () {
-      var r = new utils.Lcg(48);
-      var f;
+      let r = new utils.Lcg(48);
+      let f;
       f = r.nextFloat();
       assert(0 <= f && f < 1);
       f = r.nextFloat(0);
@@ -120,20 +120,20 @@ suite('utils', function () {
     });
 
     test('boolean', function () {
-      var r = new utils.Lcg(48);
+      let r = new utils.Lcg(48);
       assert(typeof r.nextBoolean() == 'boolean');
     });
 
     test('choice', function () {
-      var r = new utils.Lcg(48);
-      var arr = ['a'];
+      let r = new utils.Lcg(48);
+      let arr = ['a'];
       assert(r.choice(arr), 'a');
       assert.throws(function () { r.choice([]); });
     });
 
     test('string', function () {
-      var r = new utils.Lcg(48);
-      var s;
+      let r = new utils.Lcg(48);
+      let s;
       s = r.nextString(10, 'aA#!');
       assert.equal(s.length, 10);
       s = r.nextString(5, '#!');
@@ -144,15 +144,15 @@ suite('utils', function () {
 
   suite('Tap', function () {
 
-    var BufferPool = utils.BufferPool;
+    let BufferPool = utils.BufferPool;
 
     test('alloc negative length', function () {
-      var pool = new BufferPool(16);
+      let pool = new BufferPool(16);
       assert.throws(function () { pool.alloc(-1); });
     });
 
     test('alloc beyond pool size', function () {
-      var pool = new BufferPool(4);
+      let pool = new BufferPool(4);
       assert.equal(pool.alloc(3).length, 3);
       assert.equal(pool.alloc(2).length, 2);
     });
@@ -161,7 +161,7 @@ suite('utils', function () {
 
   suite('Tap', function () {
 
-    var Tap = utils.Tap;
+    let Tap = utils.Tap;
 
     suite('int & long', function () {
 
@@ -174,9 +174,9 @@ suite('utils', function () {
 
       test('write', function () {
 
-        var tap = newTap(6);
+        let tap = newTap(6);
         tap.writeLong(1440756011948);
-        var buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert(tap.isValid());
         assert(buf.equals(tap.buf));
 
@@ -184,7 +184,7 @@ suite('utils', function () {
 
       test('read', function () {
 
-        var buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert.equal((new Tap(buf)).readLong(), 1440756011948);
 
       });
@@ -260,15 +260,15 @@ suite('utils', function () {
     suite('binary', function () {
 
       test('write valid', function () {
-        var tap = newTap(3);
-        var s = '\x01\x02';
+        let tap = newTap(3);
+        let s = '\x01\x02';
         tap.writeBinary(s, 2);
         assert.deepEqual(tap.buf, utils.bufferFrom([1,2,0]));
       });
 
       test('write invalid', function () {
-        var tap = newTap(1);
-        var s = '\x01\x02';
+        let tap = newTap(1);
+        let s = '\x01\x02';
         tap.writeBinary(s, 2);
         assert.deepEqual(tap.buf, utils.bufferFrom([0]));
       });
@@ -278,7 +278,7 @@ suite('utils', function () {
     suite('pack & unpack longs', function () {
 
       test('unpack single byte', function () {
-        var t = newTap(10);
+        let t = newTap(10);
         t.writeLong(5);
         t.pos = 0;
         assert.deepEqual(
@@ -296,8 +296,8 @@ suite('utils', function () {
       });
 
       test('unpack multiple bytes', function () {
-        var t = newTap(10);
-        var l;
+        let t = newTap(10);
+        let l;
         l = 18932;
         t.writeLong(l);
         t.pos = 0;
@@ -310,8 +310,8 @@ suite('utils', function () {
       });
 
       test('pack single byte', function () {
-        var t = newTap(10);
-        var b = utils.newBuffer(8);
+        let t = newTap(10);
+        let b = utils.newBuffer(8);
         b.fill(0);
         b.writeInt32LE(12);
         t.packLongBytes(b);
@@ -345,8 +345,8 @@ suite('utils', function () {
         roundtrip(-1);
 
         function roundtrip(n) {
-          var t1 = newTap(10);
-          var t2 = newTap(10);
+          let t1 = newTap(10);
+          let t2 = newTap(10);
           t1.writeLong(n);
           t1.pos = 0;
           t2.packLongBytes(t1.unpackLongBytes());
@@ -359,32 +359,32 @@ suite('utils', function () {
         roundtrip(utils.bufferFrom('9007199254740995', 'hex'));
 
         function roundtrip(b1) {
-          var t = newTap(10);
+          let t = newTap(10);
           t.packLongBytes(b1);
           t.pos = 0;
-          var b2 = t.unpackLongBytes();
+          let b2 = t.unpackLongBytes();
           assert.deepEqual(b2, b1);
         }
       });
     });
 
     function newTap(n) {
-      var buf = utils.newBuffer(n);
+      let buf = utils.newBuffer(n);
       buf.fill(0);
       return new Tap(buf);
     }
 
     function testWriterReader(opts) {
-      var size = opts.size;
-      var elems = opts.elems;
-      var writeFn = opts.writer;
-      var readFn = opts.reader;
-      var skipFn = opts.skipper;
-      var name = opts.name || '';
+      let size = opts.size;
+      let elems = opts.elems;
+      let writeFn = opts.writer;
+      let readFn = opts.reader;
+      let skipFn = opts.skipper;
+      let name = opts.name || '';
 
       test('write read ' + name, function () {
-        var tap = newTap(size || 1024);
-        var i, l, elem;
+        let tap = newTap(size || 1024);
+        let i, l, elem;
         for (i = 0, l = elems.length; i < l; i++) {
           tap.buf.fill(0);
           tap.pos = 0;
@@ -396,20 +396,20 @@ suite('utils', function () {
       });
 
       test('read over ' + name, function () {
-        var tap = new Tap(utils.newBuffer(0));
+        let tap = new Tap(utils.newBuffer(0));
         readFn.call(tap); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
       test('write over ' + name, function () {
-        var tap = new Tap(utils.newBuffer(0));
+        let tap = new Tap(utils.newBuffer(0));
         writeFn.call(tap, elems[0]); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
       test('skip ' + name, function () {
-        var tap = newTap(size || 1024);
-        var i, l, elem, pos;
+        let tap = newTap(size || 1024);
+        let i, l, elem, pos;
         for (i = 0, l = elems.length; i < l; i++) {
           tap.buf.fill(0);
           tap.pos = 0;

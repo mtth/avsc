@@ -1,6 +1,6 @@
 'use strict';
 
-var types = require('../lib/types'),
+let types = require('../lib/types'),
     services = require('../lib/services'),
     utils = require('../lib/utils'),
     assert = require('assert'),
@@ -8,7 +8,7 @@ var types = require('../lib/types'),
     util = require('util');
 
 
-var Service = services.Service;
+let Service = services.Service;
 
 
 suite('services', function () {
@@ -16,7 +16,7 @@ suite('services', function () {
   suite('Service', function () {
 
     test('get name, types, and protocol', function () {
-      var p = {
+      let p = {
         namespace: 'foo',
         protocol: 'HelloWorld',
         types: [
@@ -44,7 +44,7 @@ suite('services', function () {
           }
         }
       };
-      var s = Service.forProtocol(p);
+      let s = Service.forProtocol(p);
       assert.equal(s.name, 'foo.HelloWorld');
       assert.equal(s.type('foo.Greeting').getTypeName(), 'record');
       assert.equal(s.type('string').getTypeName(), 'string');
@@ -53,7 +53,7 @@ suite('services', function () {
     });
 
     test('missing message', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         namespace: 'com.acme',
         protocol: 'Hello'
       });
@@ -85,8 +85,8 @@ suite('services', function () {
 
     test('multiple references to namespaced types', function () {
       // This test is a useful sanity check for hoisting implementations.
-      var n = 0;
-      var s = Service.forProtocol({
+      let n = 0;
+      let s = Service.forProtocol({
         protocol: 'Hello',
         namespace: 'ping',
         types: [
@@ -130,7 +130,7 @@ suite('services', function () {
     });
 
     test('get messages', function () {
-      var svc;
+      let svc;
       svc = Service.forProtocol({protocol: 'Empty'});
       assert.deepEqual(svc.messages, []);
       svc = Service.forProtocol({
@@ -142,27 +142,27 @@ suite('services', function () {
           }
         }
       });
-      var messages = svc.messages;
+      let messages = svc.messages;
       assert.deepEqual(messages, [svc.message('ping')]);
     });
 
     test('subprotocol', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         namespace: 'com.acme',
         protocol: 'Hello',
         types: [{name: 'Id', type: 'fixed', size: 2}],
         messages: {ping: {request: [], response: 'null'}}
       });
-      var subptcl = svc.subprotocol();
+      let subptcl = svc.subprotocol();
       assert(subptcl.getFingerprint().equals(svc.getFingerprint()));
       assert.strictEqual(subptcl._emitterResolvers, svc._emitterResolvers);
       assert.strictEqual(subptcl._listenerResolvers, svc._listenerResolvers);
     });
 
     test('invalid emitter', function (done) {
-      var svc1 = Service.forProtocol({protocol: 'Hey'});
-      var svc2 = Service.forProtocol({protocol: 'Hi'});
-      var ee = svc2.createEmitter(new stream.PassThrough(), {noPing: true});
+      let svc1 = Service.forProtocol({protocol: 'Hey'});
+      let svc2 = Service.forProtocol({protocol: 'Hi'});
+      let ee = svc2.createEmitter(new stream.PassThrough(), {noPing: true});
       assert.throws(
         function () { svc1.emit('hi', {}, ee); },
         /invalid emitter/
@@ -171,7 +171,7 @@ suite('services', function () {
     });
 
     test('getSchema', function () {
-      var schema = {
+      let schema = {
         protocol: 'Hello',
         messages: {
           ping: {request: [], response: 'boolean', doc: ''},
@@ -179,12 +179,12 @@ suite('services', function () {
         },
         doc: 'Hey'
       };
-      var svc = Service.forProtocol(schema);
+      let svc = Service.forProtocol(schema);
       assert.deepEqual(svc.getSchema({exportAttrs: true}), schema);
     });
 
     test('getSchema no top-level type references', function () {
-      var schema = {
+      let schema = {
         protocol: 'Hello',
         types: [
           {
@@ -196,19 +196,19 @@ suite('services', function () {
           }
         ]
       };
-      var svc = Service.forProtocol(schema);
-      var t = svc.type('Foo');
+      let svc = Service.forProtocol(schema);
+      let t = svc.type('Foo');
       // Bar's reference shouldn't be included in the returned types array.
       assert.deepEqual(svc.getSchema().types, [t.getSchema()]);
     });
 
     test('get documentation', function () {
-      var svc = Service.forProtocol({protocol: 'Hello', doc: 'Hey'});
+      let svc = Service.forProtocol({protocol: 'Hello', doc: 'Hey'});
       assert.equal(svc.doc, 'Hey');
     });
 
     test('getFingerprint', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -216,7 +216,7 @@ suite('services', function () {
     });
 
     test('isService', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -226,7 +226,7 @@ suite('services', function () {
     });
 
     test('equals', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -236,7 +236,7 @@ suite('services', function () {
     });
 
     test('inspect', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         namespace: 'hello',
         protocol: 'World',
       });
@@ -244,13 +244,13 @@ suite('services', function () {
     });
 
     test('using constructor', function () {
-      var svc = new services.Service({protocol: 'Empty'});
+      let svc = new services.Service({protocol: 'Empty'});
       assert.equal(svc.name, 'Empty');
       assert.deepEqual(svc.messages, []);
     });
 
     test('namespacing', function () {
-      var svc;
+      let svc;
 
       svc = newService('foo.Foo', '');
       assert.equal(svc.name, 'foo.Foo');
@@ -295,28 +295,28 @@ suite('services', function () {
     });
 
     test('createClient transport option', function (done) {
-      var svc = Service.forProtocol({protocol: 'Empty'});
+      let svc = Service.forProtocol({protocol: 'Empty'});
       svc.createClient({transport: new stream.PassThrough()})
         .on('channel', function () { done(); });
     });
 
     test('createListener strict', function () {
-      var svc = Service.forProtocol({protocol: 'Empty'});
+      let svc = Service.forProtocol({protocol: 'Empty'});
       assert.throws(function () {
         svc.createListener(new stream.PassThrough(), {strictErrors: true});
       });
     });
 
     test('compatible', function () {
-      var emptySvc = Service.forProtocol({protocol: 'Empty'});
-      var pingSvc = Service.forProtocol({
+      let emptySvc = Service.forProtocol({protocol: 'Empty'});
+      let pingSvc = Service.forProtocol({
         protocol: 'Ping',
         messages: {
           ping: {request: [], response: 'boolean'},
           pong: {request: [], response: 'int'}
         }
       });
-      var pongSvc = Service.forProtocol({
+      let pongSvc = Service.forProtocol({
         protocol: 'Pong',
         messages: {
           pong: {request: [], response: 'long'}
@@ -331,10 +331,10 @@ suite('services', function () {
 
   suite('Message', function () {
 
-    var Message = services.Message;
+    let Message = services.Message;
 
     test('empty errors', function () {
-      var m = Message.forSchema('Hi', {
+      let m = Message.forSchema('Hi', {
         request: [{name: 'greeting', type: 'string'}],
         response: 'int'
       });
@@ -389,11 +389,11 @@ suite('services', function () {
     });
 
     test('getters', function () {
-      var s = {
+      let s = {
         request: [{name: 'ping', type: 'string'}],
         response: 'null'
       };
-      var m = Message.forSchema('Ping', s);
+      let m = Message.forSchema('Ping', s);
       assert.equal(m.name, 'Ping');
       assert.equal(m.requestType.getFields()[0].getName(), 'ping');
       assert.equal(m.responseType.getName(true), 'null');
@@ -403,12 +403,12 @@ suite('services', function () {
     });
 
     test('get documentation', function () {
-      var schema = {
+      let schema = {
         request: [{name: 'ping', type: 'string'}],
         response: 'null',
         doc: 'Pong'
       };
-      var m = Message.forSchema('Ping', schema);
+      let m = Message.forSchema('Ping', schema);
       assert.equal(m.doc, 'Pong');
     });
 
@@ -426,30 +426,30 @@ suite('services', function () {
     });
 
     test('schema multiple errors', function () {
-      var s = {
+      let s = {
         request: [{name: 'ping', type: 'string'}],
         response: 'null',
         errors: ['int', 'bytes']
       };
-      var m = Message.forSchema('Ping', s);
+      let m = Message.forSchema('Ping', s);
       assert.deepEqual(m.schema(), s);
     });
   });
 
   suite('FrameDecoder & FrameEncoder', function () {
 
-    var FrameDecoder = services.streams.FrameDecoder;
-    var FrameEncoder = services.streams.FrameEncoder;
+    let FrameDecoder = services.streams.FrameDecoder;
+    let FrameEncoder = services.streams.FrameEncoder;
 
     test('decode', function (done) {
-      var frames = [
+      let frames = [
         utils.bufferFrom([0, 1]),
         utils.bufferFrom([2]),
         utils.bufferFrom([]),
         utils.bufferFrom([3, 4]),
         utils.bufferFrom([])
       ].map(frame);
-      var messages = [];
+      let messages = [];
       createReadableStream(frames)
         .pipe(new FrameDecoder())
         .pipe(createWritableStream(messages))
@@ -469,13 +469,13 @@ suite('services', function () {
     });
 
     test('decode with trailing data', function (done) {
-      var frames = [
+      let frames = [
         utils.bufferFrom([0, 1]),
         utils.bufferFrom([2]),
         utils.bufferFrom([]),
         utils.bufferFrom([3])
       ].map(frame);
-      var messages = [];
+      let messages = [];
       createReadableStream(frames)
         .pipe(new FrameDecoder())
         .on('error', function () {
@@ -501,7 +501,7 @@ suite('services', function () {
     });
 
     test('encode empty', function (done) {
-      var frames = [];
+      let frames = [];
       createReadableStream([])
         .pipe(new FrameEncoder())
         .pipe(createWritableStream(frames))
@@ -512,14 +512,14 @@ suite('services', function () {
     });
 
     test('encode', function (done) {
-      var messages = [
+      let messages = [
         {id: 1, payload: [
           utils.bufferFrom([1, 3, 5]),
           utils.bufferFrom([6, 8])
         ]},
         {id: 4, payload: [utils.bufferFrom([123, 23])]}
       ];
-      var frames = [];
+      let frames = [];
       createReadableStream(messages)
         .pipe(new FrameEncoder())
         .pipe(createWritableStream(frames))
@@ -542,7 +542,7 @@ suite('services', function () {
     });
 
     test('roundtrip', function (done) {
-      var type = types.Type.forSchema({
+      let type = types.Type.forSchema({
         type: 'record',
         name: 'Record',
         fields: [
@@ -550,18 +550,18 @@ suite('services', function () {
           {name: 'payload', type: {type: 'array', items: 'bytes'}}
         ]
       });
-      var n = 100;
-      var src = [];
+      let n = 100;
+      let src = [];
       while (n--) {
-        var record = type.random();
+        let record = type.random();
         record.payload = record.payload.filter(function (arr) {
           return arr.length;
         });
         src.push(record);
       }
-      var dst = [];
-      var encoder = new FrameEncoder();
-      var decoder = new FrameDecoder();
+      let dst = [];
+      let encoder = new FrameEncoder();
+      let decoder = new FrameDecoder();
       createReadableStream(src)
         .pipe(encoder)
         .pipe(decoder)
@@ -575,15 +575,15 @@ suite('services', function () {
 
   suite('NettyDecoder & NettyEncoder', function () {
 
-    var NettyDecoder = services.streams.NettyDecoder;
-    var NettyEncoder = services.streams.NettyEncoder;
+    let NettyDecoder = services.streams.NettyDecoder;
+    let NettyEncoder = services.streams.NettyEncoder;
 
     test('decode with trailing data', function (done) {
-      var src = [
+      let src = [
         utils.bufferFrom([0, 0, 0, 2, 0, 0, 0]),
         utils.bufferFrom([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
       ];
-      var dst = [];
+      let dst = [];
       createReadableStream(src)
         .pipe(new NettyDecoder())
         .on('error', function () {
@@ -597,7 +597,7 @@ suite('services', function () {
     });
 
     test('roundtrip', function (done) {
-      var type = types.Type.forSchema({
+      let type = types.Type.forSchema({
         type: 'record',
         name: 'Record',
         fields: [
@@ -605,18 +605,18 @@ suite('services', function () {
           {name: 'payload', type: {type: 'array', items: 'bytes'}}
         ]
       });
-      var n = 200;
-      var src = [];
+      let n = 200;
+      let src = [];
       while (n--) {
-        var record = type.random();
+        let record = type.random();
         record.payload = record.payload.filter(function (arr) {
           return arr.length;
         });
         src.push(record);
       }
-      var dst = [];
-      var encoder = new NettyEncoder();
-      var decoder = new NettyDecoder();
+      let dst = [];
+      let encoder = new NettyEncoder();
+      let decoder = new NettyDecoder();
       createReadableStream(src)
         .pipe(encoder)
         .pipe(decoder)
@@ -630,16 +630,16 @@ suite('services', function () {
 
   suite('Adapter', function () {
 
-    var Adapter = services.Adapter;
+    let Adapter = services.Adapter;
 
     test('truncated request & response', function () {
-      var s = Service.forProtocol({
+      let s = Service.forProtocol({
         protocol: 'Echo',
         messages: {
           echo: {request: [{name: 's', type: 'string'}], response: 'string'}
         }
       });
-      var a = new Adapter(s, s);
+      let a = new Adapter(s, s);
       assert.throws(function () {
         a._decodeRequest(utils.bufferFrom([24]));
       }, /truncated/);
@@ -655,11 +655,11 @@ suite('services', function () {
 
   suite('Registry', function () {
 
-    var Registry = services.Registry;
+    let Registry = services.Registry;
 
     test('get', function (done) {
-      var ctx = {one: 1};
-      var reg = new Registry(ctx);
+      let ctx = {one: 1};
+      let reg = new Registry(ctx);
       var id = reg.add(200, function (err, two) {
         assert.strictEqual(this, ctx);
         assert.strictEqual(err, null);
@@ -671,8 +671,8 @@ suite('services', function () {
     });
 
     test('timeout', function (done) {
-      var ctx = {one: 1};
-      var reg = new Registry(ctx);
+      let ctx = {one: 1};
+      let reg = new Registry(ctx);
       var id = reg.add(10, function (err) {
         assert.strictEqual(this, ctx);
         assert(/timeout/.test(err));
@@ -682,8 +682,8 @@ suite('services', function () {
     });
 
     test('no timeout', function (done) {
-      var ctx = {one: 1};
-      var reg = new Registry(ctx);
+      let ctx = {one: 1};
+      let reg = new Registry(ctx);
       var id = reg.add(-1, function (err, two) {
         assert.strictEqual(this, ctx);
         assert.strictEqual(err, null);
@@ -695,9 +695,9 @@ suite('services', function () {
     });
 
     test('clear', function (done) {
-      var ctx = {one: 1};
-      var reg = new Registry(ctx);
-      var n = 0;
+      let ctx = {one: 1};
+      let reg = new Registry(ctx);
+      let n = 0;
       reg.add(20, fn);
       reg.add(20, fn);
       reg.clear();
@@ -711,9 +711,9 @@ suite('services', function () {
     });
 
     test('mask', function (done) {
-      var ctx = {one: 1};
-      var n = 0;
-      var reg = new Registry(ctx, 31);
+      let ctx = {one: 1};
+      let n = 0;
+      let reg = new Registry(ctx, 31);
       assert.equal(reg.add(10, fn), 1);
       assert.equal(reg.add(10, fn), 0);
       reg.get(4)(null);
@@ -731,11 +731,11 @@ suite('services', function () {
   suite('StatefulClientChannel', function () {
 
     test('connection timeout', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = {
+      let transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
@@ -749,12 +749,12 @@ suite('services', function () {
     });
 
     test('ping', function (done) {
-      var svc = Service.forProtocol({protocol: 'Ping' });
-      var transport = {
+      let svc = Service.forProtocol({protocol: 'Ping' });
+      let transport = {
         readable: new stream.PassThrough({objectMode: true}),
         writable: new stream.PassThrough({objectMode: true})
       };
-      var channel = svc.createClient()
+      let channel = svc.createClient()
         .createChannel(transport, {noPing: true, objectMode: true, timeout: 5})
         .on('eot', function () { done(); });
       channel.ping(function (err) {
@@ -764,11 +764,11 @@ suite('services', function () {
     });
 
     test('readable ended', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transports = createPassthroughTransports();
+      let transports = createPassthroughTransports();
       svc.createClient()
         .createChannel(transports[0])
         .on('eot', function () { done(); });
@@ -776,13 +776,13 @@ suite('services', function () {
     });
 
     test('writable finished', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       // We must use object mode here since ending the encoding stream won't
       // end the underlying writable stream.
-      var transports = createPassthroughTransports(true);
+      let transports = createPassthroughTransports(true);
       svc.createClient()
         .createChannel(transports[0], {noPing: true, objectMode: true})
         .on('eot', function () { done(); });
@@ -790,13 +790,13 @@ suite('services', function () {
     });
 
     test('keep writable open', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       // We must use object mode here since ending the encoding stream won't
       // end the underlying writable stream.
-      var transports = createPassthroughTransports(true);
+      let transports = createPassthroughTransports(true);
       svc.createClient()
         .createChannel(transports[0], {objectMode: true, endWritable: false})
         .on('eot', function () {
@@ -810,16 +810,16 @@ suite('services', function () {
       // Check that we can interrupt a handshake part-way, so that we can ping
       // a remote server for its service, but still reuse the same connection
       // for a later trasnmission.
-      var svc1 = Service.forProtocol({protocol: 'Empty'});
-      var svc2 = Service.forProtocol({
+      let svc1 = Service.forProtocol({protocol: 'Empty'});
+      let svc2 = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
 
-      var transports = createPassthroughTransports();
-      var server2 = svc2.createServer()
+      let transports = createPassthroughTransports();
+      let server2 = svc2.createServer()
         .onPing(function (cb) { cb(null, true); });
-      var chn1 = server2.createChannel(transports[0]);
+      let chn1 = server2.createChannel(transports[0]);
       assert.strictEqual(chn1.getProtocol(), svc2); // Deprecated.
       assert.strictEqual(chn1.server.service, svc2);
       svc1.createClient()
@@ -830,8 +830,8 @@ suite('services', function () {
         })
         .on('eot', function () {
           // The transports are still available for a connection.
-          var client = svc2.createClient();
-          var chn2 = client.createChannel(transports[1]);
+          let client = svc2.createClient();
+          let chn2 = client.createChannel(transports[1]);
           client.ping(function (err, res) {
             assert.strictEqual(err, null);
             assert.strictEqual(res, true);
@@ -841,11 +841,11 @@ suite('services', function () {
     });
 
     test('trailing decoder', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transports = createPassthroughTransports();
+      let transports = createPassthroughTransports();
       svc.createClient()
         .createChannel(transports[0], {noPing: true})
         .on('eot', function (pending, err) {
@@ -860,12 +860,12 @@ suite('services', function () {
   suite('StatelessClientChannel', function () {
 
     test('factory error', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var client = svc.createClient({strictTypes: true});
-      var chn = client.createChannel(function (cb) {
+      let client = svc.createClient({strictTypes: true});
+      let chn = client.createChannel(function (cb) {
         return new stream.PassThrough({objectMode: true})
           .on('finish', function () { cb(new Error('foobar')); });
       }, {noPing: true, objectMode: true});
@@ -878,12 +878,12 @@ suite('services', function () {
     });
 
     test('factory error no writable', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var client = svc.createClient();
-      var chn = client.createChannel(function () {}, {noPing: true});
+      let client = svc.createClient();
+      let chn = client.createChannel(function () {}, {noPing: true});
       client.ping(function (err) {
         assert(/invalid writable stream/.test(err), err);
         assert(!chn.destroyed);
@@ -893,14 +893,14 @@ suite('services', function () {
     });
 
     test('trailing data', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var client = svc.createClient();
-      var readable = new stream.PassThrough();
-      var sawError = false;
-      var chn = client.createChannel(function (cb) {
+      let client = svc.createClient();
+      let readable = new stream.PassThrough();
+      let sawError = false;
+      let chn = client.createChannel(function (cb) {
         cb(null, readable);
         return new stream.PassThrough();
       }, {noPing: true})
@@ -918,12 +918,12 @@ suite('services', function () {
     });
 
     test('default encoder error', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       }, {wrapUnions: true});
-      var client = svc.createClient({strictTypes: true});
-      var chn = client.createChannel(function (cb) {
+      let client = svc.createClient({strictTypes: true});
+      let chn = client.createChannel(function (cb) {
         return new stream.PassThrough()
           .on('finish', function () { cb(new Error('foobar')); });
       }, {noPing: true});
@@ -935,20 +935,20 @@ suite('services', function () {
     });
 
     test('reuse writable', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
-      var readable = new stream.PassThrough({objectMode: true});
-      var writable = new stream.PassThrough({objectMode: true})
+      let readable = new stream.PassThrough({objectMode: true});
+      let writable = new stream.PassThrough({objectMode: true})
         .on('data', function (data) {
           // Encoded handshake response.
-          var hres = utils.bufferFrom([0, 0, 0, 0]);
+          let hres = utils.bufferFrom([0, 0, 0, 0]);
           // Encoded response (flag and meta).
-          var res = utils.bufferFrom([0, 0]);
+          let res = utils.bufferFrom([0, 0]);
           readable.write({id: data.id, payload: [hres, res]});
         });
-      var client = svc.createClient();
+      let client = svc.createClient();
       client.createChannel(function (cb) {
         cb(null, readable);
         return writable;
@@ -963,17 +963,17 @@ suite('services', function () {
     });
 
     test('invalid handshake response', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
-      var readable = new stream.PassThrough({objectMode: true});
-      var writable = new stream.PassThrough({objectMode: true})
+      let readable = new stream.PassThrough({objectMode: true});
+      let writable = new stream.PassThrough({objectMode: true})
         .on('data', function (data) {
-          var buf = utils.bufferFrom([0, 0, 0, 2, 48]);
+          let buf = utils.bufferFrom([0, 0, 0, 2, 48]);
           readable.write({id: data.id, payload: [buf]});
         });
-      var client = svc.createClient();
+      let client = svc.createClient();
       client.createChannel(function (cb) {
         cb(null, readable);
         return writable;
@@ -985,23 +985,23 @@ suite('services', function () {
     });
 
     test('interrupt writable', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       });
       // Fake handshake response.
-      var hres = services.HANDSHAKE_RESPONSE_TYPE.clone({
+      let hres = services.HANDSHAKE_RESPONSE_TYPE.clone({
         match: 'NONE',
         serverService: JSON.stringify(svc.protocol),
         serverHash: svc.hash
       });
-      var readable = new stream.PassThrough({objectMode: true});
-      var writable = new stream.PassThrough({objectMode: true})
+      let readable = new stream.PassThrough({objectMode: true});
+      let writable = new stream.PassThrough({objectMode: true})
         .on('data', function (data) {
           readable.write({id: data.id, payload: [hres.toBuffer()]});
         });
-      var numHandshakes = 0;
-      var client = svc.createClient();
+      let numHandshakes = 0;
+      let client = svc.createClient();
       client.createChannel(function (cb) {
         cb(null, readable);
         return writable;
@@ -1023,11 +1023,11 @@ suite('services', function () {
   suite('StatefulServerChannel', function () {
 
     test('readable ended', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = new stream.PassThrough();
+      let transport = new stream.PassThrough();
       svc.createServer().createChannel(transport).on('eot', function () {
         assert(this.destroyed);
         assert(this.isDestroyed()); // Deprecated.
@@ -1037,11 +1037,11 @@ suite('services', function () {
     });
 
     test('readable trailing data', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = new stream.PassThrough();
+      let transport = new stream.PassThrough();
       svc.createServer().createChannel(transport)
         .on('eot', function (pending, err) {
           assert(/trailing/.test(err), err);
@@ -1053,13 +1053,13 @@ suite('services', function () {
     });
 
     test('writable finished', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
       // We must use object mode here since ending the encoding stream won't
       // end the underlying writable stream.
-      var transports = createPassthroughTransports(true);
+      let transports = createPassthroughTransports(true);
       svc.createServer().createChannel(transports[0], {objectMode: true})
         .on('eot', function () { done(); });
       transports[0].writable.end();
@@ -1069,7 +1069,7 @@ suite('services', function () {
   suite('StatelessServerChannel', function () {
 
     test('factory error', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
@@ -1083,11 +1083,11 @@ suite('services', function () {
     });
 
     test('trailing data', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean', errors: ['int']}}
       });
-      var transports = createPassthroughTransports();
+      let transports = createPassthroughTransports();
       svc.createServer({silent: true}).createChannel(function (cb) {
         cb(null, transports[0].writable);
         return transports[1].readable;
@@ -1099,13 +1099,13 @@ suite('services', function () {
     });
 
     test('delayed writable', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean', errors: ['int']}}
       });
-      var objs = [];
-      var readable = new stream.PassThrough({objectMode: true});
-      var writable = new stream.PassThrough({objectMode: true})
+      let objs = [];
+      let readable = new stream.PassThrough({objectMode: true});
+      let writable = new stream.PassThrough({objectMode: true})
         .on('data', function (obj) { objs.push(obj); });
       svc.createServer({silent: true}).createChannel(function (cb) {
         setTimeout(function () { cb(null, writable); }, 50);
@@ -1127,22 +1127,22 @@ suite('services', function () {
     });
 
     test('reuse writable', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null'}}
       }).on('ping', function (req, ee, cb) {
         cb(null, null);
       });
-      var payload = [
+      let payload = [
         services.HANDSHAKE_REQUEST_TYPE.toBuffer({
           clientHash: svc.hash,
           serverHash: svc.hash
         }),
         utils.bufferFrom('\x00\x08ping')
       ];
-      var objs = [];
-      var readable = new stream.PassThrough({objectMode: true});
-      var writable = new stream.PassThrough({objectMode: true})
+      let objs = [];
+      let readable = new stream.PassThrough({objectMode: true});
+      let writable = new stream.PassThrough({objectMode: true})
         .on('data', function (obj) { objs.push(obj); });
       svc.createServer({silent: true}).createChannel(function (cb) {
         cb(null, writable);
@@ -1166,8 +1166,8 @@ suite('services', function () {
           cb = opts;
           opts = undefined;
         }
-        var pt1 = new stream.PassThrough();
-        var pt2 = new stream.PassThrough();
+        let pt1 = new stream.PassThrough();
+        let pt2 = new stream.PassThrough();
         cb(
           emitterPtcl.createEmitter({readable: pt1, writable: pt2}, opts),
           listenerPtcl.createListener({readable: pt2, writable: pt1}, opts)
@@ -1175,8 +1175,8 @@ suite('services', function () {
       });
 
       test('explicit server fingerprint', function (done) {
-        var transports = createPassthroughTransports();
-        var p1 = Service.forProtocol({
+        let transports = createPassthroughTransports();
+        let p1 = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1185,7 +1185,7 @@ suite('services', function () {
             }
           }
         });
-        var p2 = Service.forProtocol({
+        let p2 = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1194,8 +1194,8 @@ suite('services', function () {
             }
           }
         });
-        var ml1 = p2.createListener(transports[0]);
-        var me1 = p1.createEmitter(transports[1]);
+        let ml1 = p2.createListener(transports[0]);
+        let me1 = p1.createEmitter(transports[1]);
         me1.on('handshake', function (hreq, hres) {
           if (hres.match === 'NONE') {
             return;
@@ -1203,7 +1203,7 @@ suite('services', function () {
           // When we reach here a connection has been established, so both
           // emitter and listener caches have been populated with correct
           // adapters.
-          var transports = createPassthroughTransports();
+          let transports = createPassthroughTransports();
           p2.createListener(transports[0], {cache: ml1.getCache()})
             .once('handshake', onHandshake);
           p1.createEmitter(transports[1], {
@@ -1211,7 +1211,7 @@ suite('services', function () {
             serverHash: p2.hash
           }).once('handshake', onHandshake);
 
-          var n = 0;
+          let n = 0;
           function onHandshake(hreq, hres) {
             // The remote service should be available.
             assert.equal(hres.match, 'BOTH');
@@ -1223,8 +1223,8 @@ suite('services', function () {
       });
 
       test('cached client fingerprint', function (done) {
-        var transports = createPassthroughTransports();
-        var p1 = Service.forProtocol({
+        let transports = createPassthroughTransports();
+        let p1 = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1233,7 +1233,7 @@ suite('services', function () {
             }
           }
         });
-        var p2 = Service.forProtocol({
+        let p2 = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1242,13 +1242,13 @@ suite('services', function () {
             }
           }
         });
-        var ml1 = p2.createListener(transports[0]);
-        var me1 = p1.createEmitter(transports[1], {timeout: 0});
+        let ml1 = p2.createListener(transports[0]);
+        let me1 = p1.createEmitter(transports[1], {timeout: 0});
         me1.on('handshake', function (hreq, hres) {
           if (hres.match === 'NONE') {
             return;
           }
-          var transports = createPassthroughTransports();
+          let transports = createPassthroughTransports();
           // The listener now has the client's service.
           p2.createListener(transports[0], {cache: ml1.getCache()})
             .once('handshake', function (hreq, hres) {
@@ -1260,8 +1260,8 @@ suite('services', function () {
       });
 
       test('scoped transports', function (done) {
-        var transports = createPassthroughTransports();
-        var ptcl = Service.forProtocol({
+        let transports = createPassthroughTransports();
+        let ptcl = Service.forProtocol({
           protocol: 'Case',
           messages: {
             upper: {
@@ -1272,9 +1272,9 @@ suite('services', function () {
         }).on('upper', function (req, ee, cb) {
           cb(null, req.str.toUpperCase());
         });
-        var meA = ptcl.createEmitter(transports[1], {scope: 'a'});
+        let meA = ptcl.createEmitter(transports[1], {scope: 'a'});
         ptcl.createListener(transports[0], {scope: 'a'});
-        var meB = ptcl.createEmitter(transports[0], {scope: 'b'});
+        let meB = ptcl.createEmitter(transports[0], {scope: 'b'});
         ptcl.createListener(transports[1], {scope: 'b'});
         ptcl.emit('upper', {str: 'hi'}, meA, function (err, res) {
           assert.strictEqual(err, null);
@@ -1317,7 +1317,7 @@ suite('services', function () {
     function run(setupFn) {
 
       test('primitive types', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1328,7 +1328,7 @@ suite('services', function () {
         });
         setupFn(ptcl, ptcl, function (ee) {
           ptcl.on('negate', function (req, ee, cb) { cb(null, -req.n); });
-          var n1, n2;
+          let n1, n2;
           ee.on('eot', function () {
             assert.equal(n1, 1);
             assert.equal(n2, 1);
@@ -1353,7 +1353,7 @@ suite('services', function () {
       });
 
       test('emit receive error', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1375,7 +1375,7 @@ suite('services', function () {
       });
 
       test('complex type', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Literature',
           messages: {
             generate: {
@@ -1392,10 +1392,10 @@ suite('services', function () {
           }
         });
         setupFn(ptcl, ptcl, function (ee) {
-          var type = ptcl.getType('N');
+          let type = ptcl.getType('N');
           ee.on('eot', function () { done(); });
           ptcl.on('generate', function (req, ee, cb) {
-            var letters = [];
+            let letters = [];
             while (req.n--) { letters.push(type.random()); }
             cb(null, letters);
           });
@@ -1409,7 +1409,7 @@ suite('services', function () {
       });
 
       test('invalid request', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1428,7 +1428,7 @@ suite('services', function () {
       });
 
       test('error response', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1437,7 +1437,7 @@ suite('services', function () {
             }
           }
         }).on('sqrt', function (req, ee, cb) {
-          var n = req.n;
+          let n = req.n;
           if (n < 0) {
             cb(new Error('must be non-negative'));
           } else {
@@ -1457,7 +1457,7 @@ suite('services', function () {
       });
 
       test('wrapped error response', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1467,7 +1467,7 @@ suite('services', function () {
             }
           }
         }, {wrapUnions: true}).on('sqrt', function (req, ee, cb) {
-          var n = req.n;
+          let n = req.n;
           if (n < 0) {
             cb(new Error('must be non-negative'));
           } else {
@@ -1486,7 +1486,7 @@ suite('services', function () {
       });
 
       test('wrapped remote service', function (done) {
-        var ptcl1 = Service.forProtocol({
+        let ptcl1 = Service.forProtocol({
           protocol: 'Math',
           messages: {
             invert: {
@@ -1495,7 +1495,7 @@ suite('services', function () {
             }
           }
         }, {wrapUnions: true});
-        var ptcl2 = Service.forProtocol({
+        let ptcl2 = Service.forProtocol({
           protocol: 'Math',
           messages: {
             invert: {
@@ -1522,7 +1522,7 @@ suite('services', function () {
       });
 
       test('invalid response', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -1531,7 +1531,7 @@ suite('services', function () {
             }
           }
         }).on('sqrt', function (req, ee, cb) {
-          var n = req.n;
+          let n = req.n;
           if (n < 0) {
             cb(null, 'complex'); // Invalid response.
           } else if (n === 0) {
@@ -1556,7 +1556,7 @@ suite('services', function () {
       });
 
       test('out of order', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Delay',
           messages: {
             w: {
@@ -1568,16 +1568,16 @@ suite('services', function () {
             }
           }
         }).on('w', function (req, ee, cb) {
-          var delay = req.ms;
+          let delay = req.ms;
           if (delay < 0) {
             cb('delay must be non-negative');
             return;
           }
           setTimeout(function () { cb(null, req.id); }, delay);
         });
-        var ids = [];
+        let ids = [];
         setupFn(ptcl, ptcl, function (ee) {
-          var n1, n2, n3;
+          let n1, n2, n3;
           ee.on('eot', function (pending) {
             assert.equal(pending, 0);
             assert.equal(n1, 1);
@@ -1607,7 +1607,7 @@ suite('services', function () {
       });
 
       test('compatible services', function (done) {
-        var emitterPtcl = Service.forProtocol({
+        let emitterPtcl = Service.forProtocol({
           protocol: 'emitterService',
           messages: {
             age: {
@@ -1616,7 +1616,7 @@ suite('services', function () {
             }
           }
         });
-        var listenerPtcl = Service.forProtocol({
+        let listenerPtcl = Service.forProtocol({
           protocol: 'serverService',
           messages: {
             age: {
@@ -1650,7 +1650,7 @@ suite('services', function () {
       });
 
       test('compatible service with a complex type', function (done) {
-        var ptcl1 = Service.forProtocol({
+        let ptcl1 = Service.forProtocol({
           protocol: 'Literature',
           messages: {
             generate: {
@@ -1667,7 +1667,7 @@ suite('services', function () {
             }
           }
         });
-        var ptcl2 = Service.forProtocol({
+        let ptcl2 = Service.forProtocol({
           protocol: 'Literature',
           messages: {
             generate: {
@@ -1685,10 +1685,10 @@ suite('services', function () {
           }
         });
         setupFn(ptcl1, ptcl2, function (ee) {
-          var type = ptcl2.getType('N2');
+          let type = ptcl2.getType('N2');
           ee.on('eot', function () { done(); });
           ptcl2.on('generate', function (req, ee, cb) {
-            var letters = [];
+            let letters = [];
             while (req.n--) { letters.push(type.random()); }
             cb(null, letters);
           });
@@ -1702,7 +1702,7 @@ suite('services', function () {
       });
 
       test('cached compatible services', function (done) {
-        var ptcl1 = Service.forProtocol({
+        let ptcl1 = Service.forProtocol({
           protocol: 'emitterService',
           messages: {
             age: {
@@ -1711,7 +1711,7 @@ suite('services', function () {
             }
           }
         });
-        var ptcl2 = Service.forProtocol({
+        let ptcl2 = Service.forProtocol({
           protocol: 'serverService',
           namespace: 'foo',
           messages: {
@@ -1750,13 +1750,13 @@ suite('services', function () {
       });
 
       test('incompatible services missing message', function (done) {
-        var emitterPtcl = Service.forProtocol({
+        let emitterPtcl = Service.forProtocol({
           protocol: 'emitterService',
           messages: {
             age: {request: [{name: 'name', type: 'string'}], response: 'long'}
           }
         }, {wrapUnions: true});
-        var listenerPtcl = Service.forProtocol({protocol: 'serverService'});
+        let listenerPtcl = Service.forProtocol({protocol: 'serverService'});
         setupFn(
           emitterPtcl,
           listenerPtcl,
@@ -1771,13 +1771,13 @@ suite('services', function () {
       });
 
       test('incompatible services', function (done) {
-        var emitterPtcl = Service.forProtocol({
+        let emitterPtcl = Service.forProtocol({
           protocol: 'emitterService',
           messages: {
             age: {request: [{name: 'name', type: 'string'}], response: 'long'}
           }
         }, {wrapUnions: true});
-        var listenerPtcl = Service.forProtocol({
+        let listenerPtcl = Service.forProtocol({
           protocol: 'serverService',
           messages: {
             age: {request: [{name: 'name', type: 'int'}], response: 'long'}
@@ -1797,11 +1797,11 @@ suite('services', function () {
       });
 
       test('incompatible services one way message', function (done) {
-        var ptcl1 = Service.forProtocol({
+        let ptcl1 = Service.forProtocol({
           protocol: 'ptcl1',
           messages: {ping: {request: [], response: 'null', 'one-way': true}}
         });
-        var ptcl2 = Service.forProtocol({
+        let ptcl2 = Service.forProtocol({
           protocol: 'ptcl2',
           messages: {ping: {request: [], response: 'null'}}
         });
@@ -1817,7 +1817,7 @@ suite('services', function () {
       });
 
       test('one way message', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'ptcl',
           messages: {ping: {request: [], response: 'null', 'one-way': true}}
         });
@@ -1831,7 +1831,7 @@ suite('services', function () {
       });
 
       test('ignored response', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'ptcl',
           messages: {ping: {request: [], response: 'null'}} // Not one-way.
         });
@@ -1845,7 +1845,7 @@ suite('services', function () {
       });
 
       test('duplicate message callback', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'ptcl',
           messages: {ping: {request: [], response: 'null'}} // Not one-way.
         });
@@ -1865,7 +1865,7 @@ suite('services', function () {
       });
 
       test('unknown message', function (done) {
-        var ptcl = Service.forProtocol({protocol: 'Empty'});
+        let ptcl = Service.forProtocol({protocol: 'Empty'});
         setupFn(ptcl, ptcl, function (ee) {
           assert.throws(
             function () { ptcl.emit('echo', {}, ee); },
@@ -1876,7 +1876,7 @@ suite('services', function () {
       });
 
       test('unhandled message', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Echo',
           messages: {
             echo: {
@@ -1895,7 +1895,7 @@ suite('services', function () {
       });
 
       test('destroy emitter noWait', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Delay',
           messages: {
             wait: {
@@ -1906,7 +1906,7 @@ suite('services', function () {
         }).on('wait', function (req, ee, cb) {
           setTimeout(function () { cb(null, 'ok'); }, req.ms);
         });
-        var interrupted = 0;
+        let interrupted = 0;
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function (pending) {
             assert.equal(pending, 2);
@@ -1930,7 +1930,7 @@ suite('services', function () {
       });
 
       test('destroy emitter', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negate: {
@@ -1956,7 +1956,7 @@ suite('services', function () {
 
 
       test('catch server error', function (done) {
-        var ptcl = Service.forProtocol({
+        let ptcl = Service.forProtocol({
           protocol: 'Math',
           messages: {
             error1: {request: [], response: 'null'},
@@ -1988,11 +1988,11 @@ suite('services', function () {
   suite('Client', function () {
 
     test('no emitters without buffering', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var client = svc.createClient({buffering: false})
+      let client = svc.createClient({buffering: false})
         .on('error', function (err) {
           assert(/no active channels/.test(err), err);
           done();
@@ -2009,15 +2009,15 @@ suite('services', function () {
     });
 
     test('destroy emitters', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = {
+      let transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      var client = svc.createClient();
+      let client = svc.createClient();
       client.createChannel(transport)
         .on('eot', function () {
           done();
@@ -2026,15 +2026,15 @@ suite('services', function () {
     });
 
     test('default policy', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'null', 'one-way': true}}
       });
-      var transport = {
+      let transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      var client = svc.createClient();
+      let client = svc.createClient();
       client.createChannel(transport, {noPing: true});
       client.createChannel(transport, {noPing: true});
       client.ping(function (err) {
@@ -2045,17 +2045,17 @@ suite('services', function () {
     });
 
     test('custom policy', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var transport = {
+      let transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
 
-      var client = svc.createClient({channelPolicy: policy});
-      var channels = [
+      let client = svc.createClient({channelPolicy: policy});
+      let channels = [
         client.createChannel(transport, {noPing: true}),
         client.createChannel(transport, {noPing: true})
       ];
@@ -2068,10 +2068,10 @@ suite('services', function () {
     });
 
     test('remote protocols existing', function () {
-      var ptcl1 = Service.forProtocol({protocol: 'Empty1'});
-      var ptcl2 = Service.forProtocol({protocol: 'Empty2'});
-      var remotePtcls = {abc: ptcl2.protocol};
-      var client = ptcl1.createClient({
+      let ptcl1 = Service.forProtocol({protocol: 'Empty1'});
+      let ptcl2 = Service.forProtocol({protocol: 'Empty2'});
+      let remotePtcls = {abc: ptcl2.protocol};
+      let client = ptcl1.createClient({
         remoteFingerprint: 'abc',
         remoteProtocols: remotePtcls
       });
@@ -2079,16 +2079,16 @@ suite('services', function () {
     });
 
     test('invalid response', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'int'}}
       });
-      var opts = {noPing: true, objectMode: true};
-      var transport = {
+      let opts = {noPing: true, objectMode: true};
+      let transport = {
         readable: new stream.PassThrough(opts),
         writable: new stream.PassThrough(opts)
       };
-      var client = svc.createClient();
+      let client = svc.createClient();
       client.createChannel(transport, opts);
       client.ping(function (err) {
         assert(/truncated/.test(err), err);
@@ -2105,13 +2105,13 @@ suite('services', function () {
   suite('Server', function () {
 
     test('get channels', function (done) {
-      var svc = Service.forProtocol({protocol: 'Empty1'});
-      var server = svc.createServer();
-      var transport = {
+      let svc = Service.forProtocol({protocol: 'Empty1'});
+      let server = svc.createServer();
+      let transport = {
         readable: new stream.PassThrough(),
         writable: new stream.PassThrough()
       };
-      var channels = [
+      let channels = [
         server.createChannel(transport),
         server.createChannel(transport)
       ];
@@ -2125,34 +2125,34 @@ suite('services', function () {
     });
 
     test('remote protocols', function () {
-      var svc1 = Service.forProtocol({protocol: 'Empty1'});
-      var svc2 = Service.forProtocol({protocol: 'Empty2'});
-      var remotePtcls = {abc: svc2.protocol};
-      var server = svc1.createServer({remoteProtocols: remotePtcls});
+      let svc1 = Service.forProtocol({protocol: 'Empty1'});
+      let svc2 = Service.forProtocol({protocol: 'Empty2'});
+      let remotePtcls = {abc: svc2.protocol};
+      let server = svc1.createServer({remoteProtocols: remotePtcls});
       assert.deepEqual(server.remoteProtocols(), remotePtcls);
     });
 
     test('no capitalization', function () {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'boolean'}}
       });
-      var server = svc.createServer({noCapitalize: true});
+      let server = svc.createServer({noCapitalize: true});
       assert(!server.onPing);
       assert(typeof server.onping == 'function');
     });
 
     test('stateful transport reuse', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'int'}}
       });
-      var transports = createPassthroughTransports(true);
-      var server = svc.createServer()
+      let transports = createPassthroughTransports(true);
+      let server = svc.createServer()
         .onPing(function (cb) {
           cb(null, 1);
         });
-      var channel = server.createChannel(transports[0], {endWritable: false});
+      let channel = server.createChannel(transports[0], {endWritable: false});
       var client = svc.createClient()
         .once('channel', function () {
           this.ping(function (err, n) {
@@ -2180,11 +2180,11 @@ suite('services', function () {
     });
 
     test('interrupted', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Ping',
         messages: {ping: {request: [], response: 'int'}}
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .onPing(function (cb) {
           this.channel.destroy(true);
           cb(null, 1); // Still call the callback to make sure it is ignored.
@@ -2202,13 +2202,13 @@ suite('services', function () {
   suite('clients & servers', function () { // >=5.0 API.
 
     test('create client with server', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Echo',
         messages: {
           echo: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .onEcho(function (n, cb) { cb(null, n); });
       svc.createClient({buffering: true, server: server})
         .echo(123, function (err, n) {
@@ -2219,15 +2219,15 @@ suite('services', function () {
     });
 
     test('client context call options', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
-      var opts = {id: 123};
+      let opts = {id: 123};
       var client = svc.createClient({server: server})
         .once('channel', function (channel) {
           channel.on('outgoingCall', function (ctx, opts) {
@@ -2243,14 +2243,14 @@ suite('services', function () {
     });
 
     test('server call constant context', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var numCalls = 0;
-      var server = svc.createServer()
+      let numCalls = 0;
+      let server = svc.createServer()
         .use(function (wreq, wres, next) {
           // Check that middleware have the right context.
           this.locals.id = 123;
@@ -2278,14 +2278,14 @@ suite('services', function () {
     });
 
     test('server call context options', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var locals = {num: 123};
-      var server = svc.createServer()
+      let locals = {num: 123};
+      let server = svc.createServer()
         .on('channel', function (channel) {
           channel.on('incomingCall', function (ctx) {
             ctx.locals.num = locals.num;
@@ -2310,14 +2310,14 @@ suite('services', function () {
     });
 
     test('server default handler', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'},
           abs: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var server = svc.createServer({defaultHandler: defaultHandler})
+      let server = svc.createServer({defaultHandler: defaultHandler})
         .onNeg(function (n, cb) { cb(null, -n); });
 
       svc.createClient({server: server})
@@ -2341,15 +2341,15 @@ suite('services', function () {
     });
 
     test('client middleware bypass', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
-      var isCalled = false;
+      let isCalled = false;
       svc.createClient({server: server})
         .use(function (wreq, wres, next) {
           wres.response = -3;
@@ -2370,13 +2370,13 @@ suite('services', function () {
     });
 
     test('client middleware override error', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
       svc.createClient({buffering: true, server: server})
         .use(function (wreq, wres, next) {
@@ -2399,15 +2399,15 @@ suite('services', function () {
     });
 
     test('server middleware bypass', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var handlerCalled = false;
-      var errorTriggered = false;
-      var server = svc.createServer()
+      let handlerCalled = false;
+      let errorTriggered = false;
+      let server = svc.createServer()
         .on('error', function (err) {
           assert(/foobar/.test(err.cause), err);
           errorTriggered = true;
@@ -2434,13 +2434,13 @@ suite('services', function () {
     });
 
     test('dynamic middleware', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .use(function (server) {
           server.on('channel', function (channel) {
             channel.on('incomingCall', function (ctx) {
@@ -2474,14 +2474,14 @@ suite('services', function () {
     });
 
     test('server non-strict error', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Math',
         messages: {
           neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
         }
       });
-      var errorTriggered = false;
-      var server = svc.createServer()
+      let errorTriggered = false;
+      let server = svc.createServer()
         .on('error', function () {
           errorTriggered = true;
         })
@@ -2502,7 +2502,7 @@ suite('services', function () {
     });
 
     test('server one-way middleware error', function (done) {
-      var svc = Service.forProtocol({
+      let svc = Service.forProtocol({
         protocol: 'Push',
         messages: {
           push: {
@@ -2512,7 +2512,7 @@ suite('services', function () {
           }
         }
       });
-      var server = svc.createServer()
+      let server = svc.createServer()
         .on('error', function (err) {
           assert(/foobar/.test(err), err);
           done();
@@ -2533,11 +2533,11 @@ suite('services', function () {
         }
         opts = opts || {};
         opts.silent = true;
-        var pt1 = new stream.PassThrough();
-        var pt2 = new stream.PassThrough();
-        var client = clientPtcl.createClient(opts);
+        let pt1 = new stream.PassThrough();
+        let pt2 = new stream.PassThrough();
+        let client = clientPtcl.createClient(opts);
         client.createChannel({readable: pt1, writable: pt2});
-        var server = serverPtcl.createServer(opts);
+        let server = serverPtcl.createServer(opts);
         server.createChannel({readable: pt2, writable: pt1}, opts);
         cb(client, server);
       });
@@ -2553,9 +2553,9 @@ suite('services', function () {
         }
         opts = opts || {};
         opts.silent = true;
-        var client = clientPtcl.createClient(opts);
+        let client = clientPtcl.createClient(opts);
         client.createChannel(writableFactory);
-        var server = serverPtcl.createServer(opts);
+        let server = serverPtcl.createServer(opts);
         cb(client, server);
 
         function writableFactory(transportCt) {
@@ -2577,7 +2577,7 @@ suite('services', function () {
     function run(setupFn) {
 
       test('primitive types', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             negateFirst: {
@@ -2592,7 +2592,7 @@ suite('services', function () {
               assert.strictEqual(this.channel.server, server);
               cb(null, -ns[0]);
             });
-          var channel = client.activeChannels()[0];
+          let channel = client.activeChannels()[0];
           channel.on('eot', function () {
             done();
           })
@@ -2615,7 +2615,7 @@ suite('services', function () {
       });
 
       test('invalid strict error', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             sqrt: {
@@ -2650,7 +2650,7 @@ suite('services', function () {
       });
 
       test('non-strict response', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Ping',
           messages: {
             ping: {request: [], response: 'null'}
@@ -2666,7 +2666,7 @@ suite('services', function () {
       });
 
       test('invalid strict response', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Ping',
           messages: {
             ping: {request: [], response: 'null'}
@@ -2682,7 +2682,7 @@ suite('services', function () {
       });
 
       test('client middleware', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
@@ -2690,9 +2690,9 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          var buf = utils.bufferFrom([0, 1]);
-          var isDone = false;
-          var channel = client.activeChannels()[0];
+          let buf = utils.bufferFrom([0, 1]);
+          let isDone = false;
+          let channel = client.activeChannels()[0];
           client
             .use(function (wreq, wres, next) {
               // No callback.
@@ -2724,7 +2724,7 @@ suite('services', function () {
       });
 
       test('client middleware forward error', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
@@ -2732,9 +2732,9 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          var fwdErr = new Error('forward!');
-          var bwdErr = new Error('backward!');
-          var called = false;
+          let fwdErr = new Error('forward!');
+          let bwdErr = new Error('backward!');
+          let called = false;
           client
             .use(function (wreq, wres, next) {
               next(null, function (err, prev) {
@@ -2757,7 +2757,7 @@ suite('services', function () {
       });
 
       test('client middleware duplicate forward calls', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
@@ -2765,7 +2765,7 @@ suite('services', function () {
         });
         setupFn(svc, svc, function (client, server) {
           server.onNeg(function (n, cb) { cb(null, -n); });
-          var chn = client.activeChannels()[0];
+          let chn = client.activeChannels()[0];
           client
             .on('error', function (err, chn_) {
               assert(/duplicate forward middleware/.test(err), err);
@@ -2784,18 +2784,18 @@ suite('services', function () {
       });
 
       test('server middleware', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
         setupFn(svc, svc, function (client, server) {
-          var isDone = false;
-          var buf = utils.bufferFrom([0, 1]);
+          let isDone = false;
+          let buf = utils.bufferFrom([0, 1]);
           // The server's channel won't be ready right away in the case of
           // stateless transports.
-          var channel;
+          let channel;
           server
             .use(function (wreq, wres, next) {
               channel = this.channel;
@@ -2826,7 +2826,7 @@ suite('services', function () {
       });
 
       test('server middleware duplicate backward calls', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
@@ -2856,15 +2856,15 @@ suite('services', function () {
       });
 
       test('server middleware invalid response header', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
         setupFn(svc, svc, function (client, server) {
-          var fooErr = new Error('foobar');
-          var sawFoo = 0;
+          let fooErr = new Error('foobar');
+          let sawFoo = 0;
           server
             .on('error', function (err) {
               if (err === fooErr) {
@@ -2888,14 +2888,14 @@ suite('services', function () {
       });
 
       test('error formatter', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
-        var opts = {systemErrorFormatter: formatter};
-        var barErr = new Error('baribababa');
+        let opts = {systemErrorFormatter: formatter};
+        let barErr = new Error('baribababa');
         setupFn(svc, svc, opts, function (client, server) {
           server
             .onNeg(function () { throw barErr; });
@@ -2913,7 +2913,7 @@ suite('services', function () {
       });
 
       test('remote protocols', function (done) {
-        var clientPtcl = {
+        let clientPtcl = {
           protocol: 'Math1',
           foo: 'bar', // Custom attribute.
           doc: 'hi',
@@ -2921,7 +2921,7 @@ suite('services', function () {
             neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
           }
         };
-        var serverPtcl = {
+        let serverPtcl = {
           protocol: 'Math2',
           doc: 'hey',
           bar: 'foo', // Custom attribute.
@@ -2929,8 +2929,8 @@ suite('services', function () {
             neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
           }
         };
-        var clientSvc = Service.forProtocol(clientPtcl);
-        var serverSvc = Service.forProtocol(serverPtcl);
+        let clientSvc = Service.forProtocol(clientPtcl);
+        let serverSvc = Service.forProtocol(serverPtcl);
         setupFn(clientSvc, serverSvc, function (client, server) {
           server
             .onNeg(function (n, cb) { cb(null, -n); });
@@ -2938,7 +2938,7 @@ suite('services', function () {
             .neg(2, function (err, res) {
               assert(!err, err);
               assert.equal(res, -2);
-              var remotePtcl;
+              let remotePtcl;
               // Client.
               remotePtcl = {};
               remotePtcl[serverSvc.hash] = serverPtcl;
@@ -2953,7 +2953,7 @@ suite('services', function () {
       });
 
       test('client timeout', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Sleep',
           messages: {
             sleep: {request: [{name: 'ms', type: 'int'}], response: 'int'}
@@ -2984,14 +2984,14 @@ suite('services', function () {
       });
 
       test('server error after handler', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Math',
           messages: {
             neg: {request: [{name: 'n', type: 'int'}], response: 'int'}
           }
         });
         setupFn(svc, svc, function (client, server) {
-          var numErrors = 0;
+          let numErrors = 0;
           server
             .on('error', function (err) {
               numErrors++;
@@ -3013,7 +3013,7 @@ suite('services', function () {
       });
 
       test('client channel destroy no wait', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Delay',
           messages: {
             wait: {
@@ -3022,12 +3022,12 @@ suite('services', function () {
             }
           }
         });
-        var interrupted = 0;
+        let interrupted = 0;
         setupFn(svc, svc, function (client, server) {
           server.onWait(function (ms, cb) {
             setTimeout(function () { cb(null, 'ok'); }, ms);
           });
-          var channel = client.activeChannels()[0];
+          let channel = client.activeChannels()[0];
           channel.on('eot', function (pending) {
             assert.equal(pending, 2);
             setTimeout(function () {
@@ -3051,7 +3051,7 @@ suite('services', function () {
       });
 
       test('out of order requests', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Delay',
           messages: {
             w: {
@@ -3063,7 +3063,7 @@ suite('services', function () {
             }
           }
         });
-        var ids = [];
+        let ids = [];
         setupFn(svc, svc, function (client, server) {
           server.onW(function (delay, id, cb) {
             if (delay < 0) {
@@ -3072,7 +3072,7 @@ suite('services', function () {
             }
             setTimeout(function () { cb(null, id); }, delay);
           });
-          var channel = client.activeChannels()[0];
+          let channel = client.activeChannels()[0];
           channel.on('eot', function (pending) {
             assert.equal(pending, 0);
             assert.deepEqual(ids, [undefined, 'b', 'a']);
@@ -3099,7 +3099,7 @@ suite('services', function () {
       });
 
       test('destroy server channel during handshake', function (done) {
-        var svc = Service.forProtocol({
+        let svc = Service.forProtocol({
           protocol: 'Sleep',
           messages: {
             sleep: {request: [{name: 'ms', type: 'int'}], response: 'int'}
@@ -3127,10 +3127,10 @@ suite('services', function () {
 
   suite('discover attributes', function () {
 
-    var discoverProtocol = services.discoverProtocol;
+    let discoverProtocol = services.discoverProtocol;
 
     test('stateful ok', function (done) {
-      var schema = {
+      let schema = {
         protocol: 'Case',
         messages: {
           upper: {
@@ -3139,18 +3139,18 @@ suite('services', function () {
           }
         }
       };
-      var svc = Service.forProtocol(schema);
-      var server = svc.createServer()
+      let svc = Service.forProtocol(schema);
+      let server = svc.createServer()
         .onUpper(function (str, cb) {
           cb(null, str.toUpperCase());
         });
-      var transports = createPassthroughTransports();
+      let transports = createPassthroughTransports();
       server.createChannel(transports[1]);
       discoverProtocol(transports[0], function (err, actualAttrs) {
         assert.strictEqual(err, null);
         assert.deepEqual(actualAttrs, schema);
         // Check that the transport is still usable.
-        var client = svc.createClient();
+        let client = svc.createClient();
         client.createChannel(transports[0])
           .on('eot', function() {
             done();
@@ -3165,7 +3165,7 @@ suite('services', function () {
 
     test('legacy stateless ok', function (done) {
       // Using old API.
-      var schema = {
+      let schema = {
         protocol: 'Case',
         messages: {
           upper: {
@@ -3174,7 +3174,7 @@ suite('services', function () {
           }
         }
       };
-      var svc = Service.forProtocol(schema)
+      let svc = Service.forProtocol(schema)
         .on('upper', function (req, ee, cb) {
           cb(null, req.str.toUpperCase());
         });
@@ -3182,7 +3182,7 @@ suite('services', function () {
         assert.strictEqual(err, null);
         assert.deepEqual(actual, schema);
         // Check that the transport is still usable.
-        var me = svc.createEmitter(writableFactory).on('eot', function() {
+        let me = svc.createEmitter(writableFactory).on('eot', function() {
           done();
         });
         svc.emit('upper', {str: 'foo'}, me, function (err, res) {
@@ -3207,7 +3207,7 @@ suite('services', function () {
     });
 
     test('stateful wrong scope', function (done) {
-      var schema = {
+      let schema = {
         protocol: 'Case',
         messages: {
           upper: {
@@ -3216,16 +3216,16 @@ suite('services', function () {
           }
         }
       };
-      var svc = Service.forProtocol(schema);
-      var scope = 'bar';
-      var transports = createPassthroughTransports();
+      let svc = Service.forProtocol(schema);
+      let scope = 'bar';
+      let transports = createPassthroughTransports();
       svc.createServer({silent: true})
         .createChannel(transports[1], {scope: scope});
       discoverProtocol(transports[0], {timeout: 5}, function (err) {
         assert(/timeout/.test(err), err);
         // Check that the transport is still usable.
-        var client = svc.createClient();
-        var chn = client.createChannel(transports[0], {scope: scope})
+        let client = svc.createClient();
+        let chn = client.createChannel(transports[0], {scope: scope})
           .on('eot', function() { done(); });
         client.upper('foo', function (err) {
           assert(/not implemented/.test(err), err);
@@ -3240,22 +3240,22 @@ suite('services', function () {
 
 // Message framing.
 function frame(buf) {
-  var framed = utils.newBuffer(buf.length + 4);
+  let framed = utils.newBuffer(buf.length + 4);
   framed.writeInt32BE(buf.length);
   buf.copy(framed, 4);
   return framed;
 }
 
 function createPassthroughTransports(objectMode) {
-  var pt1 = stream.PassThrough({objectMode: objectMode});
-  var pt2 = stream.PassThrough({objectMode: objectMode});
+  let pt1 = stream.PassThrough({objectMode: objectMode});
+  let pt2 = stream.PassThrough({objectMode: objectMode});
   return [{readable: pt1, writable: pt2}, {readable: pt2, writable: pt1}];
 }
 
 // Simplified stream constructor API isn't available in earlier node versions.
 
 function createReadableStream(bufs) {
-  var n = 0;
+  let n = 0;
   function Stream() { stream.Readable.call(this, {objectMode: true}); }
   util.inherits(Stream, stream.Readable);
   Stream.prototype._read = function () {

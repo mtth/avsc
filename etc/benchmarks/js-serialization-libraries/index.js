@@ -5,7 +5,7 @@
  *
  */
 
-var avro = require('../../../lib'),
+let avro = require('../../../lib'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
     compactr = require('compactr'),
@@ -28,17 +28,17 @@ var avro = require('../../../lib'),
 function generateStats(schema, opts) {
   opts = opts || {};
 
-  var type = avro.parse(schema, {wrapUnions: opts.wrapUnions});
+  let type = avro.parse(schema, {wrapUnions: opts.wrapUnions});
   return [DecodeSuite, EncodeSuite].map(function (Suite) {
-    var stats = [];
-    var suite = new Suite(type, opts)
+    let stats = [];
+    let suite = new Suite(type, opts)
       .on('start', function () { console.error(Suite.key_ + ' ' + type); })
       .on('cycle', function (evt) { console.error('' + evt.target); })
       .run();
     stats.push({
       value: suite.getValue(),
       stats: suite.map(function (benchmark) {
-        var stats = benchmark.stats;
+        let stats = benchmark.stats;
         return {
           name: benchmark.name,
           mean: stats.mean,
@@ -70,7 +70,7 @@ function Suite(type, opts) {
     if (!name.indexOf('_')) {
       return;
     }
-    var fn = this['__' + name];
+    let fn = this['__' + name];
     if (typeof fn == 'function') {
       this.add(name, fn.call(this, opts[name])); // Add benchmark.
     }
@@ -84,7 +84,7 @@ Suite.prototype.getType = function (isProtobuf) {
 
 Suite.prototype.getValue = function (isProtobuf) {
   if (isProtobuf) {
-    var type = this.getType(true); // Read enum values as integers.
+    let type = this.getType(true); // Read enum values as integers.
     return type.fromBuffer(this.getType().toBuffer(this._value));
   } else {
     return this._value;
@@ -101,10 +101,10 @@ util.inherits(DecodeSuite, Suite);
 DecodeSuite.key_ = 'decode';
 
 DecodeSuite.prototype.__avsc = function () {
-  var type = this.getType();
-  var buf = type.toBuffer(this.getValue());
+  let type = this.getType();
+  let buf = type.toBuffer(this.getValue());
   return function () {
-    var val = type.fromBuffer(buf);
+    let val = type.fromBuffer(buf);
     if (val.$) {
       throw new Error();
     }
@@ -112,10 +112,10 @@ DecodeSuite.prototype.__avsc = function () {
 };
 
 DecodeSuite.prototype.__compactr = function (args) {
-  var schema = compactr.schema(JSON.parse(fs.readFileSync(args)));
-  var buf = schema.write(this.getValue()).buffer();
+  let schema = compactr.schema(JSON.parse(fs.readFileSync(args)));
+  let buf = schema.write(this.getValue()).buffer();
   return function () {
-    var obj = schema.read(buf);
+    let obj = schema.read(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -123,10 +123,10 @@ DecodeSuite.prototype.__compactr = function (args) {
 };
 
 DecodeSuite.prototype.__flatbuffers = function (args) {
-  var root = flatbuffers.compileSchema(fs.readFileSync(args));
-  var buf = Buffer.from(root.generate(this.getValue()));
+  let root = flatbuffers.compileSchema(fs.readFileSync(args));
+  let buf = Buffer.from(root.generate(this.getValue()));
   return function () {
-    var obj = root.parse(buf);
+    let obj = root.parse(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -134,9 +134,9 @@ DecodeSuite.prototype.__flatbuffers = function (args) {
 };
 
 DecodeSuite.prototype.__json = function () {
-  var str = JSON.stringify(this.getValue());
+  let str = JSON.stringify(this.getValue());
   return function () {
-    var obj = JSON.parse(str);
+    let obj = JSON.parse(str);
     if (obj.$) {
       throw new Error();
     }
@@ -144,10 +144,10 @@ DecodeSuite.prototype.__json = function () {
 };
 
 DecodeSuite.prototype.__jsonString = function () {
-  var type = this.getType();
-  var str = type.toString(this.getValue());
+  let type = this.getType();
+  let str = type.toString(this.getValue());
   return function () {
-    var obj = JSON.parse(str);
+    let obj = JSON.parse(str);
     if (obj.$) {
       throw new Error();
     }
@@ -155,9 +155,9 @@ DecodeSuite.prototype.__jsonString = function () {
 };
 
 DecodeSuite.prototype.__jsonBinary = function () {
-  var str = JSON.stringify(this.getValue());
+  let str = JSON.stringify(this.getValue());
   return function () {
-    var obj = JSON.parse(str, function (key, value) {
+    let obj = JSON.parse(str, function (key, value) {
       return (value && value.type === 'Buffer') ? new Buffer(value) : value;
     });
     if (obj.$) {
@@ -167,9 +167,9 @@ DecodeSuite.prototype.__jsonBinary = function () {
 };
 
 DecodeSuite.prototype.__msgpackLite = function () {
-  var buf = msgpack.encode(this.getValue());
+  let buf = msgpack.encode(this.getValue());
   return function () {
-    var obj = msgpack.decode(buf);
+    let obj = msgpack.decode(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -177,14 +177,14 @@ DecodeSuite.prototype.__msgpackLite = function () {
 };
 
 DecodeSuite.prototype.__pbf = function (args) {
-  var parts = args.split(':');
-  var proto = pbSchema.parse(fs.readFileSync(parts[0]));
-  var message = pbCompile(proto)[parts[1]];
-  var pbf = new Pbf();
+  let parts = args.split(':');
+  let proto = pbSchema.parse(fs.readFileSync(parts[0]));
+  let message = pbCompile(proto)[parts[1]];
+  let pbf = new Pbf();
   message.write(this.getValue(true), pbf);
-  var buf = pbf.finish();
+  let buf = pbf.finish();
   return function () {
-    var obj = message.read(new Pbf(buf));
+    let obj = message.read(new Pbf(buf));
     if (obj.$) {
       throw new Error();
     }
@@ -192,12 +192,12 @@ DecodeSuite.prototype.__pbf = function (args) {
 };
 
 DecodeSuite.prototype.__protobufjs = function (args) {
-  var parts = args.split(':');
-  var root = protobufjs.parse(fs.readFileSync(parts[0])).root;
-  var message = root.lookup(parts[1]);
-  var buf = message.encode(this.getValue(true)).finish();
+  let parts = args.split(':');
+  let root = protobufjs.parse(fs.readFileSync(parts[0])).root;
+  let message = root.lookup(parts[1]);
+  let buf = message.encode(this.getValue(true)).finish();
   return function () {
-    var obj = message.decode(buf);
+    let obj = message.decode(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -205,12 +205,12 @@ DecodeSuite.prototype.__protobufjs = function (args) {
 };
 
 DecodeSuite.prototype.__protocolBuffers = function (args) {
-  var parts = args.split(':');
-  var messages = protobuf(fs.readFileSync(parts[0]));
-  var message = messages[parts[1]];
-  var buf = message.encode(this.getValue(true));
+  let parts = args.split(':');
+  let messages = protobuf(fs.readFileSync(parts[0]));
+  let message = messages[parts[1]];
+  let buf = message.encode(this.getValue(true));
   return function () {
-    var obj = message.decode(buf);
+    let obj = message.decode(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -218,10 +218,10 @@ DecodeSuite.prototype.__protocolBuffers = function (args) {
 };
 
 DecodeSuite.prototype.__schemapack = function (args) {
-  var schema = spack.build(JSON.parse(fs.readFileSync(args)));
-  var buf = schema.encode(this.getValue(true));
+  let schema = spack.build(JSON.parse(fs.readFileSync(args)));
+  let buf = schema.encode(this.getValue(true));
   return function () {
-    var obj = schema.decode(buf);
+    let obj = schema.decode(buf);
     if (obj.$) {
       throw new Error();
     }
@@ -238,10 +238,10 @@ util.inherits(EncodeSuite, Suite);
 EncodeSuite.key_ = 'encode';
 
 EncodeSuite.prototype.__avsc = function () {
-  var type = this.getType();
-  var val = this.getValue();
+  let type = this.getType();
+  let val = this.getValue();
   return function () {
-    var buf = type.toBuffer(val);
+    let buf = type.toBuffer(val);
     if (!buf.length) {
       throw new Error();
     }
@@ -249,10 +249,10 @@ EncodeSuite.prototype.__avsc = function () {
 };
 
 EncodeSuite.prototype.__compactr = function (args) {
-  var schema = compactr.schema(JSON.parse(fs.readFileSync(args)));
-  var val = this.getValue();
+  let schema = compactr.schema(JSON.parse(fs.readFileSync(args)));
+  let val = this.getValue();
   return function () {
-    var buf = schema.write(val).buffer();
+    let buf = schema.write(val).buffer();
     if (!buf.length) {
       throw new Error();
     }
@@ -260,10 +260,10 @@ EncodeSuite.prototype.__compactr = function (args) {
 };
 
 EncodeSuite.prototype.__flatbuffers = function (args) {
-  var message = flatbuffers.compileSchema(fs.readFileSync(args));
-  var val = this.getValue(true);
+  let message = flatbuffers.compileSchema(fs.readFileSync(args));
+  let val = this.getValue(true);
   return function () {
-    var buf = Buffer.from(message.generate(val).buffer);
+    let buf = Buffer.from(message.generate(val).buffer);
     if (!buf.length) {
       throw new Error();
     }
@@ -271,9 +271,9 @@ EncodeSuite.prototype.__flatbuffers = function (args) {
 };
 
 EncodeSuite.prototype.__json = function () {
-  var val = this.getValue();
+  let val = this.getValue();
   return function () {
-    var str = JSON.stringify(val);
+    let str = JSON.stringify(val);
     if (!str.length) {
       throw new Error();
     }
@@ -281,9 +281,9 @@ EncodeSuite.prototype.__json = function () {
 };
 
 EncodeSuite.prototype.__jsonBinary = function () {
-  var val = this.getValue();
+  let val = this.getValue();
   return function () {
-    var str = JSON.stringify(val, function (key, value) {
+    let str = JSON.stringify(val, function (key, value) {
       if (Buffer.isBuffer(value)) {
         return value.toString('binary');
       }
@@ -296,10 +296,10 @@ EncodeSuite.prototype.__jsonBinary = function () {
 };
 
 EncodeSuite.prototype.__jsonString = function () {
-  var type = this.getType();
-  var obj = JSON.parse(type.toString(this.getValue()));
+  let type = this.getType();
+  let obj = JSON.parse(type.toString(this.getValue()));
   return function () {
-    var str = JSON.stringify(obj);
+    let str = JSON.stringify(obj);
     if (!str.length) {
       throw new Error();
     }
@@ -307,9 +307,9 @@ EncodeSuite.prototype.__jsonString = function () {
 };
 
 EncodeSuite.prototype.__msgpackLite = function () {
-  var val = this.getValue();
+  let val = this.getValue();
   return function () {
-    var buf = msgpack.encode(val);
+    let buf = msgpack.encode(val);
     if (!buf.length) {
       throw new Error();
     }
@@ -317,14 +317,14 @@ EncodeSuite.prototype.__msgpackLite = function () {
 };
 
 EncodeSuite.prototype.__pbf = function (args) {
-  var parts = args.split(':');
-  var proto = pbSchema.parse(fs.readFileSync(parts[0]));
-  var message = pbCompile(proto)[parts[1]];
-  var val = this.getValue(true);
+  let parts = args.split(':');
+  let proto = pbSchema.parse(fs.readFileSync(parts[0]));
+  let message = pbCompile(proto)[parts[1]];
+  let val = this.getValue(true);
   return function () {
-    var pbf = new Pbf();
+    let pbf = new Pbf();
     message.write(val, pbf);
-    var buf = pbf.finish();
+    let buf = pbf.finish();
     if (!buf.length) {
       throw new Error();
     }
@@ -332,12 +332,12 @@ EncodeSuite.prototype.__pbf = function (args) {
 };
 
 EncodeSuite.prototype.__protobufjs = function (args) {
-  var parts = args.split(':');
-  var root = protobufjs.parse(fs.readFileSync(parts[0])).root;
-  var message = root.lookup(parts[1]);
-  var val = this.getValue(true);
+  let parts = args.split(':');
+  let root = protobufjs.parse(fs.readFileSync(parts[0])).root;
+  let message = root.lookup(parts[1]);
+  let val = this.getValue(true);
   return function () {
-    var buf = message.encode(val).finish();
+    let buf = message.encode(val).finish();
     if (!buf.length) {
       throw new Error();
     }
@@ -345,12 +345,12 @@ EncodeSuite.prototype.__protobufjs = function (args) {
 };
 
 EncodeSuite.prototype.__protocolBuffers = function (args) {
-  var parts = args.split(':');
-  var messages = protobuf(fs.readFileSync(parts[0]));
-  var message = messages[parts[1]];
-  var val = this.getValue(true);
+  let parts = args.split(':');
+  let messages = protobuf(fs.readFileSync(parts[0]));
+  let message = messages[parts[1]];
+  let val = this.getValue(true);
   return function () {
-    var buf = message.encode(val);
+    let buf = message.encode(val);
     if (!buf.length) {
       throw new Error();
     }
@@ -358,10 +358,10 @@ EncodeSuite.prototype.__protocolBuffers = function (args) {
 };
 
 EncodeSuite.prototype.__schemapack = function (args) {
-  var schema = spack.build(JSON.parse(fs.readFileSync(args)));
-  var val = this.getValue(true);
+  let schema = spack.build(JSON.parse(fs.readFileSync(args)));
+  let val = this.getValue(true);
   return function () {
-    var buf = schema.encode(val);
+    let buf = schema.encode(val);
     if (!buf.length) {
       throw new Error();
     }
@@ -386,13 +386,13 @@ commander
   .option('--schemapack <path>', 'Benchmark `schemapack`.')
   .parse(process.argv);
 
-var schema = commander.args[0];
+let schema = commander.args[0];
 if (!schema) {
   console.error('Missing schema.');
   process.exit(1);
 }
 
-var stats = generateStats(schema, commander);
+let stats = generateStats(schema, commander);
 console.log(JSON.stringify(stats));
 
 // Helpers.

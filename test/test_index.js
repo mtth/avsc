@@ -4,7 +4,7 @@ if (process.browser) {
   return;
 }
 
-var index = require('../lib'),
+let index = require('../lib'),
     services = require('../lib/services'),
     types = require('../lib/types'),
     assert = require('assert'),
@@ -12,19 +12,19 @@ var index = require('../lib'),
     path = require('path'),
     tmp = require('tmp');
 
-var Buffer = buffer.Buffer;
+let Buffer = buffer.Buffer;
 
-var DPATH = path.join(__dirname, 'dat');
+let DPATH = path.join(__dirname, 'dat');
 
 
 suite('index', function () {
 
   suite('parse', function () {
 
-    var parse = index.parse;
+    let parse = index.parse;
 
     test('type object', function () {
-      var obj = {
+      let obj = {
         type: 'record',
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
@@ -33,12 +33,12 @@ suite('index', function () {
     });
 
     test('protocol object', function () {
-      var obj = {protocol: 'Foo'};
+      let obj = {protocol: 'Foo'};
       assert(parse(obj) instanceof services.Service);
     });
 
     test('type instance', function () {
-      var type = parse({
+      let type = parse({
         type: 'record',
         name: 'Person',
         fields: [{name: 'so', type: 'Person'}]
@@ -55,16 +55,16 @@ suite('index', function () {
     });
 
     test('type schema file', function () {
-      var t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
-      var t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
+      let t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
+      let t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
       assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
     });
 
   });
 
   test('createFileDecoder', function (cb) {
-    var n = 0;
-    var type = index.parse(path.join(DPATH, 'Person.avsc'));
+    let n = 0;
+    let type = index.parse(path.join(DPATH, 'Person.avsc'));
     index.createFileDecoder(path.join(DPATH, 'person-10.avro'))
       .on('metadata', function (writerType) {
         assert.equal(writerType.toString(), type.toString());
@@ -80,7 +80,7 @@ suite('index', function () {
   });
 
   test('createFileEncoder', function (cb) {
-    var type = types.Type.forSchema({
+    let type = types.Type.forSchema({
       type: 'record',
       name: 'Person',
       fields: [
@@ -88,11 +88,11 @@ suite('index', function () {
         {name: 'age', type: 'int'}
       ]
     });
-    var path = tmp.fileSync().name;
-    var encoder = index.createFileEncoder(path, type);
+    let path = tmp.fileSync().name;
+    let encoder = index.createFileEncoder(path, type);
     encoder.write({name: 'Ann', age: 32});
     encoder.end({name: 'Bob', age: 33});
-    var n = 0;
+    let n = 0;
     encoder.on('finish', function () {
       setTimeout(function () { // Hack to wait until the file is flushed.
         index.createFileDecoder(path)
@@ -109,8 +109,8 @@ suite('index', function () {
   });
 
   test('extractFileHeader', function () {
-    var header;
-    var fpath = path.join(DPATH, 'person-10.avro');
+    let header;
+    let fpath = path.join(DPATH, 'person-10.avro');
     header = index.extractFileHeader(fpath);
     assert(header !== null);
     assert.equal(typeof header.meta['avro.schema'], 'object');

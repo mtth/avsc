@@ -2,24 +2,24 @@
 
 'use strict';
 
-var io = require('node-avro-io'),
+let io = require('node-avro-io'),
     avsc = require('../../../../lib');
 
 
-var loops = 2;
-var bufs = [];
-var reader;
+let loops = 2;
+let bufs = [];
+let reader;
 
 avsc.createFileDecoder(process.argv[2])
   .on('metadata', function (type) {
-    var schema = new io.Schema.Schema(JSON.parse(type.toString()));
+    let schema = new io.Schema.Schema(JSON.parse(type.toString()));
     reader = new io.IO.DatumReader(schema, schema);
   })
   .on('data', function (record) { bufs.push(record.$toBuffer()); })
   .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
+    let i = 0;
+    let n = 0;
+    let time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();
     }
@@ -35,13 +35,13 @@ function deserialize(buffer) {
     throw 'Buffer object expected';
   }
 
-  var decoder = new io.IO.BinaryDecoder({
+  let decoder = new io.IO.BinaryDecoder({
     _i: 0,
     read: function(len) {
       if (this._i + len > buffer.length) {
         throw 'reading after buffer exhausted';
       }
-      var i = this._i;
+      let i = this._i;
       this._i += len;
       return len == 1 ?
         buffer[i] :
@@ -58,8 +58,8 @@ function deserialize(buffer) {
 }
 
 function loop() {
-  var n = 0;
-  var i, l, record;
+  let n = 0;
+  let i, l, record;
   for (i = 0, l = bufs.length; i < l; i++) {
     record = deserialize(bufs[i]);
     if (record.$ !== null) {

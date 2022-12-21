@@ -6,12 +6,12 @@
  * To use it: `require('avsc/etc/browser/avsc-types')`.
  */
 
-var types = require('../../lib/types');
+let types = require('../../lib/types');
 
 
 /** Basic parse method, only supporting JSON parsing. */
 function parse(any, opts) {
-  var schema;
+  let schema;
   if (typeof any == 'string') {
     try {
       schema = JSON.parse(any);

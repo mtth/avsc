@@ -1,13 +1,13 @@
 'use strict';
 
-var avro = require('../../../../../lib'),
+let avro = require('../../../../../lib'),
     assert = require('assert'),
     http = require('http');
 
 
-var protocol = avro.parse('./src/main/avro/math.avpr');
+let protocol = avro.parse('./src/main/avro/math.avpr');
 
-var ee = protocol.createEmitter(function (cb) {
+let ee = protocol.createEmitter(function (cb) {
   return http.request({
     port: 8888,
     headers: {'content-type': 'avro/binary'},

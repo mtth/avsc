@@ -2,24 +2,24 @@
 
 'use strict';
 
-var avsc = require('../../../../../lib');
+let avsc = require('../../../../../lib');
 
-var dataPath = process.argv[2];
+let dataPath = process.argv[2];
 if (!dataPath) {
   process.exit(1);
 }
 
-var loops = 5;
-var records = [];
-var type = null;
+let loops = 5;
+let records = [];
+let type = null;
 
 avsc.createFileDecoder(dataPath)
   .on('metadata', function (writerType) { type = writerType; })
   .on('data', function (record) { records.push(record); })
   .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
+    let i = 0;
+    let n = 0;
+    let time = process.hrtime();
     for (i = 0; i < loops; i++) {
       n += loop();
     }
@@ -32,8 +32,8 @@ avsc.createFileDecoder(dataPath)
 
 
 function loop() {
-  var n = 0;
-  var i, l, buf;
+  let n = 0;
+  let i, l, buf;
   for (i = 0, l = records.length; i < l; i++) {
     buf = type.toBuffer(records[i]);
     n += buf[0] + buf.length;

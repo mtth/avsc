@@ -10,8 +10,8 @@
  *
  */
 
-var buffer = require('buffer');
-var Buffer = buffer.Buffer;
+let buffer = require('buffer');
+let Buffer = buffer.Buffer;
 
 function createHash(algorithm) {
   if (algorithm !== 'md5') {
@@ -25,7 +25,7 @@ Hash.prototype.end = function (data) { this.data = data; };
 Hash.prototype.read = function () { return md5(this.data); };
 
 function md5cycle(x, k) {
-  var a = x[0], b = x[1], c = x[2], d = x[3];
+  let a = x[0], b = x[1], c = x[2], d = x[3];
 
   a = ff(a, b, c, d, k[0], 7, -680876936);
   d = ff(d, a, b, c, k[1], 12, -389564586);
@@ -123,14 +123,14 @@ function ii(a, b, c, d, x, s, t) {
 }
 
 function md51(s) {
-  var n = s.length,
+  let n = s.length,
       state = [1732584193, -271733879, -1732584194, 271733878], i;
   for (i=64; i<=s.length; i+=64) {
     md5cycle(state, md5blk(s.substring(i-64, i)));
   }
 
   s = s.substring(i-64);
-  var tail = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];
+  let tail = [0,0,0,0, 0,0,0,0, 0,0,0,0, 0,0,0,0];
   for (i=0; i<s.length; i++) {
     tail[i>>2] |= s.charCodeAt(i) << ((i%4) << 3);
   }
@@ -147,7 +147,7 @@ function md51(s) {
 }
 
 function md5blk(s) {
-  var md5blks = [], i;
+  let md5blks = [], i;
   for (i=0; i<64; i+=4) {
     md5blks[i>>2] = s.charCodeAt(i) +
       (s.charCodeAt(i+1) << 8) +
@@ -158,9 +158,9 @@ function md5blk(s) {
 }
 
 function md5(s) {
-  var arr = md51(s);
-  var buf = Buffer.alloc ? Buffer.alloc(16) : new Buffer(16);
-  var i;
+  let arr = md51(s);
+  let buf = Buffer.alloc ? Buffer.alloc(16) : new Buffer(16);
+  let i;
   for (i = 0; i < 4; i++) {
     buf.writeIntLE(arr[i], i * 4, 4);
   }

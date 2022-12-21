@@ -1,6 +1,6 @@
 module.exports = {
   parserOptions: {
-    ecmaVersion: 5,
+    ecmaVersion: 6,
     impliedStrict: true
   },
   env: {
@@ -31,7 +31,9 @@ module.exports = {
         'max-len': ['warn', 80, {
           ignoreUrls: true,
           ignoreStrings: true
-        }]
+        }],
+
+        'no-var': ['error']
       },
     },
     {
