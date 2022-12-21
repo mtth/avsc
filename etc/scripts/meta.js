@@ -18,8 +18,7 @@
  *
  */
 
-let avro = require('../../lib'),
-    util = require('util');
+let avro = require('../../lib');
 
 
 /**
@@ -161,8 +160,7 @@ switch (process.argv[2]) {
     console.log(JSON.stringify(META_TYPE.random()));
     break;
   default: {
-    let exec = process.argv[1];
-    console.error(util.format('usage: %s (compress|decompress|random)', exec));
+    console.error(`usage: ${process.argv[1]} (compress|decompress|random)`);
     process.exit(1);
   }
 }

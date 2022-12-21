@@ -11,14 +11,13 @@
 
 let avro = require('../../lib'),
     assert = require('assert'),
-    fs = require('fs'),
-    util = require('util');
+    fs = require('fs');
 
 let schemaPath = process.argv[2];
 let count = Number.parseInt(process.argv[3]);
 let filePath = process.argv[4];
 if (!filePath) {
-  console.error(util.format('usage: %s SCHEMA COUNT PATH', process.argv[1]));
+  console.error(`usage: ${process.argv[1]} SCHEMA COUNT PATH`);
   process.exit(1);
 }
 

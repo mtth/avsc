@@ -19,15 +19,14 @@
  */
 
 let avro = require('../../lib'),
-    utils = require('../../lib/utils'),
-    util = require('util');
+    utils = require('../../lib/utils');
 
 
 let RANDOM = new utils.Lcg();
 
 let fpath = process.argv[2];
 if (!fpath) {
-  console.error(util.format('usage: %s SCHEMA', process.argv[1]));
+  console.error(`usage: ${process.argv[1]} SCHEMA`);
   process.exit(1);
 }
 

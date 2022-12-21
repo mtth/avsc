@@ -17,8 +17,7 @@
  */
 
 let avro = require('../../lib'),
-    utils = require('../../lib/utils'),
-    util = require('util');
+    utils = require('../../lib/utils');
 
 
 let argv = process.argv;
@@ -30,7 +29,7 @@ switch (argv.length) {
     show(avro.Type.forValue(JSON.parse(argv[2])));
     return;
   default:
-    console.error(util.format('usage: %s [JSON]', argv[1]));
+    console.error(`usage: ${argv[1]} [JSON]`);
     process.exit(1);
 }
 

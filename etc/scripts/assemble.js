@@ -15,13 +15,12 @@
  *
  */
 
-let avro = require('../../lib'),
-    util = require('util');
+let avro = require('../../lib');
 
 
 let fpath = process.argv[2];
 if (!fpath) {
-  console.error(util.format('usage: %s PATH', process.argv[1]));
+  console.error(`usage: ${process.argv[1]} PATH'`);
   process.exit(1);
 }
 
