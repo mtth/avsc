@@ -15,17 +15,17 @@
  *
  */
 
-var avro = require('../../lib'),
+let avro = require('../../lib'),
     util = require('util');
 
 
-var fpath = process.argv[2];
+let fpath = process.argv[2];
 if (!fpath) {
   console.error(util.format('usage: %s PATH', process.argv[1]));
   process.exit(1);
 }
 
-avro.assembleProtocol(fpath, function (err, attrs) {
+avro.assembleProtocol(fpath, (err, attrs) => {
   if (err) {
     console.trace(err.message);
     return;

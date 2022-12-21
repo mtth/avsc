@@ -18,7 +18,7 @@
  *
  */
 
-var avro = require('../../lib'),
+let avro = require('../../lib'),
     util = require('util');
 
 
@@ -33,8 +33,8 @@ function MetaType(attrs, opts) {
 util.inherits(MetaType, avro.types.LogicalType);
 
 MetaType.prototype._fromValue = function (val) {
-  var obj = val.value;
-  var attrs = obj[Object.keys(obj)[0]];
+  let obj = val.value;
+  let attrs = obj[Object.keys(obj)[0]];
   if (attrs.name === '') {
     attrs.name = undefined;
   }
@@ -42,8 +42,8 @@ MetaType.prototype._fromValue = function (val) {
 };
 
 MetaType.prototype._toValue = function (any) {
-  var name = any.getName();
-  var obj;
+  let name = any.getName();
+  let obj;
   if (name && this._state.references[name]) {
     obj = {string: name};
   } else if (avro.Type.isType(any, 'union')) {
@@ -62,11 +62,11 @@ MetaType.prototype._toValue = function (any) {
 // The global state used to handle references. We must also ensure we have
 // enough place to write the full schema in one try, otherwise the global state
 // for references will be stale.
-var STATE = {references: undefined};
+let STATE = {references: undefined};
 avro.Type.__reset(1048576);
 
 // Finally.
-var META_TYPE = avro.parse({
+let META_TYPE = avro.parse({
   name: 'MetaType',
   type: 'record',
   logicalType: 'meta',
@@ -129,7 +129,7 @@ META_TYPE.fromBuffer = function (buf) {
   // We can't do the attrs to type transformation inside the logical type's
   // `_fromValue` method since that method is called in post-order (and we need
   // pre-order to be able to resolve references).
-  var attrs = avro.Type.prototype.fromBuffer.call(META_TYPE, buf);
+  let attrs = avro.Type.prototype.fromBuffer.call(META_TYPE, buf);
   return avro.Type.forType(attrs, {wrapUnions: true});
 };
 
@@ -137,16 +137,16 @@ META_TYPE.fromBuffer = function (buf) {
 // Example of things we can do.
 switch (process.argv[2]) {
   case 'compress':
-    readInput(function (err, buf) {
+    readInput((err, buf) => {
       if (err) {
         throw err;
       }
-      var type = avro.Type.forSchema(buf.toString());
+      let type = avro.Type.forSchema(buf.toString());
       process.stdout.write(META_TYPE.toBuffer(type));
     });
     break;
   case 'decompress':
-    readInput(function (err, buf) {
+    readInput((err, buf) => {
       if (err) {
         throw err;
       }
@@ -159,10 +159,11 @@ switch (process.argv[2]) {
   case 'random':
     console.log(JSON.stringify(META_TYPE.random()));
     break;
-  default:
-    var exec = process.argv[1];
+  default: {
+    let exec = process.argv[1];
     console.error(util.format('usage: %s (compress|decompress|random)', exec));
     process.exit(1);
+  }
 }
 
 
@@ -177,7 +178,7 @@ function primitive(name) {
 }
 
 function derived(name, fields) {
-  var typeName = capitalize(name) + 'Type';
+  let typeName = capitalize(name) + 'Type';
   fields.unshift({
     name: 'type',
     type: {type: 'enum', name: typeName + 'Name', symbols: [name]}
@@ -188,9 +189,9 @@ function derived(name, fields) {
 function capitalize(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
 
 function readInput(cb) {
-  var bufs = [];
+  let bufs = [];
   process.stdin
     .on('error', cb)
-    .on('data', function (buf) { bufs.push(buf); })
-    .on('end', function () { cb(null, Buffer.concat(bufs)); });
+    .on('data', (buf) => { bufs.push(buf); })
+    .on('end', () => { cb(null, Buffer.concat(bufs)); });
 }

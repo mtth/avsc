@@ -16,12 +16,12 @@
  *
  */
 
-var avro = require('../../lib'),
+let avro = require('../../lib'),
     utils = require('../../lib/utils'),
     util = require('util');
 
 
-var argv = process.argv;
+let argv = process.argv;
 switch (argv.length) {
   case 2:
     fromStdin();
@@ -39,14 +39,14 @@ switch (argv.length) {
  *
  */
 function fromStdin() {
-  var type = null;
-  var str = '';
+  let type = null;
+  let str = '';
   process.stdin
-    .on('data', function (buf) {
+    .on('data', (buf) => {
       str += buf.toString();
-      var pos;
+      let pos;
       while ((pos = utils.jsonEnd(str)) >= 0) {
-        var val = JSON.parse(str.slice(0, pos));
+        let val = JSON.parse(str.slice(0, pos));
         if (type === null) {
           type = avro.Type.forValue(val);
         } else if (!type.isValid(val, {noUndeclaredFields: true})) {
@@ -55,7 +55,7 @@ function fromStdin() {
         str = str.slice(pos);
       }
     })
-    .on('end', function () {
+    .on('end', () => {
       if (/[^\s]/.test(str)) {
         throw new Error('trailing data');
       }

@@ -18,28 +18,28 @@
  *
  */
 
-var avro = require('../../lib'),
+let avro = require('../../lib'),
     utils = require('../../lib/utils'),
     util = require('util');
 
 
-var RANDOM = new utils.Lcg();
+let RANDOM = new utils.Lcg();
 
-var fpath = process.argv[2];
+let fpath = process.argv[2];
 if (!fpath) {
   console.error(util.format('usage: %s SCHEMA', process.argv[1]));
   process.exit(1);
 }
 
-var type = avro.Type.forSchema(fpath, {typeHook: function (attrs) {
+let type = avro.Type.forSchema(fpath, {typeHook: function (attrs) {
   if (attrs.name) {
     attrs.name = RANDOM.nextString(8);
   }
-  var fields, symbols;
+  let fields, symbols;
   if ((fields = attrs.fields)) {
-    fields.forEach(function (o) { o.name = RANDOM.nextString(8); });
+    fields.forEach((o) => { o.name = RANDOM.nextString(8); });
   } else if ((symbols = attrs.symbols)) {
-    symbols.forEach(function (s, i) { symbols[i] = RANDOM.nextString(8); });
+    symbols.forEach((s, i) => { symbols[i] = RANDOM.nextString(8); });
   }
 }});
 
