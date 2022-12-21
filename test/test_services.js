@@ -657,10 +657,11 @@ suite('services', function () {
 
     let Registry = services.Registry;
 
+    let id;
     test('get', function (done) {
       let ctx = {one: 1};
       let reg = new Registry(ctx);
-      var id = reg.add(200, function (err, two) {
+      id = reg.add(200, function (err, two) {
         assert.strictEqual(this, ctx);
         assert.strictEqual(err, null);
         assert.equal(two, 2);
@@ -673,7 +674,7 @@ suite('services', function () {
     test('timeout', function (done) {
       let ctx = {one: 1};
       let reg = new Registry(ctx);
-      var id = reg.add(10, function (err) {
+      id = reg.add(10, function (err) {
         assert.strictEqual(this, ctx);
         assert(/timeout/.test(err));
         assert.strictEqual(reg.get(id), undefined);
@@ -684,7 +685,7 @@ suite('services', function () {
     test('no timeout', function (done) {
       let ctx = {one: 1};
       let reg = new Registry(ctx);
-      var id = reg.add(-1, function (err, two) {
+      id = reg.add(-1, function (err, two) {
         assert.strictEqual(this, ctx);
         assert.strictEqual(err, null);
         assert.equal(two, 2);
@@ -1299,10 +1300,10 @@ suite('services', function () {
         cb(emitterPtcl.createEmitter(writableFactory, opts));
 
         function writableFactory(emitterCb) {
-          var reqPt = new stream.PassThrough()
+          let reqPt = new stream.PassThrough()
             .on('finish', function () {
               listenerPtcl.createListener(function (listenerCb) {
-                var resPt = new stream.PassThrough()
+                let resPt = new stream.PassThrough()
                   .on('finish', function () { emitterCb(null, resPt); });
                 listenerCb(null, resPt);
                 return reqPt;
@@ -2153,7 +2154,7 @@ suite('services', function () {
           cb(null, 1);
         });
       let channel = server.createChannel(transports[0], {endWritable: false});
-      var client = svc.createClient()
+      let client = svc.createClient()
         .once('channel', function () {
           this.ping(function (err, n) {
             // At this point the handshake has succeeded.
@@ -2228,7 +2229,7 @@ suite('services', function () {
       let server = svc.createServer()
         .onNeg(function (n, cb) { cb(null, -n); });
       let opts = {id: 123};
-      var client = svc.createClient({server: server})
+      let client = svc.createClient({server: server})
         .once('channel', function (channel) {
           channel.on('outgoingCall', function (ctx, opts) {
             ctx.locals.id = opts.id;
@@ -2559,10 +2560,10 @@ suite('services', function () {
         cb(client, server);
 
         function writableFactory(transportCt) {
-          var reqPt = new stream.PassThrough()
+          let reqPt = new stream.PassThrough()
             .on('finish', function () {
               server.createChannel(function (channelCb) {
-                var resPt = new stream.PassThrough()
+                let resPt = new stream.PassThrough()
                   .on('finish', function () { transportCt(null, resPt); });
                 channelCb(null, resPt);
                 return reqPt;
@@ -3193,10 +3194,10 @@ suite('services', function () {
       });
 
       function writableFactory(emitterCb) {
-        var reqPt = new stream.PassThrough()
+        let reqPt = new stream.PassThrough()
           .on('finish', function () {
             svc.createListener(function (listenerCb) {
-              var resPt = new stream.PassThrough()
+              let resPt = new stream.PassThrough()
                 .on('finish', function () { emitterCb(null, resPt); });
               listenerCb(null, resPt);
               return reqPt;
