@@ -37,7 +37,7 @@
   "browser": {
     "./lib": "./etc/browser/avsc.js",
     "./lib/files": "./etc/browser/lib/files.js",
-    "crypto": "./etc/browser/lib/crypto.js"
+    "./lib/platform": "./etc/browser/lib/platform.js"
   },
   "engines": {
     "node": ">=6.0.0"

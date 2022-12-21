@@ -13,19 +13,6 @@
 let buffer = require('buffer');
 let Buffer = buffer.Buffer;
 
-function createHash(algorithm) {
-  if (algorithm !== 'md5') {
-    throw new Error('only md5 is supported in the browser');
-  }
-  return new Hash();
-}
-
-class Hash {
-  constructor () { this.data = undefined; }
-  end (data) { this.data = data; }
-  read () { return md5(this.data); }
-}
-
 function md5cycle(x, k) {
   let a = x[0], b = x[1], c = x[2], d = x[3];
 
@@ -174,5 +161,5 @@ function add32(a, b) {
 }
 
 module.exports = {
-  createHash: createHash
+  md5: md5
 };
