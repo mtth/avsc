@@ -1453,12 +1453,12 @@ suite('types', () => {
 
     test('round-trip multi-block array', () => {
       let tap = new Tap(utils.newBuffer(64));
-      tap.writeInt(2);
+      tap.writeLong(2);
       tap.writeString('hi');
       tap.writeString('hey');
-      tap.writeInt(1);
+      tap.writeLong(1);
       tap.writeString('hello');
-      tap.writeInt(0);
+      tap.writeLong(0);
       let t = new builtins.ArrayType({items: 'string'});
       assert.deepEqual(
         t.fromBuffer(tap.buf.slice(0, tap.pos)),
