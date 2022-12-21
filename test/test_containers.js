@@ -600,8 +600,7 @@ suite('containers', () => {
           cb();
         });
       encoder.pipe(decoder);
-      let i, l;
-      for (i = 0, l = p1.length; i < l; i++) {
+      for (let i = 0, l = p1.length; i < l; i++) {
         encoder.write(p1[i]);
       }
       encoder.end();

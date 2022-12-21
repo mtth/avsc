@@ -17,10 +17,9 @@ avsc.createFileDecoder(dataPath)
   .on('metadata', (writerType) => { type = writerType; })
   .on('data', (record) => { bufs.push(record.toBuffer()); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     let time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -33,9 +32,8 @@ avsc.createFileDecoder(dataPath)
 
 function loop() {
   let n = 0;
-  let i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = type.fromBuffer(bufs[i]);
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = type.fromBuffer(bufs[i]);
     if (record.$ !== null) {
       n++;
     }

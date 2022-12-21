@@ -14,12 +14,11 @@ avsc.createFileDecoder(process.argv[2])
   .on('metadata', (type) => { schema = JSON.parse(type.toString()); })
   .on('data', (record) => { records.push(record); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     let time = process.hrtime();
     cache = new avro.SchemaCache([]);
     writer = new avro.BinaryWriter(cache);
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -31,10 +30,9 @@ avsc.createFileDecoder(process.argv[2])
 
 function loop() {
   let n = 0;
-  let i, l, buf;
-  for (i = 0, l = records.length; i < l; i++) {
+  for (let i = 0, l = records.length; i < l; i++) {
     // We need to slice to force a copy otherwise the array is shared.
-    buf = writer.encode(schema, records[i]).slice();
+    let buf = writer.encode(schema, records[i]).slice();
     n += buf[0] + buf.length;
   }
   return n;

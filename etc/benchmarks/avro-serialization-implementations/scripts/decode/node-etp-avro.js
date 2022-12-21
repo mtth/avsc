@@ -14,11 +14,10 @@ avsc.createFileDecoder(process.argv[2])
   .on('metadata', (type) => { schema = JSON.parse(type.toString()); })
   .on('data', (record) => { bufs.push(record.$toBuffer()); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     let time = process.hrtime();
     reader = new avro.BinaryReader();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -30,9 +29,8 @@ avsc.createFileDecoder(process.argv[2])
 
 function loop() {
   let n = 0;
-  let i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = reader.decode(schema, bufs[i]);
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = reader.decode(schema, bufs[i]);
     if (record.$ !== null) {
       n++;
     }

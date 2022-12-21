@@ -69,19 +69,17 @@ suite('utils', () => {
       [0,1,2,3]
     ];
 
-    let i;
-    for (i = 0; i < seqs.length; i++) {
+    for (let i = 0; i < seqs.length; i++) {
       check(seqs[i]);
     }
 
     function check(seq) {
       let q = new utils.OrderedQueue();
-      let i;
       assert.strictEqual(q.pop(), null);
-      for (i = 0; i < seq.length; i++) {
+      for (let i = 0; i < seq.length; i++) {
         q.push({index: seq[i]});
       }
-      for (i = 0; i < seq.length; i++) {
+      for (let i = 0; i < seq.length; i++) {
         let j = q.pop();
         assert.equal(j !== null && j.index, i, seq.join());
       }
@@ -384,11 +382,10 @@ suite('utils', () => {
 
       test('write read ' + name, () => {
         let tap = newTap(size || 1024);
-        let i, l, elem;
-        for (i = 0, l = elems.length; i < l; i++) {
+        for (let i = 0, l = elems.length; i < l; i++) {
           tap.buf.fill(0);
           tap.pos = 0;
-          elem = elems[i];
+          let elem = elems[i];
           writeFn.call(tap, elem);
           tap.pos = 0;
           assert.deepEqual(readFn.call(tap), elem);
@@ -409,13 +406,12 @@ suite('utils', () => {
 
       test('skip ' + name, () => {
         let tap = newTap(size || 1024);
-        let i, l, elem, pos;
-        for (i = 0, l = elems.length; i < l; i++) {
+        for (let i = 0, l = elems.length; i < l; i++) {
           tap.buf.fill(0);
           tap.pos = 0;
-          elem = elems[i];
+          let elem = elems[i];
           writeFn.call(tap, elem);
-          pos = tap.pos;
+          let pos = tap.pos;
           tap.pos = 0;
           skipFn.call(tap, elem);
           assert.equal(tap.pos, pos);

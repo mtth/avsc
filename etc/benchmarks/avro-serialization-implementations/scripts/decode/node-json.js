@@ -15,10 +15,9 @@ let strs = [];
 avsc.createFileDecoder(dataPath)
   .on('data', (record) => { strs.push(JSON.stringify(record)); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     let time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -31,9 +30,8 @@ avsc.createFileDecoder(dataPath)
 
 function loop() {
   let n = 0;
-  let i, l, record;
-  for (i = 0, l = strs.length; i < l; i++) {
-    record = JSON.parse(strs[i]);
+  for (let i = 0, l = strs.length; i < l; i++) {
+    let record = JSON.parse(strs[i]);
     if (record.$ !== null) {
       n++;
     }

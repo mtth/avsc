@@ -16,10 +16,9 @@ let bufs = [];
 avsc.createFileDecoder(dataPath)
   .on('data', (record) => { bufs.push(msgpack.encode(record)); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     let time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -32,9 +31,8 @@ avsc.createFileDecoder(dataPath)
 
 function loop() {
   let n = 0;
-  let i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = msgpack.decode(bufs[i]);
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = msgpack.decode(bufs[i]);
     if (record.$ !== null) {
       n++;
     }

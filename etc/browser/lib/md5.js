@@ -136,8 +136,8 @@ function md51(s) {
 }
 
 function md5blk(s) {
-  let md5blks = [], i;
-  for (i=0; i<64; i+=4) {
+  let md5blks = [];
+  for (let i=0; i<64; i+=4) {
     md5blks[i>>2] = s.charCodeAt(i) +
       (s.charCodeAt(i+1) << 8) +
       (s.charCodeAt(i+2) << 16) +
@@ -149,8 +149,7 @@ function md5blk(s) {
 function md5(s) {
   let arr = md51(s);
   let buf = Buffer.alloc(16);
-  let i;
-  for (i = 0; i < 4; i++) {
+  for (let i = 0; i < 4; i++) {
     buf.writeIntLE(arr[i], i * 4, 4);
   }
   return buf;

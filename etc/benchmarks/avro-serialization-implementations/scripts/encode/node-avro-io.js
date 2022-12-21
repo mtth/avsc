@@ -17,10 +17,9 @@ avsc.createFileDecoder(process.argv[2])
   })
   .on('data', (record) => { records.push(record); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     let time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -46,9 +45,8 @@ function serialize(datum) {
 
 function loop() {
   let n = 0;
-  let i, l, buf;
-  for (i = 0, l = records.length; i < l; i++) {
-    buf = serialize(records[i]);
+  for (let i = 0, l = records.length; i < l; i++) {
+    let buf = serialize(records[i]);
     n += buf[0] + buf.length;
   }
   return n;

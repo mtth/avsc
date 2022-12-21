@@ -42,9 +42,8 @@ paths.forEach((fpath) => {
   let values = [];
   let bufs = [];
 
-  let i, l, val;
-  for (i = 0, l = NUM_VALUES; i < l; i++) {
-    val = type.random();
+  for (let i = 0, l = NUM_VALUES; i < l; i++) {
+    let val = type.random();
     values.push(val);
     bufs.push(type.toBuffer(val));
   }
@@ -58,9 +57,8 @@ paths.forEach((fpath) => {
   });
 
   bench.clone({fn: function () {
-    let i, l, val;
-    for (i = 0, l = NUM_VALUES; i < l; i++) {
-      val = type.fromBuffer(bufs[i]);
+    for (let i = 0, l = NUM_VALUES; i < l; i++) {
+      let val = type.fromBuffer(bufs[i]);
       if (val.$) {
         throw new Error();
       }
@@ -68,9 +66,8 @@ paths.forEach((fpath) => {
   }}).run();
 
   bench.clone({fn: function () {
-    let i, l, buf;
-    for (i = 0, l = NUM_VALUES; i < l; i++) {
-      buf = type.toBuffer(values[i]);
+    for (let i = 0, l = NUM_VALUES; i < l; i++) {
+      let buf = type.toBuffer(values[i]);
       if (!buf.length) {
         throw new Error();
       }
@@ -78,8 +75,7 @@ paths.forEach((fpath) => {
   }}).run();
 
   bench.clone({fn: function () {
-    let i, l;
-    for (i = 0, l = NUM_VALUES; i < l; i++) {
+    for (let i = 0, l = NUM_VALUES; i < l; i++) {
       if (!type.isValid(values[i])) {
         throw new Error();
       }

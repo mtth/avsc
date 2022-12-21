@@ -18,11 +18,10 @@ let sPair;
 avsc.createFileDecoder(dataPath)
   .on('data', (record) => { bufs.push(pPair.toBuffer(record)); })
   .on('end', () => {
-    let i = 0;
     let n = 0;
     sPair = new pson.StaticPair(pPair.decoder.dict);
     let time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -35,9 +34,8 @@ avsc.createFileDecoder(dataPath)
 
 function loop() {
   let n = 0;
-  let i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = sPair.decode(bufs[i]);
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = sPair.decode(bufs[i]);
     if (record.$ !== null) {
       n++;
     }
