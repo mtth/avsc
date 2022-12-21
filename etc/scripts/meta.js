@@ -26,37 +26,38 @@ let avro = require('../../lib'),
  * Deal with Avro's inconsistent union representation.
  *
  */
-function MetaType(attrs, opts) {
-  avro.types.LogicalType.call(this, attrs, opts);
-  this._state = opts.state;
-}
-util.inherits(MetaType, avro.types.LogicalType);
-
-MetaType.prototype._fromValue = function (val) {
-  let obj = val.value;
-  let attrs = obj[Object.keys(obj)[0]];
-  if (attrs.name === '') {
-    attrs.name = undefined;
+class MetaType extends avro.types.LogicalType {
+  constructor (attrs, opts) {
+    super(attrs, opts);
+    this._state = opts.state;
   }
-  return attrs;
-};
 
-MetaType.prototype._toValue = function (any) {
-  let name = any.getName();
-  let obj;
-  if (name && this._state.references[name]) {
-    obj = {string: name};
-  } else if (avro.Type.isType(any, 'union')) {
-    obj = {array: any.types};
-  } else {
-    if (name) {
-      this._state.references[name] = true;
+  _fromValue (val) {
+    let obj = val.value;
+    let attrs = obj[Object.keys(obj)[0]];
+    if (attrs.name === '') {
+      attrs.name = undefined;
     }
-    obj = {};
-    obj[capitalize(any.typeName) + 'Type'] = any.toJSON();
+    return attrs;
   }
-  return {value: obj};
-};
+
+  _toValue (any) {
+    let name = any.getName();
+    let obj;
+    if (name && this._state.references[name]) {
+      obj = {string: name};
+    } else if (avro.Type.isType(any, 'union')) {
+      obj = {array: any.types};
+    } else {
+      if (name) {
+        this._state.references[name] = true;
+      }
+      obj = {};
+      obj[capitalize(any.typeName) + 'Type'] = any.toJSON();
+    }
+    return {value: obj};
+  }
+}
 
 
 // The global state used to handle references. We must also ensure we have
