@@ -1,7 +1,6 @@
 'use strict';
 
 const avro = require('../../lib');
-const util = require('util');
 
 class DateType extends avro.types.LogicalType {
   _fromValue(val) {
