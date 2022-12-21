@@ -3,8 +3,7 @@
 let types = require('../lib/types'),
     utils = require('../lib/utils'),
     assert = require('assert'),
-    buffer = require('buffer'),
-    util = require('util');
+    buffer = require('buffer');
 
 
 let Buffer = buffer.Buffer;
@@ -2664,7 +2663,7 @@ suite('types', () => {
 
     test('incomplete buffer', () => {
       // Check that `fromBuffer` doesn't get called.
-      let slowLongType = new builtins.LongType.__with({
+      let slowLongType = builtins.LongType.__with({
         fromBuffer: function () { throw new Error('no'); },
         toBuffer: null,
         fromJSON: null,
@@ -2682,52 +2681,50 @@ suite('types', () => {
 
   suite('LogicalType', () => {
 
-    function DateType(schema, opts) {
-      LogicalType.call(this, schema, opts);
-      if (!types.Type.isType(this.getUnderlyingType(), 'long', 'string')) {
-        throw new Error('invalid underlying date type');
+    class DateType extends LogicalType {
+      constructor (schema, opts) {
+        super(schema, opts);
+        if (!types.Type.isType(this.getUnderlyingType(), 'long', 'string')) {
+          throw new Error('invalid underlying date type');
+        }
+      }
+
+      _fromValue (val) { return new Date(val); }
+
+      _toValue (date) {
+        if (!(date instanceof Date)) {
+          return undefined;
+        }
+        if (this.getUnderlyingType().typeName === 'long') {
+          return +date;
+        } else {
+          // String.
+          return '' + date;
+        }
+      }
+
+      _resolve (type) {
+        if (types.Type.isType(type, 'long', 'string')) {
+          return this._fromValue;
+        }
       }
     }
-    util.inherits(DateType, LogicalType);
 
-    DateType.prototype._fromValue = function (val) { return new Date(val); };
+    class AgeType extends LogicalType {
+      _fromValue (val) { return val; }
 
-    DateType.prototype._toValue = function (date) {
-      if (!(date instanceof Date)) {
-        return undefined;
+      _toValue (any) {
+        if (typeof any == 'number' && any >= 0) {
+          return any;
+        }
       }
-      if (this.getUnderlyingType().typeName === 'long') {
-        return +date;
-      } else {
-        // String.
-        return '' + date;
-      }
-    };
 
-    DateType.prototype._resolve = function (type) {
-      if (types.Type.isType(type, 'long', 'string')) {
-        return this._fromValue;
+      _resolve (type) {
+        if (types.Type.isType(type, 'logical:age')) {
+          return this._fromValue;
+        }
       }
-    };
-
-    function AgeType(schema, opts) {
-      LogicalType.call(this, schema, opts);
     }
-    util.inherits(AgeType, LogicalType);
-
-    AgeType.prototype._fromValue = function (val) { return val; };
-
-    AgeType.prototype._toValue = function (any) {
-      if (typeof any == 'number' && any >= 0) {
-        return any;
-      }
-    };
-
-    AgeType.prototype._resolve = function (type) {
-      if (types.Type.isType(type, 'logical:age')) {
-        return this._fromValue;
-      }
-    };
 
     let logicalTypes = {age: AgeType, date: DateType};
 
@@ -2819,16 +2816,14 @@ suite('types', () => {
     test('recursive', () => {
       function Person(friends) { this.friends = friends || []; }
 
-      function PersonType(schema, opts) {
-        LogicalType.call(this, schema, opts);
+      class PersonType extends LogicalType {
+        _fromValue (val) {
+          return new Person(val.friends);
+        }
+
+        _toValue (val) { return val; }
       }
-      util.inherits(PersonType, LogicalType);
 
-      PersonType.prototype._fromValue = function (val) {
-        return new Person(val.friends);
-      };
-
-      PersonType.prototype._toValue = function (val) { return val; };
 
       let schema = {
         type: 'record',
@@ -2850,14 +2845,10 @@ suite('types', () => {
     });
 
     test('recursive dereferencing name', () => {
-      function BoxType(schema, opts) {
-        LogicalType.call(this, schema, opts);
+      class BoxType extends LogicalType {
+        _fromValue (val) { return val.unboxed; }
+        _toValue (any) { return {unboxed: any}; }
       }
-      util.inherits(BoxType, LogicalType);
-
-      BoxType.prototype._fromValue = function (val) { return val.unboxed; };
-
-      BoxType.prototype._toValue = function (any) { return {unboxed: any}; };
 
       let t = Type.forSchema({
         name: 'BoxedMap',
@@ -2942,17 +2933,18 @@ suite('types', () => {
     });
 
     test('even integer', () => {
-      function EvenIntType(schema, opts) {
-        LogicalType.call(this, schema, opts);
-      }
-      util.inherits(EvenIntType, LogicalType);
-      EvenIntType.prototype._fromValue = function (val) {
-        if (val !== (val | 0) || val % 2) {
-          throw new Error('invalid');
+      class EvenIntType extends LogicalType {
+        _fromValue (val) {
+          if (val !== (val | 0) || val % 2) {
+            throw new Error('invalid');
+          }
+          return val;
         }
-        return val;
-      };
-      EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
+
+        _toValue (val) {
+          return this._fromValue(val);
+        }
+      }
 
       let opts = {logicalTypes: {'even-integer': EvenIntType}};
       let t = Type.forSchema({type: 'long', logicalType: 'even-integer'}, opts);
@@ -3001,10 +2993,7 @@ suite('types', () => {
     });
 
     test('inside unwrapped union with duplicate underlying type', () => {
-      function FooType(schema, opts) {
-        LogicalType.call(this, schema, opts);
-      }
-      util.inherits(FooType, LogicalType);
+      class FooType extends LogicalType {}
       assert.throws(() => {
         types.Type.forSchema([
           'int',
@@ -3014,17 +3003,18 @@ suite('types', () => {
     });
 
     test('inside wrapped union', () => {
-      function EvenIntType(schema, opts) {
-        LogicalType.call(this, schema, opts);
-      }
-      util.inherits(EvenIntType, LogicalType);
-      EvenIntType.prototype._fromValue = function (val) {
-        if (val !== (val | 0) || val % 2) {
-          throw new Error('invalid');
+      class EvenIntType extends LogicalType {
+        _fromValue (val) {
+          if (val !== (val | 0) || val % 2) {
+            throw new Error('invalid');
+          }
+          return val;
         }
-        return val;
-      };
-      EvenIntType.prototype._toValue = EvenIntType.prototype._fromValue;
+
+        _toValue (val) {
+          return this._fromValue(val);
+        }
+      }
 
       let t = types.Type.forSchema(
         [{type: 'int', logicalType: 'even'}],
@@ -3035,12 +3025,10 @@ suite('types', () => {
     });
 
     test('of records inside wrapped union', () => {
-      function PassThroughType(schema, opts) {
-        LogicalType.call(this, schema, opts);
+      class PassThroughType extends LogicalType {
+        _fromValue (val) { return val; }
+        _toValue (val) { return val; }
       }
-      util.inherits(PassThroughType, LogicalType);
-      PassThroughType.prototype._fromValue = function (val) { return val; };
-      PassThroughType.prototype._toValue = PassThroughType.prototype._fromValue;
 
       let t = types.Type.forSchema(
         [
@@ -3099,18 +3087,15 @@ suite('types', () => {
       * be able to cover ambiguous unions).
       *
       */
-      function UnwrappedUnionType(schema, opts) {
-        LogicalType.call(this, schema, opts);
+      class UnwrappedUnionType extends LogicalType {
+        _fromValue (val) {
+          return val === null ? null : val[Object.keys(val)[0]];
+        }
+
+        _toValue (any) {
+          return this.getUnderlyingType().clone(any, {wrapUnions: true});
+        }
       }
-      util.inherits(UnwrappedUnionType, LogicalType);
-
-      UnwrappedUnionType.prototype._fromValue = function (val) {
-        return val === null ? null : val[Object.keys(val)[0]];
-      };
-
-      UnwrappedUnionType.prototype._toValue = function (any) {
-        return this.getUnderlyingType().clone(any, {wrapUnions: true});
-      };
 
       test('unwrapped', () => {
 
@@ -3177,25 +3162,26 @@ suite('types', () => {
         *   for `_toValue`).
         *
         */
-        function OptionalType(schema, opts) {
-          LogicalType.call(this, schema, opts);
-          let type = this.getUnderlyingType().getTypes()[1];
-          this.name = type.getName(true);
-        }
-        util.inherits(OptionalType, LogicalType);
-
-        OptionalType.prototype._fromValue = function (val) {
-          return val === null ? null : val[this.name];
-        };
-
-        OptionalType.prototype._toValue = function (any) {
-          if (any === null) {
-            return null;
+        class OptionalType extends LogicalType {
+          constructor (schema, opts) {
+            super(schema, opts);
+            let type = this.getUnderlyingType().getTypes()[1];
+            this.name = type.getName(true);
           }
-          let obj = {};
-          obj[this.name] = any;
-          return obj;
-        };
+
+          _fromValue (val) {
+            return val === null ? null : val[this.name];
+          }
+
+          _toValue (any) {
+            if (any === null) {
+              return null;
+            }
+            let obj = {};
+            obj[this.name] = any;
+            return obj;
+          }
+        }
 
         let t1 = Type.forSchema(
           schema,
@@ -4003,25 +3989,25 @@ suite('types', () => {
     });
 
     test('logical types', () => {
+      class EvenType extends LogicalType {
+        _fromValue (val) { return 2 * val; }
+        _toValue (any) {
+          if (any === (any | 0) && any % 2 === 0) {
+            return any / 2;
+          }
+        }
+      }
+
+      class OddType extends LogicalType {
+        _fromValue (val) { return 2 * val + 1; }
+        _toValue (any) {
+          if (any === (any | 0) && any % 2 === 1) {
+            return any / 2;
+          }
+        }
+      }
+
       let opts = {logicalTypes: {even: EvenType, odd: OddType}};
-
-      function EvenType(schema, opts) { LogicalType.call(this, schema, opts); }
-      util.inherits(EvenType, LogicalType);
-      EvenType.prototype._fromValue = function (val) { return 2 * val; };
-      EvenType.prototype._toValue = function (any) {
-        if (any === (any | 0) && any % 2 === 0) {
-          return any / 2;
-        }
-      };
-
-      function OddType(schema, opts) { LogicalType.call(this, schema, opts); }
-      util.inherits(OddType, LogicalType);
-      OddType.prototype._fromValue = function (val) { return 2 * val + 1; };
-      OddType.prototype._toValue = function (any) {
-        if (any === (any | 0) && any % 2 === 1) {
-          return any / 2;
-        }
-      };
 
       let t1 = Type.forSchema({type: 'int', logicalType: 'even'}, opts);
       let t2 = Type.forSchema({type: 'long', logicalType: 'odd'}, opts);
