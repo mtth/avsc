@@ -12,7 +12,7 @@ module.exports = {
   overrides: [
     {
       files: ['*'],
-      excludedFiles: ['etc/issues/**'],
+      excludedFiles: ['etc/issues/**', 'dist/**'],
 
       extends: [
         'eslint:recommended'

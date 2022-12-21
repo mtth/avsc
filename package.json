@@ -53,11 +53,13 @@
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
+    "browserify": "^17.0.0",
     "coveralls": "^3.0.9",
     "eslint": "^8.30.0",
     "mocha": "^8.1.1",
     "nyc": "~15.0.0",
-    "tmp": "^0.1.0"
+    "tmp": "^0.1.0",
+    "uglify-js": "^3.17.4"
   },
   "author": {
     "name": "Matthieu Monsch",
