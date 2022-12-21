@@ -5,7 +5,8 @@ let containers = require('../lib/containers'),
     utils = require('../lib/utils'),
     assert = require('assert'),
     buffer = require('buffer'),
-    stream = require('stream');
+    stream = require('stream'),
+    zlib = require('zlib');
 
 
 let Buffer = buffer.Buffer;
@@ -591,8 +592,8 @@ suite('containers', () => {
         new Person('Bob', 25)
       ];
       let p2 = [];
-      let encoder = new streams.BlockEncoder(t, {codec: 'deflate'});
-      let decoder = new streams.BlockDecoder()
+      let encoder = new streams.BlockEncoder(t, {codec: 'deflate', codecs: {'deflate': zlib.deflateRaw}});
+      let decoder = new streams.BlockDecoder({codecs: {'deflate': zlib.inflateRaw}})
         .on('data', (obj) => { p2.push(obj); })
         .on('end', () => {
           assert.deepEqual(p2, p1);
