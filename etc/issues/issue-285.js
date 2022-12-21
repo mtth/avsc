@@ -1,5 +1,3 @@
-/* jshint esversion: 11, node: true */
-
 'use strict';
 
 const avro = require('../../lib');

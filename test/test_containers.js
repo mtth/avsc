@@ -1,5 +1,3 @@
-/* jshint node: true, mocha: true */
-
 'use strict';
 
 var containers = require('../lib/containers'),

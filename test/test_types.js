@@ -1,5 +1,3 @@
-/* jshint node: true, mocha: true */
-
 'use strict';
 
 var types = require('../lib/types'),
@@ -2835,15 +2833,15 @@ suite('types', function () {
       BoxType.prototype._toValue = function (any) { return {unboxed: any}; };
 
       var t = Type.forSchema({
-          name: 'BoxedMap',
-          type: 'record',
-          logicalType: 'box',
-          fields: [
-            {
-              name: 'unboxed',
-              type: {type: 'map', values: ['string', 'BoxedMap']}
-            }
-          ]
+        name: 'BoxedMap',
+        type: 'record',
+        logicalType: 'box',
+        fields: [
+          {
+            name: 'unboxed',
+            type: {type: 'map', values: ['string', 'BoxedMap']}
+          }
+        ]
       }, {logicalTypes: {box: BoxType}});
 
       var v = {foo: 'hi', bar: {baz: {}}};

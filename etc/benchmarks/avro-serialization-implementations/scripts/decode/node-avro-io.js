@@ -1,7 +1,5 @@
 #!/usr/bin/env node
 
-/* jshint node: true */
-
 'use strict';
 
 var io = require('node-avro-io'),
@@ -34,14 +32,14 @@ avsc.createFileDecoder(process.argv[2])
 
 function deserialize(buffer) {
   if (!Buffer.isBuffer(buffer)) {
-    throw "Buffer object expected";
+    throw 'Buffer object expected';
   }
 
   var decoder = new io.IO.BinaryDecoder({
     _i: 0,
     read: function(len) {
       if (this._i + len > buffer.length) {
-        throw "reading after buffer exhausted";
+        throw 'reading after buffer exhausted';
       }
       var i = this._i;
       this._i += len;
@@ -51,7 +49,7 @@ function deserialize(buffer) {
     },
     skip: function(len) {
       if (this._i + len > buffer.length) {
-        throw "reading after buffer exhausted";
+        throw 'reading after buffer exhausted';
       }
       this._i += len;
     }

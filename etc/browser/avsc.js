@@ -1,5 +1,3 @@
-/* jshint browser: true, node: true */
-
 'use strict';
 
 /**

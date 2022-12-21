@@ -1,5 +1,3 @@
-/* jshint node: true */
-
 'use strict';
 
 /** Shim without file-system operations. */

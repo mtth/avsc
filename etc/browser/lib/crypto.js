@@ -1,5 +1,3 @@
-/* jshint browserify: true */
-
 'use strict';
 
 /**
@@ -126,7 +124,7 @@ function ii(a, b, c, d, x, s, t) {
 
 function md51(s) {
   var n = s.length,
-  state = [1732584193, -271733879, -1732584194, 271733878], i;
+      state = [1732584193, -271733879, -1732584194, 271733878], i;
   for (i=64; i<=s.length; i+=64) {
     md5cycle(state, md5blk(s.substring(i-64, i)));
   }

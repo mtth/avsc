@@ -1,5 +1,3 @@
-/* jshint node: true, mocha: true */
-
 'use strict';
 
 var types = require('../lib/types'),
@@ -40,9 +38,9 @@ suite('services', function () {
             errors: ['Curse']
           },
           hi: {
-          request: [{name: 'hey', type: 'string'}],
-          response: 'null',
-          'one-way': true
+            request: [{name: 'hey', type: 'string'}],
+            response: 'null',
+            'one-way': true
           }
         }
       };
@@ -1064,9 +1062,9 @@ suite('services', function () {
         cb(new Error('bar'));
         return new stream.PassThrough();
       }).on('eot', function (pending, err) {
-          assert(/bar/.test(err), err);
-          done();
-        });
+        assert(/bar/.test(err), err);
+        done();
+      });
     });
 
     test('trailing data', function (done) {
@@ -1793,15 +1791,14 @@ suite('services', function () {
           messages: {ping: {request: [], response: 'null'}}
         });
         setupFn(ptcl1, ptcl2, function (ee) {
-            ee.on('error', function (err) {
-              // This will be called twice for stateful emitters: once when
-              // interrupted, then for the incompatible service error.
-              assert(err);
-              this.destroy();
-            }).on('eot', function () { done(); });
-            ptcl1.emit('ping', {}, ee);
-          }
-        );
+          ee.on('error', function (err) {
+            // This will be called twice for stateful emitters: once when
+            // interrupted, then for the incompatible service error.
+            assert(err);
+            this.destroy();
+          }).on('eot', function () { done(); });
+          ptcl1.emit('ping', {}, ee);
+        });
       });
 
       test('one way message', function (done) {
@@ -1892,8 +1889,8 @@ suite('services', function () {
             }
           }
         }).on('wait', function (req, ee, cb) {
-            setTimeout(function () { cb(null, 'ok'); }, req.ms);
-          });
+          setTimeout(function () { cb(null, 'ok'); }, req.ms);
+        });
         var interrupted = 0;
         setupFn(ptcl, ptcl, function (ee) {
           ee.on('eot', function (pending) {
@@ -2322,7 +2319,6 @@ suite('services', function () {
         });
 
       function defaultHandler(wreq, wres, cb) {
-        // jshint -W040
         assert.equal(this.message.name, 'abs');
         wres.response = 10;
         cb();
@@ -2583,8 +2579,8 @@ suite('services', function () {
             });
           var channel = client.activeChannels()[0];
           channel.on('eot', function () {
-              done();
-            })
+            done();
+          })
             .once('handshake', function (hreq, hres) {
               // Allow the initial ping to complete.
               assert.equal(hres.match, 'BOTH');

@@ -1,5 +1,3 @@
-/* jshint node: true, mocha: true */
-
 'use strict';
 
 if (process.browser) {
