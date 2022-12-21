@@ -47,12 +47,14 @@
     "cover": "nyc mocha -- --ui tdd",
     "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "dist": "./etc/scripts/dist",
+    "lint": "jshint etc/ lib/ test/",
     "perf": "./etc/scripts/perf etc/schemas/*",
     "test": "mocha --ui tdd --reporter dot"
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
     "coveralls": "^3.0.9",
+    "jshint": "^2.13.6",
     "mocha": "^8.1.1",
     "nyc": "~15.0.0",
     "tmp": "^0.1.0"
