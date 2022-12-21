@@ -8,7 +8,7 @@ var avro = require('etp-avro'),
 
 var loops = 2;
 var bufs = [];
-var cache, reader, schema;
+var reader, schema;
 
 avsc.createFileDecoder(process.argv[2])
   .on('metadata', function (type) { schema = JSON.parse(type.toString()); })
@@ -17,7 +17,6 @@ avsc.createFileDecoder(process.argv[2])
     var i = 0;
     var n = 0;
     var time = process.hrtime();
-    cache = new avro.SchemaCache([]);
     reader = new avro.BinaryReader();
     for (i = 0; i < loops; i++) {
       n += loop();

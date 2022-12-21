@@ -967,7 +967,7 @@ suite('types', function () {
 
     test('invalid default', function () {
       assert.throws(function () {
-        var wt = new builtins.EnumType({
+        new builtins.EnumType({
           name: 'W',
           symbols: ['A', 'B'],
           default: 'D',
