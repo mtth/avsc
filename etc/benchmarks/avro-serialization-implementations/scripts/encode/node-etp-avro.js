@@ -3,6 +3,7 @@
 'use strict';
 
 let avro = require('etp-avro'),
+    {Buffer} = require('buffer'),
     avsc = require('../../../../lib');
 
 
@@ -31,8 +32,8 @@ avsc.createFileDecoder(process.argv[2])
 function loop() {
   let n = 0;
   for (let i = 0, l = records.length; i < l; i++) {
-    // We need to slice to force a copy otherwise the array is shared.
-    let buf = writer.encode(schema, records[i]).slice();
+    // We need to force a copy otherwise the array is shared.
+    let buf = Buffer.from(writer.encode(schema, records[i]));
     n += buf[0] + buf.length;
   }
   return n;

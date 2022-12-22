@@ -44,7 +44,7 @@ function deserialize(buffer) {
       this._i += len;
       return len == 1 ?
         buffer[i] :
-        buffer.slice(i, this._i);
+        buffer.subarray(i, this._i);
     },
     skip: function(len) {
       if (this._i + len > buffer.length) {

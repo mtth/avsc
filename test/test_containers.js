@@ -465,8 +465,8 @@ suite('containers', () => {
           {'avro.schema': Buffer.from('"int"')},
           SYNC
         ).toBuffer();
-        decoder.write(buf.slice(0, 5)); // Part of header.
-        decoder.write(buf.slice(5));
+        decoder.write(buf.subarray(0, 5)); // Part of header.
+        decoder.write(buf.subarray(5));
         decoder.write(Buffer.from([2, 2, 4]));
         decoder.write(SYNC);
         decoder.end();
