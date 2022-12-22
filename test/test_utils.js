@@ -330,7 +330,7 @@ suite('utils', () => {
         b.writeInt32LE(-1);
         b.writeInt32LE(-1, 4);
         t.packLongBytes(b);
-        assert.deepEqual(t.buf.slice(0, t.pos), Buffer.from([1]));
+        assert.deepEqual(t.buf.subarray(0, t.pos), Buffer.from([1]));
         t.pos = 0;
         assert.deepEqual(t.readLong(), -1);
       });
