@@ -1460,7 +1460,7 @@ suite('types', () => {
       tap.writeLong(0);
       let t = new builtins.ArrayType({items: 'string'});
       assert.deepEqual(
-        t.fromBuffer(tap.buf.slice(0, tap.pos)),
+        t.fromBuffer(tap.buf.subarray(0, tap.pos)),
         ['hi', 'hey', 'hello']
       );
     });
@@ -2593,7 +2593,7 @@ suite('types', () => {
           let buf = Buffer.alloc(10);
           let tap = Tap.fromBuffer(buf);
           tap.writeLong(n);
-          return buf.slice(0, tap.pos);
+          return buf.subarray(0, tap.pos);
         },
         fromJSON: function (n) { return n; },
         toJSON: function (n) { return n; },
@@ -2673,7 +2673,7 @@ suite('types', () => {
       });
       let buf = fastLongType.toBuffer(12314);
       assert.deepEqual(
-        slowLongType.decode(buf.slice(0, 1)),
+        slowLongType.decode(buf.subarray(0, 1)),
         {value: undefined, offset: -1}
       );
     });
