@@ -1451,7 +1451,7 @@ suite('types', () => {
     });
 
     test('round-trip multi-block array', () => {
-      let tap = new Tap(utils.newBuffer(64));
+      let tap = Tap.withCapacity(64);
       tap.writeLong(2);
       tap.writeString('hi');
       tap.writeString('hey');
@@ -2586,12 +2586,12 @@ suite('types', () => {
 
       let slowLongType = builtins.LongType.__with({
         fromBuffer: function (buf) {
-          let tap = new Tap(buf);
+          let tap = Tap.fromBuffer(buf);
           return tap.readLong();
         },
         toBuffer: function (n) {
           let buf = utils.newBuffer(10);
-          let tap = new Tap(buf);
+          let tap = Tap.fromBuffer(buf);
           tap.writeLong(n);
           return buf.slice(0, tap.pos);
         },
@@ -4226,7 +4226,7 @@ function testType(Type, data, invalidSchemas) {
       if (items.length > 1) {
         let type = new Type(elem.schema);
         let buf = utils.newBuffer(1024);
-        let tap = new Tap(buf);
+        let tap = Tap.fromBuffer(buf);
         type._write(tap, items[0]);
         type._write(tap, items[1]);
         tap.pos = 0;

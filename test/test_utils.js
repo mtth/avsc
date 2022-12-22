@@ -172,7 +172,7 @@ suite('utils', () => {
 
       test('write', () => {
 
-        let tap = newTap(6);
+        let tap = Tap.withCapacity(6);
         tap.writeLong(1440756011948);
         let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert(tap.isValid());
@@ -183,7 +183,7 @@ suite('utils', () => {
       test('read', () => {
 
         let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
-        assert.equal((new Tap(buf)).readLong(), 1440756011948);
+        assert.equal((Tap.fromBuffer(buf)).readLong(), 1440756011948);
 
       });
 
@@ -258,14 +258,14 @@ suite('utils', () => {
     suite('binary', () => {
 
       test('write valid', () => {
-        let tap = newTap(3);
+        let tap = Tap.withCapacity(3);
         let s = '\x01\x02';
         tap.writeBinary(s, 2);
         assert.deepEqual(tap.buf, utils.bufferFrom([1,2,0]));
       });
 
       test('write invalid', () => {
-        let tap = newTap(1);
+        let tap = Tap.withCapacity(1);
         let s = '\x01\x02';
         tap.writeBinary(s, 2);
         assert.deepEqual(tap.buf, utils.bufferFrom([0]));
@@ -276,7 +276,7 @@ suite('utils', () => {
     suite('pack & unpack longs', () => {
 
       test('unpack single byte', () => {
-        let t = newTap(10);
+        let t = Tap.withCapacity(10);
         t.writeLong(5);
         t.pos = 0;
         assert.deepEqual(
@@ -294,7 +294,7 @@ suite('utils', () => {
       });
 
       test('unpack multiple bytes', () => {
-        let t = newTap(10);
+        let t = Tap.withCapacity(10);
         let l;
         l = 18932;
         t.writeLong(l);
@@ -308,7 +308,7 @@ suite('utils', () => {
       });
 
       test('pack single byte', () => {
-        let t = newTap(10);
+        let t = Tap.withCapacity(10);
         let b = utils.newBuffer(8);
         b.fill(0);
         b.writeInt32LE(12);
@@ -343,8 +343,8 @@ suite('utils', () => {
         roundtrip(-1);
 
         function roundtrip(n) {
-          let t1 = newTap(10);
-          let t2 = newTap(10);
+          let t1 = Tap.withCapacity(10);
+          let t2 = Tap.withCapacity(10);
           t1.writeLong(n);
           t1.pos = 0;
           t2.packLongBytes(t1.unpackLongBytes());
@@ -357,7 +357,7 @@ suite('utils', () => {
         roundtrip(utils.bufferFrom('9007199254740995', 'hex'));
 
         function roundtrip(b1) {
-          let t = newTap(10);
+          let t = Tap.withCapacity(10);
           t.packLongBytes(b1);
           t.pos = 0;
           let b2 = t.unpackLongBytes();
@@ -365,12 +365,6 @@ suite('utils', () => {
         }
       });
     });
-
-    function newTap(n) {
-      let buf = utils.newBuffer(n);
-      buf.fill(0);
-      return new Tap(buf);
-    }
 
     function testWriterReader(opts) {
       let size = opts.size;
@@ -381,7 +375,7 @@ suite('utils', () => {
       let name = opts.name || '';
 
       test('write read ' + name, () => {
-        let tap = newTap(size || 1024);
+        let tap = Tap.withCapacity(size || 1024);
         for (let i = 0, l = elems.length; i < l; i++) {
           tap.buf.fill(0);
           tap.pos = 0;
@@ -393,19 +387,19 @@ suite('utils', () => {
       });
 
       test('read over ' + name, () => {
-        let tap = new Tap(utils.newBuffer(0));
+        let tap = Tap.withCapacity(0);
         readFn.call(tap); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
       test('write over ' + name, () => {
-        let tap = new Tap(utils.newBuffer(0));
+        let tap = Tap.withCapacity(0);
         writeFn.call(tap, elems[0]); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
       test('skip ' + name, () => {
-        let tap = newTap(size || 1024);
+        let tap = Tap.withCapacity(size || 1024);
         for (let i = 0, l = elems.length; i < l; i++) {
           tap.buf.fill(0);
           tap.pos = 0;
