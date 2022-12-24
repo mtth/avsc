@@ -1460,7 +1460,7 @@ suite('types', () => {
       tap.writeLong(0);
       let t = new builtins.ArrayType({items: 'string'});
       assert.deepEqual(
-        t.fromBuffer(tap.buf.subarray(0, tap.pos)),
+        t.fromBuffer(tap.subarray(0, tap.pos)),
         ['hi', 'hey', 'hello']
       );
     });
