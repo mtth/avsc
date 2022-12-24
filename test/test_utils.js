@@ -179,7 +179,7 @@ suite('utils', () => {
         tap.writeLong(1440756011948);
         let buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert(tap.isValid());
-        assert(buf.equals(tap.buf));
+        assert(buf.equals(tap.toBuffer()));
 
       });
 
@@ -330,7 +330,7 @@ suite('utils', () => {
         b.writeInt32LE(-1);
         b.writeInt32LE(-1, 4);
         t.packLongBytes(b);
-        assert.deepEqual(t.buf.subarray(0, t.pos), Buffer.from([1]));
+        assert.deepEqual(t.subarray(0, t.pos), Buffer.from([1]));
         t.pos = 0;
         assert.deepEqual(t.readLong(), -1);
       });
