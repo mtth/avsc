@@ -6,6 +6,7 @@
  */
 
 let avro = require('../../../lib'),
+    {isBufferLike} = require('../../../util'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
     compactr = require('compactr'),
@@ -285,7 +286,7 @@ class EncodeSuite extends Suite {
     let val = this.getValue();
     return function () {
       let str = JSON.stringify(val, (key, value) => {
-        if (Buffer.isBuffer(value)) {
+        if (isBufferLike(value)) {
           return value.toString('binary');
         }
         return value;
