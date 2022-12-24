@@ -3,7 +3,8 @@
 'use strict';
 
 let io = require('node-avro-io'),
-    avsc = require('../../../../lib');
+    avsc = require('../../../../lib'),
+    {isBufferLike} = require('../../../../util');
 
 
 let loops = 2;
@@ -33,7 +34,7 @@ function serialize(datum) {
   let buffer = Buffer.from([]);
   let encoder = new io.IO.BinaryEncoder({
     write: function(data) {
-      if (!Buffer.isBuffer(data)) {
+      if (!isBufferLike(data)) {
         data = Buffer.from([data]);
       }
       buffer = Buffer.concat([buffer, data]);

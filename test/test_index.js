@@ -7,12 +7,10 @@ if (process.browser) {
 let index = require('../lib'),
     specs = require('../lib/specs'),
     types = require('../lib/types'),
+    {isBufferLike} = require('../lib/utils'),
     assert = require('assert'),
-    buffer = require('buffer'),
     path = require('path'),
     tmp = require('tmp');
-
-let Buffer = buffer.Buffer;
 
 let DPATH = path.join(__dirname, 'dat');
 
@@ -72,7 +70,7 @@ suite('index', () => {
     assert(header !== null);
     assert.equal(typeof header.meta['avro.schema'], 'object');
     header = index.extractFileHeader(fpath, {decode: false});
-    assert(Buffer.isBuffer(header.meta['avro.schema']));
+    assert(isBufferLike(header.meta['avro.schema']));
     header = index.extractFileHeader(fpath, {size: 2});
     assert.equal(typeof header.meta['avro.schema'], 'object');
     header = index.extractFileHeader(path.join(DPATH, 'person-10.avro.raw'));

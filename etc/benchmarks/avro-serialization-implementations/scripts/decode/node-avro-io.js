@@ -3,7 +3,8 @@
 'use strict';
 
 let io = require('node-avro-io'),
-    avsc = require('../../../../lib');
+    avsc = require('../../../../lib'),
+    {isBufferLike} = require('../../../../util');
 
 
 let loops = 2;
@@ -30,7 +31,7 @@ avsc.createFileDecoder(process.argv[2])
   });
 
 function deserialize(buffer) {
-  if (!Buffer.isBuffer(buffer)) {
+  if (!isBufferLike(buffer)) {
     throw 'Buffer object expected';
   }
 
