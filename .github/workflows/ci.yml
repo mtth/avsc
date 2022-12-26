@@ -27,14 +27,6 @@ jobs:
           - '8'
           - '7'
           - '6'
-          # - '5' Disabled due to bug in that version of npm.
-          - '4'
-          - '3'
-          - '2'
-          - '1.8'
-          - '1.0'
-          - '0.12'
-          - '0.11'
     name: Test using node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v2
