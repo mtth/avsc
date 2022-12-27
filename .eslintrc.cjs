@@ -12,7 +12,7 @@ module.exports = {
   overrides: [
     {
       files: ['*'],
-      excludedFiles: ['etc/issues/**', 'dist/**'],
+      excludedFiles: ['dist/**'],
 
       extends: [
         'eslint:recommended'
@@ -45,7 +45,6 @@ module.exports = {
         'lib/**',
         'etc/benchmarks/**',
         'etc/integration/**',
-        'etc/issues/**',
         'etc/schemas/**',
         'etc/scripts/**',
       ],
@@ -65,16 +64,6 @@ module.exports = {
       env: {
         browser: true
       }
-    },
-    {
-      files: ['etc/issues/**'],
-      parserOptions: {
-        ecmaVersion: 11
-      },
-      env: {
-        es2020: true
-      },
-      extends: []
     }
   ]
 };
