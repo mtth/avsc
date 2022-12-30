@@ -11,7 +11,7 @@ import { EventEmitter } from 'events';
 
 //"virtual" namespace (no JS, just types) for Avro Schema
 declare namespace schema {
-  export type AvroSchema = DefinedType | DefinedType[];
+  export type AvroSchema = DefinedType | DefinedType[] | Type | Type[];
   type DefinedType = PrimitiveType | ComplexType | LogicalType | string;
   type PrimitiveType = 'null' | 'boolean' | 'int' | 'long' | 'float' | 'double' | 'bytes' | 'string';
   type ComplexType = NamedType | RecordType | EnumType | MapType | ArrayType | FixedType;
@@ -70,7 +70,7 @@ declare namespace schema {
 
 //Types of Options/arguments
 
-type Schema = Type | schema.AvroSchema;
+type Schema = schema.AvroSchema;
 
 type Callback<V, Err = any> = (err: Err | null, value?: V) => void;
 
