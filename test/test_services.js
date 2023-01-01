@@ -2942,11 +2942,11 @@ suite('services', () => {
               let remotePtcl;
               // Client.
               remotePtcl = {};
-              remotePtcl[serverSvc.hash] = serverPtcl;
+              remotePtcl[Buffer.from(serverSvc.hash, 'binary')] = serverPtcl;
               assert.deepEqual(client.remoteProtocols(), remotePtcl);
               // Server.
               remotePtcl = {};
-              remotePtcl[clientSvc.hash] = clientPtcl;
+              remotePtcl[Buffer.from(clientSvc.hash, 'binary')] = clientPtcl;
               assert.deepEqual(server.remoteProtocols(), remotePtcl);
               done();
             });

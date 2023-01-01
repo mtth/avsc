@@ -258,24 +258,6 @@ suite('utils', () => {
 
     });
 
-    suite('binary', () => {
-
-      test('write valid', () => {
-        let tap = Tap.withCapacity(3);
-        let s = '\x01\x02';
-        tap.writeBinary(s, 2);
-        assert.deepEqual(tap.buf, Buffer.from([1,2,0]));
-      });
-
-      test('write invalid', () => {
-        let tap = Tap.withCapacity(1);
-        let s = '\x01\x02';
-        tap.writeBinary(s, 2);
-        assert.deepEqual(tap.buf, Buffer.from([0]));
-      });
-
-    });
-
     suite('pack & unpack longs', () => {
 
       test('unpack single byte', () => {
@@ -380,7 +362,7 @@ suite('utils', () => {
       test('write read ' + name, () => {
         let tap = Tap.withCapacity(size || 1024);
         for (let i = 0, l = elems.length; i < l; i++) {
-          tap.buf.fill(0);
+          tap.arr.fill(0);
           tap.pos = 0;
           let elem = elems[i];
           writeFn.call(tap, elem);
@@ -404,7 +386,7 @@ suite('utils', () => {
       test('skip ' + name, () => {
         let tap = Tap.withCapacity(size || 1024);
         for (let i = 0, l = elems.length; i < l; i++) {
-          tap.buf.fill(0);
+          tap.arr.fill(0);
           tap.pos = 0;
           let elem = elems[i];
           writeFn.call(tap, elem);

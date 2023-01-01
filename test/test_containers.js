@@ -19,6 +19,7 @@ let Type = types.Type;
 let streams = containers.streams;
 let builtins = types.builtins;
 
+const DECODER = new TextDecoder();
 
 suite('containers', () => {
 
@@ -367,7 +368,7 @@ suite('containers', () => {
         let encoder = new BlockEncoder(obj);
         let decoder = new streams.BlockDecoder()
           .on('metadata', (type, codec, header) => {
-            let schema = JSON.parse(header.meta['avro.schema'].toString());
+            let schema = JSON.parse(DECODER.decode(header.meta['avro.schema']));
             assert.deepEqual(schema, obj); // Check that doc field not stripped.
           })
           .on('data', (id) => { ids.push(id); })
