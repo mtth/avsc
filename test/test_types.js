@@ -1029,7 +1029,7 @@ suite('types', () => {
           Buffer.alloc(1),
           Buffer.alloc(3)
         ],
-        check: function (a, b) { assert(a.equals(b)); }
+        check: function (a, b) { assert(Buffer.compare(a, b) === 0); }
       }
     ];
 
