@@ -12,15 +12,10 @@ function createSyncImportHook() {
   return function () { throw createError(); };
 }
 
-function createRelativeResolveHook() {
-  return function () { throw createError(); };
-}
 
 module.exports = {
   createImportHook,
   createSyncImportHook,
-  createRelativeResolveHook,
-  treatStringAsPath: () => false,
-  // Proxy a few methods to better shim them for browserify.
+  existsSync: function () { return false; },
   readFileSync: function () { throw createError(); }
 };
