@@ -133,6 +133,7 @@ META_TYPE.fromBuffer = function (buf) {
   return avro.Type.forType(attrs, {wrapUnions: true});
 };
 
+const DECODER = new TextDecoder();
 
 // Example of things we can do.
 switch (process.argv[2]) {
@@ -141,7 +142,7 @@ switch (process.argv[2]) {
       if (err) {
         throw err;
       }
-      let type = avro.Type.forSchema(buf.toString());
+      let type = avro.Type.forSchema(DECODER.decode(buf));
       process.stdout.write(META_TYPE.toBuffer(type));
     });
     break;

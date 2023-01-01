@@ -33,6 +33,8 @@ switch (argv.length) {
     process.exit(1);
 }
 
+const DECODER = new TextDecoder();
+
 /**
  * Infer a type from a stream of serialized JSON values.
  *
@@ -42,7 +44,7 @@ function fromStdin() {
   let str = '';
   process.stdin
     .on('data', (buf) => {
-      str += buf.toString();
+      str += DECODER.decode(buf);
       let pos;
       while ((pos = utils.jsonEnd(str)) >= 0) {
         let val = JSON.parse(str.slice(0, pos));
