@@ -73,7 +73,7 @@ const avro = require('avsc');
 
 + Get a [readable stream][readable-stream] of decoded values from an Avro
   container file (see the [`BlockDecoder` API][decoder-api] for an example
-  including checksum validation):
+  compressed using [Snappy][snappy]):
 
   ```javascript
   avro.createFileDecoder('./values.avro')
