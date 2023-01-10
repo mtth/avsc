@@ -29,8 +29,4 @@ module.exports = {
   Type: types.Type,
   parse,
   types: types.builtins,
-  // Deprecated exports (not using `util.deprecate` since it causes stack
-  // overflow errors in the browser).
-  combine: types.Type.forTypes,
-  infer: types.Type.forValue
 };

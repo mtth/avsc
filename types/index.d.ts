@@ -148,8 +148,6 @@ export function createFileDecoder(fileName: string, opts?: Partial<DecoderOption
 export function createFileEncoder(filePath: string, schema: Schema, opts?: Partial<EncoderOptions>): streams.BlockEncoder;
 export function createBlobEncoder(schema: Schema, opts?: Partial<EncoderOptions>): stream.Duplex;
 export function createBlobDecoder(blob: Blob, opts?: Partial<DecoderOptions>): streams.BlockDecoder;
-export function discoverProtocol(transport: Service.Transport, options: any, callback: Callback<any>): void;
-export function discoverProtocol(transport: Service.Transport, callback: Callback<any>): void;
 export function extractFileHeader(filePath: string, options?: any): any;
 export function parse(schemaOrProtocolIdl: string, options?: any): any; // TODO protocol literal or Type
 export function readProtocol(protocolIdl: string, options?: Partial<DecoderOptions>): any;
@@ -187,97 +185,6 @@ export class Type {
   static isType(arg: any, ...prefix: string[]): boolean;
 }
 
-export class Service {
-  constructor(name: any, messages: any, types: any, ptcl: any, server: any);
-  createClient(options?: Partial<Service.ClientOptions>): Service.Client;
-  createServer(options?: Partial<Service.ServerOptions>): Service.Server;
-  equals(args: any): boolean;  // deprecated
-  inspect(): string;
-  message(name: string): any;
-  type(name: string): Type | undefined;
-
-  readonly doc: string | undefined;
-  readonly hash: Buffer;
-  readonly messages: any[];
-  readonly name: string;
-  readonly protocol: any;
-  readonly types: Type[];
-
-  static compatible(client: Service.Client, server: Service.Server): boolean;
-  static forProtocol(protocol: any, options?: any): Service;
-  static isService(obj: any): boolean;
-}
-
-export namespace Service {
-  interface ClientChannel extends EventEmitter {
-    readonly client: Client;
-    readonly destroyed: boolean;
-    readonly draining: boolean;
-    readonly pending: number;
-    readonly timeout: number;
-    ping(timeout?: number, cb?: any): void;
-    destroy(noWait?: boolean): void;
-  }
-
-  interface ServerChannel extends EventEmitter {
-    readonly destroyed: boolean;
-    readonly draining: boolean;
-    readonly pending: number;
-    readonly server: Server;
-    destroy(noWait?: boolean): void;
-  }
-
-  interface ClientOptions {
-    buffering: boolean;
-    channelPolicy: any;
-    strictTypes: boolean;
-    timeout: number;
-    remoteProtocols: boolean;
-    transport?: Transport;
-  }
-
-  interface ServerOptions {
-    objectMode: boolean;
-  }
-
-
-
-  type TransportFunctionCallback = (err: Error|null|undefined, res?: stream.Stream) => void;
-  type TransportFunction = (cb: TransportFunctionCallback) => stream.Stream; // TODO
-
-  type Transport = stream.Duplex | TransportFunction;
-
-  interface ChannelCreateOptions {
-    objectMode: boolean;
-  }
-
-  interface ChannelDestroyOptions {
-    noWait: boolean;
-  }
-
-  class Server extends EventEmitter {
-    constructor(svc: any, opts: any);
-
-    readonly service: Service;
-    // on<message>()
-
-    activeChannels(): ServerChannel[];
-    createChannel(transport: Transport, options?: Partial<ChannelCreateOptions>): ServerChannel;
-    onMessage<T>(name: string, handler: (arg1: any, callback: Callback<T>) => void): this;
-    remoteProtocols(): any[];
-    use(...args: any[]): this;
-  }
-
-  class Client extends EventEmitter {
-    constructor(svc: any, opts: any);
-    activeChannels(): ClientChannel[];
-    createChannel(transport: Transport, options?: Partial<ChannelCreateOptions>): ClientChannel;
-    destroyChannels(options?: Partial<ChannelDestroyOptions>): void;
-    emitMessage<T>(name: string, req: any, options?: any, callback?: Callback<T>): void // TODO
-    remoteProtocols(): any[];
-    use(...args: any[]): this;
-  }
-}
 
 export namespace streams {
 

@@ -9,7 +9,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 + Blazingly [fast and compact][benchmarks] serialization! Typically faster than
   JSON with much smaller encodings.
 + All the Avro goodness and more: [type inference][type-inference], [schema
-  evolution][schema-evolution], and [remote procedure calls][rpc].
+  evolution][schema-evolution]...
 + Support for [serializing arbitrary JavaScript objects][logical-types].
 + Unopinionated [64-bit integer compatibility][custom-long].
 
@@ -20,7 +20,7 @@ specification](https://avro.apache.org/docs/current/spec.html).
 $ npm install avsc
 ```
 
-`avsc` is compatible with all versions of [node.js][] since `0.11`.
+`avsc` is compatible with all versions of [node.js][] since `6`.
 
 
 ## Documentation
@@ -76,43 +76,13 @@ const avro = require('avsc');
   ```
 
 + Get a [readable stream][readable-stream] of decoded values from an Avro
-  container file compressed using [Snappy][snappy] (see the [`BlockDecoder`
-  API][decoder-api] for an example including checksum validation):
+  container file (see the [`BlockDecoder` API][decoder-api] for an example
+  including checksum validation):
 
   ```javascript
-  const snappy = require('snappy'); // Or your favorite Snappy library.
-  const codecs = {
-    snappy: function (buf, cb) {
-      // Avro appends checksums to compressed blocks, which we skip here.
-      return snappy.uncompress(buf.slice(0, buf.length - 4), cb);
-    }
-  };
-
-  avro.createFileDecoder('./values.avro', {codecs})
+  avro.createFileDecoder('./values.avro')
     .on('metadata', function (type) { /* `type` is the writer's type. */ })
     .on('data', function (val) { /* Do something with the decoded value. */ });
-  ```
-
-+ Implement a TCP server for an [IDL-defined][idl] protocol:
-
-  ```javascript
-  // We first generate a protocol from its IDL specification.
-  const protocol = avro.readProtocol(`
-    protocol LengthService {
-      /** Endpoint which returns the length of the input string. */
-      int stringLength(string str);
-    }
-  `);
-
-  // We then create a corresponding server, implementing our endpoint.
-  const server = avro.Service.forProtocol(protocol)
-    .createServer()
-    .onStringLength(function (str, cb) { cb(null, str.length); });
-
-  // Finally, we use our server to respond to incoming TCP connections!
-  require('net').createServer()
-    .on('connection', (con) => { server.createChannel(con); })
-    .listen(24950);
   ```
 
 
@@ -125,7 +95,6 @@ const avro = require('avsc');
 [logical-types]: https://github.com/mtth/avsc/wiki/Advanced-usage#logical-types
 [node.js]: https://nodejs.org/en/
 [readable-stream]: https://nodejs.org/api/stream.html#stream_class_stream_readable
-[rpc]: https://github.com/mtth/avsc/wiki/Quickstart#services
 [schema-evolution]: https://github.com/mtth/avsc/wiki/Advanced-usage#schema-evolution
 [snappy]: https://avro.apache.org/docs/current/spec.html#snappy
 [type-inference]: https://github.com/mtth/avsc/wiki/Advanced-usage#type-inference
