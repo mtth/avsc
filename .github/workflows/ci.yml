@@ -24,18 +24,13 @@ jobs:
           - '14'
     name: Test using node ${{ matrix.node }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Install Node ${{ matrix.node }}
         shell: bash -eo pipefail -l {0}
         run: |
           nvm install --default ${{ matrix.node }}
-          if [[ "${{ matrix.node }}" == 0.* ]]; then
-            npm config set strict-ssl false
-          fi
           dirname "$(nvm which ${{ matrix.node }})" >> "$GITHUB_PATH"
       - name: Install
-        run: |
-          npm i
-          node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
+        run: npm i
       - name: Test
         run: npm t
