@@ -2,25 +2,24 @@
 
 'use strict';
 
-var avsc = require('../../../../../lib');
+let avsc = require('../../../../../lib');
 
-var dataPath = process.argv[2];
+let dataPath = process.argv[2];
 if (!dataPath) {
   process.exit(1);
 }
 
-var loops = 5;
-var bufs = [];
-var type = null;
+let loops = 5;
+let bufs = [];
+let type = null;
 
 avsc.createFileDecoder(dataPath)
-  .on('metadata', function (writerType) { type = writerType; })
-  .on('data', function (record) { bufs.push(record.toBuffer()); })
-  .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+  .on('metadata', (writerType) => { type = writerType; })
+  .on('data', (record) => { bufs.push(record.toBuffer()); })
+  .on('end', () => {
+    let n = 0;
+    let time = process.hrtime();
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -32,10 +31,9 @@ avsc.createFileDecoder(dataPath)
 
 
 function loop() {
-  var n = 0;
-  var i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = type.fromBuffer(bufs[i]);
+  let n = 0;
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = type.fromBuffer(bufs[i]);
     if (record.$ !== null) {
       n++;
     }

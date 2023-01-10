@@ -1,5 +1,3 @@
-/* jshint browserify: true */
-
 'use strict';
 
 /**
@@ -8,12 +6,12 @@
  * To use it: `require('avsc/etc/browser/avsc-types')`.
  */
 
-var types = require('../../lib/types');
+let types = require('../../lib/types');
 
 
 /** Basic parse method, only supporting JSON parsing. */
 function parse(any, opts) {
-  var schema;
+  let schema;
   if (typeof any == 'string') {
     try {
       schema = JSON.parse(any);
@@ -29,7 +27,7 @@ function parse(any, opts) {
 
 module.exports = {
   Type: types.Type,
-  parse: parse,
+  parse,
   types: types.builtins,
   // Deprecated exports (not using `util.deprecate` since it causes stack
   // overflow errors in the browser).

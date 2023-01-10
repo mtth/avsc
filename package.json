@@ -37,25 +37,29 @@
   "browser": {
     "./lib": "./etc/browser/avsc.js",
     "./lib/files": "./etc/browser/lib/files.js",
-    "crypto": "./etc/browser/lib/crypto.js"
+    "./lib/platform": "./etc/browser/lib/platform.js"
   },
   "engines": {
-    "node": ">=0.11"
+    "node": ">=6.0.0"
   },
   "scripts": {
     "clean": "rm -rf coverage dist node_modules",
     "cover": "nyc mocha -- --ui tdd",
     "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "dist": "./etc/scripts/dist",
+    "lint": "eslint etc/ lib/ test/ \"etc/scripts/**\"",
     "perf": "./etc/scripts/perf etc/schemas/*",
     "test": "mocha --ui tdd --reporter dot"
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
+    "browserify": "^17.0.0",
     "coveralls": "^3.0.9",
+    "eslint": "^8.30.0",
     "mocha": "^8.1.1",
     "nyc": "~15.0.0",
-    "tmp": "^0.1.0"
+    "tmp": "^0.1.0",
+    "uglify-js": "^3.17.4"
   },
   "author": {
     "name": "Matthieu Monsch",

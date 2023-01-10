@@ -1,5 +1,3 @@
-/* jshint browserify: true */
-
 'use strict';
 
 /**
@@ -8,7 +6,7 @@
  * To use it: `require('avsc/etc/browser/avsc-services')`.
  */
 
-var avroTypes = require('./avsc-types'),
+let avroTypes = require('./avsc-types'),
     services = require('../../lib/services'),
     specs = require('../../lib/specs'),
     utils = require('../../lib/utils');
@@ -16,7 +14,7 @@ var avroTypes = require('./avsc-types'),
 
 /** Slightly enhanced parsing, supporting IDL declarations. */
 function parse(any, opts) {
-  var schemaOrProtocol = specs.read(any);
+  let schemaOrProtocol = specs.read(any);
   return schemaOrProtocol.protocol ?
     services.Service.forProtocol(schemaOrProtocol, opts) :
     avroTypes.Type.forSchema(schemaOrProtocol, opts);
@@ -27,7 +25,7 @@ module.exports = {
   Service: services.Service,
   assembleProtocol: specs.assembleProtocol,
   discoverProtocol: services.discoverProtocol,
-  parse: parse,
+  parse,
   readProtocol: specs.readProtocol,
   readSchema: specs.readSchema,
 };

@@ -1,27 +1,23 @@
 #!/usr/bin/env node
 
-/* jshint node: true */
-
 'use strict';
 
-var avro = require('etp-avro'),
+let avro = require('etp-avro'),
     avsc = require('../../../../lib');
 
 
-var loops = 2;
-var bufs = [];
-var cache, reader, schema;
+let loops = 2;
+let bufs = [];
+let reader, schema;
 
 avsc.createFileDecoder(process.argv[2])
-  .on('metadata', function (type) { schema = JSON.parse(type.toString()); })
-  .on('data', function (record) { bufs.push(record.$toBuffer()); })
-  .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
-    cache = new avro.SchemaCache([]);
+  .on('metadata', (type) => { schema = JSON.parse(type.toString()); })
+  .on('data', (record) => { bufs.push(record.$toBuffer()); })
+  .on('end', () => {
+    let n = 0;
+    let time = process.hrtime();
     reader = new avro.BinaryReader();
-    for (i = 0; i < loops; i++) {
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -32,10 +28,9 @@ avsc.createFileDecoder(process.argv[2])
   });
 
 function loop() {
-  var n = 0;
-  var i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = reader.decode(schema, bufs[i]);
+  let n = 0;
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = reader.decode(schema, bufs[i]);
     if (record.$ !== null) {
       n++;
     }

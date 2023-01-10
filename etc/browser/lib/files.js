@@ -1,5 +1,3 @@
-/* jshint node: true */
-
 'use strict';
 
 /** Shim without file-system operations. */
@@ -16,8 +14,8 @@ function createSyncImportHook() {
 
 
 module.exports = {
-  createImportHook: createImportHook,
-  createSyncImportHook: createSyncImportHook,
+  createImportHook,
+  createSyncImportHook,
   existsSync: function () { return false; },
   readFileSync: function () { throw createError(); }
 };

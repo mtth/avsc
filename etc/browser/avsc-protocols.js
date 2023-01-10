@@ -1,5 +1,3 @@
-/* jshint browserify: true */
-
 'use strict';
 
 /**
@@ -9,7 +7,7 @@
  * To use it: `require('avsc/etc/browser/avsc-protocols')`.
  */
 
-var avroServices = require('./avsc-services'),
+let avroServices = require('./avsc-services'),
     utils = require('../../lib/utils');
 
 module.exports = {

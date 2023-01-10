@@ -1,28 +1,25 @@
 #!/usr/bin/env node
 
-/* jshint node: true */
-
 'use strict';
 
-var io = require('node-avro-io'),
+let io = require('node-avro-io'),
     avsc = require('../../../../lib');
 
 
-var loops = 2;
-var records = [];
-var writer;
+let loops = 2;
+let records = [];
+let writer;
 
 avsc.createFileDecoder(process.argv[2])
-  .on('metadata', function (type) {
-    var schema = new io.Schema.Schema(JSON.parse(type.toString()));
+  .on('metadata', (type) => {
+    let schema = new io.Schema.Schema(JSON.parse(type.toString()));
     writer = new io.IO.DatumWriter(schema);
   })
-  .on('data', function (record) { records.push(record); })
-  .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+  .on('data', (record) => { records.push(record); })
+  .on('end', () => {
+    let n = 0;
+    let time = process.hrtime();
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -33,11 +30,11 @@ avsc.createFileDecoder(process.argv[2])
   });
 
 function serialize(datum) {
-  var buffer = new Buffer([]);
-  var encoder = new io.IO.BinaryEncoder({
+  let buffer = Buffer.from([]);
+  let encoder = new io.IO.BinaryEncoder({
     write: function(data) {
       if (!Buffer.isBuffer(data)) {
-        data = new Buffer([data]);
+        data = Buffer.from([data]);
       }
       buffer = Buffer.concat([buffer, data]);
     }
@@ -47,10 +44,9 @@ function serialize(datum) {
 }
 
 function loop() {
-  var n = 0;
-  var i, l, buf;
-  for (i = 0, l = records.length; i < l; i++) {
-    buf = serialize(records[i]);
+  let n = 0;
+  for (let i = 0, l = records.length; i < l; i++) {
+    let buf = serialize(records[i]);
     n += buf[0] + buf.length;
   }
   return n;

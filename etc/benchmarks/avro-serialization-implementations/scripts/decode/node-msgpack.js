@@ -2,24 +2,23 @@
 
 'use strict';
 
-var avsc = require('../../../../lib'),
+let avsc = require('../../../../lib'),
     msgpack = require('msgpack-lite');
 
-var dataPath = process.argv[2];
+let dataPath = process.argv[2];
 if (!dataPath) {
   process.exit(1);
 }
 
-var loops = 2;
-var bufs = [];
+let loops = 2;
+let bufs = [];
 
 avsc.createFileDecoder(dataPath)
-  .on('data', function (record) { bufs.push(msgpack.encode(record)); })
-  .on('end', function () {
-    var i = 0;
-    var n = 0;
-    var time = process.hrtime();
-    for (i = 0; i < loops; i++) {
+  .on('data', (record) => { bufs.push(msgpack.encode(record)); })
+  .on('end', () => {
+    let n = 0;
+    let time = process.hrtime();
+    for (let i = 0; i < loops; i++) {
       n += loop();
     }
     time = process.hrtime(time);
@@ -31,10 +30,9 @@ avsc.createFileDecoder(dataPath)
 
 
 function loop() {
-  var n = 0;
-  var i, l, record;
-  for (i = 0, l = bufs.length; i < l; i++) {
-    record = msgpack.decode(bufs[i]);
+  let n = 0;
+  for (let i = 0, l = bufs.length; i < l; i++) {
+    let record = msgpack.decode(bufs[i]);
     if (record.$ !== null) {
       n++;
     }
