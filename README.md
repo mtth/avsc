@@ -34,8 +34,6 @@ $ npm install avsc
 
 ## Examples
 
-Inside a node.js module, or using browserify:
-
 ```javascript
 const avro = require('avsc');
 ```
