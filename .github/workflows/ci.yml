@@ -17,16 +17,11 @@ jobs:
     strategy:
       matrix:
         node:
+          - '19'
+          - '18'
           - '17'
           - '16'
           - '14'
-          - '12'
-          - '11'
-          - '10'
-          - '9'
-          - '8'
-          - '7'
-          - '6'
     name: Test using node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v2
@@ -42,6 +37,5 @@ jobs:
         run: |
           npm i
           node -e 'import(".").catch(() => {});' 2>/dev/null || npm i mocha@~7.1.0
-          node -e 'const a = {}; const b = {...a};' 2>/dev/null || npm i mocha@~3.5.3 tmp@~0.0.33
       - name: Test
         run: npm t

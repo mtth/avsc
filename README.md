@@ -20,8 +20,6 @@ specification](https://avro.apache.org/docs/current/spec.html).
 $ npm install avsc
 ```
 
-`avsc` is compatible with all versions of [node.js][] since `6`.
-
 
 ## Documentation
 
