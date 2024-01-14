@@ -133,6 +133,10 @@ interface ImportHookParams {
   type: 'idl' | 'protocol' | 'schema';
 }
 
+type ImportHookCallback = (err: any, params?: {contents: string, path: string}) => void;
+
+type ImportHook = (params: ImportHookParams, cb: ImportHookCallback) => void;
+
 interface AssembleOptions {
   importHook: (params: ImportHookParams, callback: Callback<object>) => void;
 }

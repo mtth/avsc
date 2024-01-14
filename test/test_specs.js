@@ -451,7 +451,10 @@ suite('specs', () => {
     test('import hook error', (done) => {
       let hook = function ({path: fpath}, cb) {
         if (path.basename(fpath) === 'A.avdl') {
-          cb(null, 'import schema "hi"; protocol A {}');
+          cb(null, {
+            contents: 'import schema "hi"; protocol A {}',
+            path: fpath
+          });
         } else {
           cb(new Error('foo'));
         }
@@ -465,7 +468,10 @@ suite('specs', () => {
     test('import hook idl error', (done) => {
       let hook = function ({path: fpath}, cb) {
         if (path.basename(fpath) === 'A.avdl') {
-          cb(null, 'import idl "hi"; protocol A {}');
+          cb(null, {
+            contents: 'import idl "hi"; protocol A {}',
+            path: fpath
+          });
         } else {
           cb(new Error('bar'));
         }
@@ -624,11 +630,14 @@ suite('specs', () => {
 
     // Import hook from strings.
     function createImportHook(imports) {
-      return function ({path: fpath}, cb) {
-        let key = path.normalize(fpath);
+      return function ({path: fpath, parentPath}, cb) {
+        let key = path.normalize(path.join(path.dirname(parentPath), fpath));
         let str = imports[key];
         delete imports[key];
-        process.nextTick(() => { cb(null, str); });
+        process.nextTick(() => { cb(null, typeof str === 'string' ? {
+          contents: str,
+          path: key
+        } : undefined); });
       };
     }
 
