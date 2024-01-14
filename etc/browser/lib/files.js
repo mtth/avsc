@@ -5,7 +5,7 @@
 function createError() { return new Error('unsupported in the browser'); }
 
 function createImportHook() {
-  return function (fpath, kind, cb) { cb(createError()); };
+  return function (_, cb) { cb(createError()); };
 }
 
 function createSyncImportHook() {
