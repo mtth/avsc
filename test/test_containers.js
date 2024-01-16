@@ -15,7 +15,7 @@ let Block = BLOCK_TYPE.recordConstructor;
 let HEADER_TYPE = containers.HEADER_TYPE;
 let Header = HEADER_TYPE.recordConstructor;
 let MAGIC_BYTES = containers.MAGIC_BYTES;
-let SYNC = utils.bufferFrom('atokensyncheader');
+let SYNC = Buffer.from('atokensyncheader');
 let Type = types.Type;
 let streams = containers.streams;
 let builtins = types.builtins;
@@ -38,7 +38,7 @@ suite('containers', () => {
             buf = chunk;
           })
           .on('end', () => {
-            assert.deepEqual(buf, utils.bufferFrom([2, 0, 3]));
+            assert.deepEqual(buf, Buffer.from([2, 0, 3]));
             cb();
           });
         encoder.write(1);
@@ -55,8 +55,8 @@ suite('containers', () => {
           })
           .on('end', () => {
             assert.deepEqual(bufs, [
-              utils.bufferFrom([1]),
-              utils.bufferFrom([2])
+              Buffer.from([1]),
+              Buffer.from([2])
             ]);
             cb();
           });
@@ -66,7 +66,7 @@ suite('containers', () => {
 
       test('resize', (cb) => {
         let t = Type.forSchema({type: 'fixed', name: 'A', size: 2});
-        let data = utils.bufferFrom([48, 18]);
+        let data = Buffer.from([48, 18]);
         let buf;
         let encoder = new RawEncoder(t, {batchSize: 1})
           .on('data', (chunk) => {
@@ -83,7 +83,7 @@ suite('containers', () => {
 
       test('flush when full', (cb) => {
         let t = Type.forSchema({type: 'fixed', name: 'A', size: 2});
-        let data = utils.bufferFrom([48, 18]);
+        let data = Buffer.from([48, 18]);
         let chunks = [];
         let encoder = new RawEncoder(t, {batchSize: 2})
           .on('data', (chunk) => { chunks.push(chunk); })
@@ -139,7 +139,7 @@ suite('containers', () => {
             assert.deepEqual(objs, [0]);
             cb();
           });
-        decoder.end(utils.bufferFrom([0]));
+        decoder.end(Buffer.from([0]));
       });
 
       test('no writer type', () => {
@@ -155,13 +155,13 @@ suite('containers', () => {
             assert.deepEqual(objs, [1, 2]);
             cb();
           });
-        decoder.write(utils.bufferFrom([2]));
-        decoder.end(utils.bufferFrom([4]));
+        decoder.write(Buffer.from([2]));
+        decoder.end(Buffer.from([4]));
       });
 
       test('no decoding', (cb) => {
         let t = Type.forSchema('int');
-        let bufs = [utils.bufferFrom([3]), utils.bufferFrom([124])];
+        let bufs = [Buffer.from([3]), Buffer.from([124])];
         let objs = [];
         let decoder = new RawDecoder(t, {noDecode: true})
           .on('data', (obj) => { objs.push(obj); })
@@ -179,12 +179,12 @@ suite('containers', () => {
         let decoder = new RawDecoder(t)
           .on('data', (obj) => { objs.push(obj); })
           .on('end', () => {
-            assert.deepEqual(objs, [utils.bufferFrom([6])]);
+            assert.deepEqual(objs, [Buffer.from([6])]);
             cb();
           });
-        decoder.write(utils.bufferFrom([2]));
+        decoder.write(Buffer.from([2]));
         // Let the first read go through (and return null).
-        process.nextTick(() => { decoder.end(utils.bufferFrom([6])); });
+        process.nextTick(() => { decoder.end(Buffer.from([6])); });
       });
 
       test('read before write', (cb) => {
@@ -197,7 +197,7 @@ suite('containers', () => {
             cb();
           });
         setTimeout(() => {
-          decoder.end(utils.bufferFrom([2]));
+          decoder.end(Buffer.from([2]));
         }, 50);
       });
 
@@ -271,9 +271,9 @@ suite('containers', () => {
         }).on('data', (chunk) => { chunks.push(chunk); })
           .on('end', () => {
             assert.deepEqual(chunks, [
-              utils.bufferFrom([6]),
-              utils.bufferFrom([6]),
-              utils.bufferFrom([24, 0, 8]),
+              Buffer.from([6]),
+              Buffer.from([6]),
+              Buffer.from([24, 0, 8]),
               SYNC
             ]);
             cb();
@@ -315,14 +315,14 @@ suite('containers', () => {
             assert.deepEqual(
               chunks,
               [
-                utils.bufferFrom([2]),
-                utils.bufferFrom([2]),
-                utils.bufferFrom([2]),
+                Buffer.from([2]),
+                Buffer.from([2]),
+                Buffer.from([2]),
                 SYNC,
 
-                utils.bufferFrom([2]),
-                utils.bufferFrom([4]),
-                utils.bufferFrom([128, 1]),
+                Buffer.from([2]),
+                Buffer.from([4]),
+                Buffer.from([128, 1]),
                 SYNC
               ]
             );
@@ -334,7 +334,7 @@ suite('containers', () => {
 
       test('resize', (cb) => {
         let t = Type.forSchema({type: 'fixed', size: 8, name: 'Eight'});
-        let buf = utils.bufferFrom('abcdefgh');
+        let buf = Buffer.from('abcdefgh');
         let chunks = [];
         let encoder = new BlockEncoder(t, {
           omitHeader: true,
@@ -342,8 +342,8 @@ suite('containers', () => {
           blockSize: 4
         }).on('data', (chunk) => { chunks.push(chunk); })
           .on('end', () => {
-            let b1 = utils.bufferFrom([4]);
-            let b2 = utils.bufferFrom([32]);
+            let b1 = Buffer.from([4]);
+            let b2 = Buffer.from([32]);
             assert.deepEqual(chunks, [b1, b2, Buffer.concat([buf, buf]), SYNC]);
             cb();
           });
@@ -363,7 +363,7 @@ suite('containers', () => {
 
       test('write non-canonical schema', (cb) => {
         let obj = {type: 'fixed', size: 2, name: 'Id', doc: 'An id.'};
-        let id = utils.bufferFrom([1, 2]);
+        let id = Buffer.from([1, 2]);
         let ids = [];
         let encoder = new BlockEncoder(obj);
         let decoder = new streams.BlockDecoder()
@@ -390,8 +390,8 @@ suite('containers', () => {
         let decoder = new BlockDecoder()
           .on('data', () => {})
           .on('error', () => { cb(); });
-        decoder.write(utils.bufferFrom([0, 3, 2]));
-        decoder.write(utils.bufferFrom([1]));
+        decoder.write(Buffer.from([0, 3, 2]));
+        decoder.write(Buffer.from([1]));
       });
 
       test('invalid sync marker', (cb) => {
@@ -401,14 +401,14 @@ suite('containers', () => {
         let header = new Header(
           MAGIC_BYTES,
           {
-            'avro.schema': utils.bufferFrom('"int"'),
-            'avro.codec': utils.bufferFrom('null')
+            'avro.schema': Buffer.from('"int"'),
+            'avro.codec': Buffer.from('null')
           },
           SYNC
         );
         decoder.write(header.toBuffer());
-        decoder.write(utils.bufferFrom([0, 0])); // Empty block.
-        decoder.end(utils.bufferFrom('alongerstringthansixteenbytes'));
+        decoder.write(Buffer.from([0, 0])); // Empty block.
+        decoder.end(Buffer.from('alongerstringthansixteenbytes'));
       });
 
       test('missing codec', (cb) => {
@@ -417,7 +417,7 @@ suite('containers', () => {
           .on('end', () => { cb(); });
         let header = new Header(
           MAGIC_BYTES,
-          {'avro.schema': utils.bufferFrom('"int"')},
+          {'avro.schema': Buffer.from('"int"')},
           SYNC
         );
         decoder.end(header.toBuffer());
@@ -430,8 +430,8 @@ suite('containers', () => {
         let header = new Header(
           MAGIC_BYTES,
           {
-            'avro.schema': utils.bufferFrom('"int"'),
-            'avro.codec': utils.bufferFrom('"foo"')
+            'avro.schema': Buffer.from('"int"'),
+            'avro.codec': Buffer.from('"foo"')
           },
           SYNC
         );
@@ -445,8 +445,8 @@ suite('containers', () => {
         let header = new Header(
           MAGIC_BYTES,
           {
-            'avro.schema': utils.bufferFrom('"int2"'),
-            'avro.codec': utils.bufferFrom('null')
+            'avro.schema': Buffer.from('"int2"'),
+            'avro.codec': Buffer.from('null')
           },
           SYNC
         );
@@ -463,12 +463,12 @@ suite('containers', () => {
           });
         let buf = new Header(
           MAGIC_BYTES,
-          {'avro.schema': utils.bufferFrom('"int"')},
+          {'avro.schema': Buffer.from('"int"')},
           SYNC
         ).toBuffer();
         decoder.write(buf.slice(0, 5)); // Part of header.
         decoder.write(buf.slice(5));
-        decoder.write(utils.bufferFrom([2, 2, 4]));
+        decoder.write(Buffer.from([2, 2, 4]));
         decoder.write(SYNC);
         decoder.end();
       });
@@ -481,8 +481,8 @@ suite('containers', () => {
         let header = new Header(
           MAGIC_BYTES,
           {
-            'avro.schema': utils.bufferFrom('"string"'),
-            'avro.codec': utils.bufferFrom('null')
+            'avro.schema': Buffer.from('"string"'),
+            'avro.codec': Buffer.from('null')
           },
           SYNC
         );
@@ -491,7 +491,7 @@ suite('containers', () => {
           5,
           Buffer.concat([
             type.toBuffer('hi'),
-            utils.bufferFrom([77]) // Corrupt (negative length).
+            Buffer.from([77]) // Corrupt (negative length).
           ]),
           SYNC
         ).toBuffer());
@@ -535,7 +535,7 @@ suite('containers', () => {
       let decoder = new streams.BlockDecoder({noDecode: true})
         .on('data', (obj) => { objs.push(obj); })
         .on('end', () => {
-          assert.deepEqual(objs, [utils.bufferFrom([96])]);
+          assert.deepEqual(objs, [Buffer.from([96])]);
           cb();
         });
       encoder.pipe(decoder);
@@ -788,8 +788,8 @@ suite('containers', () => {
       decoder.write(HEADER_TYPE.toBuffer({
         magic: MAGIC_BYTES,
         meta: {
-          'avro.schema': utils.bufferFrom('"int"'),
-          'avro.codec': utils.bufferFrom('null')
+          'avro.schema': Buffer.from('"int"'),
+          'avro.codec': Buffer.from('null')
         },
         sync: SYNC
       }));
@@ -797,7 +797,7 @@ suite('containers', () => {
         count: 1, data: t.toBuffer(1), sync: SYNC
       }));
       decoder.write(BLOCK_TYPE.toBuffer({
-        count: 0, data: utils.bufferFrom([]), sync: SYNC
+        count: 0, data: Buffer.from([]), sync: SYNC
       }));
       decoder.write(BLOCK_TYPE.toBuffer({
         count: 1, data: t.toBuffer(2), sync: SYNC
