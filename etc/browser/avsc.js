@@ -10,8 +10,10 @@
 let avroServices = require('./avsc-services'),
     containers = require('../../lib/containers'),
     utils = require('../../lib/utils'),
+    buffer = require('buffer'),
     stream = require('stream');
 
+let Buffer = buffer.Buffer;
 
 /** Transform stream which lazily reads a blob's contents. */
 class BlobReader extends stream.Readable {
@@ -40,7 +42,7 @@ class BlobReader extends stream.Readable {
       if (evt.error) {
         self.emit('error', evt.error);
       } else {
-        self.push(utils.bufferFrom(reader.result));
+        self.push(Buffer.from(reader.result));
       }
     }, false);
     reader.readAsArrayBuffer(blob);
