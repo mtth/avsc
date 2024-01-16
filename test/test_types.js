@@ -214,10 +214,10 @@ suite('types', () => {
       let t = Type.forSchema('string');
       let s = 'hello';
       let b, pos;
-      b = utils.newBuffer(2);
+      b = Buffer.alloc(2);
       pos = t.encode(s, b);
       assert(pos < 0);
-      b = utils.newBuffer(b.length - pos);
+      b = Buffer.alloc(b.length - pos);
       pos = t.encode(s, b);
       assert(pos >= 0);
       assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
@@ -322,7 +322,7 @@ suite('types', () => {
 
     let data = [
       {
-        valid: [utils.newBuffer(1), Buffer.from('abc')],
+        valid: [Buffer.alloc(1), Buffer.from('abc')],
         invalid: [null, 'hi', undefined, 1, 0, -3.5]
       }
     ];
@@ -392,8 +392,8 @@ suite('types', () => {
       {
         name: 'qualified name',
         schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
-        valid: [null, utils.newBuffer(2)],
-        invalid: [{'a.B': utils.newBuffer(2)}],
+        valid: [null, Buffer.alloc(2)],
+        invalid: [{'a.B': Buffer.alloc(2)}],
         check: assert.deepEqual
       },
       {
@@ -509,7 +509,7 @@ suite('types', () => {
       let t1 = Type.forSchema('null');
       let t2 = new builtins.UnwrappedUnionType(['null', 'int']);
       let a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(utils.newBuffer(0), a), null);
+      assert.deepEqual(t2.fromBuffer(Buffer.alloc(0), a), null);
     });
 
     test('resolve [string, int] to unwrapped [float, bytes]', () => {
@@ -608,8 +608,8 @@ suite('types', () => {
       {
         name: 'qualified name',
         schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
-        valid: [null, {'a.B': utils.newBuffer(2)}],
-        invalid: [utils.newBuffer(2)],
+        valid: [null, {'a.B': Buffer.alloc(2)}],
+        invalid: [Buffer.alloc(2)],
         check: assert.deepEqual
       },
       {
@@ -689,7 +689,7 @@ suite('types', () => {
       let t1 = Type.forSchema('null');
       let t2 = new builtins.WrappedUnionType(['null', 'int']);
       let a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(utils.newBuffer(0), a), null);
+      assert.deepEqual(t2.fromBuffer(Buffer.alloc(0), a), null);
     });
 
     test('resolve [string, int] to [long, bytes]', () => {
@@ -1026,8 +1026,8 @@ suite('types', () => {
           null,
           undefined,
           0,
-          utils.newBuffer(1),
-          utils.newBuffer(3)
+          Buffer.alloc(1),
+          Buffer.alloc(3)
         ],
         check: function (a, b) { assert(a.equals(b)); }
       }
@@ -2486,7 +2486,7 @@ suite('types', () => {
           return n;
         },
         toBuffer: function (n) {
-          let buf = utils.newBuffer(8);
+          let buf = Buffer.alloc(8);
           let neg = n < 0;
           if (neg) {
             invert(buf);
@@ -2590,7 +2590,7 @@ suite('types', () => {
           return tap.readLong();
         },
         toBuffer: function (n) {
-          let buf = utils.newBuffer(10);
+          let buf = Buffer.alloc(10);
           let tap = Tap.fromBuffer(buf);
           tap.writeLong(n);
           return buf.slice(0, tap.pos);
@@ -3768,7 +3768,7 @@ suite('types', () => {
 
     test('int valid', () => {
       let t = Type.forSchema('int');
-      let buf = utils.newBuffer(2);
+      let buf = Buffer.alloc(2);
       buf.fill(0);
       let n = t.encode(5, buf, 1);
       assert.equal(n, 2);
@@ -3777,20 +3777,20 @@ suite('types', () => {
 
     test('too short', () => {
       let t = Type.forSchema('string');
-      let buf = utils.newBuffer(1);
+      let buf = Buffer.alloc(1);
       let n = t.encode('\x01\x02', buf, 0);
       assert.equal(n, -2);
     });
 
     test('invalid', () => {
       let t = Type.forSchema('float');
-      let buf = utils.newBuffer(2);
+      let buf = Buffer.alloc(2);
       assert.throws(() => { t.encode('hi', buf, 0); });
     });
 
     test('invalid offset', () => {
       let t = Type.forSchema('string');
-      let buf = utils.newBuffer(2);
+      let buf = Buffer.alloc(2);
       assert.throws(() => { t.encode('hi', buf, -1); });
     });
 
@@ -4113,7 +4113,7 @@ suite('types', () => {
     });
 
     test('record', () => {
-      let t = infer({b: true, n: null, s: '', f: utils.newBuffer(0)});
+      let t = infer({b: true, n: null, s: '', f: Buffer.alloc(0)});
       assert.deepEqual(
         t.getSchema(),
         {
@@ -4225,7 +4225,7 @@ function testType(Type, data, invalidSchemas) {
       let items = elem.valid;
       if (items.length > 1) {
         let type = new Type(elem.schema);
-        let buf = utils.newBuffer(1024);
+        let buf = Buffer.alloc(1024);
         let tap = Tap.fromBuffer(buf);
         type._write(tap, items[0]);
         type._write(tap, items[1]);
