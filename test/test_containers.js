@@ -2,7 +2,6 @@
 
 let containers = require('../lib/containers'),
     types = require('../lib/types'),
-    utils = require('../lib/utils'),
     assert = require('assert'),
     buffer = require('buffer'),
     stream = require('stream'),
