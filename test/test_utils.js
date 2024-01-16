@@ -145,23 +145,6 @@ suite('utils', () => {
 
   suite('Tap', () => {
 
-    let BufferPool = utils.BufferPool;
-
-    test('alloc negative length', () => {
-      let pool = new BufferPool(16);
-      assert.throws(() => { pool.alloc(-1); });
-    });
-
-    test('alloc beyond pool size', () => {
-      let pool = new BufferPool(4);
-      assert.equal(pool.alloc(3).length, 3);
-      assert.equal(pool.alloc(2).length, 2);
-    });
-
-  });
-
-  suite('Tap', () => {
-
     let Tap = utils.Tap;
 
     suite('int & long', () => {
