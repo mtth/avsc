@@ -239,7 +239,7 @@ suite('utils', () => {
     suite('bytes', () => {
 
       testWriterReader({
-        elems: [Buffer.from('abc'), utils.newBuffer(0), Buffer.from([1, 5, 255])],
+        elems: [Buffer.from('abc'), Buffer.alloc(0), Buffer.from([1, 5, 255])],
         reader: function () { return this.readBytes(); },
         skipper: function () { this.skipBytes(); },
         writer: function (b) { this.writeBytes(b); }
@@ -312,7 +312,7 @@ suite('utils', () => {
 
       test('pack single byte', () => {
         let t = Tap.withCapacity(10);
-        let b = utils.newBuffer(8);
+        let b = Buffer.alloc(8);
         b.fill(0);
         b.writeInt32LE(12);
         t.packLongBytes(b);

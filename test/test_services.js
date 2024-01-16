@@ -2,7 +2,6 @@
 
 let types = require('../lib/types'),
     services = require('../lib/services'),
-    utils = require('../lib/utils'),
     assert = require('assert'),
     buffer = require('buffer'),
     stream = require('stream');
@@ -3242,7 +3241,7 @@ suite('services', () => {
 
 // Message framing.
 function frame(buf) {
-  let framed = utils.newBuffer(buf.length + 4);
+  let framed = Buffer.alloc(buf.length + 4);
   framed.writeInt32BE(buf.length);
   buf.copy(framed, 4);
   return framed;
