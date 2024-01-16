@@ -1,7 +1,10 @@
 'use strict';
 
 let utils = require('../lib/utils'),
-    assert = require('assert');
+    assert = require('assert'),
+    buffer = require('buffer');
+
+let Buffer = buffer.Buffer;
 
 
 suite('utils', () => {
@@ -174,7 +177,7 @@ suite('utils', () => {
 
         let tap = Tap.withCapacity(6);
         tap.writeLong(1440756011948);
-        let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        let buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert(tap.isValid());
         assert(buf.equals(tap.buf));
 
@@ -182,7 +185,7 @@ suite('utils', () => {
 
       test('read', () => {
 
-        let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        let buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert.equal((Tap.fromBuffer(buf)).readLong(), 1440756011948);
 
       });
@@ -236,7 +239,7 @@ suite('utils', () => {
     suite('bytes', () => {
 
       testWriterReader({
-        elems: [utils.bufferFrom('abc'), utils.newBuffer(0), utils.bufferFrom([1, 5, 255])],
+        elems: [Buffer.from('abc'), utils.newBuffer(0), Buffer.from([1, 5, 255])],
         reader: function () { return this.readBytes(); },
         skipper: function () { this.skipBytes(); },
         writer: function (b) { this.writeBytes(b); }
@@ -247,7 +250,7 @@ suite('utils', () => {
     suite('fixed', () => {
 
       testWriterReader({
-        elems: [utils.bufferFrom([1, 5, 255])],
+        elems: [Buffer.from([1, 5, 255])],
         reader: function () { return this.readFixed(3); },
         skipper: function () { this.skipFixed(3); },
         writer: function (b) { this.writeFixed(b, 3); }
@@ -261,14 +264,14 @@ suite('utils', () => {
         let tap = Tap.withCapacity(3);
         let s = '\x01\x02';
         tap.writeBinary(s, 2);
-        assert.deepEqual(tap.buf, utils.bufferFrom([1,2,0]));
+        assert.deepEqual(tap.buf, Buffer.from([1,2,0]));
       });
 
       test('write invalid', () => {
         let tap = Tap.withCapacity(1);
         let s = '\x01\x02';
         tap.writeBinary(s, 2);
-        assert.deepEqual(tap.buf, utils.bufferFrom([0]));
+        assert.deepEqual(tap.buf, Buffer.from([0]));
       });
 
     });
@@ -281,14 +284,14 @@ suite('utils', () => {
         t.pos = 0;
         assert.deepEqual(
           t.unpackLongBytes(),
-          utils.bufferFrom([5, 0, 0, 0, 0, 0, 0, 0])
+          Buffer.from([5, 0, 0, 0, 0, 0, 0, 0])
         );
         t.pos = 0;
         t.writeLong(-5);
         t.pos = 0;
         assert.deepEqual(
           t.unpackLongBytes(),
-          utils.bufferFrom([-5, -1, -1, -1, -1, -1, -1, -1])
+          Buffer.from([-5, -1, -1, -1, -1, -1, -1, -1])
         );
         t.pos = 0;
       });
@@ -327,7 +330,7 @@ suite('utils', () => {
         b.writeInt32LE(-1);
         b.writeInt32LE(-1, 4);
         t.packLongBytes(b);
-        assert.deepEqual(t.buf.slice(0, t.pos), utils.bufferFrom([1]));
+        assert.deepEqual(t.buf.slice(0, t.pos), Buffer.from([1]));
         t.pos = 0;
         assert.deepEqual(t.readLong(), -1);
       });
@@ -353,8 +356,8 @@ suite('utils', () => {
       });
 
       test('roundtrip bytes', () => {
-        roundtrip(utils.bufferFrom([0, 0, 0, 0, 0, 0, 0, 0]));
-        roundtrip(utils.bufferFrom('9007199254740995', 'hex'));
+        roundtrip(Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]));
+        roundtrip(Buffer.from('9007199254740995', 'hex'));
 
         function roundtrip(b1) {
           let t = Tap.withCapacity(10);
