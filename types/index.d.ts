@@ -128,17 +128,17 @@ interface IsValidOptions {
   errorHook: (path: string[], val: any, type: Type) => void
 }
 
-interface ImportHookParams {
+interface ImportHookPayload {
   path: string;
   type: 'idl' | 'protocol' | 'schema';
 }
 
 type ImportHookCallback = (err: any, params?: {contents: string, path: string}) => void;
 
-type ImportHook = (params: ImportHookParams, cb: ImportHookCallback) => void;
+type ImportHook = (payload: ImportHookPayload, cb: ImportHookCallback) => void;
 
 interface AssembleOptions {
-  importHook: (params: ImportHookParams, callback: Callback<object>) => void;
+  importHook: (params: ImportHookPayload, callback: Callback<object>) => void;
 }
 
 interface SchemaOptions {
