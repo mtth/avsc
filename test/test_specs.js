@@ -737,6 +737,30 @@ suite('specs', () => {
       );
     });
 
+    test('optional field no default value', () => {
+      const usingQuestionMark = readSchema('record { int? optionalInt; }');
+      const usingUnion = readSchema('record { union{null,int} optionalInt; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
+    test('optional field null default value', () => {
+      const usingQuestionMark = readSchema('record { int? optionalInt = null; }');
+      const usingUnion = readSchema('record { union{null,int} optionalInt = null; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
+    test('optional field non-null default value', () => {
+      const usingQuestionMark = readSchema('record { int? optionalInt = 0; }');
+      const usingUnion = readSchema('record { union{int,null} optionalInt = 0; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
+    test('optional field with annotations', () => {
+      const usingQuestionMark = readSchema('record { int? @order("ascending") optionalInt = 0; }');
+      const usingUnion = readSchema('record { union{int,null} @order("ascending") optionalInt = 0; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
   });
 
   suite('readProtocol', () => {
