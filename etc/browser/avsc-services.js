@@ -7,6 +7,7 @@
  */
 
 let avroTypes = require('./avsc-types'),
+    files = require('../../lib/files'),
     services = require('../../lib/services'),
     specs = require('../../lib/specs'),
     utils = require('../../lib/utils');
@@ -14,7 +15,7 @@ let avroTypes = require('./avsc-types'),
 
 /** Slightly enhanced parsing, supporting IDL declarations. */
 function parse(any, opts) {
-  let schemaOrProtocol = specs.read(any);
+  let schemaOrProtocol = files.readSchemaFromPathOrString(any);
   return schemaOrProtocol.protocol ?
     services.Service.forProtocol(schemaOrProtocol, opts) :
     avroTypes.Type.forSchema(schemaOrProtocol, opts);
