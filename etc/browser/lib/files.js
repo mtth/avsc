@@ -17,7 +17,5 @@ function tryReadFileSync() { return null; }
 module.exports = {
   createImportHook,
   createSyncImportHook,
-  existsSync: function () { return false; },
-  readFileSync: function () { throw createError(); },
   tryReadFileSync,
 };
