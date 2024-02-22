@@ -12,10 +12,12 @@ function createSyncImportHook() {
   return function () { throw createError(); };
 }
 
+function tryReadFileSync() { return null; }
+
 module.exports = {
   createImportHook,
   createSyncImportHook,
   existsSync: function () { return false; },
   readFileSync: function () { throw createError(); },
-  readSchemaFromPathOrString: function () { throw createError(); }
+  tryReadFileSync,
 };
