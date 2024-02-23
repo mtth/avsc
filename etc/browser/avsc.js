@@ -7,8 +7,7 @@
  * read and write blobs.
  */
 
-let avroServices = require('./avsc-services'),
-    containers = require('../../lib/containers'),
+let containers = require('../../lib/containers'),
     utils = require('../../lib/utils'),
     stream = require('stream');
 
@@ -109,5 +108,3 @@ module.exports = {
   createBlobEncoder,
   streams: containers.streams
 };
-
-utils.copyOwnProperties(avroServices, module.exports);

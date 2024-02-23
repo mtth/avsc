@@ -3413,7 +3413,7 @@ suite('types', () => {
           {name: 'r1', type: 'R1'},
         ]
       };
-      let opts = {typeHook: hook};
+      let opts = {typeHook: hook, registry: {}};
       Type.forSchema(a1, opts);
       assert.deepEqual(Object.keys(opts.registry), ['R1', 'R2']);
 

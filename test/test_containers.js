@@ -592,9 +592,13 @@ suite('containers', () => {
         new Person('Bob', 25)
       ];
       let p2 = [];
-      let encoder = new streams.BlockEncoder(t, {codec: 'deflate', codecs: {'deflate': zlib.deflateRaw}});
-      let decoder = new streams.BlockDecoder({codecs: {'deflate': zlib.inflateRaw}})
-        .on('data', (obj) => { p2.push(obj); })
+      let encoder = new streams.BlockEncoder(t, {
+        codec: 'deflate',
+        codecs: {'deflate': zlib.deflateRaw},
+      });
+      let decoder = new streams.BlockDecoder({
+        codecs: {'deflate': zlib.inflateRaw},
+      }).on('data', (obj) => { p2.push(obj); })
         .on('end', () => {
           assert.deepEqual(p2, p1);
           cb();

@@ -5,7 +5,7 @@ if (process.browser) {
 }
 
 let index = require('../lib'),
-    services = require('../lib/services'),
+    specs = require('../lib/specs'),
     types = require('../lib/types'),
     assert = require('assert'),
     buffer = require('buffer'),
@@ -18,53 +18,10 @@ let DPATH = path.join(__dirname, 'dat');
 
 
 suite('index', () => {
-
-  suite('parse', () => {
-
-    let parse = index.parse;
-
-    test('type object', () => {
-      let obj = {
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'so', type: 'Person'}]
-      };
-      assert(parse(obj) instanceof types.builtins.RecordType);
-    });
-
-    test('protocol object', () => {
-      let obj = {protocol: 'Foo'};
-      assert(parse(obj) instanceof services.Service);
-    });
-
-    test('type instance', () => {
-      let type = parse({
-        type: 'record',
-        name: 'Person',
-        fields: [{name: 'so', type: 'Person'}]
-      });
-      assert.strictEqual(parse(type), type);
-    });
-
-    test('stringified type schema', () => {
-      assert(parse('"int"') instanceof types.builtins.IntType);
-    });
-
-    test('type name', () => {
-      assert(parse('double') instanceof types.builtins.DoubleType);
-    });
-
-    test('type schema file', () => {
-      let t1 = parse({type: 'fixed', name: 'id.Id', size: 64});
-      let t2 = parse(path.join(__dirname, 'dat', 'Id.avsc'));
-      assert.deepEqual(JSON.stringify(t1), JSON.stringify(t2));
-    });
-
-  });
-
   test('createFileDecoder', (cb) => {
     let n = 0;
-    let type = index.parse(path.join(DPATH, 'Person.avsc'));
+    let schema = specs.read(path.join(DPATH, 'Person.avsc'));
+    let type = index.Type.forSchema(schema);
     index.createFileDecoder(path.join(DPATH, 'person-10.avro'))
       .on('metadata', (writerType) => {
         assert.equal(writerType.toString(), type.toString());
