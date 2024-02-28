@@ -2,12 +2,13 @@
 
 let types = require('../lib/types'),
     services = require('../lib/services'),
-    utils = require('../lib/utils'),
     assert = require('assert'),
+    buffer = require('buffer'),
     stream = require('stream');
 
 
 let Service = services.Service;
+let Buffer = buffer.Buffer;
 
 
 suite('services', () => {
@@ -442,11 +443,11 @@ suite('services', () => {
 
     test('decode', (done) => {
       let frames = [
-        utils.bufferFrom([0, 1]),
-        utils.bufferFrom([2]),
-        utils.bufferFrom([]),
-        utils.bufferFrom([3, 4]),
-        utils.bufferFrom([])
+        Buffer.from([0, 1]),
+        Buffer.from([2]),
+        Buffer.from([]),
+        Buffer.from([3, 4]),
+        Buffer.from([])
       ].map(frame);
       let messages = [];
       createReadableStream(frames)
@@ -457,10 +458,10 @@ suite('services', () => {
             messages,
             [
               {id: null, payload: [
-                utils.bufferFrom([0, 1]),
-                utils.bufferFrom([2])
+                Buffer.from([0, 1]),
+                Buffer.from([2])
               ]},
-              {id: null, payload: [utils.bufferFrom([3, 4])]}
+              {id: null, payload: [Buffer.from([3, 4])]}
             ]
           );
           done();
@@ -469,10 +470,10 @@ suite('services', () => {
 
     test('decode with trailing data', (done) => {
       let frames = [
-        utils.bufferFrom([0, 1]),
-        utils.bufferFrom([2]),
-        utils.bufferFrom([]),
-        utils.bufferFrom([3])
+        Buffer.from([0, 1]),
+        Buffer.from([2]),
+        Buffer.from([]),
+        Buffer.from([3])
       ].map(frame);
       let messages = [];
       createReadableStream(frames)
@@ -481,8 +482,8 @@ suite('services', () => {
           assert.deepEqual(
             messages,
             [{id: null, payload: [
-              utils.bufferFrom([0, 1]),
-              utils.bufferFrom([2])
+              Buffer.from([0, 1]),
+              Buffer.from([2])
             ]}]
           );
           done();
@@ -513,10 +514,10 @@ suite('services', () => {
     test('encode', (done) => {
       let messages = [
         {id: 1, payload: [
-          utils.bufferFrom([1, 3, 5]),
-          utils.bufferFrom([6, 8])
+          Buffer.from([1, 3, 5]),
+          Buffer.from([6, 8])
         ]},
-        {id: 4, payload: [utils.bufferFrom([123, 23])]}
+        {id: 4, payload: [Buffer.from([123, 23])]}
       ];
       let frames = [];
       createReadableStream(messages)
@@ -526,14 +527,14 @@ suite('services', () => {
           assert.deepEqual(
             frames,
             [
-              utils.bufferFrom([0, 0, 0, 3]),
-              utils.bufferFrom([1, 3, 5]),
-              utils.bufferFrom([0, 0, 0, 2]),
-              utils.bufferFrom([6, 8]),
-              utils.bufferFrom([0, 0, 0, 0]),
-              utils.bufferFrom([0, 0, 0, 2]),
-              utils.bufferFrom([123, 23]),
-              utils.bufferFrom([0, 0, 0, 0])
+              Buffer.from([0, 0, 0, 3]),
+              Buffer.from([1, 3, 5]),
+              Buffer.from([0, 0, 0, 2]),
+              Buffer.from([6, 8]),
+              Buffer.from([0, 0, 0, 0]),
+              Buffer.from([0, 0, 0, 2]),
+              Buffer.from([123, 23]),
+              Buffer.from([0, 0, 0, 0])
             ]
           );
           done();
@@ -579,8 +580,8 @@ suite('services', () => {
 
     test('decode with trailing data', (done) => {
       let src = [
-        utils.bufferFrom([0, 0, 0, 2, 0, 0, 0]),
-        utils.bufferFrom([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
+        Buffer.from([0, 0, 0, 2, 0, 0, 0]),
+        Buffer.from([1, 0, 0, 0, 5, 1, 3, 4, 2, 5, 1])
       ];
       let dst = [];
       createReadableStream(src)
@@ -588,7 +589,7 @@ suite('services', () => {
         .on('error', () => {
           assert.deepEqual(
             dst,
-            [{id: 2, payload: [utils.bufferFrom([1, 3, 4, 2, 5])]}]
+            [{id: 2, payload: [Buffer.from([1, 3, 4, 2, 5])]}]
           );
           done();
         })
@@ -640,11 +641,11 @@ suite('services', () => {
       });
       let a = new Adapter(s, s);
       assert.throws(() => {
-        a._decodeRequest(utils.bufferFrom([24]));
+        a._decodeRequest(Buffer.from([24]));
       }, /truncated/);
       assert.throws(() => {
         a._decodeResponse(
-          utils.bufferFrom([48]),
+          Buffer.from([48]),
           {headers: {}},
           s.message('echo')
         );
@@ -853,7 +854,7 @@ suite('services', () => {
           assert(/trailing/.test(err), err);
           done();
         });
-      transports[0].readable.end(utils.bufferFrom([48]));
+      transports[0].readable.end(Buffer.from([48]));
     });
   });
 
@@ -914,7 +915,7 @@ suite('services', () => {
         assert(sawError);
         done();
       });
-      readable.end(utils.bufferFrom([48]));
+      readable.end(Buffer.from([48]));
     });
 
     test('default encoder error', (done) => {
@@ -943,9 +944,9 @@ suite('services', () => {
       let writable = new stream.PassThrough({objectMode: true})
         .on('data', (data) => {
           // Encoded handshake response.
-          let hres = utils.bufferFrom([0, 0, 0, 0]);
+          let hres = Buffer.from([0, 0, 0, 0]);
           // Encoded response (flag and meta).
-          let res = utils.bufferFrom([0, 0]);
+          let res = Buffer.from([0, 0]);
           readable.write({id: data.id, payload: [hres, res]});
         });
       let client = svc.createClient();
@@ -970,7 +971,7 @@ suite('services', () => {
       let readable = new stream.PassThrough({objectMode: true});
       let writable = new stream.PassThrough({objectMode: true})
         .on('data', (data) => {
-          let buf = utils.bufferFrom([0, 0, 0, 2, 48]);
+          let buf = Buffer.from([0, 0, 0, 2, 48]);
           readable.write({id: data.id, payload: [buf]});
         });
       let client = svc.createClient();
@@ -1049,7 +1050,7 @@ suite('services', () => {
           assert(this.isDestroyed()); // Deprecated.
           done();
         });
-      transport.end(utils.bufferFrom([48]));
+      transport.end(Buffer.from([48]));
     });
 
     test('writable finished', (done) => {
@@ -1095,7 +1096,7 @@ suite('services', () => {
         assert(/trailing/.test(err), err);
         done();
       });
-      transports[1].readable.end(utils.bufferFrom([48]));
+      transports[1].readable.end(Buffer.from([48]));
     });
 
     test('delayed writable', (done) => {
@@ -1121,7 +1122,7 @@ suite('services', () => {
             clientHash: svc.hash,
             serverHash: svc.hash
           }),
-          utils.bufferFrom([3]) // Invalid request contents.
+          Buffer.from([3]) // Invalid request contents.
         ]
       });
     });
@@ -1138,7 +1139,7 @@ suite('services', () => {
           clientHash: svc.hash,
           serverHash: svc.hash
         }),
-        utils.bufferFrom('\x00\x08ping')
+        Buffer.from('\x00\x08ping')
       ];
       let objs = [];
       let readable = new stream.PassThrough({objectMode: true});
@@ -2097,7 +2098,7 @@ suite('services', () => {
       setTimeout(() => {
         // "Send" an invalid payload (negative union offset). We wait to allow
         // the callback for the above message to be registered.
-        transport.readable.write({id: 1, payload: [utils.bufferFrom([45])]});
+        transport.readable.write({id: 1, payload: [Buffer.from([45])]});
       }, 0);
     });
   });
@@ -2690,7 +2691,7 @@ suite('services', () => {
         });
         setupFn(svc, svc, (client, server) => {
           server.onNeg((n, cb) => { cb(null, -n); });
-          let buf = utils.bufferFrom([0, 1]);
+          let buf = Buffer.from([0, 1]);
           let isDone = false;
           let channel = client.activeChannels()[0];
           client
@@ -2792,7 +2793,7 @@ suite('services', () => {
         });
         setupFn(svc, svc, (client, server) => {
           let isDone = false;
-          let buf = utils.bufferFrom([0, 1]);
+          let buf = Buffer.from([0, 1]);
           // The server's channel won't be ready right away in the case of
           // stateless transports.
           let channel;
@@ -2941,11 +2942,11 @@ suite('services', () => {
               let remotePtcl;
               // Client.
               remotePtcl = {};
-              remotePtcl[serverSvc.hash] = serverPtcl;
+              remotePtcl[Buffer.from(serverSvc.hash, 'binary')] = serverPtcl;
               assert.deepEqual(client.remoteProtocols(), remotePtcl);
               // Server.
               remotePtcl = {};
-              remotePtcl[clientSvc.hash] = clientPtcl;
+              remotePtcl[Buffer.from(clientSvc.hash, 'binary')] = clientPtcl;
               assert.deepEqual(server.remoteProtocols(), remotePtcl);
               done();
             });
@@ -3240,7 +3241,7 @@ suite('services', () => {
 
 // Message framing.
 function frame(buf) {
-  let framed = utils.newBuffer(buf.length + 4);
+  let framed = Buffer.alloc(buf.length + 4);
   framed.writeInt32BE(buf.length);
   buf.copy(framed, 4);
   return framed;

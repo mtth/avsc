@@ -48,7 +48,7 @@
     "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "dist": "./etc/scripts/dist",
     "lint": "eslint etc/ lib/ test/ \"etc/scripts/**\"",
-    "perf": "./etc/scripts/perf etc/schemas/*",
+    "perf": "node --expose-gc ./etc/scripts/perf etc/schemas/*",
     "test": "mocha --ui tdd --reporter dot"
   },
   "devDependencies": {
