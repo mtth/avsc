@@ -263,16 +263,26 @@ suite('utils', () => {
 
       test('unpack multiple bytes', () => {
         let t = Tap.withCapacity(10);
-        let l;
+        let l, unpacked, dv;
         l = 18932;
         t.writeLong(l);
         t.pos = 0;
-        assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
+        unpacked = t.unpackLongBytes();
+        dv = new DataView(
+          unpacked.buffer,
+          unpacked.byteOffset,
+          unpacked.byteLength);
+        assert.deepEqual(dv.getInt32(0, true), l);
         t.pos = 0;
         l = -3210984;
         t.writeLong(l);
         t.pos = 0;
-        assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
+        unpacked = t.unpackLongBytes();
+        dv = new DataView(
+          unpacked.buffer,
+          unpacked.byteOffset,
+          unpacked.byteLength);
+        assert.deepEqual(dv.getInt32(0, true), l);
       });
 
       test('pack single byte', () => {
