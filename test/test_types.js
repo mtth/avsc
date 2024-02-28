@@ -2474,11 +2474,12 @@ suite('types', () => {
 
       let slowLongType = builtins.LongType.__with({
         fromBuffer: function (buf) {
+          let dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
           let neg = buf[7] >> 7;
           if (neg) { // Negative number.
             invert(buf);
           }
-          let n = buf.readInt32LE(0) + Math.pow(2, 32) * buf.readInt32LE(4);
+          let n = dv.getInt32(0, true) + Math.pow(2, 32) * dv.getInt32(4, true);
           if (neg) {
             invert(buf);
             n = -n - 1;
@@ -2486,15 +2487,16 @@ suite('types', () => {
           return n;
         },
         toBuffer: function (n) {
-          let buf = Buffer.alloc(8);
+          let buf = new Uint8Array(8);
+          let dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
           let neg = n < 0;
           if (neg) {
             invert(buf);
             n = -n - 1;
           }
-          buf.writeInt32LE(n | 0);
+          dv.setInt32(0, n | 0, true);
           let h = n / Math.pow(2, 32) | 0;
-          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
+          dv.setInt32(4, h ? h : (n >= 0 ? 0 : -1), true);
           if (neg) {
             invert(buf);
           }
