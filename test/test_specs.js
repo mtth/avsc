@@ -449,9 +449,12 @@ suite('specs', () => {
     });
 
     test('import hook error', (done) => {
-      let hook = function (fpath, kind, cb) {
+      let hook = function ({path: fpath}, cb) {
         if (path.basename(fpath) === 'A.avdl') {
-          cb(null, 'import schema "hi"; protocol A {}');
+          cb(null, {
+            contents: 'import schema "hi"; protocol A {}',
+            path: fpath
+          });
         } else {
           cb(new Error('foo'));
         }
@@ -463,9 +466,12 @@ suite('specs', () => {
     });
 
     test('import hook idl error', (done) => {
-      let hook = function (fpath, kind, cb) {
+      let hook = function ({path: fpath}, cb) {
         if (path.basename(fpath) === 'A.avdl') {
-          cb(null, 'import idl "hi"; protocol A {}');
+          cb(null, {
+            contents: 'import idl "hi"; protocol A {}',
+            path: fpath
+          });
         } else {
           cb(new Error('bar'));
         }
@@ -624,11 +630,14 @@ suite('specs', () => {
 
     // Import hook from strings.
     function createImportHook(imports) {
-      return function (fpath, kind, cb) {
-        let key = path.normalize(fpath);
+      return function ({path: fpath, importerPath}, cb) {
+        let key = path.normalize(path.join(path.dirname(importerPath), fpath));
         let str = imports[key];
         delete imports[key];
-        process.nextTick(() => { cb(null, str); });
+        process.nextTick(() => { cb(null, typeof str === 'string' ? {
+          contents: str,
+          path: key
+        } : undefined); });
       };
     }
 
@@ -735,6 +744,30 @@ suite('specs', () => {
           ]
         }
       );
+    });
+
+    test('optional field no default value', () => {
+      const usingQuestionMark = readSchema('record { int? optionalInt; }');
+      const usingUnion = readSchema('record { union{null,int} optionalInt; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
+    test('optional field null default value', () => {
+      const usingQuestionMark = readSchema('record { int? optionalInt = null; }');
+      const usingUnion = readSchema('record { union{null,int} optionalInt = null; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
+    test('optional field non-null default value', () => {
+      const usingQuestionMark = readSchema('record { int? optionalInt = 0; }');
+      const usingUnion = readSchema('record { union{int,null} optionalInt = 0; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
+    });
+
+    test('optional field with annotations', () => {
+      const usingQuestionMark = readSchema('record { int? @order("ascending") optionalInt = 0; }');
+      const usingUnion = readSchema('record { union{int,null} @order("ascending") optionalInt = 0; }');
+      assert.deepEqual(usingQuestionMark, usingUnion);
     });
 
   });

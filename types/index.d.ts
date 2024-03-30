@@ -127,8 +127,18 @@ interface IsValidOptions {
   noUndeclaredFields: boolean;
   errorHook: (path: string[], val: any, type: Type) => void
 }
+
+interface ImportHookPayload {
+  path: string;
+  type: 'idl' | 'protocol' | 'schema';
+}
+
+type ImportHookCallback = (err: any, params?: {contents: string, path: string}) => void;
+
+type ImportHook = (payload: ImportHookPayload, cb: ImportHookCallback) => void;
+
 interface AssembleOptions {
-  importHook: (filePath: string, type: 'idl', callback: Callback<object>) => void;
+  importHook: (params: ImportHookPayload, callback: Callback<object>) => void;
 }
 
 interface SchemaOptions {
