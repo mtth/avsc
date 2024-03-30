@@ -10,9 +10,6 @@
  *
  */
 
-let buffer = require('buffer');
-let Buffer = buffer.Buffer;
-
 function md5cycle(x, k) {
   let a = x[0], b = x[1], c = x[2], d = x[3];
 
@@ -148,9 +145,10 @@ function md5blk(s) {
 
 function md5(s) {
   let arr = md51(s);
-  let buf = Buffer.alloc(16);
+  let buf = new Uint8Array(16);
+  let dv = new DataView(buf.buffer);
   for (let i = 0; i < 4; i++) {
-    buf.writeIntLE(arr[i], i * 4, 4);
+    dv.setInt32(i * 4, arr[i], true);
   }
   return buf;
 }
