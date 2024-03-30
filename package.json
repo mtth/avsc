@@ -1,6 +1,6 @@
 {
   "name": "avsc",
-  "version": "6.0.0",
+  "version": "6.0.0-rc.1",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
   "keywords": [
@@ -45,20 +45,16 @@
   "scripts": {
     "clean": "rm -rf coverage node_modules",
     "cover": "nyc mocha -- --ui tdd",
-    "coverAndPublish": "nyc npm test && nyc report --reporter=text-lcov | coveralls",
     "lint": "eslint etc/ lib/ test/ \"etc/scripts/**\"",
     "perf": "./etc/scripts/perf etc/schemas/*",
     "test": "mocha --ui tdd --reporter dot"
   },
   "devDependencies": {
     "benchmark": "~2.1.4",
-    "browserify": "^17.0.0",
-    "coveralls": "^3.0.9",
     "eslint": "^8.30.0",
     "mocha": "^10.2.0",
     "nyc": "~15.0.0",
-    "tmp": "^0.1.0",
-    "uglify-js": "^3.17.4"
+    "tmp": "^0.1.0"
   },
   "author": {
     "name": "Matthieu Monsch",
