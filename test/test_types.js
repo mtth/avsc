@@ -63,8 +63,8 @@ suite('types', () => {
     test('toBuffer int', () => {
 
       let type = Type.forSchema('int');
-      assert.equal(type.fromBuffer(utils.bufferFrom([0x80, 0x01])), 64);
-      assert(utils.bufferFrom([0]).equals(type.toBuffer(0)));
+      assert.equal(type.fromBuffer(Buffer.from([0x80, 0x01])), 64);
+      assert(Buffer.from([0]).equals(type.toBuffer(0)));
 
     });
 
@@ -154,7 +154,7 @@ suite('types', () => {
 
     test('precision loss', () => {
       let type = Type.forSchema('long');
-      let buf = utils.bufferFrom(
+      let buf = Buffer.from(
         [0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80, 0x20]
       );
       assert.throws(() => { type.fromBuffer(buf); });
@@ -188,7 +188,7 @@ suite('types', () => {
 
     test('fromBuffer string', () => {
       let type = Type.forSchema('string');
-      let buf = utils.bufferFrom([0x06, 0x68, 0x69, 0x21]);
+      let buf = Buffer.from([0x06, 0x68, 0x69, 0x21]);
       let s = 'hi!';
       assert.equal(type.fromBuffer(buf), s);
       assert(buf.equals(type.toBuffer(s)));
@@ -196,7 +196,7 @@ suite('types', () => {
 
     test('toBuffer string', () => {
       let type = Type.forSchema('string');
-      let buf = utils.bufferFrom([0x06, 0x68, 0x69, 0x21]);
+      let buf = Buffer.from([0x06, 0x68, 0x69, 0x21]);
       assert(buf.equals(type.toBuffer('hi!', 1)));
     });
 
@@ -206,7 +206,7 @@ suite('types', () => {
       let buf = stringT.toBuffer('\x00\x01');
       assert.deepEqual(
         bytesT.fromBuffer(buf, bytesT.createResolver(stringT)),
-        utils.bufferFrom([0, 1])
+        Buffer.from([0, 1])
       );
     });
 
@@ -214,10 +214,10 @@ suite('types', () => {
       let t = Type.forSchema('string');
       let s = 'hello';
       let b, pos;
-      b = utils.newBuffer(2);
+      b = Buffer.alloc(2);
       pos = t.encode(s, b);
       assert(pos < 0);
-      b = utils.newBuffer(b.length - pos);
+      b = Buffer.alloc(b.length - pos);
       pos = t.encode(s, b);
       assert(pos >= 0);
       assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
@@ -322,7 +322,7 @@ suite('types', () => {
 
     let data = [
       {
-        valid: [utils.newBuffer(1), utils.bufferFrom('abc')],
+        valid: [Buffer.alloc(1), Buffer.from('abc')],
         invalid: [null, 'hi', undefined, 1, 0, -3.5]
       }
     ];
@@ -332,7 +332,7 @@ suite('types', () => {
     test('resolve string > bytes', () => {
       let bytesT = Type.forSchema('bytes');
       let stringT = Type.forSchema('string');
-      let buf = utils.bufferFrom([4, 0, 1]);
+      let buf = Buffer.from([4, 0, 1]);
       assert.deepEqual(
         stringT.fromBuffer(buf, stringT.createResolver(bytesT)),
         '\x00\x01'
@@ -342,7 +342,7 @@ suite('types', () => {
     test('clone', () => {
       let t = Type.forSchema('bytes');
       let s = '\x01\x02';
-      let buf = utils.bufferFrom(s);
+      let buf = Buffer.from(s);
       let clone;
       clone = t.clone(buf);
       assert.deepEqual(clone, buf);
@@ -359,7 +359,7 @@ suite('types', () => {
     test('fromString', () => {
       let t = Type.forSchema('bytes');
       let s = '\x01\x02';
-      let buf = utils.bufferFrom(s);
+      let buf = Buffer.from(s);
       let clone;
       clone = t.fromString(JSON.stringify(s));
       assert.deepEqual(clone, buf);
@@ -369,11 +369,11 @@ suite('types', () => {
 
     test('compare', () => {
       let t = Type.forSchema('bytes');
-      let b1 = t.toBuffer(utils.bufferFrom([0, 2]));
+      let b1 = t.toBuffer(Buffer.from([0, 2]));
       assert.equal(t.compareBuffers(b1, b1), 0);
-      let b2 = t.toBuffer(utils.bufferFrom([0, 2, 3]));
+      let b2 = t.toBuffer(Buffer.from([0, 2, 3]));
       assert.equal(t.compareBuffers(b1, b2), -1);
-      let b3 = t.toBuffer(utils.bufferFrom([1]));
+      let b3 = t.toBuffer(Buffer.from([1]));
       assert.equal(t.compareBuffers(b3, b1), 1);
     });
 
@@ -392,8 +392,8 @@ suite('types', () => {
       {
         name: 'qualified name',
         schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
-        valid: [null, utils.newBuffer(2)],
-        invalid: [{'a.B': utils.newBuffer(2)}],
+        valid: [null, Buffer.alloc(2)],
+        invalid: [{'a.B': Buffer.alloc(2)}],
         check: assert.deepEqual
       },
       {
@@ -441,7 +441,7 @@ suite('types', () => {
 
     test('invalid read', () => {
       let type = new builtins.UnwrappedUnionType(['null', 'int']);
-      assert.throws(() => { type.fromBuffer(utils.bufferFrom([4])); });
+      assert.throws(() => { type.fromBuffer(Buffer.from([4])); });
     });
 
     test('missing bucket write', () => {
@@ -471,8 +471,8 @@ suite('types', () => {
 
     test('non wrapped write', () => {
       let type = new builtins.UnwrappedUnionType(['null', 'int']);
-      assert.deepEqual(type.toBuffer(23), utils.bufferFrom([2, 46]));
-      assert.deepEqual(type.toBuffer(null), utils.bufferFrom([0]));
+      assert.deepEqual(type.toBuffer(23), Buffer.from([2, 46]));
+      assert.deepEqual(type.toBuffer(null), Buffer.from([0]));
     });
 
     test('coerce buffers', () => {
@@ -481,7 +481,7 @@ suite('types', () => {
       assert.throws(() => { type.clone(obj); });
       assert.deepEqual(
         type.clone(obj, {coerceBuffers: true}),
-        utils.bufferFrom([1, 2])
+        Buffer.from([1, 2])
       );
       assert.deepEqual(type.clone(null, {coerceBuffers: true}), null);
     });
@@ -509,7 +509,7 @@ suite('types', () => {
       let t1 = Type.forSchema('null');
       let t2 = new builtins.UnwrappedUnionType(['null', 'int']);
       let a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(utils.newBuffer(0), a), null);
+      assert.deepEqual(t2.fromBuffer(Buffer.alloc(0), a), null);
     });
 
     test('resolve [string, int] to unwrapped [float, bytes]', () => {
@@ -518,7 +518,7 @@ suite('types', () => {
       let a = t2.createResolver(t1);
       let buf;
       buf = t1.toBuffer({string: 'hi'});
-      assert.deepEqual(t2.fromBuffer(buf, a), utils.bufferFrom('hi'));
+      assert.deepEqual(t2.fromBuffer(buf, a), Buffer.from('hi'));
       buf = t1.toBuffer({'int': 1});
       assert.deepEqual(t2.fromBuffer(buf, a), 1);
     });
@@ -563,7 +563,7 @@ suite('types', () => {
           {name: 'id2', type: ['null', 'an.Id']}
         ]
       }, {wrapUnions: false});
-      let b = utils.bufferFrom([0]);
+      let b = Buffer.from([0]);
       let o = {id1: b, id2: b};
       assert.deepEqual(t.clone(o), o);
     });
@@ -608,8 +608,8 @@ suite('types', () => {
       {
         name: 'qualified name',
         schema: ['null', {type: 'fixed', name: 'a.B', size: 2}],
-        valid: [null, {'a.B': utils.newBuffer(2)}],
-        invalid: [utils.newBuffer(2)],
+        valid: [null, {'a.B': Buffer.alloc(2)}],
+        invalid: [Buffer.alloc(2)],
         check: assert.deepEqual
       },
       {
@@ -661,7 +661,7 @@ suite('types', () => {
 
     test('read invalid index', () => {
       let type = new builtins.WrappedUnionType(['null', 'int']);
-      let buf = utils.bufferFrom([1, 0]);
+      let buf = Buffer.from([1, 0]);
       assert.throws(() => { type.fromBuffer(buf); });
     });
 
@@ -689,7 +689,7 @@ suite('types', () => {
       let t1 = Type.forSchema('null');
       let t2 = new builtins.WrappedUnionType(['null', 'int']);
       let a = t2.createResolver(t1);
-      assert.deepEqual(t2.fromBuffer(utils.newBuffer(0), a), null);
+      assert.deepEqual(t2.fromBuffer(Buffer.alloc(0), a), null);
     });
 
     test('resolve [string, int] to [long, bytes]', () => {
@@ -700,7 +700,7 @@ suite('types', () => {
       buf = t1.toBuffer({string: 'hi'});
       assert.deepEqual(
         t2.fromBuffer(buf, a),
-        {'bytes': utils.bufferFrom('hi')}
+        {'bytes': Buffer.from('hi')}
       );
       buf = t1.toBuffer({'int': 1});
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
@@ -714,7 +714,7 @@ suite('types', () => {
       buf = t1.toBuffer('hi');
       assert.deepEqual(
         t2.fromBuffer(buf, a),
-        {'bytes': utils.bufferFrom('hi')}
+        {'bytes': Buffer.from('hi')}
       );
       buf = t1.toBuffer(1);
       assert.deepEqual(t2.fromBuffer(buf, a), {'long': 1});
@@ -776,7 +776,7 @@ suite('types', () => {
           {name: 'id2', type: ['null', 'an.Id']}
         ]
       }, {wrapUnions: true});
-      let b = utils.bufferFrom([0]);
+      let b = Buffer.from([0]);
       let o = {id1: b, id2: {Id: b}};
       let c = {id1: b, id2: {'an.Id': b}};
       assert.throws(() => { t.clone(o, {}); });
@@ -792,7 +792,7 @@ suite('types', () => {
           {name: 'id2', type: ['null', 'Id']}
         ]
       }, {wrapUnions: true});
-      let b = utils.bufferFrom([0]);
+      let b = Buffer.from([0]);
       let o = {id1: b, id2: {'an.Id': b}};
       assert.throws(() => { t.clone(o); });
       assert.throws(() => { t.clone(o, {}); });
@@ -920,7 +920,7 @@ suite('types', () => {
       let type = new builtins.EnumType({
         type: 'enum', symbols: ['A'], name: 'a'
       });
-      let buf = utils.bufferFrom([2]);
+      let buf = Buffer.from([2]);
       assert.throws(() => { type.fromBuffer(buf); });
     });
 
@@ -1020,16 +1020,16 @@ suite('types', () => {
       {
         name: 'size 1',
         schema: {name: 'Foo', size: 2},
-        valid: [utils.bufferFrom([1, 2]), utils.bufferFrom([2, 3])],
+        valid: [Buffer.from([1, 2]), Buffer.from([2, 3])],
         invalid: [
           'HEY',
           null,
           undefined,
           0,
-          utils.newBuffer(1),
-          utils.newBuffer(3)
+          Buffer.alloc(1),
+          Buffer.alloc(3)
         ],
-        check: function (a, b) { assert(a.equals(b)); }
+        check: function (a, b) { assert(Buffer.compare(a, b) === 0); }
       }
     ];
 
@@ -1090,7 +1090,7 @@ suite('types', () => {
     test('clone', () => {
       let t = new builtins.FixedType({name: 'Id', size: 2});
       let s = '\x01\x02';
-      let buf = utils.bufferFrom(s);
+      let buf = Buffer.from(s);
       let clone;
       clone = t.clone(buf);
       assert.deepEqual(clone, buf);
@@ -1103,22 +1103,22 @@ suite('types', () => {
       clone = t.clone(buf.toJSON(), {coerceBuffers: true});
       assert.deepEqual(clone, buf);
       assert.throws(() => { t.clone(1, {coerceBuffers: true}); });
-      assert.throws(() => { t.clone(utils.bufferFrom([2])); });
+      assert.throws(() => { t.clone(Buffer.from([2])); });
     });
 
     test('fromString', () => {
       let t = new builtins.FixedType({name: 'Id', size: 2});
       let s = '\x01\x02';
-      let buf = utils.bufferFrom(s);
+      let buf = Buffer.from(s);
       let clone = t.fromString(JSON.stringify(s));
       assert.deepEqual(clone, buf);
     });
 
     test('compare buffers', () => {
       let t = Type.forSchema({type: 'fixed', name: 'Id', size: 2});
-      let b1 = utils.bufferFrom([1, 2]);
+      let b1 = Buffer.from([1, 2]);
       assert.equal(t.compareBuffers(b1, b1), 0);
-      let b2 = utils.bufferFrom([2, 2]);
+      let b2 = Buffer.from([2, 2]);
       assert.equal(t.compareBuffers(b1, b2), -1);
     });
 
@@ -1166,18 +1166,18 @@ suite('types', () => {
     test('write int', () => {
       let t = new builtins.MapType({type: 'map', values: 'int'});
       let buf = t.toBuffer({'\x01': 3, '\x02': 4});
-      assert.deepEqual(buf, utils.bufferFrom([4, 2, 1, 6, 2, 2, 8, 0]));
+      assert.deepEqual(buf, Buffer.from([4, 2, 1, 6, 2, 2, 8, 0]));
     });
 
     test('read long', () => {
       let t = new builtins.MapType({type: 'map', values: 'long'});
-      let buf = utils.bufferFrom([4, 2, 1, 6, 2, 2, 8, 0]);
+      let buf = Buffer.from([4, 2, 1, 6, 2, 2, 8, 0]);
       assert.deepEqual(t.fromBuffer(buf), {'\x01': 3, '\x02': 4});
     });
 
     test('read with sizes', () => {
       let t = new builtins.MapType({type: 'map', values: 'int'});
-      let buf = utils.bufferFrom([1,6,2,97,2,0]);
+      let buf = Buffer.from([1,6,2,97,2,0]);
       assert.deepEqual(t.fromBuffer(buf), {a: 1});
     });
 
@@ -1195,8 +1195,8 @@ suite('types', () => {
         type: 'record',
         fields: [{name: 'val', type: 'int'}]
       });
-      let b1 = utils.bufferFrom([2,2,97,2,0,6]); // Without sizes.
-      let b2 = utils.bufferFrom([1,6,2,97,2,0,6]); // With sizes.
+      let b1 = Buffer.from([2,2,97,2,0,6]); // Without sizes.
+      let b2 = Buffer.from([1,6,2,97,2,0,6]); // With sizes.
       let resolver = v2.createResolver(v1);
       assert.deepEqual(v2.fromBuffer(b1, resolver), {val: 3});
       assert.deepEqual(v2.fromBuffer(b2, resolver), {val: 3});
@@ -1237,7 +1237,7 @@ suite('types', () => {
         }
       });
       let resolver = t2.createResolver(t1);
-      let obj = {one: utils.bufferFrom([1, 2])};
+      let obj = {one: Buffer.from([1, 2])};
       let buf = t1.toBuffer(obj);
       assert.deepEqual(t2.fromBuffer(buf, resolver), obj);
     });
@@ -1262,7 +1262,7 @@ suite('types', () => {
       assert.throws(() => { t.clone(o, {}); });
       assert.throws(() => { t.clone(o); });
       let c = t.clone(o, {coerceBuffers: true});
-      assert.deepEqual(c, {one: utils.bufferFrom([1])});
+      assert.deepEqual(c, {one: Buffer.from([1])});
     });
 
     test('compare buffers', () => {
@@ -1319,7 +1319,7 @@ suite('types', () => {
 
     test('read with sizes', () => {
       let t = new builtins.ArrayType({type: 'array', items: 'int'});
-      let buf = utils.bufferFrom([1,2,2,0]);
+      let buf = Buffer.from([1,2,2,0]);
       assert.deepEqual(t.fromBuffer(buf), [1]);
     });
 
@@ -1337,8 +1337,8 @@ suite('types', () => {
         type: 'record',
         fields: [{name: 'val', type: 'int'}]
       });
-      let b1 = utils.bufferFrom([2,2,0,6]); // Without sizes.
-      let b2 = utils.bufferFrom([1,2,2,0,6]); // With sizes.
+      let b1 = Buffer.from([2,2,0,6]); // Without sizes.
+      let b2 = Buffer.from([1,2,2,0,6]); // With sizes.
       let resolver = v2.createResolver(v1);
       assert.deepEqual(v2.fromBuffer(b1, resolver), {val: 3});
       assert.deepEqual(v2.fromBuffer(b2, resolver), {val: 3});
@@ -1352,7 +1352,7 @@ suite('types', () => {
       let buf = t1.toBuffer(obj);
       assert.deepEqual(
         t2.fromBuffer(buf, resolver),
-        [utils.bufferFrom([1, 2])]
+        [Buffer.from([1, 2])]
       );
     });
 
@@ -1387,7 +1387,7 @@ suite('types', () => {
       assert.throws(() => { t.clone(o); });
       assert.throws(() => { t.clone(o, {}); });
       let c = t.clone(o, {coerceBuffers: true});
-      assert.deepEqual(c, [utils.bufferFrom([1, 2])]);
+      assert.deepEqual(c, [Buffer.from([1, 2])]);
     });
 
     test('compare buffers', () => {
@@ -1451,7 +1451,7 @@ suite('types', () => {
     });
 
     test('round-trip multi-block array', () => {
-      let tap = new Tap(utils.newBuffer(64));
+      let tap = Tap.withCapacity(64);
       tap.writeLong(2);
       tap.writeString('hi');
       tap.writeString('hey');
@@ -1460,7 +1460,7 @@ suite('types', () => {
       tap.writeLong(0);
       let t = new builtins.ArrayType({items: 'string'});
       assert.deepEqual(
-        t.fromBuffer(tap.buf.slice(0, tap.pos)),
+        t.fromBuffer(tap.subarray(0, tap.pos)),
         ['hi', 'hey', 'hello']
       );
     });
@@ -1563,12 +1563,12 @@ suite('types', () => {
           {name: 'name', type: 'string', 'default': '\x01'}
         ]
       });
-      assert.deepEqual(type.toBuffer({}), utils.bufferFrom([50, 2, 1]));
+      assert.deepEqual(type.toBuffer({}), Buffer.from([50, 2, 1]));
     });
 
     test('fixed string default', () => {
       let s = '\x01\x04';
-      let b = utils.bufferFrom(s);
+      let b = Buffer.from(s);
       let type = Type.forSchema({
         type: 'record',
         name: 'Object',
@@ -1581,7 +1581,7 @@ suite('types', () => {
         ]
       });
       let obj = new (type.getRecordConstructor())();
-      assert.deepEqual(obj.id, utils.bufferFrom([1, 4]));
+      assert.deepEqual(obj.id, Buffer.from([1, 4]));
       assert.deepEqual(type.toBuffer({}), b);
     });
 
@@ -1594,7 +1594,7 @@ suite('types', () => {
             {
               name: 'id',
               type: {type: 'fixed', size: 2, name: 'Id'},
-              'default': utils.bufferFrom([0])
+              'default': Buffer.from([0])
             }
           ]
         });
@@ -1672,7 +1672,7 @@ suite('types', () => {
         fields: [{name: 'age', type: 'int'}]
       });
       let Person = type.getRecordConstructor();
-      assert.deepEqual((new Person(48)).toBuffer(), utils.bufferFrom([96]));
+      assert.deepEqual((new Person(48)).toBuffer(), Buffer.from([96]));
       assert.throws(() => { (new Person()).toBuffer(); });
     });
 
@@ -2070,7 +2070,7 @@ suite('types', () => {
         name: 'Person',
         fields: [{name: 'pwd', type: 'bytes'}]
       }).getRecordConstructor();
-      let r = new T(utils.bufferFrom([1, 2]));
+      let r = new T(Buffer.from([1, 2]));
       assert.equal(r.toString(), T.getType().toString(r));
     });
 
@@ -2474,11 +2474,12 @@ suite('types', () => {
 
       let slowLongType = builtins.LongType.__with({
         fromBuffer: function (buf) {
+          let dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
           let neg = buf[7] >> 7;
           if (neg) { // Negative number.
             invert(buf);
           }
-          let n = buf.readInt32LE(0) + Math.pow(2, 32) * buf.readInt32LE(4);
+          let n = dv.getInt32(0, true) + Math.pow(2, 32) * dv.getInt32(4, true);
           if (neg) {
             invert(buf);
             n = -n - 1;
@@ -2486,15 +2487,16 @@ suite('types', () => {
           return n;
         },
         toBuffer: function (n) {
-          let buf = utils.newBuffer(8);
+          let buf = new Uint8Array(8);
+          let dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
           let neg = n < 0;
           if (neg) {
             invert(buf);
             n = -n - 1;
           }
-          buf.writeInt32LE(n | 0);
+          dv.setInt32(0, n | 0, true);
           let h = n / Math.pow(2, 32) | 0;
-          buf.writeInt32LE(h ? h : (n >= 0 ? 0 : -1), 4);
+          dv.setInt32(4, h ? h : (n >= 0 ? 0 : -1), true);
           if (neg) {
             invert(buf);
           }
@@ -2586,14 +2588,14 @@ suite('types', () => {
 
       let slowLongType = builtins.LongType.__with({
         fromBuffer: function (buf) {
-          let tap = new Tap(buf);
+          let tap = Tap.fromBuffer(buf);
           return tap.readLong();
         },
         toBuffer: function (n) {
-          let buf = utils.newBuffer(10);
-          let tap = new Tap(buf);
+          let buf = Buffer.alloc(10);
+          let tap = Tap.fromBuffer(buf);
           tap.writeLong(n);
-          return buf.slice(0, tap.pos);
+          return buf.subarray(0, tap.pos);
         },
         fromJSON: function (n) { return n; },
         toJSON: function (n) { return n; },
@@ -2654,7 +2656,7 @@ suite('types', () => {
         compare: function () { throw new Error(); }
       }, true);
       let t = Type.forSchema(['null', 'long'], {registry: {'long': longType}});
-      let v = {value: utils.bufferFrom([4])}; // Long encoding of 2.
+      let v = {value: Buffer.from([4])}; // Long encoding of 2.
 
       assert(t.isValid(null));
       assert(t.isValid(v));
@@ -2673,7 +2675,7 @@ suite('types', () => {
       });
       let buf = fastLongType.toBuffer(12314);
       assert.deepEqual(
-        slowLongType.decode(buf.slice(0, 1)),
+        slowLongType.decode(buf.subarray(0, 1)),
         {value: undefined, offset: -1}
       );
     });
@@ -2951,7 +2953,7 @@ suite('types', () => {
       assert(t.isValid(2));
       assert(!t.isValid(3));
       assert(!t.isValid('abc'));
-      assert.equal(t.fromBuffer(utils.bufferFrom([4])), 2);
+      assert.equal(t.fromBuffer(Buffer.from([4])), 2);
       assert.equal(t.clone(4), 4);
       assert.equal(t.fromString('6'), 6);
       assert.equal(t.getSchema(), 'long');
@@ -2965,7 +2967,7 @@ suite('types', () => {
       assert.throws(() => { t.clone(3); });
       assert.throws(() => { t.fromString('5'); });
       assert.throws(() => { t.toBuffer(3); });
-      assert.throws(() => { t.fromBuffer(utils.bufferFrom([2])); });
+      assert.throws(() => { t.fromBuffer(Buffer.from([2])); });
     });
 
     test('inside unwrapped union', () => {
@@ -3325,28 +3327,28 @@ suite('types', () => {
     test('fromBuffer truncated', () => {
       let type = Type.forSchema('int');
       assert.throws(() => {
-        type.fromBuffer(utils.bufferFrom([128]));
+        type.fromBuffer(Buffer.from([128]));
       });
     });
 
     test('fromBuffer bad resolver', () => {
       let type = Type.forSchema('int');
       assert.throws(() => {
-        type.fromBuffer(utils.bufferFrom([0]), 123, {});
+        type.fromBuffer(Buffer.from([0]), 123, {});
       });
     });
 
     test('fromBuffer trailing', () => {
       let type = Type.forSchema('int');
       assert.throws(() => {
-        type.fromBuffer(utils.bufferFrom([0, 2]));
+        type.fromBuffer(Buffer.from([0, 2]));
       });
     });
 
     test('fromBuffer trailing with resolver', () => {
       let type = Type.forSchema('int');
       let resolver = type.createResolver(Type.forSchema(['int']));
-      assert.equal(type.fromBuffer(utils.bufferFrom([0, 2]), resolver), 1);
+      assert.equal(type.fromBuffer(Buffer.from([0, 2]), resolver), 1);
     });
 
     test('toBuffer', () => {
@@ -3357,7 +3359,7 @@ suite('types', () => {
 
     test('toBuffer and resize', () => {
       let type = Type.forSchema('string');
-      assert.deepEqual(type.toBuffer('\x01', 1), utils.bufferFrom([2, 1]));
+      assert.deepEqual(type.toBuffer('\x01', 1), Buffer.from([2, 1]));
     });
 
     test('type hook', () => {
@@ -3426,7 +3428,7 @@ suite('types', () => {
 
     test('fingerprint', () => {
       let t = Type.forSchema('int');
-      let buf = utils.bufferFrom('ef524ea1b91e73173d938ade36c1db32', 'hex');
+      let buf = Buffer.from('ef524ea1b91e73173d938ade36c1db32', 'hex');
       assert.deepEqual(t.fingerprint('md5'), buf);
       assert.deepEqual(t.fingerprint(), buf);
     });
@@ -3521,7 +3523,7 @@ suite('types', () => {
         type: 'record',
         fields: [{name: 'id1', type: {name: 'Id1', type: 'fixed', size: 2}}]
       });
-      let o = {id1: utils.bufferFrom([0, 1])};
+      let o = {id1: Buffer.from([0, 1])};
       let s = '{"id1": "\\u0000\\u0001"}';
       let c = t.fromString(s);
       assert.deepEqual(c, o);
@@ -3568,7 +3570,7 @@ suite('types', () => {
       let resolver = t2.createResolver(t1);
       let buf = t1.toBuffer({'int': 12});
       assert.equal(t2.fromBuffer(buf, resolver), 12);
-      buf = utils.bufferFrom([4, 0]);
+      buf = Buffer.from([4, 0]);
       assert.throws(() => { t2.fromBuffer(buf, resolver); });
     });
 
@@ -3577,7 +3579,7 @@ suite('types', () => {
       let t2 = Type.forSchema('bytes');
       let resolver = t2.createResolver(t1);
       let buf = t1.toBuffer('\x01\x02');
-      assert.deepEqual(t2.fromBuffer(buf, resolver), utils.bufferFrom([1, 2]));
+      assert.deepEqual(t2.fromBuffer(buf, resolver), Buffer.from([1, 2]));
     });
 
     test('union to invalid non union', () => {
@@ -3750,14 +3752,14 @@ suite('types', () => {
 
     test('long valid', () => {
       let t = Type.forSchema('long');
-      let buf = utils.bufferFrom([0, 128, 2, 0]);
+      let buf = Buffer.from([0, 128, 2, 0]);
       let res = t.decode(buf, 1);
       assert.deepEqual(res, {value: 128, offset: 3});
     });
 
     test('bytes invalid', () => {
       let t = Type.forSchema('bytes');
-      let buf = utils.bufferFrom([4, 1]);
+      let buf = Buffer.from([4, 1]);
       let res = t.decode(buf, 0);
       assert.deepEqual(res, {value: undefined, offset: -1});
     });
@@ -3768,29 +3770,29 @@ suite('types', () => {
 
     test('int valid', () => {
       let t = Type.forSchema('int');
-      let buf = utils.newBuffer(2);
+      let buf = Buffer.alloc(2);
       buf.fill(0);
       let n = t.encode(5, buf, 1);
       assert.equal(n, 2);
-      assert.deepEqual(buf, utils.bufferFrom([0, 10]));
+      assert.deepEqual(buf, Buffer.from([0, 10]));
     });
 
     test('too short', () => {
       let t = Type.forSchema('string');
-      let buf = utils.newBuffer(1);
+      let buf = Buffer.alloc(1);
       let n = t.encode('\x01\x02', buf, 0);
       assert.equal(n, -2);
     });
 
     test('invalid', () => {
       let t = Type.forSchema('float');
-      let buf = utils.newBuffer(2);
+      let buf = Buffer.alloc(2);
       assert.throws(() => { t.encode('hi', buf, 0); });
     });
 
     test('invalid offset', () => {
       let t = Type.forSchema('string');
-      let buf = utils.newBuffer(2);
+      let buf = Buffer.alloc(2);
       assert.throws(() => { t.encode('hi', buf, -1); });
     });
 
@@ -3871,7 +3873,7 @@ suite('types', () => {
     types.Type.__reset(0);
     let t = Type.forSchema('string');
     let buf = t.toBuffer('\x01');
-    assert.deepEqual(buf, utils.bufferFrom([2, 1]));
+    assert.deepEqual(buf, Buffer.from([2, 1]));
   });
 
   suite('forTypes', () => {
@@ -4113,7 +4115,7 @@ suite('types', () => {
     });
 
     test('record', () => {
-      let t = infer({b: true, n: null, s: '', f: utils.newBuffer(0)});
+      let t = infer({b: true, n: null, s: '', f: Buffer.alloc(0)});
       assert.deepEqual(
         t.getSchema(),
         {
@@ -4225,8 +4227,8 @@ function testType(Type, data, invalidSchemas) {
       let items = elem.valid;
       if (items.length > 1) {
         let type = new Type(elem.schema);
-        let buf = utils.newBuffer(1024);
-        let tap = new Tap(buf);
+        let buf = Buffer.alloc(1024);
+        let tap = Tap.fromBuffer(buf);
         type._write(tap, items[0]);
         type._write(tap, items[1]);
         tap.pos = 0;

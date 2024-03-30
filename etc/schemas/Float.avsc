@@ -1,0 +1,10 @@
+{
+  "name": "Float",
+  "type": "record",
+  "fields": [
+    {
+      "name": "value",
+      "type": "float"
+    }
+  ]
+}
