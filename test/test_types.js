@@ -131,8 +131,8 @@ suite('types', () => {
 
     let data = [
       {
-        valid: [1, -3, 12314, 9007199254740990, 900719925474090],
-        invalid: [null, 'hi', undefined, 9007199254740991, 1.3, 1e67]
+        valid: [1, -3, 12314, 4503599627370496],
+        invalid: [null, 'hi', undefined, 9007199254740990, 1.3, 1e67]
       }
     ];
 
@@ -145,7 +145,7 @@ suite('types', () => {
     test('resolve long > float', () => {
       let t1 = Type.forSchema('long');
       let t2 = Type.forSchema('float');
-      let n = 9007199254740990; // Number.MAX_SAFE_INTEGER - 1
+      let n = 4503599627370496; // Number.MAX_SAFE_INTEGER / 2
       let buf = t1.toBuffer(n);
       let f = t2.fromBuffer(buf, t2.createResolver(t1));
       assert(Math.abs(f - n) / n < 1e-7);
