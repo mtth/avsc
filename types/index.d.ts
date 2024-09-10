@@ -189,7 +189,7 @@ export class Type {
   readonly name: string | undefined;
   readonly branchName: string | undefined;
   readonly typeName: string;
-  static forSchema(schema: Schema, opts?: Partial<ForSchemaOptions>): Type;
+  static forSchema(schema: Schema | Schema[], opts?: Partial<ForSchemaOptions>): Type;
   static forTypes(types: Type[], opts?: Partial<TypeOptions>): Type;
   static forValue(value: object, opts?: Partial<ForValueOptions>): Type;
   static isType(arg: any, ...prefix: string[]): boolean;
