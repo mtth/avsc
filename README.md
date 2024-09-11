@@ -76,9 +76,13 @@ const avro = require('avsc');
   compressed using [Snappy][snappy]):
 
   ```javascript
-  avro.createFileDecoder('./values.avro')
-    .on('metadata', function (type) { /* `type` is the writer's type. */ })
-    .on('data', function (val) { /* Do something with the decoded value. */ });
+  await new Promise((resolve, reject) => {  
+    avro.createFileDecoder('./values.avro')
+      .on('metadata', function (type) { /* `type` is the writer's type. */ })
+      .on('data', function (val) { /* Do something with the decoded value. */ })
+      .on('end', resolve)
+      .on('error', reject);
+  });
   ```
 
 
