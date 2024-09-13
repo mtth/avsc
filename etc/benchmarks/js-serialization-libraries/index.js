@@ -6,7 +6,7 @@
  */
 
 let avro = require('../../../lib'),
-    {isBufferLike} = require('../../../util'),
+    {isBufferLike} = require('../../../../lib/utils'),
     Benchmark = require('benchmark'),
     commander = require('commander'),
     compactr = require('compactr'),

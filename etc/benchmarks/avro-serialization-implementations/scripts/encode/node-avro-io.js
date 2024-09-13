@@ -4,7 +4,7 @@
 
 let io = require('node-avro-io'),
     avsc = require('../../../../lib'),
-    {isBufferLike} = require('../../../../util');
+    {isBufferLike} = require('../../../../lib/utils');
 
 
 let loops = 2;
