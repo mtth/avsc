@@ -211,7 +211,13 @@ suite('utils', () => {
     suite('string', () => {
 
       testWriterReader({
-        elems: ['ahierw', '', 'alh hewlii! rew'],
+        elems: [
+          'ahierw',
+          '',
+          'alh hewlii! rew',
+          'sérialisation',
+          'this string should be long enough that a different code path is exercised'
+        ],
         reader: function () { return this.readString(); },
         skipper: function () { this.skipString(); },
         writer: function (s) { this.writeString(s); }
