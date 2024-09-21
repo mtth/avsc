@@ -8,9 +8,7 @@
  */
 
 let containers = require('../../lib/containers'),
-    utils = require('../../lib/utils'),
     stream = require('stream');
-
 
 /** Transform stream which lazily reads a blob's contents. */
 class BlobReader extends stream.Readable {
@@ -39,7 +37,7 @@ class BlobReader extends stream.Readable {
       if (evt.error) {
         self.emit('error', evt.error);
       } else {
-        self.push(utils.bufferFrom(reader.result));
+        self.push(reader.result);
       }
     }, false);
     reader.readAsArrayBuffer(blob);
