@@ -1,7 +1,10 @@
 'use strict';
 
 let utils = require('../lib/utils'),
-    assert = require('assert');
+    assert = require('assert'),
+    buffer = require('buffer');
+
+let Buffer = buffer.Buffer;
 
 
 suite('utils', () => {
@@ -142,23 +145,6 @@ suite('utils', () => {
 
   suite('Tap', () => {
 
-    let BufferPool = utils.BufferPool;
-
-    test('alloc negative length', () => {
-      let pool = new BufferPool(16);
-      assert.throws(() => { pool.alloc(-1); });
-    });
-
-    test('alloc beyond pool size', () => {
-      let pool = new BufferPool(4);
-      assert.equal(pool.alloc(3).length, 3);
-      assert.equal(pool.alloc(2).length, 2);
-    });
-
-  });
-
-  suite('Tap', () => {
-
     let Tap = utils.Tap;
 
     suite('int & long', () => {
@@ -172,18 +158,18 @@ suite('utils', () => {
 
       test('write', () => {
 
-        let tap = newTap(6);
+        let tap = Tap.withCapacity(6);
         tap.writeLong(1440756011948);
-        let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        let buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
         assert(tap.isValid());
-        assert(buf.equals(tap.buf));
+        assert(buf.equals(tap.toBuffer()));
 
       });
 
       test('read', () => {
 
-        let buf = utils.bufferFrom(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
-        assert.equal((new Tap(buf)).readLong(), 1440756011948);
+        let buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        assert.equal((Tap.fromBuffer(buf)).readLong(), 1440756011948);
 
       });
 
@@ -225,7 +211,13 @@ suite('utils', () => {
     suite('string', () => {
 
       testWriterReader({
-        elems: ['ahierw', '', 'alh hewlii! rew'],
+        elems: [
+          'ahierw',
+          '',
+          'alh hewlii! rew',
+          'sérialisation',
+          'this string should be long enough that a different code path is exercised'
+        ],
         reader: function () { return this.readString(); },
         skipper: function () { this.skipString(); },
         writer: function (s) { this.writeString(s); }
@@ -236,7 +228,7 @@ suite('utils', () => {
     suite('bytes', () => {
 
       testWriterReader({
-        elems: [utils.bufferFrom('abc'), utils.newBuffer(0), utils.bufferFrom([1, 5, 255])],
+        elems: [Buffer.from('abc'), Buffer.alloc(0), Buffer.from([1, 5, 255])],
         reader: function () { return this.readBytes(); },
         skipper: function () { this.skipBytes(); },
         writer: function (b) { this.writeBytes(b); }
@@ -247,7 +239,7 @@ suite('utils', () => {
     suite('fixed', () => {
 
       testWriterReader({
-        elems: [utils.bufferFrom([1, 5, 255])],
+        elems: [Buffer.from([1, 5, 255])],
         reader: function () { return this.readFixed(3); },
         skipper: function () { this.skipFixed(3); },
         writer: function (b) { this.writeFixed(b, 3); }
@@ -255,61 +247,53 @@ suite('utils', () => {
 
     });
 
-    suite('binary', () => {
-
-      test('write valid', () => {
-        let tap = newTap(3);
-        let s = '\x01\x02';
-        tap.writeBinary(s, 2);
-        assert.deepEqual(tap.buf, utils.bufferFrom([1,2,0]));
-      });
-
-      test('write invalid', () => {
-        let tap = newTap(1);
-        let s = '\x01\x02';
-        tap.writeBinary(s, 2);
-        assert.deepEqual(tap.buf, utils.bufferFrom([0]));
-      });
-
-    });
-
     suite('pack & unpack longs', () => {
 
       test('unpack single byte', () => {
-        let t = newTap(10);
+        let t = Tap.withCapacity(10);
         t.writeLong(5);
         t.pos = 0;
         assert.deepEqual(
           t.unpackLongBytes(),
-          utils.bufferFrom([5, 0, 0, 0, 0, 0, 0, 0])
+          Buffer.from([5, 0, 0, 0, 0, 0, 0, 0])
         );
         t.pos = 0;
         t.writeLong(-5);
         t.pos = 0;
         assert.deepEqual(
           t.unpackLongBytes(),
-          utils.bufferFrom([-5, -1, -1, -1, -1, -1, -1, -1])
+          Buffer.from([-5, -1, -1, -1, -1, -1, -1, -1])
         );
         t.pos = 0;
       });
 
       test('unpack multiple bytes', () => {
-        let t = newTap(10);
-        let l;
+        let t = Tap.withCapacity(10);
+        let l, unpacked, dv;
         l = 18932;
         t.writeLong(l);
         t.pos = 0;
-        assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
+        unpacked = t.unpackLongBytes();
+        dv = new DataView(
+          unpacked.buffer,
+          unpacked.byteOffset,
+          unpacked.byteLength);
+        assert.deepEqual(dv.getInt32(0, true), l);
         t.pos = 0;
         l = -3210984;
         t.writeLong(l);
         t.pos = 0;
-        assert.deepEqual(t.unpackLongBytes().readInt32LE(0), l);
+        unpacked = t.unpackLongBytes();
+        dv = new DataView(
+          unpacked.buffer,
+          unpacked.byteOffset,
+          unpacked.byteLength);
+        assert.deepEqual(dv.getInt32(0, true), l);
       });
 
       test('pack single byte', () => {
-        let t = newTap(10);
-        let b = utils.newBuffer(8);
+        let t = Tap.withCapacity(10);
+        let b = Buffer.alloc(8);
         b.fill(0);
         b.writeInt32LE(12);
         t.packLongBytes(b);
@@ -327,7 +311,7 @@ suite('utils', () => {
         b.writeInt32LE(-1);
         b.writeInt32LE(-1, 4);
         t.packLongBytes(b);
-        assert.deepEqual(t.buf.slice(0, t.pos), utils.bufferFrom([1]));
+        assert.deepEqual(t.subarray(0, t.pos), Buffer.from([1]));
         t.pos = 0;
         assert.deepEqual(t.readLong(), -1);
       });
@@ -343,8 +327,8 @@ suite('utils', () => {
         roundtrip(-1);
 
         function roundtrip(n) {
-          let t1 = newTap(10);
-          let t2 = newTap(10);
+          let t1 = Tap.withCapacity(10);
+          let t2 = Tap.withCapacity(10);
           t1.writeLong(n);
           t1.pos = 0;
           t2.packLongBytes(t1.unpackLongBytes());
@@ -353,11 +337,11 @@ suite('utils', () => {
       });
 
       test('roundtrip bytes', () => {
-        roundtrip(utils.bufferFrom([0, 0, 0, 0, 0, 0, 0, 0]));
-        roundtrip(utils.bufferFrom('9007199254740995', 'hex'));
+        roundtrip(Buffer.from([0, 0, 0, 0, 0, 0, 0, 0]));
+        roundtrip(Buffer.from('9007199254740995', 'hex'));
 
         function roundtrip(b1) {
-          let t = newTap(10);
+          let t = Tap.withCapacity(10);
           t.packLongBytes(b1);
           t.pos = 0;
           let b2 = t.unpackLongBytes();
@@ -365,12 +349,6 @@ suite('utils', () => {
         }
       });
     });
-
-    function newTap(n) {
-      let buf = utils.newBuffer(n);
-      buf.fill(0);
-      return new Tap(buf);
-    }
 
     function testWriterReader(opts) {
       let size = opts.size;
@@ -381,9 +359,9 @@ suite('utils', () => {
       let name = opts.name || '';
 
       test('write read ' + name, () => {
-        let tap = newTap(size || 1024);
+        let tap = Tap.withCapacity(size || 1024);
         for (let i = 0, l = elems.length; i < l; i++) {
-          tap.buf.fill(0);
+          tap.arr.fill(0);
           tap.pos = 0;
           let elem = elems[i];
           writeFn.call(tap, elem);
@@ -393,21 +371,21 @@ suite('utils', () => {
       });
 
       test('read over ' + name, () => {
-        let tap = new Tap(utils.newBuffer(0));
+        let tap = Tap.withCapacity(0);
         readFn.call(tap); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
       test('write over ' + name, () => {
-        let tap = new Tap(utils.newBuffer(0));
+        let tap = Tap.withCapacity(0);
         writeFn.call(tap, elems[0]); // Shouldn't throw.
         assert(!tap.isValid());
       });
 
       test('skip ' + name, () => {
-        let tap = newTap(size || 1024);
+        let tap = Tap.withCapacity(size || 1024);
         for (let i = 0, l = elems.length; i < l; i++) {
-          tap.buf.fill(0);
+          tap.arr.fill(0);
           tap.pos = 0;
           let elem = elems[i];
           writeFn.call(tap, elem);

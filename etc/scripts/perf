@@ -34,6 +34,14 @@ if (~index) {
 // serialization speed).
 let NUM_VALUES = 1000;
 
+function maybeGC() {
+  try {
+    global.gc();
+  } catch (err) {
+    // GC not exposed
+  }
+}
+
 // Header formatting is done according to GitHub flavored Markdown.
 console.log(['fromBuffer', 'toBuffer', 'isValid ', '(ops/sec)'].join('\t| '));
 console.log(['---------:', '-------:', '------: ', '---------'].join('\t| '));
@@ -58,6 +66,7 @@ paths.forEach((fpath) => {
     stats.push(s);
   });
 
+  maybeGC();
   bench.clone({fn: function () {
     for (let i = 0, l = NUM_VALUES; i < l; i++) {
       let val = type.fromBuffer(bufs[i]);
@@ -67,6 +76,7 @@ paths.forEach((fpath) => {
     }
   }}).run();
 
+  maybeGC();
   bench.clone({fn: function () {
     for (let i = 0, l = NUM_VALUES; i < l; i++) {
       let buf = type.toBuffer(values[i]);
@@ -76,6 +86,7 @@ paths.forEach((fpath) => {
     }
   }}).run();
 
+  maybeGC();
   bench.clone({fn: function () {
     for (let i = 0, l = NUM_VALUES; i < l; i++) {
       if (!type.isValid(values[i])) {
