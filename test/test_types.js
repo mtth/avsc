@@ -3518,7 +3518,7 @@ suite('types', () => {
             } else if ('meow' in animal) {
               return 'Cat';
             }
-            throw new Error('Unkown animal');
+            throw new Error('Unknown animal');
           })(animal);
           return types.indexOf(types.find(type => type.name === animalType));
         }
@@ -3537,7 +3537,7 @@ suite('types', () => {
       const Animal = Type.forSchema(animalTypes, { wrapUnions: mockWrapUnions });
       Animal.toBuffer({ meow: '🐈' });
       assert.equal(mockWrapUnions.calls, 2);
-      assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unkown animal/)
+      assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/)
     });
 
     test('invalid wrap unions option', () => {
