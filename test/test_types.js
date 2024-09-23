@@ -3492,7 +3492,7 @@ suite('types', () => {
       assert(Type.isType(t.field('unwrapped').type, 'union:unwrapped'));
     });
 
-    test.only('union projection', () => {
+    test('union projection', () => {
       const Dog = {
         type: 'record',
         name: 'Dog',
