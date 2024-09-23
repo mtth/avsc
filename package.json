@@ -43,6 +43,7 @@
     "node": ">=6.0.0"
   },
   "scripts": {
+    "check-types": "tsc --strict --noEmit types/test/*.ts",
     "clean": "rm -rf coverage node_modules",
     "cover": "nyc mocha -- --ui tdd",
     "lint": "eslint etc/ lib/ test/ \"etc/scripts/**\"",
@@ -50,11 +51,13 @@
     "test": "mocha --ui tdd --reporter dot"
   },
   "devDependencies": {
+    "@types/node": "^22.5.5",
     "benchmark": "~2.1.4",
     "eslint": "^8.30.0",
     "mocha": "^10.2.0",
     "nyc": "~15.0.0",
-    "tmp": "^0.1.0"
+    "tmp": "^0.1.0",
+    "typescript": "^5.6.2"
   },
   "author": {
     "name": "Matthieu Monsch",

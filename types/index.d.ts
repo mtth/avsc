@@ -7,12 +7,11 @@
 // `any` is appropriate.
 
 import * as stream from 'stream';
-import { EventEmitter } from 'events';
 
 //"virtual" namespace (no JS, just types) for Avro Schema
 declare namespace schema {
-  export type AvroSchema = DefinedType | DefinedType[] | Type | Type[];
-  type DefinedType = PrimitiveType | ComplexType | LogicalType | string;
+  export type AvroSchema = DefinedType | DefinedType[];
+  type DefinedType = PrimitiveType | ComplexType | LogicalType | Type | string;
   type PrimitiveType = 'null' | 'boolean' | 'int' | 'long' | 'float' | 'double' | 'bytes' | 'string';
   type ComplexType = NamedType | RecordType | EnumType | MapType | ArrayType | FixedType;
   type LogicalType = ComplexType & LogicalTypeExtension;
