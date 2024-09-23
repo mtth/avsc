@@ -17,11 +17,9 @@ jobs:
     strategy:
       matrix:
         node:
-          - '19'
+          - '22'
+          - '20'
           - '18'
-          - '17'
-          - '16'
-          - '14'
     name: Test using node ${{ matrix.node }}
     steps:
       - uses: actions/checkout@v3
