@@ -22,7 +22,7 @@ jobs:
           - '18'
     name: Test using node ${{ matrix.node }}
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - name: Install Node ${{ matrix.node }}
         shell: bash -eo pipefail -l {0}
         run: |
