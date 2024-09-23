@@ -3492,6 +3492,54 @@ suite('types', () => {
       assert(Type.isType(t.field('unwrapped').type, 'union:unwrapped'));
     });
 
+    test.only('union projection', () => {
+      const Dog = {
+        type: 'record',
+        name: 'Dog',
+        fields: [
+          { type: 'string', name: 'bark' }
+        ],
+      };
+      const Cat = {
+        type: 'record',
+        name: 'Cat',
+        fields: [
+          { type: 'string', name: 'meow' }
+        ],
+      };
+      const animalTypes = [Dog, Cat];
+
+      const wrapUnions = (types) => {
+        assert.deepEqual(types.map(t => t.name), ['Dog', 'Cat']);
+        return (animal) => {
+          const animalType = ((animal) => {
+            if ('bark' in animal) {
+              return 'Dog';
+            } else if ('meow' in animal) {
+              return 'Cat';
+            }
+            throw new Error('Unkown animal');
+          })(animal);
+          return types.indexOf(types.find(type => type.name === animalType));
+        }
+      };
+
+      // TODO: replace this with a mock when available
+      // currently we're on mocha without sinon
+      function mockWrapUnions() {
+        mockWrapUnions.calls = typeof mockWrapUnions.calls === 'undefined'
+          ? 1
+          : ++mockWrapUnions.calls;
+        return wrapUnions.apply(null, arguments);
+      }
+
+       // Ambiguous, but we have a projection function
+      const Animal = Type.forSchema(animalTypes, { wrapUnions: mockWrapUnions });
+      Animal.toBuffer({ meow: '🐈' });
+      assert.equal(mockWrapUnions.calls, 2);
+      assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unkown animal/)
+    });
+
     test('invalid wrap unions option', () => {
       assert.throws(() => {
         Type.forSchema('string', {wrapUnions: 'FOO'});
