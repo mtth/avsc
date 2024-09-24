@@ -831,6 +831,19 @@ suite('types', () => {
       function hook(path) { paths.push(path); }
     });
 
+    // via https://github.com/mtth/avsc/pull/469
+    test('synthetic constructor', () => {
+      const name = 'Foo';
+      const type = types.Type.forSchema([
+        'null',
+        {type: 'record', name: `test.${name}`, fields: [{name: 'id', type: 'string'}]},
+      ]);
+
+      const data = {id: 'abc'};
+      const roundtripped = type.fromBuffer(type.toBuffer(data));
+      assert.equal(roundtripped.constructor.name, name);
+      assert.deepEqual(roundtripped, data);
+    })
   });
 
   suite('EnumType', () => {
