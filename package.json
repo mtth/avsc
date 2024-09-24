@@ -30,7 +30,7 @@
   "files": [
     "etc/browser",
     "lib",
-    "types"
+    "types/index.d.ts"
   ],
   "main": "./lib",
   "types": "./types",
