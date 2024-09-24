@@ -103,7 +103,9 @@ interface EncoderOptions {
  * The index muss be a number between 0 and length-1 of the passed types.
  * In this case (a branch index) the union will use an unwrapped representation. Otherwise (undefined), the union will be wrapped.
  */
-type ProjectionFn = (types: ReadonlyArray<Type>) => ((val: unknown) => number) | undefined;
+type BranchProjection = (types: ReadonlyArray<Type>) =>
+  | ((val: unknown) => number)
+  | undefined;
 
 interface ForSchemaOptions {
   assertLogicalTypes: boolean;
@@ -113,7 +115,7 @@ interface ForSchemaOptions {
   omitRecordMethods: boolean;
   registry: { [name: string]: Type };
   typeHook: (schema: Schema | string, opts: ForSchemaOptions) => Type | undefined;
-  wrapUnions: ProjectionFn | boolean | 'auto' | 'always' | 'never';
+  wrapUnions: BranchProjection | boolean | 'auto' | 'always' | 'never';
 }
 
 interface TypeOptions extends ForSchemaOptions {
