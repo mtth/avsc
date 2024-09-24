@@ -3549,7 +3549,7 @@ suite('types', () => {
        // Ambiguous, but we have a projection function
       const Animal = Type.forSchema(animalTypes, { wrapUnions: mockWrapUnions });
       Animal.toBuffer({ meow: '🐈' });
-      assert.equal(mockWrapUnions.calls, 2);
+      assert.equal(mockWrapUnions.calls, 1);
       assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/)
     });
 
