@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { debuglog } from 'util'
+import { debuglog } from 'util';
 
 /**
  * Compute a string's hash.
