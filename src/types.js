@@ -3015,7 +3015,7 @@ function isJsonBuffer(obj) {
  *
  * @param path {Array} Passed from hook, but unused (because empty where this
  * function is used, since we aren't keeping track of it for effiency).
- * @param val {...} The object to reject.
+ * @param val {any} The object to reject.
  * @param type {Type} The type to check against.
  *
  * This method is mostly used from `_write` to signal an invalid object for a
