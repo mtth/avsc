@@ -8,6 +8,7 @@
  */
 
 let containers = require('../../lib/containers'),
+    types = require('../../lib/types'),
     stream = require('stream');
 
 /** Transform stream which lazily reads a blob's contents. */
@@ -104,5 +105,7 @@ function createBlobEncoder(schema, opts) {
 module.exports = {
   createBlobDecoder,
   createBlobEncoder,
-  streams: containers.streams
+  streams: containers.streams,
+  Type: types.Type,
+  types: types.builtins,
 };
