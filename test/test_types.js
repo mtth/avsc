@@ -3546,6 +3546,16 @@ suite('types', () => {
       assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/)
     });
 
+    test('union projection with fallback', () => {
+      let t = Type.forSchema({
+        type: 'record',
+        fields: [
+          {name: 'wrapped', type: ['int', 'double' ]}, // Ambiguous.
+        ]
+      }, {wrapUnions: () => undefined });
+      assert(Type.isType(t.field('wrapped').type, 'union:wrapped'));
+    });
+
     test('invalid wrap unions option', () => {
       assert.throws(() => {
         Type.forSchema('string', {wrapUnions: 'FOO'});
