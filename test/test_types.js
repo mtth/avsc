@@ -3522,7 +3522,9 @@ suite('types', () => {
       };
       const animalTypes = [Dog, Cat];
 
+      let callsToWrapUnions = 0;
       const wrapUnions = (types) => {
+        callsToWrapUnions++;
         assert.deepEqual(types.map(t => t.name), ['Dog', 'Cat']);
         return (animal) => {
           const animalType = ((animal) => {
@@ -3537,19 +3539,10 @@ suite('types', () => {
         }
       };
 
-      // TODO: replace this with a mock when available
-      // currently we're on mocha without sinon
-      function mockWrapUnions() {
-        mockWrapUnions.calls = typeof mockWrapUnions.calls === 'undefined'
-          ? 1
-          : ++mockWrapUnions.calls;
-        return wrapUnions.apply(null, arguments);
-      }
-
        // Ambiguous, but we have a projection function
-      const Animal = Type.forSchema(animalTypes, { wrapUnions: mockWrapUnions });
+      const Animal = Type.forSchema(animalTypes, { wrapUnions });
       Animal.toBuffer({ meow: '🐈' });
-      assert.equal(mockWrapUnions.calls, 1);
+      assert.equal(callsToWrapUnions, 1);
       assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/)
     });
 
