@@ -3505,6 +3505,57 @@ suite('types', () => {
       assert(Type.isType(t.field('unwrapped').type, 'union:unwrapped'));
     });
 
+    test('union projection', () => {
+      const Dog = {
+        type: 'record',
+        name: 'Dog',
+        fields: [
+          { type: 'string', name: 'bark' }
+        ],
+      };
+      const Cat = {
+        type: 'record',
+        name: 'Cat',
+        fields: [
+          { type: 'string', name: 'meow' }
+        ],
+      };
+      const animalTypes = [Dog, Cat];
+
+      let callsToWrapUnions = 0;
+      const wrapUnions = (types) => {
+        callsToWrapUnions++;
+        assert.deepEqual(types.map(t => t.name), ['Dog', 'Cat']);
+        return (animal) => {
+          const animalType = ((animal) => {
+            if ('bark' in animal) {
+              return 'Dog';
+            } else if ('meow' in animal) {
+              return 'Cat';
+            }
+            throw new Error('Unknown animal');
+          })(animal);
+          return types.indexOf(types.find(type => type.name === animalType));
+        }
+      };
+
+       // Ambiguous, but we have a projection function
+      const Animal = Type.forSchema(animalTypes, { wrapUnions });
+      Animal.toBuffer({ meow: '🐈' });
+      assert.equal(callsToWrapUnions, 1);
+      assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/)
+    });
+
+    test('union projection with fallback', () => {
+      let t = Type.forSchema({
+        type: 'record',
+        fields: [
+          {name: 'wrapped', type: ['int', 'double' ]}, // Ambiguous.
+        ]
+      }, {wrapUnions: () => undefined });
+      assert(Type.isType(t.field('wrapped').type, 'union:wrapped'));
+    });
+
     test('invalid wrap unions option', () => {
       assert.throws(() => {
         Type.forSchema('string', {wrapUnions: 'FOO'});

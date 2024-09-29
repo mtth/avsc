@@ -95,6 +95,21 @@ interface EncoderOptions {
   syncMarker: Buffer;
 }
 
+/**
+ * A projection function that is used when unwrapping unions.
+ * This function is called at schema parsing time on each union with its branches'
+ * types.
+ * If it returns a non-null (function) value, that function will be called each
+ * time a value's branch needs to be inferred and should return the branch's
+ * index.
+ * The index muss be a number between 0 and length-1 of the passed types.
+ * In this case (a branch index) the union will use an unwrapped representation.
+ * Otherwise (undefined), the union will be wrapped.
+ */
+type BranchProjection = (types: ReadonlyArray<Type>) =>
+  | ((val: unknown) => number)
+  | undefined;
+
 interface ForSchemaOptions {
   assertLogicalTypes: boolean;
   logicalTypes: { [type: string]: new (schema: Schema, opts?: any) => types.LogicalType; };
@@ -103,7 +118,7 @@ interface ForSchemaOptions {
   omitRecordMethods: boolean;
   registry: { [name: string]: Type };
   typeHook: (schema: Schema | string, opts: ForSchemaOptions) => Type | undefined;
-  wrapUnions: boolean | 'auto' | 'always' | 'never';
+  wrapUnions: BranchProjection | boolean | 'auto' | 'always' | 'never';
 }
 
 interface TypeOptions extends ForSchemaOptions {
