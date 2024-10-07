@@ -24,17 +24,7 @@ function deprecate (fn) {
   return fn;
 }
 
-/**
- * Browser stub for debuglog(). Never does any logging.
- * @returns A function that can be called with log messages. Does nothing with
- * those messages.
- */
-function debuglog () {
-  return () => {};
-}
-
 module.exports = {
   getHash,
   deprecate,
-  debuglog
 };
