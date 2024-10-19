@@ -74,7 +74,7 @@ type Schema = schema.AvroSchema;
 type Callback<V, Err = any> = (err: Err | null, value?: V) => void;
 
 
-type Codec = (buffer: Buffer, callback: Callback<Buffer>) => void;
+type Codec = (buffer: Uint8Array, callback: Callback<Uint8Array>) => void;
 
 interface CodecOptions {
   [name: string]: Codec;
@@ -92,7 +92,7 @@ interface EncoderOptions {
   codec: string;
   codecs: CodecOptions;
   writeHeader: boolean | 'always' | 'never' | 'auto';
-  syncMarker: Buffer;
+  syncMarker: Uint8Array;
 }
 
 /**
@@ -182,19 +182,19 @@ export function readSchema(schemaIdl: string, options?: Partial<DecoderOptions>)
 export class Type {
   clone(val: any, opts?: Partial<CloneOptions>): any;
   compare(val1: any, val2: any): number;
-  compareBuffers(buf1: Buffer, buf2: Buffer): number;
+  compareBuffers(buf1: Uint8Array, buf2: Uint8Array): number;
   createResolver(type: Type): Resolver;
-  decode(buf: Buffer, pos?: number, resolver?: Resolver): { value: any, offset: number};
-  encode(val: any, buf: Buffer, pos?: number): number;
+  decode(buf: Uint8Array, pos?: number, resolver?: Resolver): { value: any, offset: number};
+  encode(val: any, buf: Uint8Array, pos?: number): number;
   equals(type: Type): boolean;
-  fingerprint(algorithm?: string): Buffer;
-  fromBuffer(buffer: Buffer, resolver?: Resolver, noCheck?: boolean): any;
+  fingerprint(algorithm?: string): Uint8Array;
+  fromBuffer(buffer: Uint8Array, resolver?: Resolver, noCheck?: boolean): any;
   fromString(str: string): any;
   inspect(): string;
   isValid(val: any, opts?: Partial<IsValidOptions>): boolean;
   random(): Type;
   schema(opts?: Partial<SchemaOptions>): Schema;
-  toBuffer(value: any): Buffer;
+  toBuffer(value: any): Uint8Array;
   toJSON(): object;
   toString(val?: any): string;
   wrap(val: any): any;
