@@ -192,7 +192,7 @@ export class Type {
   fromString(str: string): any;
   inspect(): string;
   isValid(val: any, opts?: Partial<IsValidOptions>): boolean;
-  random(): Type;
+  random(): unknown;
   schema(opts?: Partial<SchemaOptions>): Schema;
   toBuffer(value: any): Uint8Array;
   toJSON(): object;
@@ -239,44 +239,44 @@ export namespace types {
   class ArrayType extends Type {
     constructor(schema: Schema, opts: any);
     readonly itemsType: Type;
-    random(): ArrayType;
+    random(): unknown[];
   }
 
   class BooleanType extends Type {  // TODO: Document this on the wiki
     constructor();
-    random(): BooleanType;
+    random(): boolean;
   }
 
   class BytesType extends Type {  // TODO: Document this on the wiki
     constructor();
-    random(): BytesType;
+    random(): Uint8Array;
   }
 
   class DoubleType extends Type {  // TODO: Document this on the wiki
     constructor();
-    random(): DoubleType;
+    random(): number;
   }
 
   class EnumType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly symbols: string[];
-    random(): EnumType;
+    random(): string;
   }
 
   class FixedType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly size: number;
-    random(): FixedType;
+    random(): Uint8Array;
   }
 
   class FloatType extends Type {
     constructor();
-    random(): FloatType;
+    random(): number;
   }
 
   class IntType extends Type {
     constructor();
-    random(): IntType;
+    random(): number;
   }
 
   class LogicalType extends Type {
@@ -286,24 +286,24 @@ export namespace types {
     protected _fromValue(val: any): any;
     protected _resolve(type: Type): any;
     protected _toValue(any: any): any;
-    random(): LogicalType;
+    random(): unknown;
   }
 
   class LongType extends Type {
     constructor();
-    random(): LongType;
+    random(): unknown;
     static __with(methods: object, noUnpack?: boolean): LongType;
   }
 
   class MapType extends Type {
     constructor(schema: Schema, opts?: any);
     readonly valuesType: any;
-    random(): MapType;
+    random(): Record<string, unknown>;
   }
 
   class NullType extends Type {  // TODO: Document this on the wiki
     constructor();
-    random(): NullType;
+    random(): null;
   }
 
   class RecordType extends Type {
@@ -311,7 +311,7 @@ export namespace types {
     readonly fields: Field[];
     readonly recordConstructor: any;  // TODO: typeof Record once Record interface/class exists
     field(name: string): Field;
-    random(): RecordType;
+    random(): object;
   }
 
   class Field {
@@ -324,18 +324,18 @@ export namespace types {
 
   class StringType extends Type {  // TODO: Document this on the wiki
     constructor();
-    random(): StringType;
+    random(): string;
   }
 
   class UnwrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
-    random(): UnwrappedUnionType;
+    random(): unknown;
     readonly types: Type[];
   }
 
   class WrappedUnionType extends Type {
     constructor(schema: Schema, opts: any);
-    random(): WrappedUnionType;
+    random(): Record<string, unknown>;
     readonly types: Type[];
   }
 }
