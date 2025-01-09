@@ -291,7 +291,7 @@ export namespace types {
 
   class LongType extends Type {
     constructor();
-    random(): number;
+    random(): unknown;
     static __with(methods: object, noUnpack?: boolean): LongType;
   }
 
