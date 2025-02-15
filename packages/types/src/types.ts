@@ -1,39 +1,52 @@
-// TODO: Make it easier to implement custom types. This will likely require
-// exposing the `Tap` object, perhaps under another name. Probably worth a
-// major release.
-// TODO: Allow configuring when to write the size when writing arrays and maps,
-// and customizing their block size.
-// TODO: Code-generate `compare` and `clone` record and union methods.
+/** This module defines all Avro data types and their serialization logic. */
 
-'use strict';
-
-/**
- * This module defines all Avro data types and their serialization logic.
- *
- */
-
-const utils = require('./utils');
+import * as utils from './utils.js';
 
 // Convenience imports.
 const {Tap, isBufferLike} = utils;
 const j = utils.printJSON;
 
-// All non-union concrete (i.e. non-logical) Avro types.
-// Defined after all the type classes are defined.
-let TYPES;
-
-// Random generator.
-const RANDOM = new utils.Lcg();
-
 // Encoding tap (shared for performance).
 const TAP = Tap.withCapacity(1024);
 
 // Currently active logical type, used for name redirection.
-let LOGICAL_TYPE = null;
+let activeLogicalType: Type | null = null;
 
 // Underlying types of logical types currently being instantiated. This is used
 // to be able to reference names (i.e. for branches) during instantiation.
-const UNDERLYING_TYPES = [];
+const activeUnderlyingTypes: [Type, Type][] = [];
+
+type Schema = any; // TODO
+
+interface TypeOptions {
+  readonly namespace?: string;
+  readonly registry?: any;
+  readonly noAnonymousTypes?: boolean;
+}
+
+interface ForSchemaOptions extends TypeOptions {
+  readonly wrapUnions?:
+    | boolean
+    | 'auto'
+    | 'always'
+    | 'never'
+    | ((types: ReadonlyArray<Type>) => boolean);
+  readonly typeHook?: (
+    schema: Schema,
+    opts: ForSchemaOptions
+  ) => Type | Schema | undefined;
+  readonly logicalTypes: {readonly [name: string]: typeof LogicalType};
+  readonly assertLogicalTypes?: boolean;
+}
+
+interface ForValueOptions extends ForSchemaOptions {
+  readonly emptyArrayType?: Type;
+  readonly valueHook?: (
+    val: unknown,
+    opts: ForValueOptions
+  ) => Type | undefined;
+  readonly strictDefaults?: boolean;
+}
 
 /**
  * "Abstract" base Avro type.
@@ -48,20 +61,18 @@ const UNDERLYING_TYPES = [];
  *  See individual subclasses for details.
  */
 class Type {
-  constructor(schema, opts) {
+  readonly name: string | undefined;
+  readonly aliases: string[] | undefined;
+  readonly doc: string | undefined;
+  constructor(schema: Schema, opts?: TypeOptions) {
     let type;
-    if (LOGICAL_TYPE) {
-      type = LOGICAL_TYPE;
-      UNDERLYING_TYPES.push([LOGICAL_TYPE, this]);
-      LOGICAL_TYPE = null;
+    if (activeLogicalType) {
+      type = activeLogicalType;
+      activeUnderlyingTypes.push([activeLogicalType, this]);
+      activeLogicalType = null;
     } else {
       type = this;
     }
-
-    // Lazily instantiated hash string. It will be generated the first time the
-    // type's default fingerprint is computed (for example when using `equals`).
-    // We use a mutable object since types are frozen after instantiation.
-    this._hash = new Hash();
     this.name = undefined;
     this.aliases = undefined;
     this.doc = schema && schema.doc ? '' + schema.doc : undefined;
@@ -92,18 +103,18 @@ class Type {
       }
       this.name = name;
       this.aliases = schema.aliases
-        ? schema.aliases.map((s) => {
+        ? schema.aliases.map((s: string) => {
             return maybeQualify(s, namespace);
           })
         : [];
     }
   }
 
-  static forSchema(schema, opts) {
+  static forSchema(schema: Schema, opts?: ForSchemaOptions): Type {
     opts = Object.assign({}, opts);
     opts.registry = opts.registry || {};
 
-    let UnionType = (function (wrapUnions) {
+    const UnionType = (function (wrapUnions: any) {
       if (wrapUnions === true) {
         wrapUnions = 'always';
       } else if (wrapUnions === false) {
@@ -163,14 +174,14 @@ class Type {
       throw new Error(`undefined type name: ${schema}`);
     }
 
-    if (schema.logicalType && opts.logicalTypes && !LOGICAL_TYPE) {
+    if (schema.logicalType && opts.logicalTypes && !activeLogicalType) {
       const DerivedType = opts.logicalTypes[schema.logicalType];
       // TODO: check to ensure DerivedType was derived from LogicalType via ES6
       // subclassing; otherwise it will not work properly
       if (DerivedType) {
         const namespace = opts.namespace;
         const registry = {};
-        Object.keys(opts.registry).forEach((key) => {
+        Object.keys(opts.registry).forEach((key: string) => {
           registry[key] = opts.registry[key];
         });
         try {
@@ -182,7 +193,7 @@ class Type {
             // debugging.
             throw err;
           }
-          LOGICAL_TYPE = null;
+          activeLogicalType = null;
           opts.namespace = namespace;
           opts.registry = registry;
         }
@@ -194,8 +205,8 @@ class Type {
       // We temporarily clear the logical type since we instantiate the branch's
       // types before the underlying union's type (necessary to decide whether
       // the union is ambiguous or not).
-      const logicalType = LOGICAL_TYPE;
-      LOGICAL_TYPE = null;
+      const logicalType = activeLogicalType;
+      activeLogicalType = null;
       const types = schema.map((obj) => {
         return Type.forSchema(obj, opts);
       });
@@ -214,12 +225,12 @@ class Type {
             : UnwrappedUnionType;
         }
       }
-      LOGICAL_TYPE = logicalType;
+      activeLogicalType = logicalType;
       type = new UnionType(types, opts, projectionFn);
     } else {
       // New type definition.
       type = (function (typeName) {
-        const Type = TYPES[typeName];
+        const Type = constructors[typeName];
         if (Type === undefined) {
           throw new Error(`unknown type: ${j(typeName)}`);
         }
@@ -229,7 +240,7 @@ class Type {
     return type;
   }
 
-  static forValue(val, opts) {
+  static forValue(val: unknown, opts?: ForValueOptions): Type {
     opts = Object.assign({}, opts);
 
     // Sentinel used when inferring the types of empty arrays.
@@ -450,7 +461,7 @@ class Type {
     return Type.forSchema(augmented, opts);
   }
 
-  static isType(/* any, [prefix] ... */) {
+  static isType(arg: unknown, ...prefix: string[]): boolean {
     const l = arguments.length;
     if (!l) {
       return false;
@@ -481,11 +492,11 @@ class Type {
     return false;
   }
 
-  static __reset(size) {
+  static __reset(size: number): void {
     TAP.reinitialize(size);
   }
 
-  get branchName() {
+  get branchName(): string {
     const type = Type.isType(this, 'logical') ? this.underlyingType : this;
     if (type.name) {
       return type.name;
@@ -496,7 +507,7 @@ class Type {
     return Type.isType(type, 'union') ? undefined : type.typeName;
   }
 
-  clone(val, opts) {
+  clone(val: any, opts?: CloneOptions): any {
     if (opts) {
       opts = {
         coerce: !!opts.coerceBuffers | 0, // Coerce JSON to Buffer.
@@ -512,11 +523,11 @@ class Type {
     return this.fromBuffer(this.toBuffer(val));
   }
 
-  compareBuffers(buf1, buf2) {
+  compareBuffers(buf1: Uint8Array, buf2: Uint8Array): number {
     return this._match(Tap.fromBuffer(buf1), Tap.fromBuffer(buf2));
   }
 
-  createResolver(type, opts) {
+  createResolver(type: Type, opts?: CreateResolverOptions): TypeResolver {
     if (!Type.isType(type)) {
       // More explicit error message than the "incompatible type" thrown
       // otherwise (especially because of the overridden `toJSON` method).
@@ -577,7 +588,7 @@ class Type {
     return Object.freeze(resolver);
   }
 
-  decode(buf, pos, resolver) {
+  decode(buf: Uint8Array, pos?: number, resolver?: TypeResolver): any {
     const tap = Tap.fromBuffer(buf, pos);
     const val = readValue(this, tap, resolver);
     if (!tap.isValid()) {
@@ -586,7 +597,7 @@ class Type {
     return {value: val, offset: tap.pos};
   }
 
-  encode(val, buf, pos) {
+  encode(val: any, buf: Uint8Array, pos?: number): number {
     const tap = Tap.fromBuffer(buf, pos);
     this._write(tap, val);
     if (!tap.isValid()) {
@@ -597,7 +608,7 @@ class Type {
     return tap.pos;
   }
 
-  equals(type, opts) {
+  equals(type: Type, opts?: TypeEqualsOptions): boolean {
     const canon = // Canonical equality.
       Type.isType(type) && this._getCachedHash() === type._getCachedHash();
     if (!canon || !(opts && opts.strict)) {
@@ -609,31 +620,7 @@ class Type {
     );
   }
 
-  /**
-   * Get this type's schema fingerprint (lazily calculated and cached).
-   * Differs from {@link fingerprint} in that it returns the string
-   * representation of the fingerprint as it's stored internally.
-   * @returns {string}
-   */
-  _getCachedHash() {
-    if (!this._hash.hash) {
-      const schemaStr = JSON.stringify(this.schema());
-      // Cache the hash as a binary string to avoid overhead and also return a
-      // fresh copy every time
-      // https://stackoverflow.com/questions/45803829/memory-overhead-of-typed-arrays-vs-strings/45808835#45808835
-      this._hash.hash = utils.bufferToBinaryString(utils.getHash(schemaStr));
-    }
-    return this._hash.hash;
-  }
-
-  fingerprint(algorithm) {
-    if (!algorithm) {
-      return utils.binaryStringToBuffer(this._getCachedHash());
-    }
-    return utils.getHash(JSON.stringify(this.schema()), algorithm);
-  }
-
-  fromBuffer(buf, resolver, noCheck) {
+  fromBuffer(buf: Uint8Array, resolver?: TypeResolver, noCheck?: boolean): any {
     const tap = Tap.fromBuffer(buf, 0);
     const val = readValue(this, tap, resolver, noCheck);
     if (!tap.isValid()) {
@@ -645,11 +632,11 @@ class Type {
     return val;
   }
 
-  fromString(str) {
+  fromString(str: string): any {
     return this._copy(JSON.parse(str), {coerce: 2});
   }
 
-  inspect() {
+  inspect(): string {
     const typeName = this.typeName;
     const className = getClassName(typeName);
     if (isPrimitive(typeName)) {
@@ -664,7 +651,7 @@ class Type {
     return `<${className} ${j(obj)}>`;
   }
 
-  isValid(val, opts) {
+  isValid(val: unknown, opts?: IsValidOptions): boolean {
     // We only have a single flag for now, so no need to complicate things.
     const flags = (opts && opts.noUndeclaredFields) | 0;
     const errorHook = opts && opts.errorHook;
@@ -678,7 +665,7 @@ class Type {
     return this._check(val, flags, hook, path);
   }
 
-  schema(opts) {
+  schema(opts?: SchemaOptions): Schema {
     // Copy the options to avoid mutating the original options object when we
     // add the registry of dereferenced types.
     return this._attrs(
@@ -690,7 +677,7 @@ class Type {
     );
   }
 
-  toBuffer(val) {
+  toBuffer(val: any): Uint8Array {
     TAP.pos = 0;
     this._write(TAP, val);
     if (TAP.isValid()) {
@@ -701,12 +688,12 @@ class Type {
     return buf;
   }
 
-  toJSON() {
+  toJSON(): unknown {
     // Convenience to allow using `JSON.stringify(type)` to get a type's schema.
     return this.schema({exportAttrs: true});
   }
 
-  toString(val) {
+  toString(val?: any): string {
     if (val === undefined) {
       // Consistent behavior with standard `toString` expectations.
       return JSON.stringify(this.schema({noDeref: true}));
@@ -714,13 +701,13 @@ class Type {
     return JSON.stringify(this._copy(val, {coerce: 3}));
   }
 
-  wrap(val) {
+  wrap(val: any): any {
     const Branch = this._branchConstructor;
     return Branch === null ? null : new Branch(val);
   }
 
   _attrs(derefed, opts) {
-    // This function handles a lot of the common logic to schema generation
+    // This function handles a lot of the common logic for schema generation
     // across types, for example keeping track of which types have already been
     // de-referenced (i.e. derefed).
     const name = this.name;
@@ -773,7 +760,7 @@ class Type {
     return Branch;
   }
 
-  _peek(tap) {
+  _peek(tap: Tap): any {
     const pos = tap.pos;
     const val = this._read(tap);
     tap.pos = pos;
@@ -781,9 +768,6 @@ class Type {
   }
 
   compare() {
-    utils.abstractFunction();
-  }
-  random() {
     utils.abstractFunction();
   }
   _check() {
@@ -811,24 +795,6 @@ class Type {
     utils.abstractFunction();
   }
 }
-
-// "Deprecated" getters (will be explicitly deprecated in 5.1).
-
-Type.prototype.getAliases = function () {
-  return this.aliases;
-};
-
-Type.prototype.getFingerprint = Type.prototype.fingerprint;
-
-Type.prototype.getName = function (asBranch) {
-  return this.name || !asBranch ? this.name : this.branchName;
-};
-
-Type.prototype.getSchema = Type.prototype.schema;
-
-Type.prototype.getTypeName = function () {
-  return this.typeName;
-};
 
 // Implementations.
 
@@ -871,6 +837,8 @@ class PrimitiveType extends Type {
 
 /** Nulls. */
 class NullType extends PrimitiveType {
+  static typeName = 'null';
+
   _check(val, flags, hook) {
     const b = val === null;
     if (!b && hook) {
@@ -894,16 +862,14 @@ class NullType extends PrimitiveType {
   _match() {
     return 0;
   }
+
+  compare = _match;
 }
-
-NullType.prototype.compare = NullType.prototype._match;
-
-NullType.prototype.typeName = 'null';
-
-NullType.prototype.random = NullType.prototype._read;
 
 /** Booleans. */
 class BooleanType extends PrimitiveType {
+  static typeName = 'boolean';
+
   _check(val, flags, hook) {
     const b = typeof val == 'boolean';
     if (!b && hook) {
@@ -930,16 +896,12 @@ class BooleanType extends PrimitiveType {
   _match(tap1, tap2) {
     return tap1.matchBoolean(tap2);
   }
-
-  random() {
-    return RANDOM.nextBoolean();
-  }
 }
-
-BooleanType.prototype.typeName = 'boolean';
 
 /** Integers. */
 class IntType extends PrimitiveType {
+  static typeName = 'int';
+
   _check(val, flags, hook) {
     const b = val === (val | 0);
     if (!b && hook) {
@@ -966,13 +928,7 @@ class IntType extends PrimitiveType {
   _match(tap1, tap2) {
     return tap1.matchLong(tap2);
   }
-
-  random() {
-    return RANDOM.nextInt(1000) | 0;
-  }
 }
-
-IntType.prototype.typeName = 'int';
 
 /**
  * Longs.
@@ -983,6 +939,8 @@ IntType.prototype.typeName = 'int';
  * `AbstractLongType` below for a way to implement a custom long type.
  */
 class LongType extends PrimitiveType {
+  typeName = 'long';
+
   // TODO: rework AbstractLongType so we don't need to accept noFreeze here
   constructor(noFreeze) {
     super(noFreeze);
@@ -1030,10 +988,6 @@ class LongType extends PrimitiveType {
     }
   }
 
-  random() {
-    return RANDOM.nextInt();
-  }
-
   static __with(methods, noUnpack) {
     methods = methods || {}; // Will give a more helpful error message.
     // We map some of the methods to a different name to be able to intercept
@@ -1058,10 +1012,10 @@ class LongType extends PrimitiveType {
   }
 }
 
-LongType.prototype.typeName = 'long';
-
 /** Floats. */
 class FloatType extends PrimitiveType {
+  static typeName = 'float';
+
   _check(val, flags, hook) {
     const b = typeof val == 'number';
     if (!b && hook) {
@@ -1104,16 +1058,12 @@ class FloatType extends PrimitiveType {
         };
     }
   }
-
-  random() {
-    return RANDOM.nextFloat(1e3);
-  }
 }
-
-FloatType.prototype.typeName = 'float';
 
 /** Doubles. */
 class DoubleType extends PrimitiveType {
+  static typeName = 'double';
+
   _check(val, flags, hook) {
     const b = typeof val == 'number';
     if (!b && hook) {
@@ -1157,16 +1107,12 @@ class DoubleType extends PrimitiveType {
         };
     }
   }
-
-  random() {
-    return RANDOM.nextFloat();
-  }
 }
-
-DoubleType.prototype.typeName = 'double';
 
 /** Strings. */
 class StringType extends PrimitiveType {
+  static typeName = 'string';
+
   _check(val, flags, hook) {
     const b = typeof val == 'string';
     if (!b && hook) {
@@ -1201,13 +1147,7 @@ class StringType extends PrimitiveType {
         resolver._read = this._read;
     }
   }
-
-  random() {
-    return RANDOM.nextString(RANDOM.nextInt(32));
-  }
 }
-
-StringType.prototype.typeName = 'string';
 
 /**
  * Bytes.
@@ -1278,10 +1218,6 @@ class BytesType extends PrimitiveType {
         this._check(obj, undefined, throwInvalidError);
         return new Uint8Array(obj);
     }
-  }
-
-  random() {
-    return RANDOM.nextBuffer(RANDOM.nextInt(32));
   }
 }
 
@@ -1553,11 +1489,6 @@ class UnwrappedUnionType extends UnionType {
       return utils.compare(index1, index2);
     }
   }
-
-  random() {
-    const index = RANDOM.nextInt(this.types.length);
-    return this.types[index].random();
-  }
 }
 
 UnwrappedUnionType.prototype.typeName = 'union:unwrapped';
@@ -1744,16 +1675,6 @@ class WrappedUnionType extends UnionType {
     }
     return utils.compare(index, this._branchIndices[name2]);
   }
-
-  random() {
-    const index = RANDOM.nextInt(this.types.length);
-    const type = this.types[index];
-    const Branch = type._branchConstructor;
-    if (!Branch) {
-      return null;
-    }
-    return new Branch(type.random());
-  }
 }
 
 WrappedUnionType.prototype.typeName = 'union:wrapped';
@@ -1864,10 +1785,6 @@ class EnumType extends Type {
   getSymbols() {
     return this.symbols;
   }
-
-  random() {
-    return RANDOM.choice(this.symbols);
-  }
 }
 
 EnumType.prototype.typeName = 'enum';
@@ -1928,10 +1845,6 @@ class FixedType extends Type {
 
   getSize() {
     return this.size;
-  }
-
-  random() {
-    return RANDOM.nextBuffer(this.size);
   }
 }
 
@@ -2059,14 +1972,6 @@ class MapType extends Type {
 
   getValuesType() {
     return this.valuesType;
-  }
-
-  random() {
-    const val = {};
-    for (let i = 0, l = RANDOM.nextInt(10); i < l; i++) {
-      val[RANDOM.nextString(RANDOM.nextInt(20))] = this.valuesType.random();
-    }
-    return val;
   }
 
   _deref(schema, derefed, opts) {
@@ -2223,14 +2128,6 @@ class ArrayType extends Type {
 
   getItemsType() {
     return this.itemsType;
-  }
-
-  random() {
-    const arr = [];
-    for (let i = 0, l = RANDOM.nextInt(10); i < l; i++) {
-      arr.push(this.itemsType.random());
-    }
-    return arr;
   }
 }
 
@@ -2718,15 +2615,6 @@ class RecordType extends Type {
     return 0;
   }
 
-  random() {
-    const fields = this.fields.map((f) => {
-      return f.type.random();
-    });
-    fields.unshift(undefined);
-    const Record = this.recordConstructor;
-    return new (Record.bind.apply(Record, fields))();
-  }
-
   field(name) {
     return this._fieldsByName[name];
   }
@@ -2753,17 +2641,17 @@ class LogicalType extends Type {
   constructor(schema, opts) {
     super();
     this._logicalTypeName = schema.logicalType;
-    LOGICAL_TYPE = this;
+    activeLogicalType = this;
     try {
       this._underlyingType = Type.forSchema(schema, opts);
     } finally {
-      LOGICAL_TYPE = null;
+      activeLogicalType = null;
       // Remove the underlying type now that we're done instantiating. Note that
       // in some (rare) cases, it might not have been inserted; for example, if
       // this constructor was manually called with an already instantiated type.
-      const l = UNDERLYING_TYPES.length;
-      if (l && UNDERLYING_TYPES[l - 1][0] === this) {
-        UNDERLYING_TYPES.pop();
+      const l = activeUnderlyingTypes.length;
+      if (l && activeUnderlyingTypes[l - 1][0] === this) {
+        activeUnderlyingTypes.pop();
       }
     }
     // We create a separate branch constructor for logical types to keep them
@@ -2787,9 +2675,9 @@ class LogicalType extends Type {
     }
     // If the field wasn't present, it means the logical type isn't complete
     // yet: we're waiting on its underlying type to be fully instantiated. In
-    // this case, it will be present in the `UNDERLYING_TYPES` array.
-    for (let i = 0, l = UNDERLYING_TYPES.length; i < l; i++) {
-      const arr = UNDERLYING_TYPES[i];
+    // this case, it will be present in the `activeUnderlyingTypes` array.
+    for (let i = 0, l = activeUnderlyingTypes.length; i < l; i++) {
+      const arr = activeUnderlyingTypes[i];
       if (arr[0] === this) {
         return arr[1];
       }
@@ -2852,10 +2740,6 @@ class LogicalType extends Type {
     return this.underlyingType.compare(val1, val2);
   }
 
-  random() {
-    return this._fromValue(this.underlyingType.random());
-  }
-
   _deref(schema, derefed, opts) {
     const type = this.underlyingType;
     const isVisited = type.name !== undefined && derefed[type.name];
@@ -2900,7 +2784,7 @@ class LogicalType extends Type {
  * can't use a logical type because we need a "lower-level" hook here: passing
  * through through the standard long would cause a loss of precision.
  */
-class AbstractLongType extends LongType {
+abstract class AbstractLongType extends LongType {
   constructor(noUnpack) {
     super(true);
     this._noUnpack = !!noUnpack;
@@ -2973,29 +2857,12 @@ class AbstractLongType extends LongType {
     }
   }
 
-  random() {
-    return this._fromJSON(LongType.prototype.random());
-  }
-
-  // Methods to be implemented by the user.
-  _fromBuffer() {
-    utils.abstractFunction();
-  }
-  _toBuffer() {
-    utils.abstractFunction();
-  }
-  _fromJSON() {
-    utils.abstractFunction();
-  }
-  _toJSON() {
-    utils.abstractFunction();
-  }
-  _isValid() {
-    utils.abstractFunction();
-  }
-  compare() {
-    utils.abstractFunction();
-  }
+  abstract _fromBuffer(arg: Uint8Array): AbstractLongType;
+  abstract _toBuffer(): Uint8Array;
+  abstract _fromJSON(arg: unknown): AbstractLongType;
+  abstract _toJSON(): unknown;
+  abstract _isValid(): boolean;
+  abstract compare(v1: any, v2: any): number;
 }
 
 AbstractLongType.prototype.typeName = 'abstract:long';
@@ -3110,13 +2977,6 @@ class Resolver {
 
 Resolver.prototype._peek = Type.prototype._peek;
 
-/** Mutable hash container. */
-class Hash {
-  constructor() {
-    this.hash = undefined;
-  }
-}
-
 /**
  * Read a value from a tap.
  *
@@ -3136,12 +2996,10 @@ function readValue(type, tap, resolver, lazy) {
 }
 
 /**
- * Get all aliases for a type (including its name).
- *
- * @param obj {Type|Object} Typically a type or a field. Its aliases property
- * must exist and be an array.
+ * Get all aliases for a type (including its name). The input is typically a
+ * type or a field. Its aliases property must exist and be an array.
  */
-function getAliases(obj) {
+function getAliases(obj: Type | Field): string[] {
   const names = {};
   if (obj.name) {
     names[obj.name] = true;
@@ -3173,25 +3031,21 @@ function hasCompatibleName(reader, writer, strict) {
 }
 
 /**
- * Check whether a type's name is a primitive.
- *
- * @param name {String} Type name (e.g. `'string'`, `'array'`).
+ * Check whether a type's name is a primitive. Sample inputs: `'string'`,
+ * `'array'`.
  */
-function isPrimitive(typeName) {
-  // Since we use this module's own `TYPES` object, we can use `instanceof`.
-  const type = TYPES[typeName];
+function isPrimitive(typeName: string): boolean {
+  // Since we use this module's own `constructors` object, we can use
+  // `instanceof`.
+  const type = constructors[typeName];
   return type && type.prototype instanceof PrimitiveType;
 }
 
 /**
- * Return a type's class name from its Avro type name.
- *
- * We can't simply use `constructor.name` since it isn't supported in all
- * browsers.
- *
- * @param typeName {String} Type name.
+ * Return a type's class name from its Avro type name. We can't simply use
+ * `constructor.name` since it isn't supported in all browsers.
  */
-function getClassName(typeName) {
+function getClassName(typeName: string): string {
   if (typeName === 'error') {
     typeName = 'record';
   } else {
@@ -3209,11 +3063,10 @@ function getClassName(typeName) {
 }
 
 /**
- * Get the number of elements in an array block.
- *
- * @param tap {Tap} A tap positioned at the beginning of an array block.
+ * Get the number of elements in an array block. The tap must be positioned at
+ * the beginning of an array block.
  */
-function readArraySize(tap) {
+function readArraySize(tap: Tap): number {
   let n = tap.readLong();
   if (n < 0) {
     n = -n;
@@ -3223,25 +3076,22 @@ function readArraySize(tap) {
 }
 
 /**
- * Check whether a long can be represented without precision loss.
- *
- * @param n {Number} The number.
- *
- * Two things to note:
+ * Check whether a long can be represented without precision loss. Two things to
+ * note:
  *
  * + We are not using the `Number` constants for compatibility with older
  *   browsers.
  * + We divide the bounds by two to avoid rounding errors during zigzag encoding
  *   (see https://github.com/mtth/avsc/issues/455).
  */
-function isSafeLong(n) {
+function isSafeLong(n: number): boolean {
   return n >= -4503599627370496 && n <= 4503599627370496;
 }
 
 /**
  * Check whether an object is the JSON representation of a buffer.
  */
-function isJsonBuffer(obj) {
+function isJsonBuffer(obj: unknown): boolean {
   return obj && obj.type === 'Buffer' && Array.isArray(obj.data);
 }
 
@@ -3257,22 +3107,18 @@ function isJsonBuffer(obj) {
  * given type. Note that this provides less information than calling `isValid`
  * with a hook since the path is not propagated (for efficiency reasons).
  */
-function throwInvalidError(val, type) {
+function throwInvalidError(val: unknown, type: Type): never {
   throw new Error(`invalid ${j(type.schema())}: ${j(val)}`);
 }
 
-function maybeQualify(name, ns) {
+function maybeQualify(name: string, ns?: string): string {
   const unqualified = utils.unqualify(name);
   // Primitives are always in the global namespace.
   return isPrimitive(unqualified) ? unqualified : utils.qualify(name, ns);
 }
 
-/**
- * Get a type's bucket when included inside an unwrapped union.
- *
- * @param type {Type} Any type.
- */
-function getTypeBucket(type) {
+/** Get a type's bucket when included inside an unwrapped union. */
+function getTypeBucket(type: Type): string {
   const typeName = type.typeName;
   switch (typeName) {
     case 'double':
@@ -3294,12 +3140,8 @@ function getTypeBucket(type) {
   }
 }
 
-/**
- * Infer a value's bucket (see unwrapped unions for more details).
- *
- * @param val {...} Any value.
- */
-function getValueBucket(val) {
+/** Infer a value's bucket (see unwrapped unions for more details). */
+function getValueBucket(val: unknown): string {
   if (val === null) {
     return 'null';
   }
@@ -3315,12 +3157,8 @@ function getValueBucket(val) {
   return bucket;
 }
 
-/**
- * Check whether a collection of types leads to an ambiguous union.
- *
- * @param types {Array} Array of types.
- */
-function isAmbiguous(types) {
+/** Check whether a collection of types leads to an ambiguous union. */
+function isAmbiguous(types: ReadonlyArray<Type>): boolean {
   const buckets = {};
   for (let i = 0, l = types.length; i < l; i++) {
     const type = types[i];
@@ -3341,7 +3179,7 @@ function isAmbiguous(types) {
  * Note that never have to create a new type here, we are guaranteed to be able
  * to reuse one of the input types as super-type.
  */
-function combineNumbers(types) {
+function combineNumbers(types: ReadonlyArray<Type>): Type {
   const typeNames = ['int', 'long', 'float', 'double'];
   let superIndex = -1;
   let superType = null;
@@ -3362,7 +3200,10 @@ function combineNumbers(types) {
  * The order of the returned symbols is undefined and the returned enum is
  *
  */
-function combineStrings(types, opts) {
+function combineStrings(
+  types: ReadonlyArray<Type>,
+  opts?: ForValueOptions
+): Type {
   const symbols = {};
   for (let i = 0, l = types.length; i < l; i++) {
     const type = types[i];
@@ -3386,7 +3227,10 @@ function combineStrings(types, opts) {
  * through the array to find an existing bytes type (rather than exit early by
  * creating one eagerly).
  */
-function combineBuffers(types, opts) {
+function combineBuffers(
+  types: ReadonlyArray<Type>,
+  opts?: ForValueOptions
+): Type {
   let size = -1;
   for (let i = 0, l = types.length; i < l; i++) {
     const type = types[i];
@@ -3410,7 +3254,10 @@ function combineBuffers(types, opts) {
  * Field defaults are kept when possible (i.e. when no coercion to a map
  * happens), with later definitions overriding previous ones.
  */
-function combineObjects(types, opts) {
+function combineObjects(
+  types: ReadonlyArray<Type>,
+  opts?: ForValueOptions
+): Type {
   const allTypes = []; // Field and value types.
   const fieldTypes = {}; // Record field types grouped by field name.
   const fieldDefaults = {};
@@ -3509,7 +3356,8 @@ function combineObjects(types, opts) {
   return Type.forSchema(schema, opts);
 }
 
-TYPES = {
+// All non-union concrete (i.e. non-logical) Avro types.
+const constructors = {
   array: ArrayType,
   boolean: BooleanType,
   bytes: BytesType,
@@ -3537,10 +3385,10 @@ module.exports = {
       UnwrappedUnionType,
       WrappedUnionType,
     };
-    const typeNames = Object.keys(TYPES);
+    const typeNames = Object.keys(constructors);
     for (let i = 0, l = typeNames.length; i < l; i++) {
       const typeName = typeNames[i];
-      types[getClassName(typeName)] = TYPES[typeName];
+      types[getClassName(typeName)] = constructors[typeName];
     }
     return types;
   })(),

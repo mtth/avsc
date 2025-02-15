@@ -3,30 +3,21 @@
 // Valid (field, type, and symbol) name regex.
 const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
-function isBufferLike(data: unknown): data is Uint8Array {
+export function isBufferLike(data: unknown): data is Uint8Array {
   return data instanceof Uint8Array;
 }
 
-/**
- * Uppercase the first letter of a string.
- *
- * @param s {String} The string.
- */
-function capitalize(s: string): string {
+/** Uppercase the first letter of a string. */
+export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-/**
- * Compare two numbers.
- *
- * @param n1 {Number} The first one.
- * @param n2 {Number} The second one.
- */
-function compare(n1: number, n2: number): number {
+/** Compare two numbers. */
+export function compare(n1: number, n2: number): number {
   return n1 === n2 ? 0 : n1 < n2 ? -1 : 1;
 }
 
-let bufCompare: (b1: Uint8Array, b2: Uint8Array) => number,
+export let bufCompare: (b1: Uint8Array, b2: Uint8Array) => number,
   bufEqual: (b1: Uint8Array, b2: Uint8Array) => boolean;
 if (typeof Buffer == 'function') {
   bufCompare = Buffer.compare;
@@ -55,23 +46,24 @@ if (typeof Buffer == 'function') {
 }
 
 /** Check whether an array has duplicates. */
-function hasDuplicates<V, K>(
+export function hasDuplicates<V, K>(
   arr: ReadonlyArray<V>,
-  fn: (val: V) => K
+  fn?: (val: V) => K
 ): boolean {
-  const keys = new Set(arr.map(fn));
-  return keys.size === arr.length;
+  const keys = new Set<unknown>(fn ? arr.map(fn) : arr);
+  return keys.size !== arr.length;
 }
 
 /**
- * Copy properties from one object to another.
- *
- * @param src {Object} The source object.
- * @param dst {Object} The destination object.
- * @param overwrite {Boolean} Whether to overwrite existing destination
- * properties. Defaults to false.
+ * Copy properties from one object to another. The optional `overwrite` input
+ * determines whether to overwrite existing destination properties. Defaults to
+ * false.
  */
-function copyOwnProperties<O>(src: object, dst: O, overwrite?: boolean): O {
+export function copyOwnProperties<O>(
+  src: object,
+  dst: O,
+  overwrite?: boolean
+): O {
   const names = Object.getOwnPropertyNames(src);
   for (let i = 0, l = names.length; i < l; i++) {
     const name = names[i]!;
@@ -86,7 +78,7 @@ function copyOwnProperties<O>(src: object, dst: O, overwrite?: boolean): O {
 /**
  * Check whether a string is a valid Avro identifier.
  */
-function isValidName(str: string): boolean {
+export function isValidName(str: string): boolean {
   return NAME_PATTERN.test(str);
 }
 
@@ -95,7 +87,7 @@ function isValidName(str: string): boolean {
  * name. It can be prefixed with a dot to force global namespace. The namespace
  * is optional.
  */
-function qualify(name: string, namespace?: string): string {
+export function qualify(name: string, namespace?: string): string {
   if (~name.indexOf('.')) {
     name = name.replace(/^\./, ''); // Allow absolute referencing.
   } else if (namespace) {
@@ -110,7 +102,7 @@ function qualify(name: string, namespace?: string): string {
 }
 
 /** Remove namespace from a (full or short) name. */
-function unqualify(name: string): string {
+export function unqualify(name: string): string {
   const parts = name.split('.');
   return parts[parts.length - 1]!;
 }
@@ -119,7 +111,7 @@ function unqualify(name: string): string {
  * Return the namespace implied by a (full or short) name. If short, the
  * returned namespace will be undefined.
  */
-function impliedNamespace(name: string): string | undefined {
+export function impliedNamespace(name: string): string | undefined {
   const match = /^(.*)\.[^.]+$/.exec(name);
   return match ? match[1] : undefined;
 }
@@ -145,7 +137,7 @@ const ENCODER = new TextEncoder();
 const encodeBuf = new Uint8Array(4096);
 const encodeBufs: Uint8Array[] = [];
 
-function encodeSlice(str: string): Uint8Array {
+export function encodeSlice(str: string): Uint8Array {
   const {read, written} = ENCODER.encodeInto(str, encodeBuf);
   if (read === str.length) {
     // Believe it or not, `subarray` is actually quite expensive. To avoid the
@@ -159,7 +151,7 @@ function encodeSlice(str: string): Uint8Array {
   return ENCODER.encode(str);
 }
 
-let utf8Length: (str: string) => number;
+export let utf8Length: (str: string) => number;
 if (typeof Buffer === 'function') {
   utf8Length = Buffer.byteLength;
 } else {
@@ -181,7 +173,7 @@ if (typeof Buffer === 'function') {
   };
 }
 
-let bufferToBinaryString: (arr: Uint8Array) => string;
+export let bufferToBinaryString: (arr: Uint8Array) => string;
 if (
   typeof Buffer === 'function' &&
   typeof Buffer.prototype.latin1Slice === 'function'
@@ -216,7 +208,7 @@ if (
   };
 }
 
-let binaryStringToBuffer: (str: string) => Uint8Array;
+export let binaryStringToBuffer: (str: string) => Uint8Array;
 if (typeof Buffer === 'function') {
   binaryStringToBuffer = function (str) {
     const buf = Buffer.from(str, 'binary');
@@ -245,11 +237,11 @@ const FLOAT_VIEW = new DataView(new ArrayBuffer(8));
  * rarity of this case and the large performance hit necessary to enforce
  * validity. See `isValid` below for more information.
  */
-class Tap {
+export class Tap {
   // @ts-expect-error initialized below
-  private arr: Uint8Array;
+  arr: Uint8Array;
   // @ts-expect-error initialized below
-  private pos: number;
+  pos: number;
   constructor(buf: Uint8Array, pos?: number) {
     this.setData(buf, pos);
   }
@@ -828,7 +820,7 @@ function invert(buf: Uint8Array, len: number): void {
  * @param {object} obj The object to display.
  * @returns The object as JSON.
  */
-function printJSON(obj: any): string {
+export function printJSON(obj: any): string {
   const seen = new Set();
   try {
     return JSON.stringify(obj, (_key, value) => {
