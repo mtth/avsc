@@ -1,71 +1,38 @@
 {
-  "name": "avsc",
-  "version": "6.0.0-rc.1",
+  "name": "@avro/.packages",
+  "private": true,
+  "version": "0.0.0",
+  "repository": "github:mtth/avsc",
+  "author": "Matthieu Monsch <mtth@apache.org>",
   "description": "Avro for JavaScript",
   "homepage": "https://github.com/mtth/avsc",
-  "keywords": [
-    "api",
-    "avdl",
-    "avpr",
-    "avro",
-    "avsc",
-    "binary",
-    "buffer",
-    "data",
-    "decoding",
-    "encoding",
-    "idl",
-    "interface",
-    "ipc",
-    "json",
-    "marshalling",
-    "message",
-    "protocol",
-    "rpc",
-    "schema",
-    "serde",
-    "serialization",
-    "type"
-  ],
-  "files": [
-    "etc/browser",
-    "lib",
-    "types/index.d.ts"
-  ],
-  "main": "./lib",
-  "types": "./types",
-  "browser": {
-    "./lib": "./etc/browser/avsc.js",
-    "./lib/files": "./etc/browser/lib/files.js",
-    "./lib/platform": "./etc/browser/lib/platform.js"
-  },
-  "engines": {
-    "node": ">=6.0.0"
-  },
+  "license": "MIT",
+  "type": "module",
   "scripts": {
-    "check-types": "tsc --strict --noEmit types/test/*.ts",
-    "clean": "rm -rf coverage node_modules",
-    "cover": "nyc mocha -- --ui tdd",
-    "lint": "eslint etc/ lib/ test/ \"etc/scripts/**\"",
+    "clean": "pnpm -r -F !. run clean && rm -rf docs node_modules out",
+    "fix": "prettier --write 'packages/**/{src,test}/**/*.{ts,tsx}' && pnpm run lint --fix",
+    "lint": "eslint 'packages/**/{src,test}/**/*.{ts,tsx}'",
     "perf": "node --expose-gc ./etc/scripts/perf etc/schemas/*",
-    "test": "mocha --ui tdd --reporter dot"
+    "test": "pnpm -r run test run --coverage"
   },
   "devDependencies": {
-    "@types/node": "^22.5.5",
-    "benchmark": "~2.1.4",
-    "eslint": "^8.30.0",
-    "mocha": "^10.2.0",
-    "nyc": "~15.0.0",
-    "tmp": "^0.1.0",
-    "typescript": "^5.6.2"
+    "@mtth/eslint-plugin": "0.6.0",
+    "@mtth/prettier-typescript": "0.6.0",
+    "@mtth/tsconfig": "0.6.0",
+    "@types/node": "^18.19.64",
+    "@vitest/coverage-v8": "^3.0.5",
+    "eslint": "^9.15.0",
+    "lint-staged": "^15.2.10",
+    "prettier": "^3.3.3",
+    "ts-essentials": "^10.0.3",
+    "typescript": "^5.6.3",
+    "vitest": "^3.0.5"
   },
-  "author": {
-    "name": "Matthieu Monsch",
-    "email": "mtth@apache.org"
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "prettier --write",
+      "eslint --fix"
+    ]
   },
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "git://github.com/mtth/avsc.git"
-  }
+  "prettier": "@mtth/prettier-typescript"
 }

@@ -1,0 +1,7 @@
+{
+  "extends": "@mtth/tsconfig",
+  "compilerOptions": {
+    "outDir": "../lib",
+    "tsBuildInfoFile": "../out/.tsbuildinfo"
+  }
+}
