@@ -625,7 +625,9 @@ suite('specs', () => {
     // Import hook from strings.
     function createImportHook(imports) {
       return function ({path: fpath, importerPath}, cb) {
-        const key = path.normalize(path.join(path.dirname(importerPath), fpath));
+        const key = path.normalize(
+          path.join(path.dirname(importerPath), fpath)
+        );
         const str = imports[key];
         delete imports[key];
         process.nextTick(() => {

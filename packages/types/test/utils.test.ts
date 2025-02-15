@@ -152,13 +152,13 @@ suite('utils', () => {
     suite('int & long', () => {
       testWriterReader({
         elems: [0, -1, 109213, -1211, -1312411211, 900719925474090],
-        reader () {
+        reader() {
           return this.readLong();
         },
-        skipper () {
+        skipper() {
           this.skipLong();
         },
-        writer (n) {
+        writer(n) {
           this.writeLong(n);
         },
       });
@@ -166,13 +166,27 @@ suite('utils', () => {
       test('write', () => {
         const tap = Tap.withCapacity(6);
         tap.writeLong(1440756011948);
-        const buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        const buf = Buffer.from([
+          '0xd8',
+          '0xce',
+          '0x80',
+          '0xbc',
+          '0xee',
+          '0x53',
+        ]);
         assert(tap.isValid());
         assert(buf.equals(tap.toBuffer()));
       });
 
       test('read', () => {
-        const buf = Buffer.from(['0xd8', '0xce', '0x80', '0xbc', '0xee', '0x53']);
+        const buf = Buffer.from([
+          '0xd8',
+          '0xce',
+          '0x80',
+          '0xbc',
+          '0xee',
+          '0x53',
+        ]);
         assert.equal(Tap.fromBuffer(buf).readLong(), 1440756011948);
       });
     });
@@ -180,13 +194,13 @@ suite('utils', () => {
     suite('boolean', () => {
       testWriterReader({
         elems: [true, false],
-        reader () {
+        reader() {
           return this.readBoolean();
         },
-        skipper () {
+        skipper() {
           this.skipBoolean();
         },
-        writer (b) {
+        writer(b) {
           this.writeBoolean(b);
         },
       });
@@ -195,13 +209,13 @@ suite('utils', () => {
     suite('float', () => {
       testWriterReader({
         elems: [1, 3, 1, -5, 1e9],
-        reader () {
+        reader() {
           return this.readFloat();
         },
-        skipper () {
+        skipper() {
           this.skipFloat();
         },
-        writer (b) {
+        writer(b) {
           this.writeFloat(b);
         },
       });
@@ -210,13 +224,13 @@ suite('utils', () => {
     suite('double', () => {
       testWriterReader({
         elems: [1, 3, 1, -5, 1e12],
-        reader () {
+        reader() {
           return this.readDouble();
         },
-        skipper () {
+        skipper() {
           this.skipDouble();
         },
-        writer (b) {
+        writer(b) {
           this.writeDouble(b);
         },
       });
@@ -231,13 +245,13 @@ suite('utils', () => {
           'sérialisation',
           'this string should be long enough that a different code path is exercised',
         ],
-        reader () {
+        reader() {
           return this.readString();
         },
-        skipper () {
+        skipper() {
           this.skipString();
         },
-        writer (s) {
+        writer(s) {
           this.writeString(s);
         },
       });
@@ -246,13 +260,13 @@ suite('utils', () => {
     suite('bytes', () => {
       testWriterReader({
         elems: [Buffer.from('abc'), Buffer.alloc(0), Buffer.from([1, 5, 255])],
-        reader () {
+        reader() {
           return this.readBytes();
         },
-        skipper () {
+        skipper() {
           this.skipBytes();
         },
-        writer (b) {
+        writer(b) {
           this.writeBytes(b);
         },
       });
@@ -261,13 +275,13 @@ suite('utils', () => {
     suite('fixed', () => {
       testWriterReader({
         elems: [Buffer.from([1, 5, 255])],
-        reader () {
+        reader() {
           return this.readFixed(3);
         },
-        skipper () {
+        skipper() {
           this.skipFixed(3);
         },
-        writer (b) {
+        writer(b) {
           this.writeFixed(b, 3);
         },
       });

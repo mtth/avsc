@@ -1,2 +1,4 @@
-node_modules
-dist
+dist/
+lib/
+node_modules/
+out/

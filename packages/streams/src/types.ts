@@ -406,50 +406,48 @@ class Type {
       if (bucketTypes.length === 1) {
         return bucketTypes[0];
       }
-        switch (bucket) {
-          case 'null':
-          case 'boolean':
-            return bucketTypes[0];
-          case 'number':
-            return combineNumbers(bucketTypes);
-          case 'string':
-            return combineStrings(bucketTypes, opts);
-          case 'buffer':
-            return combineBuffers(bucketTypes, opts);
-          case 'array':
-            // Remove any sentinel arrays (used when inferring from empty
-            // arrays) to avoid making things nullable when they shouldn't be.
-            bucketTypes = bucketTypes.filter((t) => {
-              return t !== opts.emptyArrayType;
-            });
-            if (!bucketTypes.length) {
-              // We still don't have a real type, just return the sentinel.
-              return opts.emptyArrayType;
-            }
-            return Type.forSchema(
-              {
-                type: 'array',
-                items: Type.forTypes(
-                  bucketTypes.map((t) => {
-                    return t.itemsType;
-                  }),
-                  opts
-                ),
-              },
-              opts
-            );
-          default:
-            return combineObjects(bucketTypes, opts);
-        }
-
+      switch (bucket) {
+        case 'null':
+        case 'boolean':
+          return bucketTypes[0];
+        case 'number':
+          return combineNumbers(bucketTypes);
+        case 'string':
+          return combineStrings(bucketTypes, opts);
+        case 'buffer':
+          return combineBuffers(bucketTypes, opts);
+        case 'array':
+          // Remove any sentinel arrays (used when inferring from empty
+          // arrays) to avoid making things nullable when they shouldn't be.
+          bucketTypes = bucketTypes.filter((t) => {
+            return t !== opts.emptyArrayType;
+          });
+          if (!bucketTypes.length) {
+            // We still don't have a real type, just return the sentinel.
+            return opts.emptyArrayType;
+          }
+          return Type.forSchema(
+            {
+              type: 'array',
+              items: Type.forTypes(
+                bucketTypes.map((t) => {
+                  return t.itemsType;
+                }),
+                opts
+              ),
+            },
+            opts
+          );
+        default:
+          return combineObjects(bucketTypes, opts);
+      }
     });
 
     if (augmented.length === 1) {
       return augmented[0];
     }
-      // We return an (unwrapped) union of all augmented types.
-      return Type.forSchema(augmented, opts);
-
+    // We return an (unwrapped) union of all augmented types.
+    return Type.forSchema(augmented, opts);
   }
 
   static isType(/* any, [prefix] ... */) {
@@ -509,10 +507,9 @@ class Type {
       };
       return this._copy(val, opts);
     }
-      // If no modifications are required, we can get by with a serialization
-      // roundtrip (generally much faster than a standard deep copy).
-      return this.fromBuffer(this.toBuffer(val));
-
+    // If no modifications are required, we can get by with a serialization
+    // roundtrip (generally much faster than a standard deep copy).
+    return this.fromBuffer(this.toBuffer(val));
   }
 
   compareBuffers(buf1, buf2) {
@@ -659,13 +656,12 @@ class Type {
       // The class name is sufficient to identify the type.
       return `<${className}>`;
     }
-      // We add a little metadata for convenience.
-      const obj = this.schema({exportAttrs: true, noDeref: true});
-      if (typeof obj == 'object' && !Type.isType(this, 'logical')) {
-        obj.type = undefined; // Would be redundant with constructor name.
-      }
-      return `<${className} ${j(obj)}>`;
-
+    // We add a little metadata for convenience.
+    const obj = this.schema({exportAttrs: true, noDeref: true});
+    if (typeof obj == 'object' && !Type.isType(this, 'logical')) {
+      obj.type = undefined; // Would be redundant with constructor name.
+    }
+    return `<${className} ${j(obj)}>`;
   }
 
   isValid(val, opts) {
@@ -1333,8 +1329,7 @@ class UnionType extends Type {
     if (n1 === n2) {
       return this.types[n1]._match(tap1, tap2);
     }
-      return n1 < n2 ? -1 : 1;
-
+    return n1 < n2 ? -1 : 1;
   }
 
   _deref(schema, derefed, opts) {
@@ -1458,8 +1453,7 @@ class UnwrappedUnionType extends UnionType {
     if (branchType) {
       return branchType._read(tap);
     }
-      throw new Error(`invalid union index: ${index}`);
-
+    throw new Error(`invalid union index: ${index}`);
   }
 
   _write(tap, val) {
@@ -1534,17 +1528,16 @@ class UnwrappedUnionType extends UnionType {
     if (val === null || wrap === 3) {
       return type._copy(val, opts);
     }
-      switch (coerce) {
-        case 3: {
-          // Encoding to JSON, we wrap the value.
-          const obj = {};
-          obj[type.branchName] = type._copy(val, opts);
-          return obj;
-        }
-        default:
-          return type._copy(val, opts);
+    switch (coerce) {
+      case 3: {
+        // Encoding to JSON, we wrap the value.
+        const obj = {};
+        obj[type.branchName] = type._copy(val, opts);
+        return obj;
       }
-
+      default:
+        return type._copy(val, opts);
+    }
   }
 
   compare(val1, val2) {
@@ -1615,8 +1608,7 @@ class WrappedUnionType extends UnionType {
             path.pop();
             return b;
           }
-            return this.types[index]._check(val[name], flags);
-
+          return this.types[index]._check(val[name], flags);
         }
       }
     }
@@ -1635,8 +1627,7 @@ class WrappedUnionType extends UnionType {
     if (Branch === null) {
       return null;
     }
-      return new Branch(type._read(tap));
-
+    return new Branch(type._read(tap));
   }
 
   _write(tap, val) {
@@ -1751,8 +1742,7 @@ class WrappedUnionType extends UnionType {
         ? 0
         : this.types[index].compare(val1[name1], val2[name1]);
     }
-      return utils.compare(index, this._branchIndices[name2]);
-
+    return utils.compare(index, this._branchIndices[name2]);
   }
 
   random() {
@@ -2367,7 +2357,10 @@ class RecordType extends Type {
     let outerBody = 'return function ' + this._getConstructorName() + '(';
     outerBody += innerArgs.join() + ') {\n' + innerBody + '};';
 
-    const Record = new Function(outerArgs.join(), outerBody).apply(undefined, ds);
+    const Record = new Function(outerArgs.join(), outerBody).apply(
+      undefined,
+      ds
+    );
     if (plainRecords) {
       return Record;
     }
@@ -2621,7 +2614,6 @@ class RecordType extends Type {
       body += '  }\n';
     }
     body += '  return new ' + uname + '(' + innerArgs.join() + ');\n};';
-
 
     resolver._read = new Function(args.join(), body).apply(undefined, values);
   }
@@ -3140,8 +3132,7 @@ function readValue(type, tap, resolver, lazy) {
     }
     return resolver._read(tap, lazy);
   }
-    return type._read(tap);
-
+  return type._read(tap);
 }
 
 /**

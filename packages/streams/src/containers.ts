@@ -22,7 +22,10 @@ const OPTS = {namespace: 'org.apache.avro.file', registry: {}};
 
 const LONG_TYPE = types.Type.forSchema('long', OPTS);
 
-const MAP_BYTES_TYPE = types.Type.forSchema({type: 'map', values: 'bytes'}, OPTS);
+const MAP_BYTES_TYPE = types.Type.forSchema(
+  {type: 'map', values: 'bytes'},
+  OPTS
+);
 
 const HEADER_TYPE = types.Type.forSchema(
   {
@@ -159,7 +162,7 @@ class BlockDecoder extends stream.Duplex {
 
   static defaultCodecs() {
     return {
-      null (buf, cb) {
+      null(buf, cb) {
         cb(null, buf);
       },
     };
@@ -475,7 +478,7 @@ class BlockEncoder extends stream.Duplex {
 
   static defaultCodecs() {
     return {
-      null (buf, cb) {
+      null(buf, cb) {
         cb(null, buf);
       },
     };
@@ -644,10 +647,9 @@ function createReader(noDecode, writerType, readerType) {
       return resolver._read(tap);
     };
   }
-    return function (tap) {
-      return writerType._read(tap);
-    };
-
+  return function (tap) {
+    return writerType._read(tap);
+  };
 }
 
 module.exports = {

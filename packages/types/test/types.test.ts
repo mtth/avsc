@@ -239,7 +239,7 @@ suite('types', () => {
       {
         valid: [1, -3, 123e7],
         invalid: [null, 'hi', undefined],
-        check (a, b) {
+        check(a, b) {
           assert(floatEquals(a, b));
         },
       },
@@ -289,7 +289,7 @@ suite('types', () => {
       {
         valid: [1, -3.4, 12314e31, 5e37],
         invalid: [null, 'hi', undefined],
-        check (a, b) {
+        check(a, b) {
           assert(floatEquals(a, b), '' + [a, b]);
         },
       },
@@ -1084,7 +1084,11 @@ suite('types', () => {
     });
 
     test('compare', () => {
-      const t = Type.forSchema({type: 'enum', name: 'Foo', symbols: ['b', 'a']});
+      const t = Type.forSchema({
+        type: 'enum',
+        name: 'Foo',
+        symbols: ['b', 'a'],
+      });
       assert.equal(t.compare('b', 'a'), -1);
       assert.equal(t.compare('a', 'a'), 0);
     });
@@ -1097,7 +1101,7 @@ suite('types', () => {
         schema: {name: 'Foo', size: 2},
         valid: [Buffer.from([1, 2]), Buffer.from([2, 3])],
         invalid: ['HEY', null, undefined, 0, Buffer.alloc(1), Buffer.alloc(3)],
-        check (a, b) {
+        check(a, b) {
           assert(Buffer.compare(a, b) === 0);
         },
       },
@@ -2264,7 +2268,7 @@ suite('types', () => {
       });
       const o = {name: 'Ann', age: 25};
       const c = t.clone(o, {
-        fieldHook (f, o, r) {
+        fieldHook(f, o, r) {
           assert.strictEqual(r, t);
           return f.type instanceof builtins.StringType ? o.toUpperCase() : o;
         },
@@ -2634,7 +2638,7 @@ suite('types', () => {
 
     suite('unpacked', () => {
       const slowLongType = builtins.LongType.__with({
-        fromBuffer (buf) {
+        fromBuffer(buf) {
           const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
           const neg = buf[7] >> 7;
           if (neg) {
@@ -2648,7 +2652,7 @@ suite('types', () => {
           }
           return n;
         },
-        toBuffer (n) {
+        toBuffer(n) {
           const buf = new Uint8Array(8);
           const dv = new DataView(buf.buffer, buf.byteOffset, buf.byteLength);
           const neg = n < 0;
@@ -2664,16 +2668,16 @@ suite('types', () => {
           }
           return buf;
         },
-        isValid (n) {
+        isValid(n) {
           return typeof n == 'number' && n % 1 === 0;
         },
-        fromJSON (n) {
+        fromJSON(n) {
           return n;
         },
-        toJSON (n) {
+        toJSON(n) {
           return n;
         },
-        compare (n1, n2) {
+        compare(n1, n2) {
           return n1 === n2 ? 0 : n1 < n2 ? -1 : 1;
         },
       });
@@ -2755,26 +2759,26 @@ suite('types', () => {
     suite('packed', () => {
       const slowLongType = builtins.LongType.__with(
         {
-          fromBuffer (buf) {
+          fromBuffer(buf) {
             const tap = Tap.fromBuffer(buf);
             return tap.readLong();
           },
-          toBuffer (n) {
+          toBuffer(n) {
             const buf = Buffer.alloc(10);
             const tap = Tap.fromBuffer(buf);
             tap.writeLong(n);
             return buf.subarray(0, tap.pos);
           },
-          fromJSON (n) {
+          fromJSON(n) {
             return n;
           },
-          toJSON (n) {
+          toJSON(n) {
             return n;
           },
-          isValid (n) {
+          isValid(n) {
             return typeof n == 'number' && n % 1 === 0;
           },
-          compare (n1, n2) {
+          compare(n1, n2) {
             return n1 === n2 ? 0 : n1 < n2 ? -1 : 1;
           },
         },
@@ -2830,22 +2834,22 @@ suite('types', () => {
     test('within unwrapped union', () => {
       const longType = builtins.LongType.__with(
         {
-          fromBuffer (buf) {
+          fromBuffer(buf) {
             return {value: buf};
           },
-          toBuffer (obj) {
+          toBuffer(obj) {
             return obj.value;
           },
-          fromJSON () {
+          fromJSON() {
             throw new Error();
           },
-          toJSON () {
+          toJSON() {
             throw new Error();
           },
-          isValid (obj) {
+          isValid(obj) {
             return obj && Buffer.isBuffer(obj.value);
           },
-          compare () {
+          compare() {
             throw new Error();
           },
         },
@@ -2862,7 +2866,7 @@ suite('types', () => {
     test('incomplete buffer', () => {
       // Check that `fromBuffer` doesn't get called.
       const slowLongType = builtins.LongType.__with({
-        fromBuffer () {
+        fromBuffer() {
           throw new Error('no');
         },
         toBuffer: null,
@@ -2899,9 +2903,8 @@ suite('types', () => {
         if (this.getUnderlyingType().typeName === 'long') {
           return +date;
         }
-          // String.
-          return '' + date;
-
+        // String.
+        return '' + date;
       }
 
       _resolve(type) {
@@ -3016,7 +3019,7 @@ suite('types', () => {
       });
       let hasError = false;
       derived.isValid(invalid, {
-        errorHook (path, any, type) {
+        errorHook(path, any, type) {
           hasError = true;
           assert.deepEqual(path, ['age']);
           assert.equal(any, -1);
@@ -3182,7 +3185,10 @@ suite('types', () => {
       }
 
       const opts = {logicalTypes: {'even-integer': EvenIntType}};
-      const t = Type.forSchema({type: 'long', logicalType: 'even-integer'}, opts);
+      const t = Type.forSchema(
+        {type: 'long', logicalType: 'even-integer'},
+        opts
+      );
       assert(t.isValid(2));
       assert(!t.isValid(3));
       assert(!t.isValid('abc'));
@@ -4462,7 +4468,7 @@ suite('types', () => {
       assert.equal(t.getField('foo').getType().typeName, 'long');
       assert.equal(t.getField('bar').getType().typeName, 'string');
       assert.throws(() => {
-        infer({foo () {}}, {valueHook: hook});
+        infer({foo() {}}, {valueHook: hook});
       });
 
       function hook(val, opts) {

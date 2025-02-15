@@ -388,7 +388,7 @@ suite('containers', () => {
       test('compression error', (cb) => {
         const t = Type.forSchema('int');
         const codecs = {
-          invalid (data, cb) {
+          invalid(data, cb) {
             cb(new Error('ouch'));
           },
         };
@@ -408,7 +408,9 @@ suite('containers', () => {
         const encoder = new BlockEncoder(obj);
         const decoder = new streams.BlockDecoder()
           .on('metadata', (type, codec, header) => {
-            const schema = JSON.parse(DECODER.decode(header.meta['avro.schema']));
+            const schema = JSON.parse(
+              DECODER.decode(header.meta['avro.schema'])
+            );
             assert.deepEqual(schema, obj); // Check that doc field not stripped.
           })
           .on('data', (id) => {
@@ -677,7 +679,7 @@ suite('containers', () => {
     test('decompression error', (cb) => {
       const t = Type.forSchema('int');
       const codecs = {
-        null (data, cb) {
+        null(data, cb) {
           cb(new Error('ouch'));
         },
       };
