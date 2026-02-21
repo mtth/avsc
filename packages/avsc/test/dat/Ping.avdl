@@ -1,0 +1,5 @@
+import schema "Id.avsc";
+protocol Ping {
+  import schema "Id.avsc";
+  id.Id ping();
+}
