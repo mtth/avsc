@@ -1,0 +1,56 @@
+{
+  "name": "avsc",
+  "version": "6.0.0-rc.1",
+  "description": "Avro for JavaScript",
+  "homepage": "https://github.com/mtth/avsc",
+  "author": {
+    "name": "Matthieu Monsch",
+    "email": "mtth@apache.org"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/mtth/avsc.git"
+  },
+  "keywords": [
+    "api",
+    "avdl",
+    "avpr",
+    "avro",
+    "avsc",
+    "binary",
+    "buffer",
+    "data",
+    "decoding",
+    "encoding",
+    "idl",
+    "interface",
+    "ipc",
+    "json",
+    "marshalling",
+    "message",
+    "protocol",
+    "rpc",
+    "schema",
+    "serde",
+    "serialization",
+    "type"
+  ],
+  "files": [
+    "lib",
+    "types/index.d.ts"
+  ],
+  "main": "./lib",
+  "types": "./types",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "check-types": "tsc --strict --noEmit types/test/*.ts",
+    "clean": "rm -rf coverage node_modules",
+    "test": "vitest --config ./vitest.config.ts --run"
+  },
+  "devDependencies": {
+    "tmp": "^0.1.0"
+  }
+}

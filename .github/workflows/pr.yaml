@@ -1,0 +1,11 @@
+name: PR
+on:
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+jobs:
+  test:
+    name: Test
+    uses: mtth/sdk.ts/.github/workflows/test.yaml

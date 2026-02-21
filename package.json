@@ -9,30 +9,21 @@
   "license": "MIT",
   "type": "module",
   "scripts": {
-    "clean": "pnpm -r -F !. run clean && rm -rf docs node_modules out",
+    "clean": "pnpm -r -F !. run clean && rm -rf node_modules",
     "fix": "prettier --write 'packages/**/{src,test}/**/*.{ts,tsx}' && pnpm run lint --fix",
     "lint": "eslint 'packages/**/{src,test}/**/*.{ts,tsx}'",
-    "perf": "node --expose-gc ./etc/scripts/perf etc/schemas/*",
     "test": "pnpm -r run test run --coverage"
   },
   "devDependencies": {
-    "@mtth/eslint-plugin": "0.6.0",
-    "@mtth/prettier-typescript": "0.6.0",
-    "@mtth/tsconfig": "0.6.0",
+    "@mtth/eslint-plugin": "0.9.7",
+    "@mtth/prettier-typescript": "0.9.7",
+    "@mtth/tsconfig": "0.9.7",
     "@types/node": "^18.19.64",
     "@vitest/coverage-v8": "^3.0.5",
-    "eslint": "^9.15.0",
-    "lint-staged": "^15.2.10",
+    "eslint": "^10.0.1",
     "prettier": "^3.3.3",
-    "ts-essentials": "^10.0.3",
     "typescript": "^5.6.3",
     "vitest": "^3.0.5"
-  },
-  "lint-staged": {
-    "*.{ts,tsx}": [
-      "prettier --write",
-      "eslint --fix"
-    ]
   },
   "prettier": "@mtth/prettier-typescript"
 }
