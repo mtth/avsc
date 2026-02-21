@@ -12,4 +12,5 @@ specification](https://avro.apache.org/docs/current/spec.html).
 * [ ] Add `avsc` shim
 * [ ] Add benchmark
 * [ ] Update README
+* [ ] Update metadata in all package.json
 * [ ] Add migration guide
