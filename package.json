@@ -11,7 +11,7 @@
   "scripts": {
     "clean": "pnpm -r -F !. run clean && rm -rf node_modules",
     "fix": "prettier --write 'packages/**/{src,test}/**/*.{ts,tsx}' && pnpm run lint --fix",
-    "lint": "eslint 'packages/**/{src,test}/**/*.{ts,tsx}'",
+    "lint": "eslint --no-error-on-unmatched-pattern 'packages/**/{src,test}/**/*.{ts,tsx}'",
     "test": "pnpm -r run test run --coverage"
   },
   "devDependencies": {
