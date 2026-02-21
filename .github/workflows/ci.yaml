@@ -6,4 +6,4 @@ on:
 jobs:
   test:
     name: Test
-    uses: mtth/sdk.ts/.github/workflows/test.yaml
+    uses: mtth/sdk.ts/.github/workflows/test.yaml@main
