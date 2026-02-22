@@ -3,12 +3,9 @@ import {assert, printJSON as j} from '../utils.js';
 import {isBufferLike} from '../binary.js';
 import {RealType, anonymousName, isType} from './common.js';
 import {RealUnwrappedUnionType, RealWrappedUnionType} from './unions.js';
+import {RealArrayType, RealMapType} from './collections.js';
 
 export {isType} from './common.js';
-
-function todo(..._args: any): Error {
-  return new Error('todo');
-}
 
 export function parseType<V = Type>(
   schema: Schema,

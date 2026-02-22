@@ -30,29 +30,52 @@ export interface NamedSchema extends BaseSchema {
   readonly namespace?: string;
 }
 
-/** Additional schema properties. */
-export interface SchemaExtensions {
-  readonly [key: string]: any;
-}
-
-interface FieldSchema<E = SchemaExtensions, T = Type> {
+interface FieldSchema<T = never> {
   readonly name: string;
-  readonly type: Schema<E, T>;
+  readonly type: Schema<T>;
   readonly aliases?: ReadonlyArray<string>;
   readonly doc?: string;
   readonly order?: 'ascending' | 'descending' | 'ignore';
   readonly default?: any;
 }
 
-export type Schema<E = SchemaExtensions, T = Type> =
-  | ({type: PrimitiveTypeName} & BaseSchema & E)
-  | ({type: 'array'; items: Schema<E, T>} & BaseSchema & E)
-  | ({type: 'enum'; symbols: ReadonlyArray<string>} & NamedSchema & E)
-  | ({type: 'fixed'; size: number} & NamedSchema & E)
-  | ({type: 'map'; values: Schema<E, T>} & BaseSchema & E)
-  | ({type: 'record'; fields: ReadonlyArray<FieldSchema<E, T>>} & NamedSchema &
-      E)
-  | ReadonlyArray<Schema<E, T>> // Union
+export interface ArraySchema<T = never> extends BaseSchema {
+  readonly type: 'array';
+  readonly items: Schema<T>;
+}
+
+export interface MapSchema<T = never> extends BaseSchema {
+  readonly type: 'map';
+  readonly values: Schema<T>;
+}
+
+export interface EnumSchema extends NamedSchema {
+  readonly type: 'enum';
+  readonly symbols: ReadonlyArray<string>;
+}
+
+export interface FixedSchema extends NamedSchema {
+  readonly type: 'fixed';
+  readonly size: number;
+}
+
+export interface PrimitiveSchema extends BaseSchema {
+  readonly type: PrimitiveTypeName;
+}
+
+export interface RecordSchema<T = never> extends NamedSchema {
+  readonly type: 'record' | 'error';
+  readonly fields: ReadonlyArray<FieldSchema<T>>;
+}
+
+export type Schema<T = never> =
+  | PrimitiveSchema
+  | ArraySchema<T>
+  | MapSchema<T>
+  | EnumSchema
+  | FixedSchema
+  | RecordSchema<T>
+  | ReadonlyArray<Schema<T>> // Union
   | string // References
   | T; // Arbitrary other value, used to support already "instantiated" schemas
 
@@ -62,7 +85,7 @@ export type Type<V = any> =
   | IntType
   | FloatType
   | DoubleType
-  | LongType<V>
+  | LongType
   | StringType
   | BytesType
   | FixedType
@@ -73,7 +96,7 @@ export type Type<V = any> =
   | UnionType<V>
   | LogicalType<V>;
 
-export interface BaseType<V = any, G = {}> {
+export interface BaseType<V = any> {
   /**
    * Type-specific name, present for all types. It matches the `type` field
    * except in the following cases:
@@ -101,25 +124,25 @@ export interface BaseType<V = any, G = {}> {
     buf: Uint8Array,
     resolver?: TypeResolver<V>,
     noCheck?: boolean
-  ): V & G;
+  ): V;
 
   binaryDecodeAt(
     buf: Uint8Array,
     pos: number,
     resolver?: TypeResolver<V>
-  ): {readonly value: V & G; readonly offset: number};
+  ): {readonly value: V; readonly offset: number};
 
   binaryEncode(val: V): Uint8Array;
 
   binaryEncodeAt(val: V, buf: Uint8Array, pos: number): number;
 
   jsonDecode(
-    data: any,
+    data: unknown,
     resolver?: TypeResolver<V>,
     allowUndeclaredFields?: boolean
-  ): V & G;
+  ): V;
 
-  jsonEncode(val: V, opts?: TypeJsonEncodeOptions): any;
+  jsonEncode(val: V, opts?: TypeJsonEncodeOptions): unknown;
 
   createResolver<W>(writer: Type<W>): TypeResolver<V, W>;
 
@@ -129,7 +152,7 @@ export interface BaseType<V = any, G = {}> {
 
   clone(val: V, opts?: TypeCloneOptions): V;
 
-  wrap(val: V): any;
+  wrap(val: V): Branch<V>;
 
   compare(val1: V, val2: V): -1 | 0 | 1;
 
@@ -161,39 +184,33 @@ export interface TypeIsValidOptions {
   readonly errorHook?: ErrorHook;
 }
 
-export interface TypeCloneOptions {}
+export interface TypeCloneOptions {
+  readonly fieldHook?: () => void;
+  readonly qualifyNames?: boolean;
+}
 
 export interface TypeSchemaOptions {
   readonly exportAttrs?: boolean;
   readonly noDeref?: boolean;
 }
 
-export type PrimType<V, N extends string> = BaseType<V> & {
+export type PrimitiveType<V, N extends string> = BaseType<V> & {
   readonly name: undefined;
   readonly aliases: undefined;
   readonly branchName: N;
   readonly typeName: N;
 
-  wrap(val: V): Record<N, V>;
+  wrap(val: V): Branch<V, N>;
 };
 
-export type NullType = PrimType<null, 'null'>;
-export type BooleanType = PrimType<boolean, 'boolean'>;
-export type IntType = PrimType<number, 'int'>;
-export type FloatType = PrimType<number, 'float'>;
-export type DoubleType = PrimType<number, 'double'>;
-export type StringType = PrimType<string, 'string'>;
-export type BytesType = PrimType<Buffer, 'bytes'>;
-
-export interface LongType<
-  V = number,
-  N extends 'long' | 'abstract:long' = 'long',
-> extends BaseType<V> {
-  readonly name: undefined;
-  readonly aliases: undefined;
-  readonly branchName: 'long';
-  readonly typeName: N;
-}
+export type NullType = PrimitiveType<null, 'null'>;
+export type BooleanType = PrimitiveType<boolean, 'boolean'>;
+export type IntType = PrimitiveType<number, 'int'>;
+export type FloatType = PrimitiveType<number, 'float'>;
+export type DoubleType = PrimitiveType<number, 'double'>;
+export type StringType = PrimitiveType<string, 'string'>;
+export type BytesType = PrimitiveType<Uint8Array, 'bytes'>;
+export type LongType = PrimitiveType<BigInt, 'long'>;
 
 export interface FixedType extends BaseType<number> {
   readonly name: string;
@@ -235,23 +252,11 @@ export interface Field {
   readonly defaultValue: any;
 }
 
-export interface RecordConstructor<V = {[key: string]: any}> {
-  new (...args: any[]): GeneratedRecord<V>;
-  fromBinary(buf: Uint8Array): GeneratedRecord<V>;
-  fromJSON(obj: any): GeneratedRecord<V>;
+export interface RecordConstructor<V> {
+  new (...args: any[]): V;
 }
 
-export type GeneratedRecord<V = {[key: string]: any}> = {
-  clone(): V;
-  compare(other: V): -1 | 0 | 1;
-  checkValid(opts?: TypeCheckValidOptions): void;
-  isValid(opts?: TypeIsValidOptions): boolean;
-  binaryEncode(): Uint8Array;
-  jsonEncode(opts?: TypeJsonEncodeOptions): any;
-  wrap(): any;
-} & V;
-
-export interface RecordType<V = any> extends BaseType<V, GeneratedRecord<V>> {
+export interface RecordType<V = any> extends BaseType<V> {
   readonly name: string;
   readonly aliases: string[];
   readonly branchName: string;
@@ -262,10 +267,12 @@ export interface RecordType<V = any> extends BaseType<V, GeneratedRecord<V>> {
   field(name: string): Field | undefined;
 }
 
-export interface Branch<V = any, T = BaseType<V>> {
-  readonly type: T;
+export type Branch<V = any, N extends string = string> = {
+  readonly [K in N]: V;
+} & {
+  wrappedType(): Type<V>;
   unwrap(): V;
-}
+};
 
 export interface UnionType<V = any> extends BaseType<V> {
   readonly typeName: 'union:unwrapped' | 'union:wrapped';
@@ -280,7 +287,7 @@ export interface UnionType<V = any> extends BaseType<V> {
 
 export interface LogicalType<V = any, U = any, T = Type<U>>
   extends BaseType<V> {
-  readonly branchName: string;
   readonly typeName: `logical:${string}`;
+  readonly branchName: string;
   readonly underlyingType: T;
 }

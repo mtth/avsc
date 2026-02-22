@@ -1,9 +1,15 @@
 import {
   BaseType,
   BaseSchema,
+  Branch,
   ErrorHook,
+  LogicalType,
   NamedSchema,
+  Schema,
   Type,
+  TypeCloneOptions,
+  TypeIsValidOptions,
+  TypeSchemaOptions,
   PrimitiveTypeName,
   primitiveTypeNames,
 } from '../interfaces.js';
@@ -19,12 +25,36 @@ import {
 // Encoding tap (shared for performance).
 const TAP = Tap.withCapacity(1024);
 
+export function resizeDefaultBuffer(size: number): void {
+  TAP.reinitialize(size);
+}
+
 // Currently active logical type, used for name redirection.
 let activeLogicalType: Type | null = null;
 
 // Underlying types of logical types currently being instantiated. This is used
 // to be able to reference names (i.e. for branches) during instantiation.
 const activeUnderlyingTypes: [Type, RealType][] = [];
+
+export type TypeRegistry = Map<string, Type>;
+
+export function isType<N extends string>(
+  arg: unknown,
+  ...prefixes: N[]
+): arg is Type & {readonly typeName: `${N}${string}`} {
+  if (!arg || !(arg instanceof RealType)) {
+    // Not fool-proof, but most likely good enough.
+    return false;
+  }
+  return prefixes.some((p) => arg.typeName.startsWith(p));
+}
+
+export interface TypeContext {
+  readonly factory: (s: Schema, ctx: TypeContext) => Type;
+  readonly registry: TypeRegistry;
+  readonly namespace?: string;
+  readonly depth: number; // TODO: Use.
+}
 
 /**
  * "Abstract" base Avro type.
@@ -43,7 +73,8 @@ export abstract class RealType<V = any> implements BaseType<V> {
   readonly name: string | undefined;
   readonly aliases: string[] | undefined;
   readonly doc: string | undefined;
-  protected constructor(schema: BaseSchema | NamedSchema, opts?: TypeOptions) {
+  protected branchConstructor: BranchConstructor | undefined;
+  protected constructor(schema: BaseSchema | NamedSchema, ctx: TypeContext) {
     let type;
     if (activeLogicalType) {
       type = activeLogicalType;
@@ -61,7 +92,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
       let name = schema.name;
       const namespace =
         schema.namespace === undefined
-          ? opts && opts.namespace
+          ? ctx.namespace
           : schema.namespace;
       if (name !== undefined) {
         // This isn't an anonymous type.
@@ -70,37 +101,33 @@ export abstract class RealType<V = any> implements BaseType<V> {
           // Avro doesn't allow redefining primitive names.
           throw new Error(`cannot rename primitive type: ${j(name)}`);
         }
-        const registry = opts && opts.registry;
+        const registry = ctx.registry;
         if (registry) {
-          if (registry[name] !== undefined) {
+          if (registry.has(name)) {
             throw new Error(`duplicate type name: ${name}`);
           }
-          registry[name] = type;
+          registry.set(name, type as any);
         }
-      } else if (opts && opts.noAnonymousTypes) {
-        throw new Error(`missing name property in schema: ${j(schema)}`);
       }
       this.name = name;
       this.aliases = schema.aliases
-        ? schema.aliases.map((s: string) => {
-            return maybeQualify(s, namespace);
-          })
+        ? schema.aliases.map((s: string) => maybeQualify(s, namespace))
         : [];
     }
   }
 
-  get branchName(): string {
-    const type = isType(this, 'logical') ? this.underlyingType : this;
-    if (type.name) {
-      return type.name;
+  get branchName(): string | undefined  {
+    let t: Type = this as any;
+    if (isType(t, 'logical')) {
+      t = t.underlyingType;
     }
-    if (isType(type, 'abstract')) {
-      return type._concreteTypeName;
+    if (t.name) {
+      return t.name;
     }
-    return isType(type, 'union') ? undefined : type.typeName;
+    return isType(t, 'union') ? undefined : t.typeName;
   }
 
-  clone(val: V, opts?: CloneOptions): any {
+  clone(val: V, opts?: TypeCloneOptions): any {
     if (opts) {
       opts = {
         coerce: !!opts.coerceBuffers | 0, // Coerce JSON to Buffer.
@@ -113,10 +140,10 @@ export abstract class RealType<V = any> implements BaseType<V> {
     }
     // If no modifications are required, we can get by with a serialization
     // roundtrip (generally much faster than a standard deep copy).
-    return this.fromBuffer(this.toBuffer(val));
+    return this.binaryDecode(this.binaryEncode(val));
   }
 
-  compareBuffers(buf1: Uint8Array, buf2: Uint8Array): number {
+  binaryCompare(buf1: Uint8Array, buf2: Uint8Array): -1 | 0 | 1 {
     return this._match(Tap.fromBuffer(buf1), Tap.fromBuffer(buf2));
   }
 
@@ -175,7 +202,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
     return Object.freeze(resolver);
   }
 
-  decode(buf: Uint8Array, pos?: number, resolver?: TypeResolver): V {
+  binaryDecodeAt(buf: Uint8Array, pos?: number, resolver?: TypeResolver): V {
     const tap = Tap.fromBuffer(buf, pos);
     const val = readValue(this, tap, resolver);
     if (!tap.isValid()) {
@@ -184,7 +211,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
     return {value: val, offset: tap.pos};
   }
 
-  encode(val: V, buf: Uint8Array, pos?: number): number {
+  binaryEncodeAt(val: V, buf: Uint8Array, pos?: number): number {
     const tap = Tap.fromBuffer(buf, pos);
     this._write(tap, val);
     if (!tap.isValid()) {
@@ -238,9 +265,9 @@ export abstract class RealType<V = any> implements BaseType<V> {
     return `<${className} ${j(obj)}>`;
   }
 
-  isValid(val: V, opts?: IsValidOptions): boolean {
+  isValid(arg: unknown, opts?: TypeIsValidOptions): boolean {
     // We only have a single flag for now, so no need to complicate things.
-    const flags = (opts && opts.noUndeclaredFields) | 0;
+    const flags = (opts && opts.allowUndeclaredFields) | 0;
     const errorHook = opts && opts.errorHook;
     let hook, path;
     if (errorHook) {
@@ -249,10 +276,10 @@ export abstract class RealType<V = any> implements BaseType<V> {
         errorHook.call(this, path.slice(), any, type, val);
       };
     }
-    return this._check(val, flags, hook, path);
+    return this._check(arg, flags, hook, path);
   }
 
-  schema(opts?: SchemaOptions): Schema {
+  schema<E = SchemaExtensions>(opts?: TypeSchemaOptions): Schema<E, never> {
     // Copy the options to avoid mutating the original options object when we
     // add the registry of dereferenced types.
     return this._attrs(
@@ -264,7 +291,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
     );
   }
 
-  toBuffer(val: V): Uint8Array {
+  binaryEncode(val: V): Uint8Array {
     TAP.pos = 0;
     this._write(TAP, val);
     if (TAP.isValid()) {
@@ -275,17 +302,8 @@ export abstract class RealType<V = any> implements BaseType<V> {
     return buf;
   }
 
-  toJSON(): unknown {
-    // Convenience to allow using `JSON.stringify(type)` to get a type's schema.
-    return this.schema({exportAttrs: true});
-  }
-
-  toString(val?: any): string {
-    if (val === undefined) {
-      // Consistent behavior with standard `toString` expectations.
-      return JSON.stringify(this.schema({noDeref: true}));
-    }
-    return JSON.stringify(this._copy(val, {coerce: 3}));
+  jsonEncode(val?: V): unknown {
+    return this._copy(val, {coerce: 3});
   }
 
   wrap(val: any): any {
@@ -331,22 +349,6 @@ export abstract class RealType<V = any> implements BaseType<V> {
     return schema;
   }
 
-  _createBranchConstructor() {
-    const name = this.branchName;
-    if (name === 'null') {
-      return null;
-    }
-    const attr = ~name.indexOf('.') ? "this['" + name + "']" : 'this.' + name;
-    const body = 'return function Branch$(val) { ' + attr + ' = val; };';
-
-    const Branch = new Function(body)();
-    Branch.type = this;
-
-    Branch.prototype.unwrap = new Function('return ' + attr + ';');
-    Branch.prototype.unwrapped = Branch.prototype.unwrap; // Deprecated.
-    return Branch;
-  }
-
   _peek(tap: Tap): any {
     const pos = tap.pos;
     const val = this._read(tap);
@@ -357,7 +359,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
   protected abstract compare(obj1: unknown, obj2: unknown): -1 | 0 | 1;
 
   protected abstract _check(
-    args: unknown,
+    arg: unknown,
     flags: any,
     hook: ErrorHook,
     path: string[]
@@ -367,7 +369,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
 
   protected abstract _deref(): any;
 
-  protected abstract _match(tap1: Tap, tap2: Tap): number;
+  protected abstract _match(tap1: Tap, tap2: Tap): -1 | 0 | 1;
 
   abstract _read(tap: Tap): V;
 
@@ -375,11 +377,11 @@ export abstract class RealType<V = any> implements BaseType<V> {
 
   protected abstract _update(resolver: TypeResolver): void;
 
-  protected abstract _write(tap: Tap): void;
+  protected abstract _write(tap: Tap, val: V): void;
 }
 
 /** Derived type abstract class. */
-abstract class RealLogicalType extends RealType {
+export abstract class RealLogicalType extends RealType implements LogicalType {
   private _logicalTypeName: string;
   constructor(schema: Schema, opts?: TypeOptions) {
     super(schema, opts);
@@ -511,10 +513,6 @@ abstract class RealLogicalType extends RealType {
   protected abstract _resolve();
 }
 
-function __reset(size: number): void {
-  TAP.reinitialize(size);
-}
-
 /** TypeResolver to read a writer's schema as a new schema. */
 class TypeResolver {
   _read: ((tap: Tap, lazy: boolean) => any) | undefined;
@@ -643,13 +641,19 @@ export function anonymousName(): string {
   return 'Anonymous'; // TODO: May unique.
 }
 
-export function isType<N extends string>(
-  arg: unknown,
-  ...prefixes: N[]
-): arg is Type & {readonly typeName: `${N}${string}`} {
-  if (!arg || !(arg instanceof RealType)) {
-    // Not fool-proof, but most likely good enough.
-    return false;
+type BranchConstructor = (v: unknown) => Branch;
+
+export function createBranchConstructor(t: RealType): BranchConstructor | null {
+  const name = t.branchName;
+  assert(name, 'missing name');
+  if (name === 'null') {
+    return null;
   }
-  return prefixes.some((p) => arg.typeName.startsWith(p));
+  const attr = name.includes('.') ? "this['" + name + "']" : 'this.' + name;
+  const body = 'return function Branch$(val) { ' + attr + ' = val; };';
+
+  const Branch = new Function(body)();
+  Branch.prototype.wrappedType = t;
+  Branch.prototype.unwrap = new Function('return ' + attr + ';');
+  return Branch;
 }

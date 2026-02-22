@@ -1,16 +1,31 @@
-import {RealType} from './common.js';
-import {BaseType, MapType, ArrayType, Type} from '../interfaces.js';
+import {createBranchConstructor, RealType, TypeContext} from './common.js';
+import {
+  BaseSchema,
+  BaseType,
+  MapSchema,
+  MapType,
+  ArrayType,
+  Type,
+} from '../interfaces.js';
+import {
+  printJSON as j,
+} from '../utils.js';
 
-/** Avro map. Represented as vanilla objects. */
-class RealMapType extends RealType implements MapType {
+/** Avro map. Represented as maps. */
+export class RealMapType extends RealType implements MapType {
   override readonly typeName = 'map';
+  readonly valuesType: Type;
+  protected readonly branchConstructor = createBranchConstructor(
 
-  constructor(schema, opts) {
-    super();
+  constructor(schema: MapSchema, ctx: TypeContext) {
+    super(schema, ctx);
     if (!schema.values) {
       throw new Error(`missing map values: ${j(schema)}`);
     }
-    this.valuesType = Type.forSchema(schema.values, opts);
+    this.valuesType = ctx.factory(schema.values, {
+      ...ctx,
+      depth: ctx.depth + 1,
+    });
     this._branchConstructor = this._createBranchConstructor();
     Object.freeze(this);
   }
@@ -98,7 +113,7 @@ class RealMapType extends RealType implements MapType {
     throw new Error('maps cannot be compared');
   }
 
-  override _match() {
+  override _match(): never {
     return this.compare();
   }
 
@@ -123,17 +138,13 @@ class RealMapType extends RealType implements MapType {
     throw invalidValueError(val, this);
   }
 
-  valuesType(): Type {
-    return this.valuesType;
-  }
-
   _deref(schema, derefed, opts) {
     schema.values = this.valuesType._attrs(derefed, opts);
   }
 }
 
 /** Avro array. Represented as vanilla arrays. */
-class RealArrayType extends RealType implements ArrayType {
+export class RealArrayType extends RealType implements ArrayType {
   override readonly typeName = 'array';
 
   constructor(schema, opts) {
