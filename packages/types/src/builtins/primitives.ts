@@ -1,4 +1,4 @@
-import {RealType} from './common.js';
+import {invalidValueError, RealType} from './common.js';
 import {Type, NullType} from '../interfaces.js';
 
 /**
@@ -8,14 +8,11 @@ import {Type, NullType} from '../interfaces.js';
  * mechanisms, provided by this class. This class also lets us conveniently
  * check whether a type is a primitive using `instanceof`.
  */
-class RealPrimitiveType extends RealType {
-  constructor(noFreeze) {
-    super();
+abstract class RealPrimitiveType extends RealType {
+  constructor() {
+    super({});
     this._branchConstructor = this._createBranchConstructor();
-    if (!noFreeze) {
-      // Abstract long types can't be frozen at this stage.
-      Object.freeze(this);
-    }
+    Object.freeze(this);
   }
 
   _update(resolver, type) {
@@ -25,7 +22,7 @@ class RealPrimitiveType extends RealType {
   }
 
   _copy(val) {
-    this._check(val, undefined, throwInvalidError);
+    this._check(val, undefined, (v, t) => { throw invalidValueError(v, t); });
     return val;
   }
 
@@ -34,13 +31,13 @@ class RealPrimitiveType extends RealType {
   }
 
   compare(a, b) {
-    return utils.compare(a, b);
+    return compareNumbers(a, b);
   }
 }
 
 /** Nulls. */
 class RealNullType extends RealPrimitiveType implements NullType {
-  static typeName = 'null';
+  override readonly typeName = 'null';
 
   _check(val, flags, hook) {
     const b = val === null;
@@ -58,7 +55,7 @@ class RealNullType extends RealPrimitiveType implements NullType {
 
   _write(tap, val) {
     if (val !== null) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
   }
 
@@ -91,7 +88,7 @@ class BooleanType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (typeof val != 'boolean') {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeBoolean(val);
   }
@@ -123,7 +120,7 @@ class IntType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (val !== (val | 0)) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeLong(val);
   }
@@ -171,7 +168,7 @@ class LongType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (typeof val != 'number' || val % 1 || !isSafeLong(val)) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeLong(val);
   }
@@ -237,7 +234,7 @@ class FloatType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (typeof val != 'number') {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeFloat(val);
   }
@@ -264,8 +261,8 @@ class FloatType extends RealPrimitiveType {
 }
 
 /** Doubles. */
-class DoubleType extends RealPrimitiveType {
-  static typeName = 'double';
+export class RealDoubleType extends RealPrimitiveType {
+  readonly typeName = 'double';
 
   _check(val, flags, hook) {
     const b = typeof val == 'number';
@@ -285,7 +282,7 @@ class DoubleType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (typeof val != 'number') {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeDouble(val);
   }
@@ -334,7 +331,7 @@ class StringType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (typeof val != 'string') {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeString(val);
   }
@@ -382,7 +379,7 @@ class BytesType extends RealPrimitiveType {
 
   _write(tap, val) {
     if (!isBufferLike(val)) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeBytes(val);
   }
@@ -403,24 +400,24 @@ class BytesType extends RealPrimitiveType {
     let buf;
     switch ((opts && opts.coerce) | 0) {
       case 3: // Coerce buffers to strings.
-        this._check(obj, undefined, throwInvalidError);
+        this._check(obj, undefined, (v, t) => { throw invalidValueError(v, t); });
         return utils.bufferToBinaryString(obj);
       case 2: // Coerce strings to buffers.
         if (typeof obj != 'string') {
           throw new Error(`cannot coerce to buffer: ${j(obj)}`);
         }
         buf = utils.binaryStringToBuffer(obj);
-        this._check(buf, undefined, throwInvalidError);
+        this._check(buf, undefined, (v, t) => { throw invalidValueError(v, t); });
         return buf;
       case 1: // Coerce buffer JSON representation to buffers.
         if (!isJsonBuffer(obj)) {
           throw new Error(`cannot coerce to buffer: ${j(obj)}`);
         }
         buf = new Uint8Array(obj.data);
-        this._check(buf, undefined, throwInvalidError);
+        this._check(buf, undefined, (v, t) => { throw invalidValueError(v, t); });
         return buf;
       default: // Copy buffer.
-        this._check(obj, undefined, throwInvalidError);
+        this._check(obj, undefined, (v, t) => { throw invalidValueError(v, t); });
         return new Uint8Array(obj);
     }
   }
@@ -492,7 +489,7 @@ class EnumType extends Type {
   _write(tap, val) {
     const index = this._indices[val];
     if (index === undefined) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeLong(index);
   }
@@ -523,7 +520,7 @@ class EnumType extends Type {
   }
 
   _copy(val) {
-    this._check(val, undefined, throwInvalidError);
+    this._check(val, undefined, throw invalidValueError);
     return val;
   }
 
@@ -568,7 +565,7 @@ class FixedType extends Type {
 
   _write(tap, val) {
     if (!isBufferLike(val) || val.length !== this.size) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeFixed(val, this.size);
   }
@@ -604,99 +601,6 @@ FixedType.prototype.compare = utils.bufCompare;
 FixedType.prototype.typeName = 'fixed';
 
 /**
- * Customizable long.
- *
- * This allows support of arbitrarily large long (e.g. larger than
- * `Number.MAX_SAFE_INTEGER`). See `LongType.__with` method above. Note that we
- * can't use a logical type because we need a "lower-level" hook here: passing
- * through through the standard long would cause a loss of precision.
- */
-abstract class AbstractLongType extends LongType {
-  constructor(noUnpack) {
-    super(true);
-    this._noUnpack = !!noUnpack;
-  }
-
-  _check(val, flags, hook) {
-    const b = this._isValid(val);
-    if (!b && hook) {
-      hook(val, this);
-    }
-    return b;
-  }
-
-  _read(tap) {
-    let buf;
-    if (this._noUnpack) {
-      const pos = tap.pos;
-      tap.skipLong();
-      buf = tap.subarray(pos, tap.pos);
-    } else {
-      buf = tap.unpackLongBytes(tap);
-    }
-    if (tap.isValid()) {
-      return this._fromBuffer(buf);
-    }
-  }
-
-  _write(tap, val) {
-    if (!this._isValid(val)) {
-      throwInvalidError(val, this);
-    }
-    const buf = this._toBuffer(val);
-    if (this._noUnpack) {
-      tap.writeFixed(buf);
-    } else {
-      tap.packLongBytes(buf);
-    }
-  }
-
-  _copy(val, opts) {
-    switch (opts && opts.coerce) {
-      case 3: // To string.
-        return this._toJSON(val);
-      case 2: // From string.
-        return this._fromJSON(val);
-      default: // Normal copy.
-        // Slow but guarantees most consistent results. Faster alternatives
-        // would require assumptions on the long class used (e.g. immutability).
-        return this._fromJSON(this._toJSON(val));
-    }
-  }
-
-  _deref() {
-    return 'long';
-  }
-
-  _update(resolver, type) {
-    const self = this;
-    switch (type.typeName) {
-      case 'int':
-        resolver._read = function (tap) {
-          return self._fromJSON(type._read(tap));
-        };
-        break;
-      case 'abstract:long':
-      case 'long':
-        resolver._read = function (tap) {
-          return self._read(tap);
-        };
-    }
-  }
-
-  abstract _fromBuffer(arg: Uint8Array): AbstractLongType;
-  abstract _toBuffer(): Uint8Array;
-  abstract _fromJSON(arg: unknown): AbstractLongType;
-  abstract _toJSON(): unknown;
-  abstract _isValid(): boolean;
-  abstract compare(v1: any, v2: any): number;
-}
-
-AbstractLongType.prototype.typeName = 'abstract:long';
-// Must be defined *before* calling the constructor
-AbstractLongType.prototype._concreteTypeName = 'long';
-
-/**
  * Check whether a long can be represented without precision loss. Two things to
  * note:
  *
@@ -710,19 +614,8 @@ function isSafeLong(n: number): boolean {
 }
 
 /**
- * Check whether a type's name is a primitive. Sample inputs: `'string'`,
- * `'array'`.
- */
-function isPrimitive(typeName: string): typeName is PrimTypeName {
-  // Since we use this module's own `constructors` object, we can use
-  // `instanceof`.
-  const type = constructors[typeName];
-  return type && type.prototype instanceof RealPrimitiveType;
-}
-
-/**
  * Check whether an object is the JSON representation of a buffer.
  */
 function isJsonBuffer(obj: unknown): boolean {
-  return obj && obj.type === 'Buffer' && Array.isArray(obj.data);
+  // TODO: Update.
 }

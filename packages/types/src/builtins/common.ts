@@ -1,6 +1,20 @@
-import {BaseType, Type} from '../interfaces.js';
+import {
+  BaseType,
+  BaseSchema,
+  ErrorHook,
+  NamedSchema,
+  Type,
+  PrimitiveTypeName,
+  primitiveTypeNames,
+} from '../interfaces.js';
 import {Tap} from '../binary.js';
-import {printJSON as j} from '../utils.js';
+import {
+  assert,
+  capitalize,
+  printJSON as j,
+  qualify,
+  unqualify,
+} from '../utils.js';
 
 // Encoding tap (shared for performance).
 const TAP = Tap.withCapacity(1024);
@@ -10,7 +24,7 @@ let activeLogicalType: Type | null = null;
 
 // Underlying types of logical types currently being instantiated. This is used
 // to be able to reference names (i.e. for branches) during instantiation.
-const activeUnderlyingTypes: [Type, Type][] = [];
+const activeUnderlyingTypes: [Type, RealType][] = [];
 
 /**
  * "Abstract" base Avro type.
@@ -25,11 +39,11 @@ const activeUnderlyingTypes: [Type, Type][] = [];
  *  See individual subclasses for details.
  */
 export abstract class RealType<V = any> implements BaseType<V> {
-  readonly typeName: string;
+  abstract readonly typeName: string;
   readonly name: string | undefined;
   readonly aliases: string[] | undefined;
   readonly doc: string | undefined;
-  protected constructor(schema: NamedSchema, opts?: TypeOptions) {
+  protected constructor(schema: BaseSchema | NamedSchema, opts?: TypeOptions) {
     let type;
     if (activeLogicalType) {
       type = activeLogicalType;
@@ -40,9 +54,9 @@ export abstract class RealType<V = any> implements BaseType<V> {
     }
     this.name = undefined;
     this.aliases = undefined;
-    this.doc = schema && schema.doc ? '' + schema.doc : undefined;
+    this.doc = schema.doc ? '' + schema.doc : undefined;
 
-    if (schema) {
+    if ('name' in schema) {
       // This is a complex (i.e. non-primitive) type.
       let name = schema.name;
       const namespace =
@@ -75,19 +89,15 @@ export abstract class RealType<V = any> implements BaseType<V> {
     }
   }
 
-  static __reset(size: number): void {
-    TAP.reinitialize(size);
-  }
-
   get branchName(): string {
-    const type = Type.isType(this, 'logical') ? this.underlyingType : this;
+    const type = isType(this, 'logical') ? this.underlyingType : this;
     if (type.name) {
       return type.name;
     }
-    if (Type.isType(type, 'abstract')) {
+    if (isType(type, 'abstract')) {
       return type._concreteTypeName;
     }
-    return Type.isType(type, 'union') ? undefined : type.typeName;
+    return isType(type, 'union') ? undefined : type.typeName;
   }
 
   clone(val: V, opts?: CloneOptions): any {
@@ -111,16 +121,13 @@ export abstract class RealType<V = any> implements BaseType<V> {
   }
 
   createResolver(type: Type, opts?: CreateResolverOptions): TypeResolver {
-    if (!Type.isType(type)) {
+    if (!isType(type)) {
       // More explicit error message than the "incompatible type" thrown
       // otherwise (especially because of the overridden `toJSON` method).
       throw new Error(`not a type: ${j(type)}`);
     }
 
-    if (
-      !Type.isType(this, 'union', 'logical') &&
-      Type.isType(type, 'logical')
-    ) {
+    if (!isType(this, 'union', 'logical') && isType(type, 'logical')) {
       // Trying to read a logical type as a built-in: unwrap the logical type.
       // Note that we exclude unions to support resolving into unions containing
       // logical types.
@@ -131,10 +138,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
     opts.registry = opts.registry || {};
 
     let resolver, key;
-    if (
-      Type.isType(this, 'record', 'error') &&
-      Type.isType(type, 'record', 'error')
-    ) {
+    if (isType(this, 'record', 'error') && isType(type, 'record', 'error')) {
       // We allow conversions between records and errors.
       key = this.name + ':' + type.name; // ':' is illegal in Avro type names.
       resolver = opts.registry[key];
@@ -149,7 +153,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
       opts.registry[key] = resolver;
     }
 
-    if (Type.isType(type, 'union')) {
+    if (isType(type, 'union')) {
       const resolvers = type.types.map(function (t) {
         return this.createResolver(t, opts);
       }, this);
@@ -193,7 +197,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
 
   equals(type: Type, opts?: TypeEqualsOptions): boolean {
     const canon = // Canonical equality.
-      Type.isType(type) && this._getCachedHash() === type._getCachedHash();
+      isType(type) && this._getCachedHash() === type._getCachedHash();
     if (!canon || !(opts && opts.strict)) {
       return canon;
     }
@@ -228,7 +232,7 @@ export abstract class RealType<V = any> implements BaseType<V> {
     }
     // We add a little metadata for convenience.
     const obj = this.schema({exportAttrs: true, noDeref: true});
-    if (typeof obj == 'object' && !Type.isType(this, 'logical')) {
+    if (typeof obj == 'object' && !isType(this, 'logical')) {
       obj.type = undefined; // Would be redundant with constructor name.
     }
     return `<${className} ${j(obj)}>`;
@@ -350,31 +354,32 @@ export abstract class RealType<V = any> implements BaseType<V> {
     return val;
   }
 
-  abstract compare(obj1: unknown, obj2: unknown): boolean;
-  abstract _check();
-  _copy(): unknown;
-  _deref() {
-    utils.abstractFunction();
-  }
-  _match() {
-    utils.abstractFunction();
-  }
-  _read() {
-    utils.abstractFunction();
-  }
-  _skip() {
-    utils.abstractFunction();
-  }
-  _update() {
-    utils.abstractFunction();
-  }
-  _write() {
-    utils.abstractFunction();
-  }
+  protected abstract compare(obj1: unknown, obj2: unknown): -1 | 0 | 1;
+
+  protected abstract _check(
+    args: unknown,
+    flags: any,
+    hook: ErrorHook,
+    path: string[]
+  ): boolean;
+
+  protected abstract _copy(): unknown;
+
+  protected abstract _deref(): any;
+
+  protected abstract _match(tap1: Tap, tap2: Tap): number;
+
+  abstract _read(tap: Tap): V;
+
+  protected abstract _skip(tap: Tap): void;
+
+  protected abstract _update(resolver: TypeResolver): void;
+
+  protected abstract _write(tap: Tap): void;
 }
 
 /** Derived type abstract class. */
-class LogicalType extends RealType {
+abstract class RealLogicalType extends RealType {
   private _logicalTypeName: string;
   constructor(schema: Schema, opts?: TypeOptions) {
     super(schema, opts);
@@ -394,7 +399,7 @@ class LogicalType extends RealType {
     }
     // We create a separate branch constructor for logical types to keep them
     // monomorphic.
-    if (Type.isType(this.underlyingType, 'union')) {
+    if (isType(this.underlyingType, 'union')) {
       this._branchConstructor = this.underlyingType._branchConstructor;
     } else {
       this._branchConstructor = this.underlyingType._createBranchConstructor();
@@ -427,7 +432,7 @@ class LogicalType extends RealType {
     return this.underlyingType;
   }
 
-  _read(tap: Tap): any {
+  override _read(tap: Tap): any {
     return this._fromValue(this.underlyingType._read(tap));
   }
 
@@ -501,42 +506,49 @@ class LogicalType extends RealType {
   _export(/* schema */) {}
 
   // Methods to be implemented.
-  _fromValue() {
-    utils.abstractFunction();
-  }
-  _toValue() {
-    utils.abstractFunction();
-  }
-  _resolve() {
-    utils.abstractFunction();
-  }
+  protected abstract _fromValue(val: any): any;
+  protected abstract _toValue(arg: any): any;
+  protected abstract _resolve();
+}
+
+function __reset(size: number): void {
+  TAP.reinitialize(size);
 }
 
 /** TypeResolver to read a writer's schema as a new schema. */
 class TypeResolver {
-  constructor(readerType) {
-    // Add all fields here so that all resolvers share the same hidden class.
-    this._readerType = readerType;
-    this._read = null;
-    this.itemsType = null;
-    this.size = 0;
-    this.symbols = null;
-    this.valuesType = null;
-  }
+  _read: ((tap: Tap, lazy: boolean) => any) | undefined;
+  symbols: ReadonlyArray<string> | undefined;
+  itemsType: Type | undefined;
+  valuesType: Type | undefined;
+  size: number = 0;
+  constructor(readonly readerType: RealType) {}
 
   inspect() {
+    // TODO: Use symbol.
     return '<TypeResolver>';
+  }
+
+  _peek(tap: Tap): any {
+    const pos = tap.pos;
+    const val = this._read(tap);
+    tap.pos = pos;
+    return val;
   }
 }
 
-TypeResolver.prototype._peek = Type.prototype._peek;
-
 /** Read a value from a tap. */
-function readValue(type, tap, resolver, lazy) {
+function readValue(
+  type: RealType,
+  tap: Tap,
+  resolver: TypeResolver,
+  lazy: boolean
+): any {
   if (resolver) {
-    if (resolver._readerType !== type) {
+    if (resolver.readerType !== type) {
       throw new Error('invalid resolver');
     }
+    assert(resolver._read, 'uninitialized resolver');
     return resolver._read(tap, lazy);
   }
   return type._read(tap);
@@ -546,29 +558,33 @@ function readValue(type, tap, resolver, lazy) {
  * Get all aliases for a type (including its name). The input is typically a
  * type or a field. Its aliases property must exist and be an array.
  */
-function getAliases(obj: Type | Field): string[] {
-  const names = {};
+function getAliases(obj: {
+  readonly name?: string;
+  readonly aliases?: ReadonlyArray<string>;
+}): string[] {
+  const names = new Set<string>();
   if (obj.name) {
-    names[obj.name] = true;
+    names.add(obj.name);
   }
-  const aliases = obj.aliases;
-  for (let i = 0, l = aliases.length; i < l; i++) {
-    names[aliases[i]] = true;
+  for (const alias of obj.aliases ?? []) {
+    names.add(alias);
   }
-  return Object.keys(names);
+  return [...names];
 }
 
 /** Checks if a type can be read as another based on name resolution rules. */
-function hasCompatibleName(reader, writer, strict) {
+function hasCompatibleName(
+  reader: RealType,
+  writer: RealType,
+  strict: boolean
+) {
   if (!writer.name) {
     return true;
   }
-  const name = strict ? writer.name : utils.unqualify(writer.name);
-  const aliases = getAliases(reader);
-  for (let i = 0, l = aliases.length; i < l; i++) {
-    let alias = aliases[i];
+  const name = strict ? writer.name : unqualify(writer.name);
+  for (let alias of getAliases(reader)) {
     if (!strict) {
-      alias = utils.unqualify(alias);
+      alias = unqualify(alias);
     }
     if (alias === name) {
       return true;
@@ -578,20 +594,28 @@ function hasCompatibleName(reader, writer, strict) {
 }
 
 /**
+ * Check whether a type's name is a primitive. Sample inputs: `'string'`,
+ * `'array'`.
+ */
+function isPrimitive(typeName: string): typeName is PrimitiveTypeName {
+  return primitiveTypeNames.includes(typeName as any);
+}
+
+/**
  * Throw a somewhat helpful error on invalid object.
  *
  * This method is mostly used from `_write` to signal an invalid object for a
  * given type. Note that this provides less information than calling `isValid`
  * with a hook since the path is not propagated (for efficiency reasons).
  */
-function throwInvalidError(val: unknown, type: Type): never {
-  throw new Error(`invalid ${j(type.schema())}: ${j(val)}`);
+export function invalidValueError(val: unknown, type: Type): Error {
+  return new Error(`invalid ${j(type.schema())}: ${j(val)}`);
 }
 
 function maybeQualify(name: string, ns?: string): string {
-  const unqualified = utils.unqualify(name);
+  const unqualified = unqualify(name);
   // Primitives are always in the global namespace.
-  return isPrimitive(unqualified) ? unqualified : utils.qualify(name, ns);
+  return isPrimitive(unqualified) ? unqualified : qualify(name, ns);
 }
 
 /**
@@ -608,18 +632,21 @@ function getClassName(typeName: string): string {
         typeName = match[2] + 'Union';
       } else {
         // Logical type.
-        typeName = match[1];
+        typeName = match[1]!;
       }
     }
   }
-  return utils.capitalize(typeName) + 'Type';
+  return capitalize(typeName) + 'Type';
 }
 
 export function anonymousName(): string {
   return 'Anonymous'; // TODO: May unique.
 }
 
-export function isType<N extends string>(arg: unknown, ...prefixes: N[]): arg is Type & {readonly typeName: `${N}${string}`} {
+export function isType<N extends string>(
+  arg: unknown,
+  ...prefixes: N[]
+): arg is Type & {readonly typeName: `${N}${string}`} {
   if (!arg || !(arg instanceof RealType)) {
     // Not fool-proof, but most likely good enough.
     return false;

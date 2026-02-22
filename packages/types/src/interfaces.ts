@@ -3,16 +3,19 @@
  * implementation details of each type.
  */
 
+export const primitiveTypeNames = [
+  'null',
+  'boolean',
+  'int',
+  'long',
+  'float',
+  'double',
+  'string',
+  'bytes',
+] as const;
+
 /** Supported primitive type names. */
-export type PrimTypeName =
-  | 'null'
-  | 'boolean'
-  | 'int'
-  | 'long'
-  | 'float'
-  | 'double'
-  | 'string'
-  | 'bytes';
+export type PrimitiveTypeName = (typeof primitiveTypeNames)[number];
 
 /** Attributes present in all schemas. */
 export interface BaseSchema {
@@ -42,7 +45,7 @@ interface FieldSchema<E = SchemaExtensions, T = Type> {
 }
 
 export type Schema<E = SchemaExtensions, T = Type> =
-  | ({type: PrimTypeName} & BaseSchema & E)
+  | ({type: PrimitiveTypeName} & BaseSchema & E)
   | ({type: 'array'; items: Schema<E, T>} & BaseSchema & E)
   | ({type: 'enum'; symbols: ReadonlyArray<string>} & NamedSchema & E)
   | ({type: 'fixed'; size: number} & NamedSchema & E)
@@ -67,7 +70,8 @@ export type Type<V = any> =
   | ArrayType<V>
   | MapType<V>
   | RecordType<V>
-  | UnionType<V>;
+  | UnionType<V>
+  | LogicalType<V>;
 
 export interface BaseType<V = any, G = {}> {
   /**
@@ -157,8 +161,7 @@ export interface TypeIsValidOptions {
   readonly errorHook?: ErrorHook;
 }
 
-export interface TypeCloneOptions {
-}
+export interface TypeCloneOptions {}
 
 export interface TypeSchemaOptions {
   readonly exportAttrs?: boolean;

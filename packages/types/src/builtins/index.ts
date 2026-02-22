@@ -1,4 +1,4 @@
-import {ArrayType, LogicalType,Schema, Type} from '../interfaces.js';
+import {ArrayType, LogicalType, Schema, Type} from '../interfaces.js';
 import {assert, printJSON as j} from '../utils.js';
 import {isBufferLike} from '../binary.js';
 import {RealType, anonymousName, isType} from './common.js';
@@ -122,9 +122,7 @@ export function parseType<V = Type>(
             ? UnwrappedUnionType
             : WrappedUnionType;
       } else {
-        UnionType = isAmbiguous(types)
-          ? WrappedUnionType
-          : UnwrappedUnionType;
+        UnionType = isAmbiguous(types) ? WrappedUnionType : UnwrappedUnionType;
       }
     }
     activeLogicalType = logicalType;
@@ -146,13 +144,21 @@ export interface ParseTypeOptions {
   readonly assertLogicalTypes?: boolean;
   readonly errorStackTraces?: boolean;
   readonly logicalTypes?: {
-    readonly [name: string]: new (schema: Schema, opts?: ParseTypeOptions) => LogicalType;
+    readonly [name: string]: new (
+      schema: Schema,
+      opts?: ParseTypeOptions
+    ) => LogicalType;
   };
   readonly omitRecordMethods?: boolean;
   readonly recordSizeProperty?: string | symbol;
   readonly registry?: {[name: string]: Type};
   readonly typeHook?: TypeHook;
-  readonly wrapUnions?: 'auto' | 'always' | 'never' | boolean| ((types: ReadonlyArray<Type>) => boolean);
+  readonly wrapUnions?:
+    | 'auto'
+    | 'always'
+    | 'never'
+    | boolean
+    | ((types: ReadonlyArray<Type>) => boolean);
 }
 
 export type TypeHook = (

@@ -174,7 +174,7 @@ export class RealUnwrappedUnionType extends RealUnionType {
   _write(tap, val) {
     const index = this._getIndex(val);
     if (index === undefined) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     tap.writeLong(index);
     if (val !== null) {
@@ -236,7 +236,7 @@ export class RealUnwrappedUnionType extends RealUnionType {
           index = this._getIndex(val);
       }
       if (index === undefined) {
-        throwInvalidError(val, this);
+        throw invalidValueError(val, this);
       }
     }
     const type = this.types[index];
@@ -259,9 +259,9 @@ export class RealUnwrappedUnionType extends RealUnionType {
     const index1 = this._getIndex(val1);
     const index2 = this._getIndex(val2);
     if (index1 === undefined) {
-      throwInvalidError(val1, this);
+      throw invalidValueError(val1, this);
     } else if (index2 === undefined) {
-      throwInvalidError(val2, this);
+      throw invalidValueError(val2, this);
     } else if (index1 === index2) {
       return this.types[index1].compare(val1, val2);
     } else {
@@ -345,7 +345,7 @@ export class RealWrappedUnionType extends RealUnionType {
     if (val === null) {
       index = this._branchIndices['null'];
       if (index === undefined) {
-        throwInvalidError(val, this);
+        throw invalidValueError(val, this);
       }
       tap.writeLong(index);
     } else {
@@ -356,7 +356,7 @@ export class RealWrappedUnionType extends RealUnionType {
         index = this._branchIndices[name];
       }
       if (index === undefined) {
-        throwInvalidError(val, this);
+        throw invalidValueError(val, this);
       }
       tap.writeLong(index);
       this.types[index]._write(tap, val[name]);
@@ -440,7 +440,7 @@ export class RealWrappedUnionType extends RealUnionType {
     if (obj !== undefined) {
       return wrap === 3 ? obj : new this.types[i]._branchConstructor(obj);
     }
-    throwInvalidError(val, this);
+    throw invalidValueError(val, this);
   }
 
   compare(val1, val2) {

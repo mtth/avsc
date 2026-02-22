@@ -77,7 +77,7 @@ class RealMapType extends RealType implements MapType {
 
   _write(tap, val) {
     if (!val || typeof val != 'object' || Array.isArray(val)) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
 
     const values = this.valuesType;
@@ -120,7 +120,7 @@ class RealMapType extends RealType implements MapType {
       }
       return copy;
     }
-    throwInvalidError(val, this);
+    throw invalidValueError(val, this);
   }
 
   valuesType(): Type {
@@ -212,7 +212,7 @@ class RealArrayType extends RealType implements ArrayType {
 
   _write(tap, val) {
     if (!Array.isArray(val)) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     const items = this.itemsType;
     const n = val.length;
@@ -252,7 +252,7 @@ class RealArrayType extends RealType implements ArrayType {
 
   _copy(val, opts) {
     if (!Array.isArray(val)) {
-      throwInvalidError(val, this);
+      throw invalidValueError(val, this);
     }
     const items = new Array(val.length);
     for (let i = 0, l = val.length; i < l; i++) {

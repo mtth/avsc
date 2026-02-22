@@ -9,7 +9,7 @@ export function capitalize(s: string): string {
 }
 
 /** Compare two numbers. */
-export function compare(n1: number, n2: number): number {
+export function compareNumbers(n1: number, n2: number): number {
   return n1 === n2 ? 0 : n1 < n2 ? -1 : 1;
 }
 
