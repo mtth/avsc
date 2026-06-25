@@ -223,6 +223,35 @@ suite('types', () => {
       assert.equal(s, t.fromBuffer(b)); // Also checks exact length match.
     });
 
+    test('compare', () => {
+      let t = Type.forSchema('string');
+      assert.equal(t.compare('', ''), 0);
+      assert.equal(t.compare('a', 'b'), -1);
+      assert.equal(t.compare('b', 'a'), 1);
+      assert.equal(t.compare('a', 'ab'), -1);
+    });
+
+    test('compare ordering matches compareBuffers', () => {
+      // The spec mandates byte (code point) order, which `compareBuffers`
+      // already follows. `compare` must agree, including for supplementary
+      // plane characters whose UTF-16 surrogate units sort differently.
+      let t = Type.forSchema('string');
+      let pairs = [
+        ['', '\u{1f600}'], // U+E000 (BMP) < U+1F600 (astral)
+        ['z', '\u{1f600}'],
+        ['\u{1f600}', '\u{1f601}']
+      ];
+      pairs.forEach((pair) => {
+        let direct = t.compare(pair[0], pair[1]);
+        let buffers = t.compareBuffers(
+          t.toBuffer(pair[0]),
+          t.toBuffer(pair[1])
+        );
+        assert.equal(direct, buffers, pair.join(' vs '));
+        assert.equal(direct, -1, pair.join(' vs '));
+      });
+    });
+
   });
 
   suite('NullType', () => {
