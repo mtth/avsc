@@ -1304,6 +1304,17 @@ suite('types', () => {
       assert.strictEqual(t.getName(true), 'map');
     });
 
+    test('bounds reads on a corrupt block count', () => {
+      let t = new builtins.MapType({type: 'map', values: 'long'});
+      let tap = Tap.withCapacity(16);
+      tap.writeLong(100000); // Huge count, no entries follow.
+      let buf = tap.subarray(0, tap.pos);
+      assert.throws(() => { t.fromBuffer(buf); }, /truncated buffer/);
+      let readTap = Tap.fromBuffer(buf);
+      t._read(readTap);
+      assert(readTap.pos <= buf.length + 8, 'over-read: ' + readTap.pos);
+    });
+
   });
 
   suite('ArrayType', () => {
@@ -1476,6 +1487,17 @@ suite('types', () => {
         t.fromBuffer(tap.subarray(0, tap.pos)),
         ['hi', 'hey', 'hello']
       );
+    });
+
+    test('bounds reads on a corrupt block count', () => {
+      let t = new builtins.ArrayType({items: 'long'});
+      let tap = Tap.withCapacity(16);
+      tap.writeLong(100000); // Huge count, no elements follow.
+      let buf = tap.subarray(0, tap.pos);
+      assert.throws(() => { t.fromBuffer(buf); }, /truncated buffer/);
+      let readTap = Tap.fromBuffer(buf);
+      t._read(readTap);
+      assert(readTap.pos <= buf.length + 8, 'over-read: ' + readTap.pos);
     });
 
   });
