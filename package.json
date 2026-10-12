@@ -1,8 +1,8 @@
 {
-  "name": "avsc",
-  "version": "6.0.0-rc.1",
+  "name": "@jim-lake/avsc",
+  "version": "6.1.0",
   "description": "Avro for JavaScript",
-  "homepage": "https://github.com/mtth/avsc",
+  "homepage": "https://github.com/jim-lake/avsc",
   "keywords": [
     "api",
     "avdl",
@@ -33,7 +33,7 @@
     "types/index.d.ts"
   ],
   "main": "./lib",
-  "types": "./types",
+  "types": "./types/index.d.ts",
   "browser": {
     "./lib": "./etc/browser/avsc.js",
     "./lib/files": "./etc/browser/lib/files.js",
@@ -66,6 +66,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git://github.com/mtth/avsc.git"
+    "url": "git+https://github.com/jim-lake/avsc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jim-lake/avsc/issues"
+  },
+  "publishConfig": {
+    "access": "public"
   }
 }

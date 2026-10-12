@@ -1,6 +1,6 @@
 module.exports = {
   parserOptions: {
-    ecmaVersion: 6,
+    ecmaVersion: 2021,
     impliedStrict: true
   },
   env: {
@@ -36,7 +36,10 @@ module.exports = {
 
         'no-var': ['error'],
         'prefer-arrow-callback': ['error'],
-        'arrow-parens': ['error', 'always']
+        'arrow-parens': ['error', 'always'],
+        'no-unused-vars': ['error', {
+          ignoreRestSiblings: true,
+        }]
       },
     },
     {

@@ -380,6 +380,149 @@ suite('containers', () => {
         encoder.end(id);
       });
 
+      test('write iceberg schema properties', (cb) => {
+        let obj = {
+          type: 'record',
+          name: 'TestRecord',
+          fields: [
+            {
+              name: 'equality_ids',
+              type: [
+                'null',
+                { type: 'array', items: 'int', 'element-id': 136 },
+              ],
+              doc: 'Equality comparison field IDs',
+              default: null,
+              'field-id': 135,
+            },
+            {
+              name: 'value_counts',
+              type: [
+                'null',
+                {
+                  type: 'array',
+                  items: {
+                    type: 'record',
+                    name: 'k119_v120',
+                    fields: [
+                      { name: 'key', type: 'int', 'field-id': 119 },
+                      { name: 'value', type: 'long', 'field-id': 120 },
+                    ],
+                  },
+                  logicalType: 'map',
+                  'key-id': 119,
+                  'value-id': 120,
+                },
+              ],
+              doc: 'Map of column id to total count, including null and NaN',
+              default: null,
+              'field-id': 109,
+            },
+          ],
+        };
+        let vals = [];
+        let encoder = new BlockEncoder(obj);
+        let decoder = new streams.BlockDecoder()
+          .on('metadata', (type, codec, header) => {
+            let schema = JSON.parse(DECODER.decode(header.meta['avro.schema']));
+            // Check field-id on record fields
+            assert.strictEqual(schema.fields[0]['field-id'], 135);
+            assert.strictEqual(schema.fields[1]['field-id'], 109);
+            // Check element-id on array
+            assert.strictEqual(schema.fields[0].type[1]['element-id'], 136);
+            // Check logicalType, key-id, value-id on map array
+            assert.strictEqual(schema.fields[1].type[1].logicalType, 'map');
+            assert.strictEqual(schema.fields[1].type[1]['key-id'], 119);
+            assert.strictEqual(schema.fields[1].type[1]['value-id'], 120);
+            // Check field-id on nested record fields
+            assert.strictEqual(schema.fields[1].type[1].items.fields[0]['field-id'], 119);
+            assert.strictEqual(schema.fields[1].type[1].items.fields[1]['field-id'], 120);
+          })
+          .on('data', (val) => { vals.push(val); })
+          .on('end', () => {
+            assert.deepEqual(vals, [
+              { equality_ids: null, value_counts: null },
+              { equality_ids: [1, 2], value_counts: null },
+            ]);
+            cb();
+          });
+        encoder.pipe(decoder);
+        encoder.write({ equality_ids: null, value_counts: null });
+        encoder.end({ equality_ids: [1, 2], value_counts: null });
+      });
+
+      test('write iceberg schema properties from Type', (cb) => {
+        let obj = {
+          type: 'record',
+          name: 'TestRecord',
+          fields: [
+            {
+              name: 'equality_ids',
+              type: [
+                'null',
+                { type: 'array', items: 'int', 'element-id': 136 },
+              ],
+              doc: 'Equality comparison field IDs',
+              default: null,
+              'field-id': 135,
+            },
+            {
+              name: 'value_counts',
+              type: [
+                'null',
+                {
+                  type: 'array',
+                  items: {
+                    type: 'record',
+                    name: 'k119_v120',
+                    fields: [
+                      { name: 'key', type: 'int', 'field-id': 119 },
+                      { name: 'value', type: 'long', 'field-id': 120 },
+                    ],
+                  },
+                  logicalType: 'map',
+                  'key-id': 119,
+                  'value-id': 120,
+                },
+              ],
+              doc: 'Map of column id to total count, including null and NaN',
+              default: null,
+              'field-id': 109,
+            },
+          ],
+        };
+        let type = Type.forSchema(obj);
+        let vals = [];
+        let encoder = new BlockEncoder(type);
+        let decoder = new streams.BlockDecoder()
+          .on('metadata', (type, codec, header) => {
+            let schema = JSON.parse(DECODER.decode(header.meta['avro.schema']));
+            // Check field-id on record fields
+            assert.strictEqual(schema.fields[0]['field-id'], 135);
+            assert.strictEqual(schema.fields[1]['field-id'], 109);
+            // Check element-id on array
+            assert.strictEqual(schema.fields[0].type[1]['element-id'], 136);
+            // Check logicalType, key-id, value-id on map array
+            assert.strictEqual(schema.fields[1].type[1].logicalType, 'map');
+            assert.strictEqual(schema.fields[1].type[1]['key-id'], 119);
+            assert.strictEqual(schema.fields[1].type[1]['value-id'], 120);
+            // Check field-id on nested record fields
+            assert.strictEqual(schema.fields[1].type[1].items.fields[0]['field-id'], 119);
+            assert.strictEqual(schema.fields[1].type[1].items.fields[1]['field-id'], 120);
+          })
+          .on('data', (val) => { vals.push(val); })
+          .on('end', () => {
+            assert.deepEqual(vals, [
+              { equality_ids: null, value_counts: null },
+              { equality_ids: [1, 2], value_counts: null },
+            ]);
+            cb();
+          });
+        encoder.pipe(decoder);
+        encoder.write({ equality_ids: null, value_counts: null });
+        encoder.end({ equality_ids: [1, 2], value_counts: null });
+      });
+
     });
 
     suite('BlockDecoder', () => {

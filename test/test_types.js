@@ -843,7 +843,7 @@ suite('types', () => {
       const roundtripped = type.fromBuffer(type.toBuffer(data));
       assert.equal(roundtripped.constructor.name, name);
       assert.deepEqual(roundtripped, data);
-    })
+    });
   });
 
   suite('EnumType', () => {
@@ -3525,7 +3525,7 @@ suite('types', () => {
       let callsToWrapUnions = 0;
       const wrapUnions = (types) => {
         callsToWrapUnions++;
-        assert.deepEqual(types.map(t => t.name), ['Dog', 'Cat']);
+        assert.deepEqual(types.map((t) => t.name), ['Dog', 'Cat']);
         return (animal) => {
           const animalType = ((animal) => {
             if ('bark' in animal) {
@@ -3535,15 +3535,15 @@ suite('types', () => {
             }
             throw new Error('Unknown animal');
           })(animal);
-          return types.indexOf(types.find(type => type.name === animalType));
-        }
+          return types.indexOf(types.find((type) => type.name === animalType));
+        };
       };
 
-       // Ambiguous, but we have a projection function
+      // Ambiguous, but we have a projection function
       const Animal = Type.forSchema(animalTypes, { wrapUnions });
       Animal.toBuffer({ meow: '🐈' });
       assert.equal(callsToWrapUnions, 1);
-      assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/)
+      assert.throws(() => Animal.toBuffer({ snap: '🐊' }), /Unknown animal/);
     });
 
     test('union projection with fallback', () => {
