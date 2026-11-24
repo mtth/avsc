@@ -2066,6 +2066,44 @@ suite('services', function () {
       assert.deepEqual(client.remoteProtocols(), remotePtcls);
     });
 
+    test('remote protocols reused by a new client', function (done) {
+      var clientSvc = Service.forProtocol({
+        protocol: 'Math1',
+        messages: {
+          neg: {request: [{name: 'n', type: 'int'}], response: 'long'}
+        }
+      });
+      var serverSvc = Service.forProtocol({
+        protocol: 'Math2',
+        messages: {
+          neg: {request: [{name: 'n', type: 'long'}], response: 'int'}
+        }
+      });
+      var server = serverSvc.createServer()
+        .onNeg(function (n, cb) { cb(null, -n); });
+      var client1 = clientSvc.createClient();
+      client1.createChannel(connect());
+      client1.neg(2, function (err, res) {
+        assert(!err, err);
+        assert.equal(res, -2);
+        var client2 = clientSvc.createClient({
+          remoteProtocols: client1.remoteProtocols()
+        });
+        client2.createChannel(connect(), {serverHash: serverSvc.hash});
+        client2.neg(3, function (err, res) {
+          assert(!err, err);
+          assert.equal(res, -3);
+          done();
+        });
+      });
+
+      function connect() {
+        var transports = createPassthroughTransports();
+        server.createChannel(transports[0]);
+        return transports[1];
+      }
+    });
+
     test('invalid response', function (done) {
       var svc = Service.forProtocol({
         protocol: 'Ping',
